@@ -67,4 +67,19 @@ class RepairLengthsTest {
                 .isInstanceOf(PhpSerializeException.class)
                 .hasMessageContaining("length");
     }
+
+    @Test
+    void repairModeParsesObjectsAndCustomObjects() {
+        assertThat(PhpSerialize.parse("O:3:\"Foo\":1:{s:1:\"a\";i:1;}", REPAIR))
+                .isEqualTo(new PhpObject(
+                        "Foo", PhpArray.builder().put("a", new PhpInt(1)).build()));
+        assertThat(PhpSerialize.parse("C:3:\"Foo\":5:{hello}", REPAIR))
+                .isEqualTo(new PhpCustomObject("Foo", "hello".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThat(PhpSerialize.parse("E:11:\"Suit:Hearts\";", REPAIR)).isEqualTo(new PhpEnum("Suit", "Hearts"));
+    }
+
+    @Test
+    void repairsCorruptedClassNameLength() {
+        assertThat(PhpSerialize.parse("O:2:\"Foo\":0:{}", REPAIR)).isEqualTo(new PhpObject("Foo", PhpArray.empty()));
+    }
 }

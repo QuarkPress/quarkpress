@@ -46,7 +46,7 @@ final class PhpParser {
                 return readFloat();
             case 's':
                 expect(':');
-                byte[] bytes = readLengthPrefixedBytes();
+                byte[] bytes = readLengthPrefixedBytes(';');
                 expect(';');
                 return new PhpString(bytes, options.charset());
             case 'a':
@@ -99,7 +99,7 @@ final class PhpParser {
                 return PhpArray.Key.of(readLong(';'));
             case 's':
                 expect(':');
-                byte[] bytes = readLengthPrefixedBytes();
+                byte[] bytes = readLengthPrefixedBytes(';');
                 expect(';');
                 return PhpArray.Key.of(new PhpString(bytes, options.charset()));
             default:
@@ -139,7 +139,7 @@ final class PhpParser {
     private PhpEnum readEnum() {
         expect(':');
         int start = pos;
-        String text = new String(readLengthPrefixedBytes(), StandardCharsets.UTF_8);
+        String text = new String(readLengthPrefixedBytes(';'), StandardCharsets.UTF_8);
         expect(';');
         int colon = text.indexOf(':');
         if (colon <= 0 || colon == text.length() - 1) {
@@ -151,7 +151,7 @@ final class PhpParser {
 
     /** Reads {@code LEN:"Name"}; class names are ASCII identifiers, decoded as UTF-8 to be safe. */
     private String readClassName() {
-        return new String(readLengthPrefixedBytes(), StandardCharsets.UTF_8);
+        return new String(readLengthPrefixedBytes(':'), StandardCharsets.UTF_8);
     }
 
     private PhpBool readBool() {
@@ -184,12 +184,16 @@ final class PhpParser {
         return new PhpFloat(value, lexeme);
     }
 
-    /** Reads {@code LEN:"BYTES"} and leaves the cursor after the closing quote. */
-    private byte[] readLengthPrefixedBytes() {
+    /**
+     * Reads {@code LEN:"BYTES"} and leaves the cursor after the closing quote. {@code after} is the
+     * byte that must follow the closing quote ({@code ;} for strings, {@code :} for class names);
+     * it is only used to locate the end in repair mode and is not consumed.
+     */
+    private byte[] readLengthPrefixedBytes(char after) {
         int lengthStart = pos;
         long declared = readLong(':');
         if (options.repairLengths()) {
-            return readRepairingLength(lengthStart, declared);
+            return readRepairingLength(lengthStart, declared, after);
         }
         checkStringLength(declared, lengthStart);
         if (declared > in.length - pos) {
@@ -208,15 +212,15 @@ final class PhpParser {
      * Lenient variant: trusts the declared length only when it lands on {@code ";} followed by a
      * plausible continuation; otherwise scans forward for the first such terminator.
      */
-    private byte[] readRepairingLength(int lengthStart, long declared) {
+    private byte[] readRepairingLength(int lengthStart, long declared, char after) {
         expect('"');
         int start = pos;
         int end = -1;
-        if (declared >= 0 && declared <= in.length - start && isTerminatorAt(start + (int) declared)) {
+        if (declared >= 0 && declared <= in.length - start && isTerminatorAt(start + (int) declared, after)) {
             end = start + (int) declared;
         } else {
             for (int i = start; i + 1 < in.length; i++) {
-                if (isTerminatorAt(i)) {
+                if (isTerminatorAt(i, after)) {
                     end = i;
                     break;
                 }
@@ -231,15 +235,23 @@ final class PhpParser {
         return Arrays.copyOfRange(in, start, end);
     }
 
-    /** True when {@code in[i..]} is {@code ";} followed by end of input or a plausible next token. */
-    private boolean isTerminatorAt(int i) {
-        if (i + 1 >= in.length || in[i] != '"' || in[i + 1] != ';') {
+    /**
+     * True when {@code in[i..]} is a closing quote, the expected {@code after} byte, and then end of
+     * input or a plausible continuation: a value/key tag or {@code }} after {@code ";}, a digit after
+     * {@code ":} (the element count or payload length that follows a class name).
+     */
+    private boolean isTerminatorAt(int i, char after) {
+        if (i + 1 >= in.length || in[i] != '"' || in[i + 1] != after) {
             return false;
         }
         if (i + 2 >= in.length) {
-            return true;
+            return after == ';';
         }
-        return switch (in[i + 2]) {
+        byte c = in[i + 2];
+        if (after == ':') {
+            return c >= '0' && c <= '9';
+        }
+        return switch (c) {
             case '}', 'N', 'b', 'i', 'd', 's', 'a', 'O', 'C', 'r', 'R', 'E' -> true;
             default -> false;
         };
