@@ -188,10 +188,10 @@ final class PhpParser {
     private byte[] readLengthPrefixedBytes() {
         int lengthStart = pos;
         long declared = readLong(':');
-        if (declared < 0 || declared > options.maxStringBytes()) {
-            pos = lengthStart;
-            throw fail("string length " + declared + " exceeds limit " + options.maxStringBytes());
+        if (options.repairLengths()) {
+            return readRepairingLength(lengthStart, declared);
         }
+        checkStringLength(declared, lengthStart);
         if (declared > in.length - pos) {
             pos = lengthStart;
             throw fail("string length " + declared + " exceeds remaining input");
@@ -202,6 +202,54 @@ final class PhpParser {
         pos = end;
         expect('"');
         return Arrays.copyOfRange(in, start, end);
+    }
+
+    /**
+     * Lenient variant: trusts the declared length only when it lands on {@code ";} followed by a
+     * plausible continuation; otherwise scans forward for the first such terminator.
+     */
+    private byte[] readRepairingLength(int lengthStart, long declared) {
+        expect('"');
+        int start = pos;
+        int end = -1;
+        if (declared >= 0 && declared <= in.length - start && isTerminatorAt(start + (int) declared)) {
+            end = start + (int) declared;
+        } else {
+            for (int i = start; i + 1 < in.length; i++) {
+                if (isTerminatorAt(i)) {
+                    end = i;
+                    break;
+                }
+            }
+        }
+        if (end < 0) {
+            pos = start;
+            throw fail("unterminated string, length repair failed");
+        }
+        checkStringLength(end - start, lengthStart);
+        pos = end + 1;
+        return Arrays.copyOfRange(in, start, end);
+    }
+
+    /** True when {@code in[i..]} is {@code ";} followed by end of input or a plausible next token. */
+    private boolean isTerminatorAt(int i) {
+        if (i + 1 >= in.length || in[i] != '"' || in[i + 1] != ';') {
+            return false;
+        }
+        if (i + 2 >= in.length) {
+            return true;
+        }
+        return switch (in[i + 2]) {
+            case '}', 'N', 'b', 'i', 'd', 's', 'a', 'O', 'C', 'r', 'R', 'E' -> true;
+            default -> false;
+        };
+    }
+
+    private void checkStringLength(long length, int lengthStart) {
+        if (length < 0 || length > options.maxStringBytes()) {
+            pos = lengthStart;
+            throw fail("string length " + length + " exceeds limit " + options.maxStringBytes());
+        }
     }
 
     private long readLong(char terminator) {
