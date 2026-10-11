@@ -93,7 +93,7 @@ class PhpParserCompoundTest {
         assertThatThrownBy(() -> PhpSerialize.parse(deep))
                 .isInstanceOf(PhpSerializeException.class)
                 .hasMessageContaining("depth");
-        String ok = "a:1:{i:0;".repeat(500) + "i:1;" + "}".repeat(500);
+        String ok = "a:1:{i:0;".repeat(250) + "i:1;" + "}".repeat(250);
         assertThat(PhpSerialize.parse(ok)).isInstanceOf(PhpArray.class);
     }
 
@@ -123,5 +123,53 @@ class PhpParserCompoundTest {
                         PhpSerializeException.class, e -> assertThat(e.offset()).isEqualTo(17));
         assertThatThrownBy(() -> PhpSerialize.parse("O:3:\"Foo\":1:{")).isInstanceOf(PhpSerializeException.class);
         assertThatThrownBy(() -> PhpSerialize.parse("C:3:\"Foo\":5:{hel")).isInstanceOf(PhpSerializeException.class);
+    }
+
+    @Test
+    void maxDepthIsCapped() {
+        assertThatThrownBy(() -> ParseOptions.DEFAULTS.withMaxDepth(100_000))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(ParseOptions.DEFAULTS
+                        .withMaxDepth(ParseOptions.MAX_DEPTH_LIMIT)
+                        .maxDepth())
+                .isEqualTo(ParseOptions.MAX_DEPTH_LIMIT);
+    }
+
+    @Test
+    void deepNestingOnSmallStackStillThrowsPhpSerializeException() throws Exception {
+        int depth = ParseOptions.MAX_DEPTH_LIMIT;
+        String deep = "a:1:{i:0;".repeat(depth) + "i:1;" + "}".repeat(depth);
+        ParseOptions opts = ParseOptions.DEFAULTS.withMaxDepth(depth);
+        Throwable[] caught = new Throwable[1];
+        Thread t = new Thread(
+                null,
+                () -> {
+                    try {
+                        PhpSerialize.parse(deep, opts);
+                    } catch (Throwable e) {
+                        caught[0] = e;
+                    }
+                },
+                "tiny-stack",
+                128 * 1024);
+        t.start();
+        t.join();
+        // Either the parse succeeds (big enough stack) or it fails with our exception; nothing else may escape.
+        if (caught[0] != null) {
+            assertThat(caught[0]).isInstanceOf(PhpSerializeException.class);
+        }
+    }
+
+    @Test
+    void integerParsingDoesNotUseRegex() {
+        // 20 000 small ints must parse quickly; a per-integer Pattern.compile made this visibly slow.
+        StringBuilder sb = new StringBuilder("a:20000:{");
+        for (int i = 0; i < 20000; i++) {
+            sb.append("i:").append(i).append(";i:").append(i).append(';');
+        }
+        sb.append('}');
+        long start = System.nanoTime();
+        assertThat(((PhpArray) PhpSerialize.parse(sb.toString())).size()).isEqualTo(20000);
+        assertThat(System.nanoTime() - start).isLessThan(2_000_000_000L);
     }
 }

@@ -7,14 +7,17 @@ import java.util.regex.Pattern;
 /** Entry point: parse and write PHP {@code serialize()} data. */
 public final class PhpSerialize {
 
-    private static final Pattern NUMERIC_SCALAR = Pattern.compile("[bid]:-?[0-9.EINFAe+-]+;");
+    private static final Pattern NUMERIC_TAIL = Pattern.compile("-?[0-9.]+([eE][+-]?[0-9]+)?|-?INF|NAN");
 
     private PhpSerialize() {}
 
     /**
-     * Cheap heuristic: does this text look like PHP serialized data? Mirrors the behaviour
-     * WordPress relies on when deciding whether an option value needs unserializing. It does not
-     * validate the content; use {@link #parse(String)} for that.
+     * Cheap heuristic: does this text look like PHP serialized data? Derived from the format
+     * grammar: a one-letter type tag, {@code :} (except for {@code N;}), and the closing token that
+     * type requires. Surrounding whitespace is ignored because database drivers and copy/paste add
+     * it. The intent matches what a WordPress-style option store needs when deciding whether a
+     * value must be unserialized; it does not validate the content, use {@link #parse(String)} for
+     * that.
      */
     public static boolean looksSerialized(String text) {
         if (text == null) {
@@ -24,18 +27,18 @@ public final class PhpSerialize {
         if (s.equals("N;")) {
             return true;
         }
-        if (s.length() < 4 || s.charAt(1) != ':') {
+        if (s.length() < 3 || s.charAt(1) != ':') {
             return false;
         }
-        char last = s.charAt(s.length() - 1);
-        if (last != ';' && last != '}') {
-            return false;
-        }
+        String tail = s.substring(2);
         return switch (s.charAt(0)) {
-            case 's' -> s.endsWith("\";");
-            case 'a', 'O', 'C' -> last == '}';
-            case 'E' -> s.endsWith("\";");
-            case 'b', 'i', 'd' -> NUMERIC_SCALAR.matcher(s).matches();
+            case 's', 'E' -> tail.endsWith("\";");
+            case 'a', 'O', 'C' -> tail.endsWith("}");
+            case 'b', 'i', 'd' ->
+                tail.endsWith(";")
+                        && NUMERIC_TAIL
+                                .matcher(tail.substring(0, tail.length() - 1))
+                                .matches();
             default -> false;
         };
     }
@@ -48,7 +51,12 @@ public final class PhpSerialize {
     public static PhpValue parse(byte[] input, ParseOptions options) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(options, "options");
-        return new PhpParser(input, options).parseDocument();
+        PhpParser parser = new PhpParser(input, options);
+        try {
+            return parser.parseDocument();
+        } catch (StackOverflowError e) {
+            throw new PhpSerializeException("nesting too deep for the current thread stack", parser.position());
+        }
     }
 
     /**

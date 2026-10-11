@@ -66,4 +66,16 @@ class PhpArrayTest {
         assertThat(first.size()).isEqualTo(1);
         assertThat(b.build().size()).isEqualTo(2);
     }
+
+    @Test
+    void phpFloatRejectsRawLexemeThatDoesNotMatchValue() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new PhpFloat(2.0, "garbage"))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new PhpFloat(2.0, "1.5"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new PhpFloat(1.5, "1.50").raw()).isEqualTo("1.50");
+        assertThat(new PhpFloat(Double.POSITIVE_INFINITY, "INF").raw()).isEqualTo("INF");
+        assertThat(new PhpFloat(Double.NaN, "NAN").raw()).isEqualTo("NAN");
+        assertThat(new PhpFloat(100.0, "100").raw()).isEqualTo("100");
+    }
 }

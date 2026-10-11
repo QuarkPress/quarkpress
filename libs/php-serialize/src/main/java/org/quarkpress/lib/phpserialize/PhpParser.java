@@ -2,12 +2,9 @@ package org.quarkpress.lib.phpserialize;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.regex.Pattern;
 
 /** Recursive-descent parser over a byte array. Not thread-safe; one instance per document. */
 final class PhpParser {
-
-    private static final Pattern FLOAT_LEXEME = Pattern.compile("-?(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?|-?INF|NAN");
 
     private final byte[] in;
     private final ParseOptions options;
@@ -17,6 +14,11 @@ final class PhpParser {
     PhpParser(byte[] in, ParseOptions options) {
         this.in = in;
         this.options = options;
+    }
+
+    /** Current byte offset; used for error reporting by the facade. */
+    int position() {
+        return pos;
     }
 
     PhpValue parseDocument() {
@@ -171,17 +173,11 @@ final class PhpParser {
     private PhpFloat readFloat() {
         int start = pos;
         String lexeme = readAscii(';');
-        if (!FLOAT_LEXEME.matcher(lexeme).matches()) {
+        if (!PhpFloat.isLexeme(lexeme)) {
             pos = start;
             throw fail("invalid float literal '" + lexeme + "'");
         }
-        double value = switch (lexeme) {
-            case "INF" -> Double.POSITIVE_INFINITY;
-            case "-INF" -> Double.NEGATIVE_INFINITY;
-            case "NAN" -> Double.NaN;
-            default -> Double.parseDouble(lexeme);
-        };
-        return new PhpFloat(value, lexeme);
+        return new PhpFloat(PhpFloat.parseLexeme(lexeme), lexeme);
     }
 
     /**
@@ -264,19 +260,43 @@ final class PhpParser {
         }
     }
 
+    /** Reads an optionally negative decimal integer up to (and consuming) the terminator. */
     private long readLong(char terminator) {
         int start = pos;
-        String digits = readAscii(terminator);
-        if (digits.isEmpty() || !digits.matches("-?\\d+")) {
+        boolean negative = false;
+        if (pos < in.length && in[pos] == '-') {
+            negative = true;
+            pos++;
+        }
+        int digitsStart = pos;
+        long magnitude = 0;
+        while (pos < in.length && in[pos] >= '0' && in[pos] <= '9') {
+            int digit = in[pos] - '0';
+            // Accumulate as a negative number so Long.MIN_VALUE is representable.
+            if (magnitude < (Long.MIN_VALUE + digit) / 10) {
+                pos = start;
+                throw fail("integer out of range");
+            }
+            magnitude = magnitude * 10 - digit;
+            pos++;
+        }
+        if (pos == digitsStart) {
             pos = start;
             throw fail("expected integer");
         }
-        try {
-            return Long.parseLong(digits);
-        } catch (NumberFormatException e) {
-            pos = start;
-            throw fail("integer out of range: " + digits);
+        if (pos >= in.length) {
+            throw fail("unexpected end of input, expected '" + terminator + "'");
         }
+        if (in[pos] != terminator) {
+            pos = start;
+            throw fail("expected integer");
+        }
+        pos++;
+        if (!negative && magnitude == Long.MIN_VALUE) {
+            pos = start;
+            throw fail("integer out of range");
+        }
+        return negative ? magnitude : -magnitude;
     }
 
     /** Reads ASCII bytes up to (and consuming) the terminator. */

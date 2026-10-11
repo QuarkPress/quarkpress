@@ -12,4 +12,8 @@
 
   <name>QuarkPress :: lib :: PHP serialize</name>
   <description>Read and write the PHP serialize() format without reflection</description>
+
+  <properties>
+    <automatic.module.name>org.quarkpress.lib.phpserialize</automatic.module.name>
+  </properties>
 </project>

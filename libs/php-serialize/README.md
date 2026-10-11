@@ -101,7 +101,7 @@ float lexemes and non-UTF-8 string payloads.
 ## Safety
 
 - **Never instantiates classes from data.** Class names are plain strings in the tree.
-- **Bounded.** `ParseOptions` limits nesting depth (default 512), total element count (default
+- **Bounded.** `ParseOptions` limits nesting depth (default 256, hard cap 1024 because parsing is recursive), total element count (default
   1 000 000) and single string size (default 64 MiB). Declared sizes are checked before any
   allocation, so hostile input fails fast.
 - **Only one exception type.** Malformed input raises `PhpSerializeException`; property-based

@@ -60,6 +60,11 @@ class PhpParserScalarsTest {
     }
 
     @Test
+    void strictModeRejectsCharCountLengthForMultiByteString() {
+        assertThatThrownBy(() -> PhpSerialize.parse("s:1:\"é\";")).isInstanceOf(PhpSerializeException.class);
+    }
+
+    @Test
     void stringMayContainQuotesAndSemicolons() {
         assertThat(((PhpString) PhpSerialize.parse("s:4:\"a\";b\";")).text()).isEqualTo("a\";b");
     }
@@ -90,7 +95,7 @@ class PhpParserScalarsTest {
     void truncatedInputThrowsWithOffset() {
         assertThatThrownBy(() -> PhpSerialize.parse("s:5:\"hel"))
                 .isInstanceOfSatisfying(
-                        PhpSerializeException.class, e -> assertThat(e.offset()).isBetween(0, 8));
+                        PhpSerializeException.class, e -> assertThat(e.offset()).isEqualTo(2));
         assertThatThrownBy(() -> PhpSerialize.parse("i:12")).isInstanceOf(PhpSerializeException.class);
         assertThatThrownBy(() -> PhpSerialize.parse("")).isInstanceOf(PhpSerializeException.class);
         assertThatThrownBy(() -> PhpSerialize.parse(new byte[0])).isInstanceOf(PhpSerializeException.class);
