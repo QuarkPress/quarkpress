@@ -12,6 +12,7 @@ final class PhpParser {
     private final byte[] in;
     private final ParseOptions options;
     private int pos;
+    private long elements;
 
     PhpParser(byte[] in, ParseOptions options) {
         this.in = in;
@@ -48,10 +49,109 @@ final class PhpParser {
                 byte[] bytes = readLengthPrefixedBytes();
                 expect(';');
                 return new PhpString(bytes, options.charset());
+            case 'a':
+                expect(':');
+                return readEntries(depth).build();
+            case 'O':
+                return readObject(depth);
+            case 'C':
+                return readCustomObject();
+            case 'r':
+                expect(':');
+                return new PhpReference(readLong(';'), PhpReference.Kind.OBJECT);
+            case 'R':
+                expect(':');
+                return new PhpReference(readLong(';'), PhpReference.Kind.REFERENCE);
+            case 'E':
+                return readEnum();
             default:
                 pos--;
                 throw fail("unknown type tag '" + (char) tag + "'");
         }
+    }
+
+    /** Reads {@code COUNT:{key;value;...}} for arrays and object property lists. */
+    private PhpArray.Builder readEntries(int depth) {
+        int countStart = pos;
+        long count = readLong(':');
+        if (count < 0 || count > options.maxElements() - elements) {
+            pos = countStart;
+            throw fail("element count " + count + " exceeds limit " + options.maxElements());
+        }
+        elements += count;
+        expect('{');
+        PhpArray.Builder builder = PhpArray.builder();
+        for (long i = 0; i < count; i++) {
+            PhpArray.Key key = readKey();
+            PhpValue value = readValue(depth + 1);
+            builder.put(key, value);
+        }
+        expect('}');
+        return builder;
+    }
+
+    private PhpArray.Key readKey() {
+        int start = pos;
+        byte tag = next();
+        switch (tag) {
+            case 'i':
+                expect(':');
+                return PhpArray.Key.of(readLong(';'));
+            case 's':
+                expect(':');
+                byte[] bytes = readLengthPrefixedBytes();
+                expect(';');
+                return PhpArray.Key.of(new PhpString(bytes, options.charset()));
+            default:
+                pos = start;
+                throw fail("array key must be an integer or a string");
+        }
+    }
+
+    private PhpObject readObject(int depth) {
+        expect(':');
+        String className = readClassName();
+        expect(':');
+        return new PhpObject(className, readEntries(depth).build());
+    }
+
+    private PhpCustomObject readCustomObject() {
+        expect(':');
+        String className = readClassName();
+        expect(':');
+        int lengthStart = pos;
+        long declared = readLong(':');
+        if (declared < 0 || declared > options.maxStringBytes()) {
+            pos = lengthStart;
+            throw fail("payload length " + declared + " exceeds limit " + options.maxStringBytes());
+        }
+        if (declared > in.length - pos) {
+            pos = lengthStart;
+            throw fail("payload length " + declared + " exceeds remaining input");
+        }
+        expect('{');
+        int start = pos;
+        pos += (int) declared;
+        expect('}');
+        return new PhpCustomObject(className, Arrays.copyOfRange(in, start, pos - 1));
+    }
+
+    private PhpEnum readEnum() {
+        expect(':');
+        int start = pos;
+        String text = new String(readLengthPrefixedBytes(), StandardCharsets.UTF_8);
+        expect(';');
+        int colon = text.indexOf(':');
+        if (colon <= 0 || colon == text.length() - 1) {
+            pos = start;
+            throw fail("enum must be 'Class:Case'");
+        }
+        return new PhpEnum(text.substring(0, colon), text.substring(colon + 1));
+    }
+
+    /** Reads {@code LEN:"Name"}; class names are ASCII identifiers, decoded as UTF-8 to be safe. */
+    private String readClassName() {
+        return new String(readLengthPrefixedBytes(), StandardCharsets.UTF_8);
     }
 
     private PhpBool readBool() {
