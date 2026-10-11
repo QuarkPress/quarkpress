@@ -1,5 +1,6 @@
 package org.quarkpress.lib.phpserialize;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /** Entry point: parse and write PHP {@code serialize()} data. */
@@ -30,5 +31,19 @@ public final class PhpSerialize {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(options, "options");
         return parse(input.getBytes(options.charset()), options);
+    }
+
+    /** Serializes a value to bytes. Parsing the result yields an equal value. */
+    public static byte[] serialize(PhpValue value) {
+        Objects.requireNonNull(value, "value");
+        return PhpWriter.write(value);
+    }
+
+    /**
+     * Serializes a value and decodes the bytes as ISO-8859-1, so every byte maps to exactly one
+     * char. Useful for tests and logging; use {@link #serialize(PhpValue)} for storage.
+     */
+    public static String serializeToString(PhpValue value) {
+        return new String(serialize(value), StandardCharsets.ISO_8859_1);
     }
 }
