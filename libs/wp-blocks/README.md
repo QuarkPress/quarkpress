@@ -97,15 +97,17 @@ the raw attribute text.
   content, closer.
 - `core/` is dropped from names on output; other namespaces are kept.
 - Raw attribute text is reused verbatim. Regenerated attributes are compact JSON with `--`,
-  `<`, `>`, `&` and escaped quotes written as `--`, `<`, `>`, `&`,
-  `"`, so they can never terminate the comment.
+  `<`, `>`, `&` and escaped quotes written as `\u002d\u002d`, `\u003c`, `\u003e`, `\u0026`,
+  `\u0022`, so they can never terminate the comment.
 
 ## Conformance
 
 `mvn verify -Pconformance` fetches Gutenberg's published parser fixtures at a pinned commit
 (shallow sparse git checkout into `target/`) and compares `parse` output with each
 `*.parsed.json`, plus a byte-identical round trip of every fixture file. The fixtures are not
-part of this repository. CI runs the profile. The fetch is bounded by a 10-minute timeout per git step and the run fails if fewer than 300 fixtures are found.
+part of this repository. CI runs the profile.
+The fetch is bounded by a 10-minute timeout per git step and the run fails if fewer than 300
+fixtures are found.
 
 ## Clean-room
 
