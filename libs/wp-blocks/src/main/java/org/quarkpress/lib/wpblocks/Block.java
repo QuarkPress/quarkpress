@@ -1,7 +1,16 @@
 package org.quarkpress.lib.wpblocks;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BigIntegerNode;
+import com.fasterxml.jackson.databind.node.DecimalNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.FloatNode;
+import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -83,7 +92,7 @@ public final class Block {
             }
         }
         this.name = name;
-        this.attributes = attributes.deepCopy();
+        this.attributes = (ObjectNode) copyJsonValue(attributes, "$");
         this.rawAttributes = rawAttributes;
         this.rawOpener = rawOpener;
         this.rawCloser = rawCloser;
@@ -91,6 +100,67 @@ public final class Block {
         this.innerBlocks = List.copyOf(innerBlocks);
         this.innerContent = Collections.unmodifiableList(new ArrayList<>(innerContent));
         this.innerHtml = html.toString();
+    }
+
+    private static final BigInteger INT_MIN = BigInteger.valueOf(Integer.MIN_VALUE);
+    private static final BigInteger INT_MAX = BigInteger.valueOf(Integer.MAX_VALUE);
+    private static final BigInteger LONG_MIN = BigInteger.valueOf(Long.MIN_VALUE);
+    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
+
+    /**
+     * Deep-copies an attribute tree, normalising number nodes to the types {@code readTree} produces
+     * (int, long, big integer, double) so API-built and parsed attributes compare equal as JSON values,
+     * and rejecting anything that is not a JSON value (POJO, binary, missing).
+     */
+    private static JsonNode copyJsonValue(JsonNode node, String path) {
+        JsonNodeFactory f = JsonNodeFactory.instance;
+        switch (node.getNodeType()) {
+            case OBJECT -> {
+                ObjectNode out = f.objectNode();
+                for (var e : node.properties()) {
+                    out.set(e.getKey(), copyJsonValue(e.getValue(), path + "." + e.getKey()));
+                }
+                return out;
+            }
+            case ARRAY -> {
+                ArrayNode out = f.arrayNode(node.size());
+                for (int i = 0; i < node.size(); i++) {
+                    out.add(copyJsonValue(node.get(i), path + "[" + i + "]"));
+                }
+                return out;
+            }
+            case NUMBER -> {
+                return normaliseNumber(node);
+            }
+            case STRING, BOOLEAN, NULL -> {
+                return node; // immutable value nodes
+            }
+            default -> throw new IllegalArgumentException("attributes must contain only JSON values: " + path);
+        }
+    }
+
+    private static JsonNode normaliseNumber(JsonNode node) {
+        if (node instanceof DoubleNode) {
+            return node;
+        }
+        if (node instanceof FloatNode) {
+            // via decimal text, not widening: 0.1f becomes 0.1, not 0.10000000149011612
+            return DoubleNode.valueOf(Double.parseDouble(Float.toString(node.floatValue())));
+        }
+        if (node instanceof DecimalNode) {
+            return DoubleNode.valueOf(node.decimalValue().doubleValue());
+        }
+        if (node.isIntegralNumber()) {
+            BigInteger v = node.bigIntegerValue();
+            if (v.compareTo(INT_MIN) >= 0 && v.compareTo(INT_MAX) <= 0) {
+                return IntNode.valueOf(v.intValue());
+            }
+            if (v.compareTo(LONG_MIN) >= 0 && v.compareTo(LONG_MAX) <= 0) {
+                return LongNode.valueOf(v.longValue());
+            }
+            return BigIntegerNode.valueOf(v);
+        }
+        return DoubleNode.valueOf(node.doubleValue());
     }
 
     /** Freeform (classic) content. */

@@ -2,8 +2,11 @@ package org.quarkpress.lib.wpblocks;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
 import java.util.List;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -197,15 +200,52 @@ class RoundTripPropertyTest {
         return Arbitraries.strings().withChars("abc <>/pdiv\n\t\"'&=-}{:\\é✓").ofMaxLength(24);
     }
 
+    /** Attribute objects with every JSON value kind, nested up to two levels below the top object. */
     private Arbitrary<ObjectNode> attrs() {
+        return objectOf(0);
+    }
+
+    private static Arbitrary<ObjectNode> objectOf(int depth) {
         Arbitrary<String> key =
                 Arbitraries.strings().withChars("abcxyz_").ofMinLength(1).ofMaxLength(5);
-        Arbitrary<String> strVal =
-                Arbitraries.strings().withChars("ab -<>&\"\\/{}:é\n").ofMaxLength(12);
-        return Arbitraries.maps(key, strVal).ofMaxSize(3).map(m -> {
+        return Arbitraries.maps(key, jsonValue(depth)).ofMaxSize(3).map(m -> {
             ObjectNode n = JsonNodeFactory.instance.objectNode();
-            m.forEach(n::put);
+            m.forEach(n::set);
             return n;
         });
+    }
+
+    private static Arbitrary<JsonNode> jsonValue(int depth) {
+        JsonNodeFactory f = JsonNodeFactory.instance;
+        Arbitrary<JsonNode> str = Arbitraries.strings()
+                .withChars("ab -<>&\"\\/{}:é\n")
+                .ofMaxLength(12)
+                .map(f::textNode);
+        Arbitrary<JsonNode> ints = Arbitraries.integers().map(f::numberNode);
+        Arbitrary<JsonNode> longs = Arbitraries.longs()
+                .filter(l -> l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
+                .map(f::numberNode);
+        Arbitrary<JsonNode> doubles = Arbitraries.doubles().between(-1e9, 1e9).map(f::numberNode);
+        Arbitrary<JsonNode> floats = Arbitraries.floats().between(-1e6f, 1e6f).map(f::numberNode);
+        Arbitrary<JsonNode> decimals = Arbitraries.integers()
+                .between(-100_000, 100_000)
+                .map(i -> f.numberNode(BigDecimal.valueOf(i, 2).setScale(3))); // trailing zero
+        Arbitrary<JsonNode> bools = Arbitraries.of(true, false).map(f::booleanNode);
+        Arbitrary<JsonNode> nulls = Arbitraries.just(f.nullNode());
+        Arbitrary<JsonNode> scalar = Arbitraries.oneOf(str, ints, longs, doubles, floats, decimals, bools, nulls);
+        if (depth >= 2) {
+            return scalar;
+        }
+        Arbitrary<JsonNode> array = Arbitraries.lazy(() -> jsonValue(depth + 1))
+                .list()
+                .ofMaxSize(3)
+                .map(l -> {
+                    ArrayNode a = f.arrayNode();
+                    l.forEach(a::add);
+                    return a;
+                });
+        Arbitrary<JsonNode> object = Arbitraries.lazy(() -> objectOf(depth + 1)).map(o -> o);
+        return Arbitraries.frequencyOf(
+                net.jqwik.api.Tuple.of(6, scalar), net.jqwik.api.Tuple.of(1, array), net.jqwik.api.Tuple.of(1, object));
     }
 }

@@ -3,8 +3,13 @@ package org.quarkpress.lib.wpblocks;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BinaryNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.POJONode;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -101,5 +106,50 @@ class BlockModelTest {
         assertThat(parsedLike.hashCode()).isEqualTo(apiLike.hashCode());
         assertThat(Block.of("x", attrs("a", 2))).isNotEqualTo(apiLike);
         assertThat(Block.of("y", a)).isNotEqualTo(apiLike);
+    }
+
+    @Test
+    void apiBuiltNumbersRoundTripAsJsonValues() {
+        ObjectNode a = JsonNodeFactory.instance.objectNode();
+        a.put("l", 1L);
+        a.put("big", 5_000_000_000L);
+        a.put("f", 0.5f);
+        a.put("g", 0.1f);
+        a.put("bd", new BigDecimal("1.10"));
+        a.put("s", (short) 3);
+        a.put("bi", BigInteger.valueOf(7));
+        ArrayNode arr = a.putArray("arr");
+        arr.add(2L).add(0.25f).add(new BigDecimal("2.50")).add((short) 4);
+        ObjectNode nested = arr.addObject();
+        nested.put("n", 9L).put("m", 0.1f);
+        a.putObject("o")
+                .put("x", new BigDecimal("3.0"))
+                .putArray("y")
+                .add((short) 1)
+                .add(1L);
+        Block block = Block.builder("acme/n").attributes(a).text("<p>x</p>").build();
+
+        Block back = WpBlocks.parse(WpBlocks.serialize(List.of(block))).get(0);
+
+        assertThat(back).isEqualTo(block);
+        assertThat(back.hashCode()).isEqualTo(block.hashCode());
+        assertThat(block.attributes().get("g").doubleValue()).isEqualTo(0.1);
+    }
+
+    @Test
+    void attributesRejectNonJsonValueNodes() {
+        ObjectNode pojo = JsonNodeFactory.instance.objectNode();
+        pojo.putArray("list").add(1).addPOJO(new Object());
+        assertThatThrownBy(() -> Block.of("x", pojo))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("attributes must contain only JSON values: ");
+        assertThat(pojo.get("list").get(1)).isInstanceOf(POJONode.class);
+
+        ObjectNode binary = JsonNodeFactory.instance.objectNode();
+        binary.putArray("list").add(new byte[] {1, 2});
+        assertThat(binary.get("list").get(0)).isInstanceOf(BinaryNode.class);
+        assertThatThrownBy(() -> Block.builder("x").attributes(binary).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("attributes must contain only JSON values: ");
     }
 }
