@@ -22,4 +22,20 @@ public final class WpBlocks {
         Objects.requireNonNull(options, "options");
         return BlockParser.parse(content, options);
     }
+
+    /** Serializes blocks in order. Parsed, unmodified blocks come back byte for byte. */
+    public static String serialize(List<Block> blocks) {
+        Objects.requireNonNull(blocks, "blocks");
+        StringBuilder out = new StringBuilder();
+        for (Block b : blocks) {
+            BlockSerializer.append(out, Objects.requireNonNull(b, "block"));
+        }
+        return out.toString();
+    }
+
+    public static String serialize(Block block) {
+        StringBuilder out = new StringBuilder();
+        BlockSerializer.append(out, Objects.requireNonNull(block, "block"));
+        return out.toString();
+    }
 }
