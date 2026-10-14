@@ -30,6 +30,11 @@
         <artifactId>quarkpress-lib-php-serialize</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.quarkpress.lib</groupId>
+        <artifactId>quarkpress-lib-wp-blocks</artifactId>
+        <version>${project.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

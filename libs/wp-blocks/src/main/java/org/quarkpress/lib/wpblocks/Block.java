@@ -1,0 +1,236 @@
+package org.quarkpress.lib.wpblocks;
+
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * One node of a parsed block document. Immutable. A block with a {@code null} name is freeform
+ * (classic) content between blocks.
+ *
+ * <p>Invariants: the number of {@code null} entries in {@link #innerContent()} equals
+ * {@link #innerBlocks()}{@code .size()}; the non-null entries concatenated equal
+ * {@link #innerHtml()}; a freeform block has empty attributes, no inner blocks and exactly one
+ * content chunk.
+ *
+ * <p>{@link #equals(Object)} compares name, attributes as JSON values, inner blocks and inner
+ * content. Raw source text (attributes, delimiters) and the closing form are not part of equality.
+ */
+public final class Block {
+
+    private final String name;
+    private final ObjectNode attributes;
+    private final String rawAttributes;
+    private final String rawOpener;
+    private final String rawCloser;
+    private final boolean explicitClose;
+    private final List<Block> innerBlocks;
+    private final String innerHtml;
+    private final List<String> innerContent;
+
+    /** Convenience for blocks without raw delimiter text (API-built or tests). */
+    Block(
+            String name,
+            ObjectNode attributes,
+            String rawAttributes,
+            List<Block> innerBlocks,
+            List<String> innerContent) {
+        this(name, attributes, rawAttributes, null, null, false, innerBlocks, innerContent);
+    }
+
+    /**
+     * @param rawOpener the opener (or void) delimiter exactly as parsed, or null
+     * @param rawCloser the closer delimiter exactly as parsed, or null when void or unclosed
+     * @param explicitClose true when the block came from an opener rather than a void delimiter; decides
+     *     the form used when the raw delimiters are absent
+     */
+    Block(
+            String name,
+            ObjectNode attributes,
+            String rawAttributes,
+            String rawOpener,
+            String rawCloser,
+            boolean explicitClose,
+            List<Block> innerBlocks,
+            List<String> innerContent) {
+        Objects.requireNonNull(attributes, "attributes");
+        Objects.requireNonNull(innerBlocks, "innerBlocks");
+        Objects.requireNonNull(innerContent, "innerContent");
+        if (name != null && !BlockNames.isValid(name)) {
+            throw new IllegalArgumentException("invalid block name: " + name);
+        }
+        int nulls = 0;
+        StringBuilder html = new StringBuilder();
+        for (String chunk : innerContent) {
+            if (chunk == null) {
+                nulls++;
+            } else {
+                html.append(chunk);
+            }
+        }
+        if (nulls != innerBlocks.size()) {
+            throw new IllegalArgumentException("innerContent has " + nulls + " block positions but there are "
+                    + innerBlocks.size() + " inner blocks");
+        }
+        if (name == null) {
+            if (!attributes.isEmpty() || !innerBlocks.isEmpty() || innerContent.size() != 1) {
+                throw new IllegalArgumentException(
+                        "freeform block must have no attributes, no inner blocks and one chunk");
+            }
+        }
+        this.name = name;
+        this.attributes = attributes.deepCopy();
+        this.rawAttributes = rawAttributes;
+        this.rawOpener = rawOpener;
+        this.rawCloser = rawCloser;
+        this.explicitClose = explicitClose;
+        this.innerBlocks = List.copyOf(innerBlocks);
+        this.innerContent = Collections.unmodifiableList(new ArrayList<>(innerContent));
+        this.innerHtml = html.toString();
+    }
+
+    /** Freeform (classic) content. */
+    public static Block freeform(String html) {
+        return new Block(null, JsonNodeFactory.instance.objectNode(), null, List.of(), List.of(html));
+    }
+
+    /** A block with no attributes and no content; serializes in the void form. */
+    public static Block of(String name) {
+        return of(name, JsonNodeFactory.instance.objectNode());
+    }
+
+    /** A block with attributes and no content. */
+    public static Block of(String name, ObjectNode attributes) {
+        return new Block(qualified(name), attributes, null, List.of(), List.of());
+    }
+
+    public static Builder builder(String name) {
+        return new Builder(qualified(name));
+    }
+
+    private static String qualified(String name) {
+        Objects.requireNonNull(name, "name");
+        if (!BlockNames.isValid(name)) {
+            throw new IllegalArgumentException("invalid block name: " + name);
+        }
+        return BlockNames.qualify(name);
+    }
+
+    /** Fully qualified name such as {@code core/paragraph}, or {@code null} for freeform content. */
+    public String name() {
+        return name;
+    }
+
+    /** A deep copy of the attributes; never null, empty when the block has none. */
+    public ObjectNode attributes() {
+        return attributes.deepCopy();
+    }
+
+    /** The attribute JSON exactly as it appeared in the source; present only on parsed, unmodified blocks. */
+    public Optional<String> rawAttributes() {
+        return Optional.ofNullable(rawAttributes);
+    }
+
+    public List<Block> innerBlocks() {
+        return innerBlocks;
+    }
+
+    /** This block's own markup with inner block markup removed. */
+    public String innerHtml() {
+        return innerHtml;
+    }
+
+    /** Ordered text chunks with a {@code null} at each inner block position. */
+    public List<String> innerContent() {
+        return innerContent;
+    }
+
+    public boolean isFreeform() {
+        return name == null;
+    }
+
+    /** Opener or void delimiter text exactly as parsed; null for API-built or modified blocks. */
+    String rawOpener() {
+        return rawOpener;
+    }
+
+    /** Closer delimiter text exactly as parsed; null when void, unclosed, API-built or modified. */
+    String rawCloser() {
+        return rawCloser;
+    }
+
+    /** True when the block came from an opener delimiter rather than a void one. */
+    boolean explicitClose() {
+        return explicitClose;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof Block b)) {
+            return false;
+        }
+        return Objects.equals(name, b.name)
+                && attributes.equals(b.attributes)
+                && innerBlocks.equals(b.innerBlocks)
+                && innerContent.equals(b.innerContent);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, attributes, innerBlocks, innerContent);
+    }
+
+    @Override
+    public String toString() {
+        return "Block[" + (name == null ? "freeform" : name) + ", attrs=" + attributes + ", inner=" + innerBlocks.size()
+                + ", html=" + innerHtml.length() + " chars]";
+    }
+
+    /** Builds a block's inner content in order. Consecutive text is merged; empty text is ignored. */
+    public static final class Builder {
+        private final String name;
+        private ObjectNode attributes = JsonNodeFactory.instance.objectNode();
+        private final List<Block> innerBlocks = new ArrayList<>();
+        private final List<String> innerContent = new ArrayList<>();
+
+        private Builder(String name) {
+            this.name = name;
+        }
+
+        public Builder attributes(ObjectNode attributes) {
+            this.attributes = Objects.requireNonNull(attributes, "attributes");
+            return this;
+        }
+
+        public Builder text(String text) {
+            Objects.requireNonNull(text, "text");
+            if (text.isEmpty()) {
+                return this;
+            }
+            int last = innerContent.size() - 1;
+            if (last >= 0 && innerContent.get(last) != null) {
+                innerContent.set(last, innerContent.get(last) + text);
+            } else {
+                innerContent.add(text);
+            }
+            return this;
+        }
+
+        public Builder inner(Block block) {
+            innerBlocks.add(Objects.requireNonNull(block, "block"));
+            innerContent.add(null);
+            return this;
+        }
+
+        public Block build() {
+            return new Block(name, attributes, null, innerBlocks, innerContent);
+        }
+    }
+}
