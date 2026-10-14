@@ -38,4 +38,25 @@ public final class WpBlocks {
         BlockSerializer.append(out, Objects.requireNonNull(block, "block"));
         return out.toString();
     }
+
+    /**
+     * True if the content contains at least one valid block opener or void delimiter. A closer alone,
+     * or a comment that only resembles a delimiter, does not count. Does not build a tree.
+     */
+    public static boolean hasBlocks(String content) {
+        Objects.requireNonNull(content, "content");
+        AttributeEnds ends = new AttributeEnds(content);
+        int from = 0;
+        while (true) {
+            int idx = content.indexOf(DelimiterScanner.COMMENT_OPEN, from);
+            if (idx < 0) {
+                return false;
+            }
+            DelimiterScanner.Delimiter d = DelimiterScanner.tryRead(content, idx, ends);
+            if (d != null && d.kind() != DelimiterScanner.Kind.CLOSER) {
+                return true;
+            }
+            from = idx + 1;
+        }
+    }
 }

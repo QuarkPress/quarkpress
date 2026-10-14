@@ -35,4 +35,12 @@ class HostileInputTest {
             });
         }
     }
+
+    @Test
+    void hasBlocksIsLinearOnUnterminatedAttributeCandidates() {
+        for (String doc : INPUTS) {
+            boolean found = assertTimeoutPreemptively(LIMIT, () -> WpBlocks.hasBlocks(doc));
+            assertThat(found).isFalse();
+        }
+    }
 }

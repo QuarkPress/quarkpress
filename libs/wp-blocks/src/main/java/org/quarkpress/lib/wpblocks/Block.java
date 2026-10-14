@@ -153,6 +153,33 @@ public final class Block {
         return name == null;
     }
 
+    /**
+     * A copy with new attributes. Raw attribute and delimiter text are dropped, so serialization
+     * regenerates the delimiters from the name and the node. Not allowed on freeform blocks.
+     */
+    public Block withAttributes(ObjectNode attributes) {
+        if (isFreeform()) {
+            throw new IllegalArgumentException("freeform blocks have no attributes");
+        }
+        return new Block(name, attributes, null, null, null, explicitClose, innerBlocks, innerContent);
+    }
+
+    /**
+     * A copy with new inner blocks and no text between them: {@code innerContent} becomes one
+     * {@code null} per block. Attributes and raw attribute text are kept; raw delimiter text is dropped
+     * because the closing form may change. Not allowed on freeform blocks.
+     */
+    public Block withInnerBlocks(List<Block> innerBlocks) {
+        if (isFreeform()) {
+            throw new IllegalArgumentException("freeform blocks have no inner blocks");
+        }
+        List<String> content = new ArrayList<>(innerBlocks.size());
+        for (int i = 0; i < innerBlocks.size(); i++) {
+            content.add(null);
+        }
+        return new Block(name, attributes, rawAttributes, null, null, explicitClose, innerBlocks, content);
+    }
+
     /** Opener or void delimiter text exactly as parsed; null for API-built or modified blocks. */
     String rawOpener() {
         return rawOpener;
