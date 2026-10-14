@@ -22,7 +22,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Compares {@link WpBlocks#parse} with the {@code *.parsed.json} output published with Gutenberg's
- * parser fixtures, and asserts the byte-identical round trip on every fixture file. Active only with
+ * parser fixtures, asserts the byte-identical round trip on every fixture file, and asserts that the
+ * canonical serializer reproduces Gutenberg's {@code *.serialized.html}. Active only with
  * {@code -Pconformance}.
  */
 @EnabledIfSystemProperty(named = "gutenberg.fixtures.dir", matches = ".+")
@@ -91,7 +92,32 @@ class GutenbergConformanceTest {
         }
     }
 
+    /**
+     * Rebuilds every parsed block without raw delimiter and raw attribute text, so serialization takes
+     * the canonical path (escaped attribute JSON, void or explicit form), and compares the result with
+     * Gutenberg's own serializer output.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("fixtureNames")
+    void canonicalSerializationMatchesGutenberg(String name) throws IOException {
+        Path p = dir.resolve(name + ".serialized.html");
+        Assumptions.assumeTrue(Files.exists(p), () -> "no serialized fixture for " + name);
+        String doc = Files.readString(p, StandardCharsets.UTF_8);
+        List<Block> canonical = WpBlocks.parse(doc).stream()
+                .map(GutenbergConformanceTest::canonical)
+                .toList();
+        assertThat(WpBlocks.serialize(canonical)).as(name + ".serialized.html").isEqualTo(doc);
+    }
+
     // ---- helpers ----
+
+    /** The same block, bottom-up, without raw attribute or delimiter text; the closing form is kept. */
+    static Block canonical(Block b) {
+        List<Block> inner = b.innerBlocks().stream()
+                .map(GutenbergConformanceTest::canonical)
+                .toList();
+        return new Block(b.name(), b.attributes(), null, null, null, b.explicitClose(), inner, b.innerContent());
+    }
 
     static JsonNode toJson(List<Block> blocks) {
         ArrayNode arr = JsonNodeFactory.instance.arrayNode();
