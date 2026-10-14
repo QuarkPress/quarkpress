@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="quarkpress-logo.svg" alt="QuarkPress wordmark" width="520">
+</p>
+
 # QuarkPress
 
 QuarkPress brings the business features of WordPress (posts, pages, taxonomies, media,
@@ -16,6 +20,8 @@ Project home: <https://quarkpress.org>
 | `bom/` | `org.quarkpress:quarkpress-bom`, aligns all versions with the Quarkus platform |
 | `libs/` | Plain Java libraries (`org.quarkpress.lib`), zero Quarkus dependency |
 | `libs/php-serialize/` | Reader/writer for the PHP `serialize()` format |
+| `libs/wp-blocks/` | Parser and serializer for Gutenberg block markup |
+| `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |
 | `docs/` | Specification and planning documents |
 
 ## Building

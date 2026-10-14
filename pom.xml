@@ -36,8 +36,10 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-    <!-- Platform -->
-    <quarkus.platform.version>3.27.6</quarkus.platform.version>
+    <!-- Platform. Quarkus 3.40 is the current LTS (released 2026-09-30). -->
+    <quarkus.platform.version>3.40.1</quarkus.platform.version>
+    <!-- Kept equal to the version managed by the Quarkus BOM above; libs do not import that BOM. -->
+    <jackson.version>2.21.7</jackson.version>
 
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>
@@ -53,7 +55,7 @@
     <palantir-java-format.version>2.102.0</palantir-java-format.version>
 
     <!-- Extra JVM flags for test forks; may be overridden on the command line. -->
-    <surefire.argLine.additional>-XX:TieredStopAtLevel=1</surefire.argLine.additional>
+    <surefire.argLine.additional>-XX:TieredStopAtLevel=1 -XX:ActiveProcessorCount=8</surefire.argLine.additional>
   </properties>
 
   <dependencyManagement>
@@ -74,6 +76,11 @@
         <groupId>net.jqwik</groupId>
         <artifactId>jqwik</artifactId>
         <version>${jqwik.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -98,6 +105,8 @@
           <version>${maven-surefire-plugin.version}</version>
           <configuration>
             <argLine>${surefire.argLine.additional}</argLine>
+            <forkCount>1</forkCount>
+            <reuseForks>true</reuseForks>
           </configuration>
         </plugin>
         <plugin>
