@@ -83,7 +83,9 @@ or binary node is rejected with `IllegalArgumentException`. Number nodes are nor
 block is built: short, int, long and big integer become the smallest of int, long or big
 integer; float becomes the double with the same decimal text (`0.1f` becomes `0.1`); big decimal
 becomes double. So API-built and parsed attributes compare equal. Non-finite doubles (NaN,
-infinities, or a literal such as `1e400` that overflows) are written as `null`.
+infinities, or a literal such as `1e400` that overflows) are written as `null` when a block's
+attributes are serialized afresh (a built block, or one given new attributes with
+`withAttributes`); a parsed block keeps its original attribute text.
 
 ### Round trip of API-built trees
 
