@@ -66,4 +66,23 @@ class AttributeJsonTest {
         ObjectNode n = JsonNodeFactory.instance.objectNode().put("t", "héllo – ✓");
         assertThat(AttributeJson.write(n)).isEqualTo("{\"t\":\"héllo – ✓\"}");
     }
+
+    @Test
+    void nonFiniteNumbersAreWrittenAsNull() {
+        ObjectNode n = JsonNodeFactory.instance.objectNode();
+        n.put("nan", Double.NaN).put("pos", Double.POSITIVE_INFINITY).put("neg", Double.NEGATIVE_INFINITY);
+        n.put("fnan", Float.NaN);
+        n.putArray("a").add(Double.NaN).add(1).add(Double.POSITIVE_INFINITY).add(Double.NEGATIVE_INFINITY);
+        n.putObject("o").put("x", Double.NaN);
+        assertThat(AttributeJson.write(n))
+                .isEqualTo("{\"nan\":null,\"pos\":null,\"neg\":null,\"fnan\":null,"
+                        + "\"a\":[null,1,null,null],\"o\":{\"x\":null}}");
+        assertThat(n.get("nan").isNumber()).isTrue(); // the caller's tree is not modified
+    }
+
+    @Test
+    void overflowingNumberParsesAndWritesAsNull() {
+        ObjectNode n = AttributeJson.parse("{\"i\":1e400}");
+        assertThat(AttributeJson.write(n)).isEqualTo("{\"i\":null}");
+    }
 }

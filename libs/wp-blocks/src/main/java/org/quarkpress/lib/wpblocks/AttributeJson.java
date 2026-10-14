@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -40,12 +41,14 @@ final class AttributeJson {
     /**
      * Writes compact JSON and then replaces the sequences that could end the HTML comment or inject
      * markup with JSON unicode escapes: {@code --}, {@code <}, {@code >}, {@code &} and the escaped
-     * quote {@code \"}. The result is still valid JSON for the same value.
+     * quote {@code \"}. The result is still valid JSON for the same value. Non-finite numbers (NaN,
+     * infinities), which JSON cannot express, are written as {@code null}; the caller's tree is not
+     * modified.
      */
     static String write(ObjectNode node) {
         String json;
         try {
-            json = MAPPER.writeValueAsString(node);
+            json = MAPPER.writeValueAsString(finite(node));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("cannot serialize attributes", e);
         }
@@ -79,5 +82,40 @@ final class AttributeJson {
             }
         }
         return out.toString();
+    }
+
+    /** The node itself when it holds no non-finite number, else a copy with each one replaced by null. */
+    private static JsonNode finite(JsonNode node) {
+        if (node.isFloatingPointNumber()) {
+            double d = node.doubleValue();
+            return Double.isFinite(d) || node.isBigDecimal() ? node : JsonNodeFactory.instance.nullNode();
+        }
+        if (node instanceof ObjectNode o) {
+            ObjectNode copy = null;
+            for (var e : o.properties()) {
+                JsonNode v = finite(e.getValue());
+                if (v != e.getValue() && copy == null) {
+                    copy = o.deepCopy();
+                }
+                if (copy != null) {
+                    copy.set(e.getKey(), v);
+                }
+            }
+            return copy == null ? o : copy;
+        }
+        if (node instanceof ArrayNode a) {
+            ArrayNode copy = null;
+            for (int i = 0; i < a.size(); i++) {
+                JsonNode v = finite(a.get(i));
+                if (v != a.get(i) && copy == null) {
+                    copy = a.deepCopy();
+                }
+                if (copy != null) {
+                    copy.set(i, v);
+                }
+            }
+            return copy == null ? a : copy;
+        }
+        return node;
     }
 }
