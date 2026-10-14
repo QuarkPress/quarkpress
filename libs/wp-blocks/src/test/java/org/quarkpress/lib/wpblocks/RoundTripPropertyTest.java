@@ -12,6 +12,7 @@ import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 import net.jqwik.api.constraints.IntRange;
+import net.jqwik.api.statistics.Statistics;
 
 class RoundTripPropertyTest {
 
@@ -46,9 +47,56 @@ class RoundTripPropertyTest {
         assertThat(WpBlocks.serialize(back)).isEqualTo(doc);
     }
 
+    @Property(tries = 2000)
+    void soupRoundTripsByteIdentically(@ForAll("commentSoup") String doc) {
+        assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+    }
+
+    @Property(tries = 2000)
+    void delimiterVariantsRoundTripByteIdentically(@ForAll("delimiterVariants") String doc) {
+        assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+    }
+
     @Property(tries = 1500)
     void invariantsHoldOnEveryParsedBlock(@ForAll("documents") String doc) {
         WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants);
+    }
+
+    @Property(tries = 1500)
+    void invariantsHoldOnSoup(@ForAll("commentSoup") String doc) {
+        WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants);
+    }
+
+    @Property(tries = 1500)
+    void invariantsHoldOnDelimiterVariants(@ForAll("delimiterVariants") String doc) {
+        WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants);
+    }
+
+    private static final java.util.regex.Pattern OPENER =
+            java.util.regex.Pattern.compile("<!--\\s+wp:[a-z0-9/_-]+(\\s+\\{[^}]*\\})?\\s+-->");
+    private static final java.util.regex.Pattern CLOSER =
+            java.util.regex.Pattern.compile("<!--\\s+/wp:[a-z0-9/_-]+\\s+-->");
+
+    /** Guards against vacuous generation: variants must actually nest and leave blocks unclosed. */
+    @Property(tries = 1000)
+    void delimiterVariantsAreNotVacuous(@ForAll("delimiterVariants") String doc) {
+        boolean hasBlock = WpBlocks.parse(doc).stream().anyMatch(b -> !b.isFreeform());
+        long openers = OPENER.matcher(doc).results().count();
+        long closers = CLOSER.matcher(doc).results().count();
+        Statistics.label("hasBlock").collect(hasBlock);
+        Statistics.label("unclosed").collect(openers > closers);
+        Statistics.label("hasBlock").coverage(c -> c.check(true).percentage(p -> p >= 30.0));
+        Statistics.label("unclosed").coverage(c -> c.check(true).percentage(p -> p >= 10.0));
+    }
+
+    @Provide
+    Arbitrary<String> commentSoup() {
+        return BlockMarkupArbitraries.commentSoup();
+    }
+
+    @Provide
+    Arbitrary<String> delimiterVariants() {
+        return BlockMarkupArbitraries.delimiterVariants();
     }
 
     private static void checkInvariants(Block b) {
