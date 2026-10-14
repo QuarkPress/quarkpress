@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -104,7 +105,13 @@ public final class Block {
             }
         }
         this.name = name;
-        this.attributes = (ObjectNode) copyJsonValue(attributes, "$");
+        ObjectNode copied;
+        try {
+            copied = (ObjectNode) copyJsonValue(attributes);
+        } catch (NonJsonValue e) {
+            throw new IllegalArgumentException("attributes must contain only JSON values: " + e.path());
+        }
+        this.attributes = copied;
         this.rawAttributes = rawAttributes;
         this.rawOpener = rawOpener;
         this.rawCloser = rawCloser;
@@ -124,20 +131,28 @@ public final class Block {
      * (int, long, big integer, double) so API-built and parsed attributes compare equal as JSON values,
      * and rejecting anything that is not a JSON value (POJO, binary, missing).
      */
-    private static JsonNode copyJsonValue(JsonNode node, String path) {
+    private static JsonNode copyJsonValue(JsonNode node) {
         JsonNodeFactory f = JsonNodeFactory.instance;
         switch (node.getNodeType()) {
             case OBJECT -> {
                 ObjectNode out = f.objectNode();
                 for (var e : node.properties()) {
-                    out.set(e.getKey(), copyJsonValue(e.getValue(), path + "." + e.getKey()));
+                    try {
+                        out.set(e.getKey(), copyJsonValue(e.getValue()));
+                    } catch (NonJsonValue x) {
+                        throw x.under("." + e.getKey());
+                    }
                 }
                 return out;
             }
             case ARRAY -> {
                 ArrayNode out = f.arrayNode(node.size());
                 for (int i = 0; i < node.size(); i++) {
-                    out.add(copyJsonValue(node.get(i), path + "[" + i + "]"));
+                    try {
+                        out.add(copyJsonValue(node.get(i)));
+                    } catch (NonJsonValue x) {
+                        throw x.under("[" + i + "]");
+                    }
                 }
                 return out;
             }
@@ -147,7 +162,29 @@ public final class Block {
             case STRING, BOOLEAN, NULL -> {
                 return node; // immutable value nodes
             }
-            default -> throw new IllegalArgumentException("attributes must contain only JSON values: " + path);
+            default -> throw new NonJsonValue();
+        }
+    }
+
+    /**
+     * Thrown from the attribute walk when a node is not a JSON value. The path is assembled while
+     * unwinding, so the walk costs nothing per node when attributes are valid.
+     */
+    private static final class NonJsonValue extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        private final ArrayDeque<String> segments = new ArrayDeque<>();
+
+        NonJsonValue() {
+            super(null, null, false, false);
+        }
+
+        NonJsonValue under(String segment) {
+            segments.addFirst(segment);
+            return this;
+        }
+
+        String path() {
+            return "$" + String.join("", segments);
         }
     }
 

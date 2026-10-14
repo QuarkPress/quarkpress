@@ -3,6 +3,7 @@ package org.quarkpress.lib.wpblocks;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -42,5 +43,28 @@ class HostileInputTest {
             boolean found = assertTimeoutPreemptively(LIMIT, () -> WpBlocks.hasBlocks(doc));
             assertThat(found).isFalse();
         }
+    }
+
+    @Test
+    void parseAllocatesLinearlyOnDeepAttributesWithLongKeys() {
+        // Each nesting level adds a long key, so anything proportional to the key path per node
+        // (e.g. building "$.k…k.k…k" eagerly) allocates gigabytes. Wall time hides it; allocation does not.
+        String key = "k".repeat(4_000);
+        int depth = 900;
+        StringBuilder json = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            json.append("{\"").append(key).append("\":");
+        }
+        json.append('1').append("}".repeat(depth));
+        String doc = "<!-- wp:a " + json + " /-->";
+
+        var threads = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+        long before = threads.getCurrentThreadAllocatedBytes();
+        List<Block> blocks = WpBlocks.parse(doc);
+        long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+
+        assertThat(blocks).hasSize(1);
+        assertThat(blocks.get(0).name()).isEqualTo("core/a");
+        assertThat(allocated).isLessThan(50L * doc.length());
     }
 }

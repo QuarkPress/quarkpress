@@ -142,7 +142,7 @@ class BlockModelTest {
         pojo.putArray("list").add(1).addPOJO(new Object());
         assertThatThrownBy(() -> Block.of("x", pojo))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageStartingWith("attributes must contain only JSON values: ");
+                .hasMessage("attributes must contain only JSON values: $.list[1]");
         assertThat(pojo.get("list").get(1)).isInstanceOf(POJONode.class);
 
         ObjectNode binary = JsonNodeFactory.instance.objectNode();
@@ -150,6 +150,6 @@ class BlockModelTest {
         assertThat(binary.get("list").get(0)).isInstanceOf(BinaryNode.class);
         assertThatThrownBy(() -> Block.builder("x").attributes(binary).build())
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageStartingWith("attributes must contain only JSON values: ");
+                .hasMessage("attributes must contain only JSON values: $.list[0]");
     }
 }
