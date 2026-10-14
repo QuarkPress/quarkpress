@@ -1,6 +1,7 @@
 package org.quarkpress.lib.wpblocks;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,6 +16,7 @@ final class GutenbergFixtures {
 
     static final String REPO = "https://github.com/WordPress/gutenberg.git";
     static final String SUBDIR = "test/integration/fixtures/blocks";
+    static final long GIT_TIMEOUT_MINUTES = 10;
 
     private GutenbergFixtures() {}
 
@@ -34,11 +36,11 @@ final class GutenbergFixtures {
         Path repo = root.resolve("repo");
         deleteRecursively(repo);
         Files.createDirectories(repo);
-        git(repo, "init", "-q");
-        git(repo, "remote", "add", "origin", REPO);
-        git(repo, "sparse-checkout", "set", "--no-cone", SUBDIR);
-        git(repo, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", commit);
-        git(repo, "checkout", "-q", commit);
+        git(root, repo, "init", "-q");
+        git(root, repo, "remote", "add", "origin", REPO);
+        git(root, repo, "sparse-checkout", "set", "--no-cone", SUBDIR);
+        git(root, repo, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", commit);
+        git(root, repo, "checkout", "-q", commit);
         if (!Files.isDirectory(fixtures)) {
             throw new IOException("fixture directory missing after checkout: " + fixtures);
         }
@@ -47,21 +49,39 @@ final class GutenbergFixtures {
         return fixtures;
     }
 
-    private static void git(Path cwd, String... args) throws IOException, InterruptedException {
+    /**
+     * Runs one git step with its merged output in {@code root/git-<step>.log}. The output goes to a file
+     * rather than a pipe so that the timeout applies even when git hangs without closing its output.
+     */
+    private static void git(Path root, Path cwd, String... args) throws IOException, InterruptedException {
+        String step = args[0];
+        Path log = root.resolve("git-" + step + ".log");
         List<String> cmd = new java.util.ArrayList<>(args.length + 1);
         cmd.add("git");
         cmd.addAll(List.of(args));
-        Process p = new ProcessBuilder(cmd)
+        ProcessBuilder pb = new ProcessBuilder(cmd)
                 .directory(cwd.toFile())
                 .redirectErrorStream(true)
-                .start();
-        String output = new String(p.getInputStream().readAllBytes());
-        if (!p.waitFor(10, TimeUnit.MINUTES)) {
+                .redirectOutput(log.toFile());
+        pb.environment().put("GIT_TERMINAL_PROMPT", "0");
+        Process p = pb.start();
+        if (!p.waitFor(GIT_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
             p.destroyForcibly();
-            throw new IOException("git " + String.join(" ", args) + " timed out");
+            throw new IOException("git " + step + " timed out after " + GIT_TIMEOUT_MINUTES + " minutes; log " + log
+                    + " ends with:\n" + tail(log));
         }
         if (p.exitValue() != 0) {
-            throw new IOException("git " + String.join(" ", args) + " failed (" + p.exitValue() + "):\n" + output);
+            throw new IOException("git " + String.join(" ", args) + " failed (" + p.exitValue() + "), log " + log
+                    + ":\n" + Files.readString(log, StandardCharsets.UTF_8));
+        }
+    }
+
+    private static String tail(Path log) {
+        try {
+            String text = new String(Files.readAllBytes(log), StandardCharsets.UTF_8);
+            return text.length() <= 4000 ? text : text.substring(text.length() - 4000);
+        } catch (IOException e) {
+            return "(log unreadable: " + e.getMessage() + ")";
         }
     }
 

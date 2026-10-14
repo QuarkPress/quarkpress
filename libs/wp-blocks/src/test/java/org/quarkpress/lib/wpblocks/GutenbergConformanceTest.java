@@ -28,6 +28,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 @EnabledIfSystemProperty(named = "gutenberg.fixtures.dir", matches = ".+")
 class GutenbergConformanceTest {
 
+    /** Sanity floor: the pinned commit has 374 fixtures; far fewer means a wrong path or empty checkout. */
+    static final int MIN_FIXTURES = 300;
+
     private static Path dir;
     private static Map<String, String> skips;
 
@@ -35,19 +38,30 @@ class GutenbergConformanceTest {
     static void fetch() throws Exception {
         dir = GutenbergFixtures.ensure();
         assertThat(dir).isNotNull();
+        int count = listFixtureNames(dir).size();
+        assertThat(count)
+                .as("fixtures in %s: found %d, expected at least %d", dir, count, MIN_FIXTURES)
+                .isGreaterThanOrEqualTo(MIN_FIXTURES);
         skips = readSkips();
     }
 
     static Stream<String> fixtureNames() throws Exception {
         Path d = GutenbergFixtures.ensure();
+        List<String> names = listFixtureNames(d);
+        if (names.size() < MIN_FIXTURES) {
+            throw new IllegalStateException(
+                    "fixtures in " + d + ": found " + names.size() + ", expected at least " + MIN_FIXTURES);
+        }
+        return names.stream();
+    }
+
+    static List<String> listFixtureNames(Path d) throws IOException {
         try (Stream<Path> files = Files.list(d)) {
-            return files
-                    .map(p -> p.getFileName().toString())
+            return files.map(p -> p.getFileName().toString())
                     .filter(n -> n.endsWith(".html") && !n.endsWith(".serialized.html"))
                     .map(n -> n.substring(0, n.length() - ".html".length()))
                     .sorted()
-                    .toList()
-                    .stream();
+                    .toList();
         }
     }
 
