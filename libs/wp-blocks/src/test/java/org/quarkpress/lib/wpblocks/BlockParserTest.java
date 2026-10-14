@@ -167,4 +167,14 @@ class BlockParserTest {
         assertThat(blocks).extracting(Block::name).containsExactly(null, "core/a");
         assertThat(blocks.get(0).innerHtml()).isEqualTo("<!-");
     }
+
+    @Test
+    void closeSequenceInsideAttributeStringStaysRoundTripSafe() {
+        String doc = "<!-- wp:a {\"k\":\"} -->\"} -->x<!-- /wp:a -->";
+        Block b = WpBlocks.parse(doc).get(0);
+        assertThat(b.rawAttributes()).contains("{\"k\":\"}");
+        assertThat(b.innerContent().get(0)).startsWith("\"} -->x");
+        assertThat(b.rawOpener() + String.join("", b.innerContent()) + b.rawCloser())
+                .isEqualTo(doc);
+    }
 }

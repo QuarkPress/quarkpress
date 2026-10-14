@@ -22,6 +22,15 @@ final class DelimiterScanner {
 
     /** Returns the delimiter starting exactly at {@code start}, or null if there is none. */
     static Delimiter tryRead(String s, int start) {
+        return tryRead(s, start, new AttributeEnds(s));
+    }
+
+    /**
+     * Same as {@link #tryRead(String, int)} but shares {@code ends} across calls on the same input, which
+     * keeps a whole scan linear. Attributes run from the {@code {} after the name to the first {@code }}
+     * followed by whitespace and {@code -->} or {@code /-->}.
+     */
+    static Delimiter tryRead(String s, int start, AttributeEnds ends) {
         if (!s.startsWith(COMMENT_OPEN, start)) {
             return null;
         }
@@ -60,16 +69,12 @@ final class DelimiterScanner {
 
         String raw = null;
         if (pos < s.length() && s.charAt(pos) == '{') {
-            int attrEnd = AttributeJson.findEnd(s, pos);
-            if (attrEnd < 0) {
+            int term = ends.terminatorFrom(pos);
+            if (term < 0) {
                 return null;
             }
-            raw = s.substring(pos, attrEnd);
-            int afterAttrs = skipWs(s, attrEnd);
-            if (afterAttrs == attrEnd) {
-                return null; // whitespace after the attributes is mandatory
-            }
-            pos = afterAttrs;
+            raw = s.substring(pos, term + 1);
+            pos = DelimiterScanner.skipWs(s, term + 1);
         }
         if (s.startsWith(VOID_CLOSE, pos)) {
             return new Delimiter(Kind.VOID, name, raw, start, pos + VOID_CLOSE.length());

@@ -87,11 +87,32 @@ class DelimiterScannerTest {
     }
 
     @Test
-    void findEndReturnsMinusOneWhenUnbalancedOrUnterminatedString() {
-        assertThat(AttributeJson.findEnd("{\"a\":{", 0)).isEqualTo(-1);
-        assertThat(AttributeJson.findEnd("{\"a\":\"x}", 0)).isEqualTo(-1);
-        assertThat(AttributeJson.findEnd("{\"a\":\"x\\", 0)).isEqualTo(-1);
-        assertThat(AttributeJson.findEnd("{}", 0)).isEqualTo(2);
-        assertThat(AttributeJson.findEnd("ab{\"q\":\"}\"} ", 2)).isEqualTo(11);
+    void terminatorIsFirstBraceFollowedByWhitespaceAndClose() {
+        assertThat(new AttributeEnds("{\"a\":{").terminatorFrom(0)).isEqualTo(-1);
+        assertThat(new AttributeEnds("{} -->").terminatorFrom(0)).isEqualTo(1);
+        assertThat(new AttributeEnds("{}-->").terminatorFrom(0)).isEqualTo(-1);
+        assertThat(new AttributeEnds("ab{\"q\":\"}\"} /-->").terminatorFrom(2)).isEqualTo(10);
+        AttributeEnds memo = new AttributeEnds("{} --> {} -->");
+        assertThat(memo.terminatorFrom(0)).isEqualTo(1);
+        assertThat(memo.terminatorFrom(1)).isEqualTo(1);
+        assertThat(memo.terminatorFrom(2)).isEqualTo(8);
+        assertThat(memo.terminatorFrom(9)).isEqualTo(-1);
+    }
+
+    @Test
+    void attributeEndsAtFirstBraceBeforeCloseEvenInsideString() {
+        String doc = "<!-- wp:a {\"a\":\"} -->\"} -->";
+        Delimiter d = DelimiterScanner.tryRead(doc, 0);
+        assertThat(d.kind()).isEqualTo(Kind.OPENER);
+        assertThat(d.rawAttributes()).isEqualTo("{\"a\":\"}");
+        assertThat(d.end()).isEqualTo(doc.indexOf("-->") + 3);
+    }
+
+    @Test
+    void attributesNeedWhitespaceBeforeCloseButAnyWhitespaceWorks() {
+        assertThat(DelimiterScanner.tryRead("<!-- wp:a {}/-->", 0)).isNull();
+        Delimiter d = DelimiterScanner.tryRead("<!-- wp:a {\"a\":1}\n\t/-->", 0);
+        assertThat(d.kind()).isEqualTo(Kind.VOID);
+        assertThat(d.rawAttributes()).isEqualTo("{\"a\":1}");
     }
 }

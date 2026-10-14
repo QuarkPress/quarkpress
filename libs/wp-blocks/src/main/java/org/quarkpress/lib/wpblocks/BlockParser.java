@@ -17,6 +17,7 @@ final class BlockParser {
     private final ParseOptions options;
     private final List<Block> top = new ArrayList<>();
     private final ArrayDeque<Frame> frames = new ArrayDeque<>();
+    private final AttributeEnds ends;
     private int blockCount;
 
     private static final class Frame {
@@ -61,6 +62,7 @@ final class BlockParser {
     private BlockParser(String s, ParseOptions options) {
         this.s = s;
         this.options = options;
+        this.ends = new AttributeEnds(s);
     }
 
     static List<Block> parse(String s, ParseOptions options) {
@@ -75,7 +77,7 @@ final class BlockParser {
             if (idx < 0) {
                 break;
             }
-            Delimiter d = DelimiterScanner.tryRead(s, idx);
+            Delimiter d = DelimiterScanner.tryRead(s, idx, ends);
             if (d == null) {
                 searchFrom = idx + 1;
                 continue;
