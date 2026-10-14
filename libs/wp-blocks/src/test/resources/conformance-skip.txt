@@ -1,0 +1,2 @@
+# Gutenberg fixtures to skip, one per line: <fixture name><TAB><reason>. Lines starting with # are comments.
+# Keep this list empty unless a fixture depends on editor behaviour rather than on the grammar.

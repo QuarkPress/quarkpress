@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: JDK ${{ matrix.java }}
@@ -20,7 +23,7 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
-      - name: Build and test
-        run: mvn -B -ntp verify
+      - name: Build and test (with Gutenberg conformance fixtures)
+        run: mvn -B -ntp verify -Pconformance
       - name: Check formatting
         run: mvn -B -ntp spotless:check
