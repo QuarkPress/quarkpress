@@ -23,7 +23,16 @@ public final class WpBlocks {
         return BlockParser.parse(content, options);
     }
 
-    /** Serializes blocks in order. Parsed, unmodified blocks come back byte for byte. */
+    /**
+     * Serializes blocks in order. Parsed, unmodified blocks come back byte for byte.
+     *
+     * <p>{@code parse(serialize(blocks))} equals API-built {@code blocks} only when no two top-level
+     * freeform blocks are adjacent (they re-parse as one), no freeform block is empty (it disappears),
+     * and no text contains block delimiters (it re-parses as delimiters); see {@link Block}.
+     *
+     * <p>Serialization recurses once per nesting level. Parsed trees are bounded by
+     * {@link ParseOptions#maxDepth()} (at most 1024); a very deep API-built tree can exhaust the stack.
+     */
     public static String serialize(List<Block> blocks) {
         Objects.requireNonNull(blocks, "blocks");
         StringBuilder out = new StringBuilder();

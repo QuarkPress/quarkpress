@@ -28,6 +28,18 @@ import java.util.Optional;
  *
  * <p>{@link #equals(Object)} compares name, attributes as JSON values, inner blocks and inner
  * content. Raw source text (attributes, delimiters) and the closing form are not part of equality.
+ *
+ * <p>Attributes may hold only JSON values (object, array, string, number, boolean, null); any other
+ * node, such as a POJO or binary node, is rejected with {@link IllegalArgumentException}. Number nodes
+ * are normalised on construction: integral values become an int, long or big integer node (the
+ * smallest that fits), a float becomes the double with the same decimal text ({@code 0.1f} becomes
+ * {@code 0.1}), and a big decimal becomes a double. API-built and parsed attributes thus compare equal.
+ *
+ * <p>Round trip of API-built trees: {@code WpBlocks.parse(WpBlocks.serialize(blocks))} equals
+ * {@code blocks} only when no two top-level freeform blocks are adjacent (they re-parse as one), no
+ * freeform block is empty (it disappears), and no text, from {@link Builder#text} or a freeform block,
+ * contains block delimiters (text is written as is, so {@code text("<!-- /wp:p -->x")} closes the block
+ * early on re-parse).
  */
 public final class Block {
 
@@ -195,7 +207,10 @@ public final class Block {
         return name;
     }
 
-    /** A deep copy of the attributes; never null, empty when the block has none. */
+    /**
+     * A deep copy of the attributes, made on every call; never null, empty when the block has none.
+     * Renderers walking large trees should call it once per block and keep the result.
+     */
     public ObjectNode attributes() {
         return attributes.deepCopy();
     }

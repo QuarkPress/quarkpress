@@ -8,8 +8,9 @@ import org.quarkpress.lib.wpblocks.DelimiterScanner.Delimiter;
 
 /**
  * Single-pass scanner with an explicit frame stack. Every character of the input ends up in exactly
- * one place: a delimiter (reconstructed on output from name + raw attributes), a text chunk of an
- * open block, or a freeform block. That is what makes the round trip exact.
+ * one place: a delimiter (kept verbatim as the block's raw opener or closer and written back as is,
+ * not reconstructed), a text chunk of an open block, or a freeform block. That is what makes the round
+ * trip exact.
  */
 final class BlockParser {
 

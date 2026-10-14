@@ -75,6 +75,25 @@ Invariants: `null` count equals `innerBlocks().size()`; non-null chunks concaten
 `innerHtml()`. Equality compares name, attributes as JSON values, inner blocks and content, not
 the raw attribute text.
 
+`attributes()` returns a fresh deep copy on every call; renderers walking large trees should
+read it once per block and keep it.
+
+Attributes must be JSON values only (objects, arrays, strings, numbers, booleans, null); a POJO
+or binary node is rejected with `IllegalArgumentException`. Number nodes are normalised when a
+block is built: short, int, long and big integer become the smallest of int, long or big
+integer; float becomes the double with the same decimal text (`0.1f` becomes `0.1`); big decimal
+becomes double. So API-built and parsed attributes compare equal. Non-finite doubles (NaN,
+infinities, or a literal such as `1e400` that overflows) are written as `null`.
+
+### Round trip of API-built trees
+
+`WpBlocks.parse(WpBlocks.serialize(blocks))` equals `blocks` when:
+
+- no two top-level freeform blocks are adjacent (they re-parse as one freeform block);
+- no freeform block is empty (an empty one produces no text and disappears);
+- no text, from `Builder.text` or a freeform block, contains block delimiters. Text is written
+  as is, so `text("<!-- /wp:p -->x")` closes the block early on re-parse.
+
 ## Grammar and leniency
 
 - Delimiters: `<!-- wp:name {json} -->` ... `<!-- /wp:name -->`, and void `<!-- wp:name {json} /-->`.
@@ -85,6 +104,10 @@ the raw attribute text.
   and then `-->` or `/-->` (the documented grammar). The search is linear, so hostile input
   cannot make parsing quadratic. Invalid JSON yields empty attributes but the raw text is kept,
   so the round trip still holds.
+- Importers of corrupted content: one malformed `{` in an opener (an unbalanced brace, a missing
+  `}`) makes the attributes run to the next `} -->` anywhere later in the document, so the
+  following blocks are swallowed into that opener's raw attribute text. The round trip is still
+  exact, but renderers see one block with empty attributes where there were several.
 - Closers match by position, not by name. A closer with nothing open is text. Open blocks are
   closed at end of input, keeping the trailing text as their inner HTML.
 - Malformed markup never throws. `BlockParseException` is thrown only when `ParseOptions`
@@ -93,8 +116,11 @@ the raw attribute text.
 
 ## Serialization
 
-- Freeform: written as is. No inner blocks and no inner HTML: void form. Otherwise opener,
-  content, closer.
+- Freeform: written as is.
+- Parsed delimiters are written back verbatim. A block without them (API-built, or after
+  `withAttributes`/`withInnerBlocks`) gets regenerated delimiters: the void form when it has no
+  inner blocks and no inner HTML, unless it came from an opener/closer pair (that explicit close
+  is kept, also after `withAttributes` and `withInnerBlocks`); otherwise opener, content, closer.
 - `core/` is dropped from names on output; other namespaces are kept.
 - Raw attribute text is reused verbatim. Regenerated attributes are compact JSON with `--`,
   `<`, `>`, `&` and escaped quotes written as `\u002d\u002d`, `\u003c`, `\u003e`, `\u0026`,
@@ -104,7 +130,9 @@ the raw attribute text.
 
 `mvn verify -Pconformance` fetches Gutenberg's published parser fixtures at a pinned commit
 (shallow sparse git checkout into `target/`) and compares `parse` output with each
-`*.parsed.json`, plus a byte-identical round trip of every fixture file. The fixtures are not
+`*.parsed.json`, plus a byte-identical round trip of every fixture file, plus canonical
+serialization: each `*.serialized.html` is parsed, rebuilt without raw delimiter and attribute
+text, and serialized again, which must reproduce the file. The fixtures are not
 part of this repository. CI runs the profile.
 The fetch is bounded by a 10-minute timeout per git step and the run fails if fewer than 300
 fixtures are found.

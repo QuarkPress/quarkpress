@@ -54,7 +54,9 @@
     <spotless.version>3.10.4</spotless.version>
     <palantir-java-format.version>2.102.0</palantir-java-format.version>
 
-    <!-- Extra JVM flags for test forks; may be overridden on the command line. -->
+    <!-- Extra JVM flags for test forks. They are here because the maintainers' build host faults
+         under heavy multi-threaded JIT load (C1 only, 8 visible processors); they are not needed
+         for correctness. Override with -Dsurefire.argLine.additional=... -->
     <surefire.argLine.additional>-XX:TieredStopAtLevel=1 -XX:ActiveProcessorCount=8</surefire.argLine.additional>
   </properties>
 
