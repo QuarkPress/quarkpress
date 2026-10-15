@@ -272,7 +272,7 @@ artifactIds below omit the `quarkpress-` prefix for brevity unless shown.
 - Configurable limits: max depth, max element count, max string size.
 - Writer produces byte-identical output for round-trips of supported input.
 - Convenience: `PhpValue.toJson()` / `toJavaObject()` (maps, lists, scalars).
-- Detection helper `PhpSerialize.looksSerialized(String)` (like WP's `is_serialized`) for migration code.
+- WordPress helpers `WordPressSerialization.isSerialized`, `maybeSerialize` and `maybeUnserialize` with WordPress's exact rules.
 - Test corpus: real-world WP options, widget settings, broken lengths after search-and-replace (common corruption; offer a lenient "repair lengths" mode).
 
 ### 7.2 `lib-wp-blocks`
