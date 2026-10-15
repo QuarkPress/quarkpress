@@ -185,6 +185,7 @@ artifactIds below omit the `quarkpress-` prefix for brevity unless shown.
 | `lib-wp-shortcode` | Parse WordPress shortcodes (`[gallery ids="1,2"]`) | 1.0 |
 | `lib-wxr` | Streaming read/write of WordPress eXtended RSS export files | 1.0 |
 | `lib-wp-password` | Verify WordPress password hashes (phpass portable `$P$`, bcrypt, WP 6.8+ `$wp$` format) | 1.0 |
+| `lib-wp-kses` | HTML sanitizing with WordPress kses semantics (allowlists, URL protocols, safe CSS) | 1.0 |
 
 ### 6.2 Foundation
 
@@ -286,19 +287,32 @@ artifactIds below omit the `quarkpress-` prefix for brevity unless shown.
 - Parse `[tag attr="x" attr2=y]content[/tag]`, self-closing, escaped `[[tag]]`, positional attributes.
 - Tag registry supplied by caller (shortcodes are only recognized when registered, as in WP).
 - Renderer callback interface; unknown shortcodes left as text.
+- Full WordPress Shortcode API surface: `do_shortcode` (including shortcodes inside HTML attributes), `strip_shortcodes`, `has_shortcode`, `shortcode_atts`, `shortcode_parse_atts`, `shortcode_unautop`, and the shortcode filter hooks as typed Java extension points.
+- Attribute values produced inside HTML attributes go through a pluggable sanitizer; `lib-wp-kses` provides the full WordPress one.
 
 ### 7.4 `lib-wxr`
 
 - StAX streaming reader (large exports must not load into memory) and writer.
 - Model: channel (site info), authors, categories, tags, terms, items (posts/pages/attachments/custom types) with postmeta and comments.
 - Handles WXR versions 1.0–1.2 and the namespaces used by exports.
-- Postmeta values are surfaced raw and, when `PhpSerialize.looksSerialized`, also parsed via `lib-php-serialize`.
+- Postmeta values are surfaced raw and, when WordPress's `is_serialized` rule says so, also parsed via `lib-php-serialize`.
 
 ### 7.5 `lib-wp-password`
 
 - `boolean verify(String password, String storedHash)` and `HashType detect(String)`.
 - Supports phpass portable hashes (`$P$` / `$H$`), plain bcrypt (`$2y$`), the WordPress 6.8+ `$wp$`-prefixed bcrypt variant (confirm the exact pre-hash algorithm from public documentation before implementing), and legacy MD5 (32 hex chars).
 - No hashing of new passwords in WP formats; new passwords are always hashed by the IdP.
+
+### 7.6 `lib-wp-kses`
+
+- WordPress kses semantics: element and attribute allowlists (the "post", "data" and other contexts), allowed URL protocols, entity normalization, and the safe-CSS filter for `style` attributes.
+- Pluggable allowlists so hosts can extend them like the WordPress filters do.
+- Implements the attribute sanitizer interface defined by `lib-wp-shortcode`.
+
+### 7.7 WordPress parity testing
+
+- Every standalone lib is checked against the real WordPress code it mirrors: a test-only module downloads a pinned WordPress release at test time, runs its PHP functions with the local `php`, and compares results with the Java library on hand-written, fixture and generated inputs.
+- Known, deliberate differences are listed per lib with a reason; any new difference fails the build. The parity profile runs in CI.
 
 ---
 
@@ -429,7 +443,7 @@ Contributors confirm the policy in the PR template. Get a legal review before 1.
 
 ### M0 — Foundation
 - Monorepo skeleton, `quarkpress-bom`, parent POM, CI matrix, release pipeline.
-- Standalone libs: `lib-php-serialize`, `lib-wp-blocks`, `lib-wp-shortcode`, `lib-wxr`, `lib-wp-password`.
+- Standalone libs: `lib-php-serialize`, `lib-wp-blocks`, `lib-wp-shortcode`, `lib-wxr`, `lib-wp-password`, `lib-wp-kses`, each checked against WordPress (§7.7).
 - Website v0 on Roq.
 
 ### M1 — Core
