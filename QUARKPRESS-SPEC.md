@@ -35,7 +35,7 @@ These are rules. When a design decision conflicts with one, the principle wins u
 3. **Headless core.** The core has no UI. Every capability is reachable through Java APIs and a REST API. Every UI (Gutenberg admin, HTMX admin, Dev UI, a dev's own UI) is a replaceable consumer; removing it must not break anything else.
 4. **Modules are chosen at build time.** Adding a dependency to `pom.xml` / `build.gradle` makes a module available to the application (all sites). Per-site enabling/disabling is runtime configuration evaluated by code; it never loads or unloads classes.
 5. **WordPress compatibility lives in clearly named modules.** Anything that exists only to match WordPress (WP REST v2 shape, WP database schema, WP hook names, PHP serialization) is isolated in modules prefixed `wp-` or suffixed `-wp`. The native model never bends to fit them.
-6. **Clean-room implementation.** WordPress behavior is implemented from public documentation, specs and observed behavior, never by reading or translating WordPress PHP source. See §13.
+6. **Original implementation.** WordPress source may be read to understand how a feature behaves. QuarkPress code is an original Java/Quarkus design, never a translation or copy of WordPress PHP. See §13.
 7. **Both Postgres and MySQL from day one.** Every persistence feature is tested on both in CI.
 8. **Generic pieces have zero Quarkus dependency.** Parsers and format libraries are plain Java so anyone can use them.
 
@@ -382,17 +382,21 @@ Three independent concerns:
 
 ---
 
-## 13. Clean-room policy
+## 13. Source policy
 
 Allowed sources:
+- WordPress PHP source, read to understand behavior and to build test harnesses.
 - Public documentation (REST API handbook, developer reference prose, block grammar documentation, WXR samples, role/capability docs).
-- Observed behavior of a running WordPress instance (HTTP requests and responses, database contents of a test install, exported files).
+- Observed behavior of a running WordPress instance (HTTP requests and responses, database contents of a test install, exported files), including WordPress code run as a black-box oracle in tests.
 - Third-party specs and articles describing formats.
 - Gutenberg's published npm packages, **consumed** as dependencies only in GPL repos.
 
 Not allowed in Apache-licensed repos:
-- Reading, translating or copying WordPress PHP source code.
+- Translating or copying WordPress PHP source code: no line-by-line ports, no copied regexes, identifiers or comments. Code follows Java and Quarkus idioms and is designed independently.
 - Copying WordPress CSS, images, or text assets (those belong in GPL repos).
+- Committing WordPress source files. Test harnesses download a pinned release at test time.
+
+When a component must reproduce a WordPress algorithm closely (parsers, hashing, formatting), use two steps: one person or agent reads the source and writes a behavior description in prose with examples and no code; the implementation is written from that description, and differential tests against the real WordPress code confirm it.
 
 Contributors confirm the policy in the PR template. Get a legal review before 1.0.
 
@@ -436,7 +440,7 @@ Contributors confirm the policy in the PR template. Get a legal review before 1.
 
 ### M3 — Publishing → **1.0**
 - `theme-qute`, `blocks-render`, `import-wxr`, starter theme, migration guide.
-- Legal review of clean-room/licensing setup.
+- Legal review of the source policy and licensing setup.
 
 ### Post-1.0 (rough order)
 `comments` · `feeds` · `sitemap` · `search` · `menus` · `notifications` · `cache` · `upload-tus` · `migrate-wpdb` · `rest` (native) · `roq` · `security-jpa` · `admin-htmx` · `graphql` · `camel` · `persistence-wpdb` · `wp-hooks` · clean-room plugin ports.
