@@ -31,7 +31,8 @@ import java.util.Optional;
  *
  * <p>{@link #equals(Object)} compares name, attributes as JSON values, inner blocks and inner
  * content. Numbers compare by value ({@code 3} equals {@code 3.0}; WordPress writes {@code 3.0} as {@code 3}).
- * Raw source text (attributes, delimiters) is not part of equality.
+ * Raw source text (attributes, delimiters) and the {@linkplain #isRecoveredCopy() recovered-copy} flag are not
+ * part of equality. Empty text chunks are ignored.
  *
  * <p>Attributes may hold only JSON values (object, array, string, number, boolean, null); any other
  * node, such as a POJO or binary node, is rejected with {@link IllegalArgumentException}. Number nodes
@@ -56,6 +57,8 @@ public final class Block {
     private final List<Block> innerBlocks;
     private final String innerHtml;
     private final List<String> innerContent;
+    private final boolean recoveredCopy;
+    private final List<String> comparableContent;
 
     /** Convenience for blocks without raw delimiter text (API-built or tests). */
     Block(
@@ -64,12 +67,13 @@ public final class Block {
             String rawAttributes,
             List<Block> innerBlocks,
             List<String> innerContent) {
-        this(name, attributes, true, rawAttributes, null, null, innerBlocks, innerContent);
+        this(name, attributes, true, rawAttributes, null, null, false, innerBlocks, innerContent);
     }
 
     /**
      * @param rawOpener the opener (or void) delimiter exactly as parsed, or null
      * @param rawCloser the closer delimiter exactly as parsed, or null when void or unclosed
+     * @param recoveredCopy true for a block that WordPress's end-of-input recovery emits a second time
      */
     Block(
             String name,
@@ -78,6 +82,7 @@ public final class Block {
             String rawAttributes,
             String rawOpener,
             String rawCloser,
+            boolean recoveredCopy,
             List<Block> innerBlocks,
             List<String> innerContent) {
         Objects.requireNonNull(attributes, "attributes");
@@ -120,6 +125,12 @@ public final class Block {
         this.innerBlocks = List.copyOf(innerBlocks);
         this.innerContent = Collections.unmodifiableList(new ArrayList<>(innerContent));
         this.innerHtml = html.toString();
+        this.recoveredCopy = recoveredCopy;
+        this.comparableContent = this.innerContent.contains("")
+                ? this.innerContent.stream()
+                        .filter(c -> c == null || !c.isEmpty())
+                        .toList()
+                : this.innerContent;
     }
 
     private static final BigInteger INT_MIN = BigInteger.valueOf(Integer.MIN_VALUE);
@@ -218,6 +229,12 @@ public final class Block {
         return new Block(null, JsonNodeFactory.instance.objectNode(), null, List.of(), List.of(html));
     }
 
+    /** Freeform text that WordPress's end-of-input recovery repeats from an enclosing block. */
+    static Block recoveredFreeform(String html) {
+        return new Block(
+                null, JsonNodeFactory.instance.objectNode(), true, null, null, null, true, List.of(), List.of(html));
+    }
+
     /** A block with no attributes and no content; serializes in the void form. */
     public static Block of(String name) {
         return of(name, JsonNodeFactory.instance.objectNode());
@@ -281,6 +298,18 @@ public final class Block {
         return innerContent;
     }
 
+    /**
+     * True for a block that WordPress emits a second time when blocks are left open at the end of a document:
+     * its text is also inside the outermost open block. {@link WpBlocks#serialize(List)} skips such blocks so the
+     * round trip stays exact; {@link WpBlocks#serializeCanonical(List)} writes them, as WordPress does. Only
+     * {@code serialize(List)} skips copies: {@link WpBlocks#serialize(Block)} writes one passed to it, and
+     * {@link #withAttributes} and {@link #withInnerBlocks} return an ordinary block, which {@code serialize(List)}
+     * writes too. The flag is not part of equality.
+     */
+    public boolean isRecoveredCopy() {
+        return recoveredCopy;
+    }
+
     public boolean isFreeform() {
         return name == null;
     }
@@ -293,7 +322,7 @@ public final class Block {
         if (isFreeform()) {
             throw new IllegalArgumentException("freeform blocks have no attributes");
         }
-        return new Block(name, attributes, true, null, null, null, innerBlocks, innerContent);
+        return new Block(name, attributes, true, null, null, null, false, innerBlocks, innerContent);
     }
 
     /**
@@ -309,7 +338,7 @@ public final class Block {
         for (int i = 0; i < innerBlocks.size(); i++) {
             content.add(null);
         }
-        return new Block(name, attributes, attributesValid, rawAttributes, null, null, innerBlocks, content);
+        return new Block(name, attributes, attributesValid, rawAttributes, null, null, false, innerBlocks, content);
     }
 
     /** Opener or void delimiter text exactly as parsed; null for API-built or modified blocks. */
@@ -338,12 +367,12 @@ public final class Block {
         return Objects.equals(name, b.name)
                 && attributes.equals(SAME_JSON_VALUE, b.attributes)
                 && innerBlocks.equals(b.innerBlocks)
-                && innerContent.equals(b.innerContent);
+                && comparableContent.equals(b.comparableContent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, valueHash(attributes), innerBlocks, innerContent);
+        return Objects.hash(name, valueHash(attributes), innerBlocks, comparableContent);
     }
 
     /** Leaf comparison for attribute equality: numbers by value, everything else by {@code equals}. */

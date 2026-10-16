@@ -24,20 +24,24 @@ public final class WpBlocks {
     }
 
     /**
-     * Serializes blocks in order. Parsed, unmodified blocks come back byte for byte.
+     * Serializes blocks in order. Parsed, unmodified blocks come back byte for byte, so {@code
+     * serialize(parse(x)).equals(x)} for every {@code x}. {@linkplain Block#isRecoveredCopy() Recovered copies}
+     * are skipped: their text is already inside the outermost block left open at the end of the document.
      *
-     * <p>{@code parse(serialize(blocks))} equals API-built {@code blocks} only when no two top-level
-     * freeform blocks are adjacent (they re-parse as one), no freeform block is empty (it disappears),
-     * and no text contains block delimiters (it re-parses as delimiters); see {@link Block}.
+     * <p>{@code parse(serialize(blocks))} equals API-built {@code blocks} only when no two top-level freeform
+     * blocks are adjacent (they re-parse as one), no freeform block is empty (it disappears), and no text contains
+     * block delimiters (it re-parses as delimiters); see {@link Block}.
      *
-     * <p>Serialization recurses once per nesting level. Parsed trees are bounded by
-     * {@link ParseOptions#maxDepth()} (at most 1024); a very deep API-built tree can exhaust the stack.
+     * <p>Serialization recurses once per nesting level. Parsed trees are bounded by {@link ParseOptions#maxDepth()}
+     * (at most 1024); a very deep API-built tree can exhaust the stack.
      */
     public static String serialize(List<Block> blocks) {
         Objects.requireNonNull(blocks, "blocks");
         StringBuilder out = new StringBuilder();
         for (Block b : blocks) {
-            BlockSerializer.append(out, Objects.requireNonNull(b, "block"));
+            if (!Objects.requireNonNull(b, "block").isRecoveredCopy()) {
+                BlockSerializer.append(out, b);
+            }
         }
         return out.toString();
     }

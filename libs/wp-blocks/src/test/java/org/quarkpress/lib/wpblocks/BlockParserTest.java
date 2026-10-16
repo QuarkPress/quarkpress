@@ -2,6 +2,8 @@ package org.quarkpress.lib.wpblocks;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -137,13 +139,87 @@ class BlockParserTest {
     }
 
     @Test
-    void unclosedBlocksAreClosedAtEndOfInput() {
-        List<Block> blocks = WpBlocks.parse("<!-- wp:group --><p>x</p><!-- wp:a -->tail");
+    void blocksLeftOpenAtTheEndAreClosedAsWordPressDoes() { // D2
+        String doc = "<!-- wp:group --><p>x</p><!-- wp:a -->tail";
+        List<Block> blocks = WpBlocks.parse(doc);
+        assertThat(blocks).extracting(Block::name).containsExactly(null, "core/a", "core/group");
+        assertThat(blocks.get(0).innerHtml()).isEqualTo("<p>x</p>");
+        assertThat(blocks.get(1).innerHtml()).isEqualTo("tail");
+        assertThat(blocks.get(2).innerContent()).containsExactly("<p>x</p><!-- wp:a -->tail");
+        assertThat(blocks.get(2).innerBlocks()).isEmpty();
+        assertThat(blocks).extracting(Block::isRecoveredCopy).containsExactly(true, true, false);
+        assertThat(WpBlocks.serialize(blocks)).isEqualTo(doc);
+    }
+
+    @Test
+    void openBlocksAreEmittedInnermostFirstWithTheirLeadingText() { // D2
+        String doc = "p<!-- wp:a -->x<!-- wp:b -->y<!-- wp:c /-->z";
+        List<Block> blocks = WpBlocks.parse(doc);
+        assertThat(blocks).extracting(Block::name).containsExactly(null, "core/b", null, "core/a");
+        assertThat(blocks.get(0).innerHtml()).isEqualTo("x");
+        assertThat(blocks.get(1).innerContent()).containsExactly("y", null, "z");
+        assertThat(blocks.get(1).innerBlocks()).extracting(Block::name).containsExactly("core/c");
+        assertThat(blocks.get(2).innerHtml()).isEqualTo("p");
+        assertThat(blocks.get(3).innerContent()).containsExactly("x<!-- wp:b -->y<!-- wp:c /-->z");
+        assertThat(blocks).extracting(Block::isRecoveredCopy).containsExactly(true, true, false, false);
+        assertThat(WpBlocks.serialize(blocks)).isEqualTo(doc);
+        assertThat(WpBlocks.serializeCanonical(blocks))
+                .isEqualTo("x<!-- wp:b -->y<!-- wp:c /-->z<!-- /wp:b -->p"
+                        + "<!-- wp:a -->x<!-- wp:b -->y<!-- wp:c /-->z<!-- /wp:a -->");
+    }
+
+    @Test
+    void theOuterBlockKeepsTextAfterItsLastClosedChild() { // D2
+        List<Block> blocks = WpBlocks.parse("<!-- wp:a -->x<!-- wp:b -->y<!-- /wp:b -->z<!-- wp:c -->w");
+        assertThat(blocks).extracting(Block::name).containsExactly(null, "core/c", "core/a");
+        assertThat(blocks.get(0).innerHtml()).isEqualTo("z");
+        assertThat(blocks.get(2).innerContent()).containsExactly("x", null, "z<!-- wp:c -->w");
+        assertThat(blocks.get(2).innerBlocks().get(0).innerContent()).containsExactly("y");
+    }
+
+    @Test
+    void aCloserWithNothingOpenEndsParsing() { // D1
+        List<Block> blocks = WpBlocks.parse("x<!-- /wp:a -->y<!-- wp:b /-->z");
         assertThat(blocks).hasSize(1);
-        Block group = blocks.get(0);
-        assertThat(group.innerBlocks()).hasSize(1);
-        assertThat(group.innerContent()).containsExactly("<p>x</p>", null);
-        assertThat(group.innerBlocks().get(0).innerHtml()).isEqualTo("tail");
+        assertThat(blocks.get(0).innerHtml()).isEqualTo("x<!-- /wp:a -->y<!-- wp:b /-->z");
+        List<Block> after = WpBlocks.parse("<!-- wp:a /-->x<!-- /wp:a -->y<!-- wp:b -->q<!-- /wp:b -->");
+        assertThat(after).extracting(Block::name).containsExactly("core/a", null);
+        assertThat(after.get(1).innerHtml()).isEqualTo("x<!-- /wp:a -->y<!-- wp:b -->q<!-- /wp:b -->");
+        assertThat(WpBlocks.parse("x<!-- /wp:a {\"j\":1} -->y")).hasSize(1);
+    }
+
+    @Test
+    void aNestedBlockClosedOnEmptyTextGetsAnEmptyChunk() {
+        Block a = WpBlocks.parse("<!-- wp:a --><!-- wp:b --><!-- /wp:b --><!-- /wp:a -->")
+                .get(0);
+        assertThat(a.innerContent()).containsExactly((String) null);
+        assertThat(a.innerBlocks().get(0).innerContent()).containsExactly("");
+        assertThat(a.innerBlocks().get(0)).isEqualTo(Block.of("b"));
+        assertThat(a.innerBlocks().get(0).hashCode()).isEqualTo(Block.of("b").hashCode());
+    }
+
+    @Test
+    void aRecoveredCopyEqualsTheSameBlockWithoutTheFlag() {
+        List<Block> blocks = WpBlocks.parse("<!-- wp:a -->x<!-- wp:b -->y");
+        Block copy = blocks.get(1);
+        Block plain = WpBlocks.parse("<!-- wp:b -->y").get(0);
+        assertThat(copy.isRecoveredCopy()).isTrue();
+        assertThat(plain.isRecoveredCopy()).isFalse();
+        assertThat(copy).isEqualTo(plain);
+        assertThat(copy.hashCode()).isEqualTo(plain.hashCode());
+        assertThat(blocks.get(0)).isEqualTo(Block.freeform("x"));
+        assertThat(copy.withAttributes(plain.attributes()).isRecoveredCopy()).isFalse();
+    }
+
+    @Test
+    void editingTheOuterBlockOfARecoveredDocumentDoesNotDuplicateText() { // Review Focus 2
+        List<Block> blocks = new ArrayList<>(WpBlocks.parse("p<!-- wp:a -->x<!-- wp:b -->y<!-- wp:c /-->z"));
+        blocks.set(
+                3,
+                blocks.get(3)
+                        .withAttributes(JsonNodeFactory.instance.objectNode().put("k", 1)));
+        assertThat(WpBlocks.serialize(blocks))
+                .isEqualTo("p<!-- wp:a {\"k\":1} -->x<!-- wp:b -->y<!-- wp:c /-->z<!-- /wp:a -->");
     }
 
     @Test

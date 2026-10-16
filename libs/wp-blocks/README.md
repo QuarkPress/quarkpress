@@ -110,11 +110,17 @@ attributes are serialized afresh (a built block, or one given new attributes wit
   `}`) makes the attributes run to the next `} -->` anywhere later in the document, so the
   following blocks are swallowed into that opener's raw attribute text. The round trip is still
   exact, but renderers see one block with empty attributes where there were several.
-- Closers match by position, not by name. A closer with nothing open is text. Open blocks are
-  closed at end of input, keeping the trailing text as their inner HTML.
+- Closers match by position, not by name. As in WordPress, a closer with nothing open ends
+  parsing: the rest of the document becomes one freeform block. Blocks left open at the end are
+  emitted the way WordPress emits them, innermost first; all but the outermost repeat text the
+  outermost already holds and are marked `isRecoveredCopy()`, which `serialize(List)` skips.
 - Malformed markup never throws. `BlockParseException` is thrown only when `ParseOptions`
-  limits are exceeded: `maxDepth` (default 1024) and `maxBlocks` (default 1 000 000, freeform
-  blocks included).
+  limits are exceeded: `maxDepth` (default 1024), `maxBlocks` (default 1 000 000, freeform
+  blocks included) and `maxRecoveredChars` (default 8 000 000).
+- Difference from WordPress: `maxRecoveredChars` bounds the text repeated into recovered copies.
+  Each block left open at the end repeats the rest of the document, so 1024 unclosed openers
+  before 1 MB of text would copy about 1 GB; WordPress builds that tree (up to PHP's
+  `memory_limit`), QuarkPress throws instead.
 
 ## Serialization
 

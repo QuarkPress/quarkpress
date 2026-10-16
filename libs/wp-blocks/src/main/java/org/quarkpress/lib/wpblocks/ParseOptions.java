@@ -10,20 +10,25 @@ public final class ParseOptions {
     public static final int MAX_DEPTH_LIMIT = 1024;
 
     /** No WordPress limit corresponds to these; they bound memory and stack for hostile input only. */
-    public static final ParseOptions DEFAULTS = new ParseOptions(MAX_DEPTH_LIMIT, 1_000_000);
+    public static final ParseOptions DEFAULTS = new ParseOptions(MAX_DEPTH_LIMIT, 1_000_000, 8_000_000);
 
     private final int maxDepth;
     private final int maxBlocks;
+    private final int maxRecoveredChars;
 
-    private ParseOptions(int maxDepth, int maxBlocks) {
+    private ParseOptions(int maxDepth, int maxBlocks, int maxRecoveredChars) {
         if (maxDepth < 1 || maxDepth > MAX_DEPTH_LIMIT) {
             throw new IllegalArgumentException("maxDepth must be between 1 and " + MAX_DEPTH_LIMIT);
         }
         if (maxBlocks < 1) {
             throw new IllegalArgumentException("maxBlocks must be >= 1");
         }
+        if (maxRecoveredChars < 0) {
+            throw new IllegalArgumentException("maxRecoveredChars must be >= 0");
+        }
         this.maxDepth = maxDepth;
         this.maxBlocks = maxBlocks;
+        this.maxRecoveredChars = maxRecoveredChars;
     }
 
     /** Maximum nesting depth of blocks (1..{@link #MAX_DEPTH_LIMIT}). */
@@ -36,16 +41,31 @@ public final class ParseOptions {
         return maxBlocks;
     }
 
+    /**
+     * Maximum total number of characters copied into {@linkplain Block#isRecoveredCopy() recovered copies}: the
+     * last chunks and leading text of blocks that WordPress emits a second time when several blocks are left open
+     * at the end of a document. Each such block repeats the rest of the document, so without a bound memory grows
+     * with depth times length.
+     */
+    public int maxRecoveredChars() {
+        return maxRecoveredChars;
+    }
+
     public ParseOptions withMaxDepth(int maxDepth) {
-        return new ParseOptions(maxDepth, maxBlocks);
+        return new ParseOptions(maxDepth, maxBlocks, maxRecoveredChars);
     }
 
     public ParseOptions withMaxBlocks(int maxBlocks) {
-        return new ParseOptions(maxDepth, maxBlocks);
+        return new ParseOptions(maxDepth, maxBlocks, maxRecoveredChars);
+    }
+
+    public ParseOptions withMaxRecoveredChars(int maxRecoveredChars) {
+        return new ParseOptions(maxDepth, maxBlocks, maxRecoveredChars);
     }
 
     @Override
     public String toString() {
-        return "ParseOptions[maxDepth=" + maxDepth + ", maxBlocks=" + maxBlocks + "]";
+        return "ParseOptions[maxDepth=" + maxDepth + ", maxBlocks=" + maxBlocks + ", maxRecoveredChars="
+                + maxRecoveredChars + "]";
     }
 }

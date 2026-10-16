@@ -33,7 +33,13 @@ class BlockSerializerTest {
                 "stray closer <!-- /wp:x --> here",
                 "<!-- wp:a {\"k\":} /-->",
                 "<!-<!-- wp:a /-->",
-                "<!-- wp:a --><!-- wp:b -->x<!-- /wp:a -->y<!-- /wp:b -->"
+                "<!-- wp:a --><!-- wp:b -->x<!-- /wp:a -->y<!-- /wp:b -->",
+                "x<!-- /wp:a -->y<!-- wp:b /-->z",
+                "<!-- wp:a /-->x<!-- /wp:a -->y<!-- wp:b -->q<!-- /wp:b -->",
+                "<!-- wp:a -->x<!-- wp:b -->y",
+                "p<!-- wp:a -->x<!-- wp:b -->y<!-- wp:c /-->z",
+                "<!-- wp:a -->x<!-- wp:b -->y<!-- /wp:b -->z<!-- wp:c -->w",
+                "<!-- wp:a --><!-- wp:b --><!-- /wp:b --><!-- /wp:a -->"
             })
     void serializeOfParseIsIdentity(String doc) {
         assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
