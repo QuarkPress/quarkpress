@@ -8,9 +8,10 @@ final class PhpJson {
 
     private PhpJson() {}
 
+    /** Resolves back-references first ({@link PhpReferences}), then writes. */
     static String write(PhpValue value) {
         StringBuilder sb = new StringBuilder();
-        append(sb, value);
+        append(sb, PhpReferences.resolve(value));
         return sb.toString();
     }
 
@@ -28,7 +29,7 @@ final class PhpJson {
                     appendObject(sb, a);
                 }
             }
-            case PhpObject o -> appendObject(sb, o.properties());
+            case PhpObject o -> appendProperties(sb, PhpConversions.visibleProperties(o.properties()));
             case PhpCustomObject c -> appendString(sb, new String(c.payload(), StandardCharsets.UTF_8));
             case PhpReference r -> sb.append("null");
             case PhpEnum e -> appendString(sb, e.className() + ":" + e.caseName());
@@ -57,6 +58,21 @@ final class PhpJson {
             }
             first = false;
             appendString(sb, PhpConversions.keyToString(e.getKey()));
+            sb.append(':');
+            append(sb, e.getValue());
+        }
+        sb.append('}');
+    }
+
+    private static void appendProperties(StringBuilder sb, Map<String, PhpValue> properties) {
+        sb.append('{');
+        boolean first = true;
+        for (Map.Entry<String, PhpValue> e : properties.entrySet()) {
+            if (!first) {
+                sb.append(',');
+            }
+            first = false;
+            appendString(sb, e.getKey());
             sb.append(':');
             append(sb, e.getValue());
         }

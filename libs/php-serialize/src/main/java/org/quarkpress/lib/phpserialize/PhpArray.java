@@ -148,6 +148,11 @@ public final class PhpArray implements PhpValue {
             return map.size();
         }
 
+        /** True when {@code key} is already present. */
+        boolean containsKey(Key key) {
+            return map.containsKey(key);
+        }
+
         public PhpArray build() {
             if (map.isEmpty()) {
                 return EMPTY;

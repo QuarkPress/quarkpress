@@ -2,6 +2,7 @@ package org.quarkpress.lib.phpserialize;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * Recursive-descent parser over a byte array. Not thread-safe; one instance per document.
@@ -9,6 +10,10 @@ import java.util.Arrays;
  * <p>Integer values and keys and floats may carry a leading {@code +}, as PHP's grammar allows; lengths, counts
  * and back-reference numbers are plain digits. Class names must be PHP class names: bytes from {@code A-Z a-z
  * 0-9 _ \} and 0x80-0xFF, at least one, not starting with a backslash.
+ *
+ * <p>Values are numbered as PHP numbers them: in document order every value takes the next slot, starting at 1,
+ * except an {@code R:} reference; keys take none. {@code R:N} must name a slot allocated so far, {@code r:N} an
+ * earlier slot holding an object ({@code O:}, {@code C:}, {@code E:} or another {@code r:}).
  */
 final class PhpParser {
 
@@ -16,6 +21,9 @@ final class PhpParser {
     private final ParseOptions options;
     private int pos;
     private long elements;
+    private int slots;
+    private final BitSet objectSlots = new BitSet();
+    private boolean sawDuplicateKey;
 
     PhpParser(byte[] in, ParseOptions options) {
         this.in = in;
@@ -25,6 +33,11 @@ final class PhpParser {
     /** Current byte offset; used for error reporting by the facade. */
     int position() {
         return pos;
+    }
+
+    /** True when an array or object repeated a key; the later value replaced the earlier one. */
+    boolean sawDuplicateKey() {
+        return sawDuplicateKey;
     }
 
     PhpValue parseDocument() {
@@ -41,6 +54,7 @@ final class PhpParser {
         }
         int tagAt = pos;
         byte tag = next();
+        int slot = tag == 'R' ? 0 : ++slots;
         switch (tag) {
             case 'N':
                 expect(';');
@@ -61,21 +75,47 @@ final class PhpParser {
                 expect(':');
                 return readEntries(depth).build();
             case 'O':
+                objectSlots.set(slot);
                 return readObject(depth);
             case 'C':
+                objectSlots.set(slot);
                 return readCustomObject();
             case 'E':
+                objectSlots.set(slot);
                 return readEnum();
             case 'r':
-                expect(':');
-                return new PhpReference(readUnsigned(';'), PhpReference.Kind.OBJECT);
+                return readObjectHandle(slot);
             case 'R':
-                expect(':');
-                return new PhpReference(readUnsigned(';'), PhpReference.Kind.REFERENCE);
+                return readReference();
             default:
                 pos = tagAt;
                 throw fail("unknown type tag '" + (char) tag + "'");
         }
+    }
+
+    /** {@code r:N;}: a copy of the handle of an earlier object. Takes a slot of its own, which holds an object. */
+    private PhpReference readObjectHandle(int slot) {
+        expect(':');
+        int at = pos;
+        long target = readUnsigned(';');
+        if (target < 1 || target >= slot || !objectSlots.get((int) target)) {
+            pos = at;
+            throw fail("r:" + target + " does not refer to an earlier object");
+        }
+        objectSlots.set(slot);
+        return new PhpReference(target, PhpReference.Kind.OBJECT);
+    }
+
+    /** {@code R:N;}: a PHP reference to an earlier value, possibly an enclosing one. Takes no slot. */
+    private PhpReference readReference() {
+        expect(':');
+        int at = pos;
+        long target = readUnsigned(';');
+        if (target < 1 || target > slots) {
+            pos = at;
+            throw fail("R:" + target + " does not refer to an earlier value");
+        }
+        return new PhpReference(target, PhpReference.Kind.REFERENCE);
     }
 
     /** Reads {@code COUNT:{key;value;...}} for arrays and object property lists. */
@@ -92,6 +132,9 @@ final class PhpParser {
         for (long i = 0; i < count; i++) {
             PhpArray.Key key = readKey();
             PhpValue value = readValue(depth + 1);
+            if (builder.containsKey(key)) {
+                sawDuplicateKey = true;
+            }
             builder.put(key, value);
         }
         expect('}');
