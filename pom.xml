@@ -22,6 +22,8 @@
 
   <modules>
     <module>bom</module>
+    <!-- test-only support; listed before libs because the libs use it at test scope -->
+    <module>testing</module>
     <module>libs</module>
   </modules>
 
