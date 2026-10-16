@@ -39,7 +39,28 @@ class PhpWriterTest {
         assertThat(PhpSerialize.serializeToString(new PhpFloat(Double.NEGATIVE_INFINITY)))
                 .isEqualTo("d:-INF;");
         assertThat(PhpSerialize.serializeToString(new PhpFloat(Double.NaN))).isEqualTo("d:NAN;");
-        assertThat(PhpSerialize.serializeToString(new PhpFloat(1.5, "1.50"))).isEqualTo("d:1.50;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(1.5, "1.50"))).isEqualTo("d:1.5;");
+    }
+
+    @Test
+    void parsedFloatsAreNormalizedLikePhp() {
+        // PHP 8.4: serialize(unserialize($s)) writes the double, not the lexeme it read
+        assertThat(reserialize("d:+1.5;")).isEqualTo("d:1.5;");
+        assertThat(reserialize("d:1.50;")).isEqualTo("d:1.5;");
+        assertThat(reserialize("d:1e3;")).isEqualTo("d:1000;");
+        assertThat(reserialize("d:.5;")).isEqualTo("d:0.5;");
+        assertThat(reserialize("d:+1;")).isEqualTo("d:1;");
+        assertThat(reserialize("d:1.0E+25;")).isEqualTo("d:1.0E+25;");
+        assertThat(reserialize("d:-0.0;")).isEqualTo("d:-0;");
+        assertThat(reserialize("d:-0;")).isEqualTo("d:-0;");
+        assertThat(reserialize("d:INF;")).isEqualTo("d:INF;");
+        assertThat(reserialize("d:-INF;")).isEqualTo("d:-INF;");
+        assertThat(reserialize("d:NAN;")).isEqualTo("d:NAN;");
+        assertThat(reserialize("a:1:{i:0;d:0.10000000000000001;}")).isEqualTo("a:1:{i:0;d:0.1;}");
+    }
+
+    private static String reserialize(String in) {
+        return PhpSerialize.serializeToString(PhpSerialize.parse(in));
     }
 
     @Test

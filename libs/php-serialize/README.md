@@ -60,6 +60,8 @@ value and `r:` to an earlier object.
 `toJavaObject()` and `toJson()` resolve `R:`/`r:` back-references to copies of their targets
 (a reference cycle throws `PhpSerializeException("cyclic reference")`) and show object properties
 by their visible names (a public property wins over a private or protected one with the same name).
+`toJson()` writes floats as PHP's `json_encode()` does (`1.0e+25`, `10000000`, `0.1`; `INF` and `NAN`
+become `null`).
 
 ### WordPress helpers
 
@@ -79,9 +81,11 @@ byte[] stored = WordPressSerialization.maybeSerialize(value);
 // (5 -> "5", true -> "1", false and null -> "", 0.1 + 0.2 -> "0.3").
 ```
 
-The rules look at bytes. The `String` overloads encode the text as UTF-8 first; `maybeUnserialize(String)`
-is therefore wrong for text from a non-UTF-8 column (declared lengths count the original bytes): use the
-`byte[]` overload with the bytes as stored.
+WordPress's rules look at bytes. `isSerialized` and `isSerializedString` read the characters of the text
+directly, which gives the same answers because every rule they apply tests ASCII characters only.
+`maybeUnserialize(String)` and `tryMaybeUnserialize(String)` encode the text as UTF-8 first, so they are
+wrong for text from a non-UTF-8 column (declared lengths count the original bytes): use the `byte[]`
+overloads with the bytes as stored.
 
 ### Repair corrupted lengths
 
@@ -107,10 +111,11 @@ PhpValue v = PhpArray.builder()
 byte[] bytes = PhpSerialize.serialize(v);
 ```
 
-Parsing and re-serializing a document that PHP wrote reproduces it byte for byte, including float
-lexemes and non-UTF-8 string payloads. Other documents are normalized the way PHP normalizes them:
+Parsing and re-serializing a document that PHP wrote reproduces it byte for byte, including floats
+and non-UTF-8 string payloads. Other documents are normalized the way PHP normalizes them:
 a repeated key keeps its first position and its last value, integer text keys (`s:1:"5"`) become
-integer keys (`i:5`), and object property names are written as strings. Appending with
+integer keys (`i:5`), integers and floats are written from their values (`i:+5` becomes `i:5`,
+`d:+1.50` becomes `d:1.5`, `d:1e3` becomes `d:1000`), and object property names are written as strings. Appending with
 `Builder.add` follows PHP 8.3+: the next key is one more than the largest integer key, even a
 negative one.
 
@@ -124,7 +129,7 @@ Floats created in Java are written as PHP's `serialize()` writes the same double
 | `PhpNull` | `N;` | singleton |
 | `PhpBool` | `b:1;` | |
 | `PhpInt` | `i:123;` | 64-bit |
-| `PhpFloat` | `d:0.1;` | keeps the original lexeme; `INF`, `-INF`, `NAN` supported |
+| `PhpFloat` | `d:0.1;` | `raw()` keeps the lexeme read; written as PHP writes the double; `INF`, `-INF`, `NAN` supported |
 | `PhpString` | `s:5:"hello";` | raw bytes plus a charset hint; equality by bytes |
 | `PhpArray` | `a:2:{...}` | ordered; keys are `Key.Int` or `Key.Str` (integer text is always `Key.Int`) |
 | `PhpObject` | `O:3:"Foo":1:{...}` | class name is data, never looked up |
@@ -138,7 +143,8 @@ Floats created in Java are written as PHP's `serialize()` writes the same double
 - **Bounded.** `ParseOptions` limits nesting depth (default 256, hard cap 1024 because parsing is
   recursive), total element count (default 1 000 000) and single string size (default 64 MiB).
   Declared sizes are checked before any allocation, so hostile input fails fast. Resolving
-  back-references stops after 1 000 000 produced values.
+  back-references stops once the copies made for references exceed 1 000 000 values or nest deeper
+  than 1024 levels (`PhpSerializeException`).
 - **Only one exception type.** Malformed input raises `PhpSerializeException`; property-based
   fuzz tests assert that nothing else escapes.
 

@@ -84,8 +84,8 @@ final class PhpJson {
             sb.append("null");
             return;
         }
-        String s = Double.toString(d);
-        sb.append(s.endsWith(".0") ? s.substring(0, s.length() - 2) : s);
+        // json_encode() writes the same digits as serialize(), with a lowercase exponent marker
+        sb.append(PhpFloatFormat.shortest(d).replace('E', 'e'));
     }
 
     private static void appendString(StringBuilder sb, String s) {

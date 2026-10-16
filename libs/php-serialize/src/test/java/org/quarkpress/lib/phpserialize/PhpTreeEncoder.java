@@ -112,20 +112,4 @@ final class PhpTreeEncoder {
             default -> false;
         };
     }
-
-    /** The same value with every float written from its double, as PHP writes it. */
-    static PhpValue withoutFloatLexemes(PhpValue value) {
-        return switch (value) {
-            case PhpFloat f -> new PhpFloat(f.value());
-            case PhpArray a -> rebuilt(a);
-            case PhpObject o -> new PhpObject(o.className(), rebuilt(o.properties()));
-            default -> value;
-        };
-    }
-
-    private static PhpArray rebuilt(PhpArray array) {
-        PhpArray.Builder builder = PhpArray.builder();
-        array.entries().forEach((k, v) -> builder.put(k, withoutFloatLexemes(v)));
-        return builder.build();
-    }
 }

@@ -91,8 +91,11 @@ final class PhpWriter {
         out.writeBytes(s.getBytes(StandardCharsets.US_ASCII));
     }
 
-    /** Uses the parsed lexeme when present; otherwise the text PHP's serialize() writes for the value. */
+    /**
+     * The text PHP's serialize() writes for the value. A parsed lexeme is not reused: PHP normalizes {@code +1.5},
+     * {@code 1.50}, {@code 1e3} and {@code .5} the same way, and the lexemes PHP itself writes come back unchanged.
+     */
     static String formatFloat(PhpFloat f) {
-        return f.raw() != null ? f.raw() : PhpFloatFormat.shortest(f.value());
+        return PhpFloatFormat.shortest(f.value());
     }
 }

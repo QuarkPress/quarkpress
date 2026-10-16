@@ -5,9 +5,10 @@ import java.util.regex.Pattern;
 /**
  * PHP float, serialized as {@code d:1.5;}.
  *
- * <p>{@code raw} keeps the exact lexeme read by the parser so that writing the value back is
- * byte-identical. It is {@code null} for values created in Java. A non-null {@code raw} must be a
- * valid PHP float lexeme that denotes {@code value}. Equality considers only {@code value} (with
+ * <p>{@code raw} keeps the exact lexeme read by the parser, for inspection; it is {@code null} for values
+ * created in Java. A non-null {@code raw} must be a valid PHP float lexeme that denotes {@code value}. Writing
+ * ignores it and writes the double as PHP's {@code serialize()} does ({@code d:+1.50;} reads back as
+ * {@code d:1.5;}), which reproduces every lexeme PHP itself writes. Equality considers only {@code value} (with
  * {@code NaN} equal to {@code NaN} and {@code 0.0} distinct from {@code -0.0}).
  */
 public record PhpFloat(double value, String raw) implements PhpValue {

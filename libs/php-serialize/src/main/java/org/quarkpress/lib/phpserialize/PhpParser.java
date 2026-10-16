@@ -144,6 +144,9 @@ final class PhpParser {
     private PhpArray.Key readKey() {
         int start = pos;
         byte tag = next();
+        if (tag == 'S' && options.legacyEscapedStrings()) {
+            return PhpArray.Key.of(readEscapedString(start));
+        }
         switch (tag) {
             case 'i':
                 expect(':');
@@ -153,12 +156,6 @@ final class PhpParser {
                 byte[] bytes = readLengthPrefixedBytes(';');
                 expect(';');
                 return PhpArray.Key.of(new PhpString(bytes, options.charset()));
-            case 'S':
-                if (options.legacyEscapedStrings()) {
-                    return PhpArray.Key.of(readEscapedString(start));
-                }
-                pos = start;
-                throw fail("array key must be an integer or a string");
             default:
                 pos = start;
                 throw fail("array key must be an integer or a string");

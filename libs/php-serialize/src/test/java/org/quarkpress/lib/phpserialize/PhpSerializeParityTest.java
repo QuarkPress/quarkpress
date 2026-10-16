@@ -112,17 +112,17 @@ class PhpSerializeParityTest {
                 && !wpReserialized.isNull()
                 && !Arrays.equals(Base64.getDecoder().decode(wpReserialized.asText()), input);
         if (!renumbered) {
-            PhpValue canonical = usable ? PhpTreeEncoder.withoutFloatLexemes(parsed) : null;
+            PhpValue written = usable ? parsed : null;
             run.compare(
                     id,
                     "reserialize",
                     bytesText(wpReserialized),
-                    canonical == null ? null : text(PhpSerialize.serialize(canonical)));
+                    written == null ? null : text(PhpSerialize.serialize(written)));
             run.compare(
                     id,
                     "maybe_serialize_value",
                     bytesText(wp.get("maybe_serialize_value")),
-                    canonical == null ? null : text(WordPressSerialization.maybeSerialize(canonical)));
+                    written == null ? null : text(WordPressSerialization.maybeSerialize(written)));
         }
         String latin1 = text(input);
         run.compare(

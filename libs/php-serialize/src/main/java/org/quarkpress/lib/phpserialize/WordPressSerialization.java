@@ -9,8 +9,11 @@ import java.util.Objects;
  * is_serialized_string}, {@code maybe_serialize} and {@code maybe_unserialize}. They decide what an option or
  * meta value looks like in the database, so code that shares a database with WordPress must agree with them.
  *
- * <p>The rules look at bytes. {@code byte[]} methods use them directly; {@code String} methods encode the text as
- * UTF-8 first. Text from a column in another encoding must be passed as its original bytes.
+ * <p>WordPress's rules look at bytes. {@link #isSerialized} and {@link #isSerializedString} read the characters of
+ * the text directly: every rule they apply tests ASCII characters only, so the answer is the one WordPress gives
+ * for the text's bytes. {@code maybeUnserialize(String)} and {@code tryMaybeUnserialize(String)} parse, and parsing
+ * counts bytes, so they encode the text as UTF-8 first; text from a column in another encoding must be passed to
+ * the {@code byte[]} overloads as its original bytes.
  */
 public final class WordPressSerialization {
 

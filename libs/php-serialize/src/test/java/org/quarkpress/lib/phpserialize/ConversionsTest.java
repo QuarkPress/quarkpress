@@ -75,7 +75,7 @@ class ConversionsTest {
         assertThat(PhpNull.INSTANCE.toJson()).isEqualTo("null");
         assertThat(new PhpFloat(Double.NaN).toJson()).isEqualTo("null");
         assertThat(new PhpFloat(2.0).toJson()).isEqualTo("2");
-        assertThat(new PhpFloat(1e25).toJson()).isEqualTo("1.0E25");
+        assertThat(new PhpFloat(1e25).toJson()).isEqualTo("1.0e+25");
         assertThat(new PhpInt(-5).toJson()).isEqualTo("-5");
         assertThat(PhpString.of("é\t").toJson()).isEqualTo("\"é\\t\"");
         assertThat(new PhpObject(
@@ -149,6 +149,75 @@ class ConversionsTest {
         assertThatThrownBy(value::toJavaObject)
                 .isInstanceOf(PhpSerializeException.class)
                 .hasMessageContaining("expand");
+    }
+
+    @Test
+    void chainedReferencesThatNestTooDeepThrowInsteadOfOverflowingTheStack() {
+        // element k is a 200-deep nest whose leaf refers to element k-1's root; PHP 8.4 accepts the document
+        int n = 20;
+        int depth = 200;
+        StringBuilder doc = new StringBuilder("a:").append(n).append(":{");
+        int nextSlot = 2; // slot 1 is the outer list
+        int previousRoot = 0;
+        for (int k = 0; k < n; k++) {
+            doc.append("i:").append(k).append(';');
+            int root = nextSlot;
+            doc.append("a:1:{i:0;".repeat(depth));
+            nextSlot += depth;
+            if (k == 0) {
+                doc.append("i:0;");
+                nextSlot++;
+            } else {
+                doc.append("R:").append(previousRoot).append(';'); // an R: takes no slot
+            }
+            doc.append("}".repeat(depth));
+            previousRoot = root;
+        }
+        doc.append('}');
+        PhpValue value = PhpSerialize.parse(doc.toString());
+        assertThatThrownBy(value::toJavaObject)
+                .isInstanceOf(PhpSerializeException.class)
+                .hasMessageContaining("too deep");
+        assertThatThrownBy(value::toJson)
+                .isInstanceOf(PhpSerializeException.class)
+                .hasMessageContaining("too deep");
+    }
+
+    @Test
+    void referencesMayNestUpToTheDepthLimit() {
+        // an R: to a 1000-deep nest, placed one level down, resolves to depth 1001 (under the 1024 limit)
+        String nest = "a:1:{i:0;".repeat(1000) + "i:7;" + "}".repeat(1000);
+        PhpValue value = PhpSerialize.parse("a:2:{i:0;" + nest + "i:1;R:2;}", ParseOptions.DEFAULTS.withMaxDepth(1024));
+        assertThat(value.toJson()).endsWith("[7" + "]".repeat(1000) + "]");
+    }
+
+    @Test
+    void onlyValuesCopiedForReferencesCountTowardsTheExpansionLimit() {
+        // a document of a million values with one reference is not an expansion
+        int n = 1_000_000;
+        StringBuilder doc = new StringBuilder("a:").append(n).append(":{");
+        for (int k = 0; k < n - 1; k++) {
+            doc.append("i:").append(k).append(";i:").append(k).append(';');
+        }
+        doc.append("i:").append(n - 1).append(";R:2;}");
+        PhpValue value = PhpSerialize.parse(doc.toString());
+        List<?> list = (List<?>) value.toJavaObject();
+        assertThat(list).hasSize(n);
+        assertThat(list.get(n - 1)).isEqualTo(0L);
+    }
+
+    @Test
+    void toJsonWritesFloatsAsPhpJsonEncodeDoes() {
+        // PHP 8.4: json_encode() of each double
+        assertThat(new PhpFloat(1e7).toJson()).isEqualTo("10000000");
+        assertThat(new PhpFloat(1e-7).toJson()).isEqualTo("1.0e-7");
+        assertThat(new PhpFloat(1.5e300).toJson()).isEqualTo("1.5e+300");
+        assertThat(new PhpFloat(1e17).toJson()).isEqualTo("1.0e+17");
+        assertThat(new PhpFloat(123456789012345678.0).toJson()).isEqualTo("1.2345678901234568e+17");
+        assertThat(new PhpFloat(1e15).toJson()).isEqualTo("1000000000000000");
+        assertThat(new PhpFloat(-0.0).toJson()).isEqualTo("-0");
+        assertThat(new PhpFloat(0.1 + 0.2).toJson()).isEqualTo("0.30000000000000004");
+        assertThat(new PhpFloat(Double.NEGATIVE_INFINITY).toJson()).isEqualTo("null");
     }
 
     @Test

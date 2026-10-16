@@ -83,6 +83,20 @@ class PhpCompatibilityTest {
                 .hasMessageContaining("'S'");
     }
 
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "S:2:\"a\\4", // escape cut off after one hex digit
+                "S:1:\"\\",
+                "S:2:\"\\61\\",
+                "S:10:\"abc\";", // declared length runs past the end
+                "a:1:{S:2:\"a\\4",
+                "a:1:{S:9:\"a\";i:1;}"
+            })
+    void truncatedLegacyEscapedStringsThrow(String in) { // PHP 8.4 rejects each of these
+        assertThatThrownBy(() -> lenient(in)).isInstanceOf(PhpSerializeException.class);
+    }
+
     @Test
     void phpCompatibleReadsLegacyEscapedKeys() { // #21, PHP: a:1:{S:1:"\61";i:1;} is ["a" => 1]
         PhpArray array = (PhpArray) lenient("a:1:{S:1:\"\\61\";i:1;}");
