@@ -16,4 +16,13 @@
   <properties>
     <automatic.module.name>org.quarkpress.lib.phpserialize</automatic.module.name>
   </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>

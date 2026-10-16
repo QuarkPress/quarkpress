@@ -1,0 +1,21 @@
+# Deliberate differences between lib-php-serialize and PHP 8.4 / WordPress 7.1.3.
+# Format: <case-id-or-glob> <aspect-or-glob> <audit-item> <reason>. Audit items are those of
+# docs/superpowers/audits/2026-10-14-php-serialize-vs-wordpress.md. "none" documents a difference that
+# no oracle case can show. An entry whose comparisons all match WordPress fails the build: delete it.
+audit-14-duplicate-key-then-reference unserialize #14 after a repeated key, back-references are numbered over the deduplicated tree
+audit-14-duplicate-key-then-reference maybe_unserialize #14 same as above
+audit-22-invalid-utf8 reserialize #22 class names are text: bytes that are not UTF-8 become U+FFFD
+audit-22-invalid-utf8 maybe_serialize_value #22 same as above
+audit-23-* unserialize #23 enums are data: an unknown enum class or case still parses (no class registry)
+audit-23-* reserialize #23 same as above
+audit-23-* maybe_unserialize #23 same as above; WordPress returns false
+audit-23-* maybe_serialize_value #23 same as above
+audit-24-* unserialize #24 classes are never looked up: a C: payload is kept, PHP makes an incomplete object without it
+audit-24-* reserialize #24 same as above
+audit-24-* maybe_serialize_value #24 same as above
+audit-25-* unserialize #25 nesting deeper than maxDepth (default 256, at most 1024) fails; PHP allows 4096
+audit-25-* reserialize #25 same as above
+audit-25-* maybe_unserialize #25 same as above
+audit-25-* maybe_serialize_value #25 same as above
+none - #26 maxElements (1 000 000) and maxStringBytes (64 MiB) are far above real WordPress data
+none - #29 serializeToString decodes as ISO-8859-1; a debugging aid that PHP cannot observe
