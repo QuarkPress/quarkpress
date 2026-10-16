@@ -131,10 +131,12 @@ compare equal.
   trip stays exact; `serializeCanonical` writes them, as WordPress does.
 - A nested block that closes right after an inner block or its own opener gets an empty text chunk,
   as in WordPress.
-- Malformed markup never throws. `BlockParseException` is thrown only when `ParseOptions` limits
-  are exceeded: `maxDepth` (default 1024), `maxBlocks` (default 1 000 000, freeform blocks
-  included) and `maxRecoveredChars` (default 8 000 000, text repeated into recovered copies).
-  WordPress has no such limits; the defaults sit far above real content.
+- `BlockParseException` is thrown only when a `ParseOptions` limit is exceeded; otherwise malformed
+  markup is read as WordPress reads it. The limits are `maxDepth` (default 1024), `maxBlocks`
+  (default 1 000 000, freeform blocks included) and the budget for text repeated into recovered
+  copies: the larger of `maxRecoveredChars` (default 8 000 000) and `recoveredCharsPerInputChar`
+  (default 16) times the input length. WordPress has no such limits; the defaults sit far above
+  real content.
 
 ## Serialization
 
@@ -162,7 +164,7 @@ its audit item.
 | D12 | `{"0":"x","1":"y"}` stays an object | becomes a list, written `["x","y"]`, which no longer parses as attributes | that corrupts the block |
 | D13 | `{}` inside attributes stays `{}` | written as `[]` | same meaning |
 | D20 | attributes of any size parse in linear time | PCRE limits turn the whole document into one freeform block | robustness |
-| (limit) | `maxRecoveredChars` (default 8 000 000) bounds the text repeated into recovered copies; exceeding it throws `BlockParseException` | builds the tree, bounded only by PHP's `memory_limit` | each block left open at the end repeats the rest of the document, so 1024 unclosed openers before 1 MB of text would copy about 1 GB |
+| (limit) | the text repeated into recovered copies is bounded by the larger of `maxRecoveredChars` (default 8 000 000) and `recoveredCharsPerInputChar` (default 16) times the input length; exceeding it throws `BlockParseException` | builds the tree, bounded only by PHP's `memory_limit` | each block left open at the end repeats the rest of the document, so 1024 unclosed openers before 1 MB of text would copy about 1 GB |
 
 ## Conformance
 

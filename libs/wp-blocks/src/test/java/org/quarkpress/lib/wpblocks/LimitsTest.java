@@ -68,18 +68,44 @@ class LimitsTest {
     }
 
     @Test
+    void realPostsLeftOpenBeforeLongContentParse() { // F2: WordPress parses these; the budget grows with the input
+        String tenOpen = "<!-- wp:group -->".repeat(10) + "<p>text</p>".repeat(100_000); // 9 copies of 1.1 MB
+        assertThat(WpBlocks.parse(tenOpen)).hasSize(10);
+        String fiveOpen = "<!-- wp:group -->".repeat(5) + "<p>text</p>".repeat(300_000); // 4 copies of 3.3 MB
+        assertThat(WpBlocks.parse(fiveOpen)).hasSize(5);
+    }
+
+    @Test
     void maxRecoveredCharsIsConfigurable() {
         String doc = "p<!-- wp:a -->x<!-- wp:b -->y<!-- wp:c /-->z"; // the copies repeat "x" and "z"
-        assertThat(WpBlocks.parse(doc, ParseOptions.DEFAULTS.withMaxRecoveredChars(2)))
-                .hasSize(4);
-        assertThatThrownBy(() -> WpBlocks.parse(doc, ParseOptions.DEFAULTS.withMaxRecoveredChars(1)))
+        ParseOptions fixed = ParseOptions.DEFAULTS.withRecoveredCharsPerInputChar(0);
+        assertThat(WpBlocks.parse(doc, fixed.withMaxRecoveredChars(2))).hasSize(4);
+        assertThatThrownBy(() -> WpBlocks.parse(doc, fixed.withMaxRecoveredChars(1)))
                 .isInstanceOf(BlockParseException.class)
-                .hasMessageContaining("maxRecoveredChars 1 ")
+                .hasMessageContaining("more than 1 characters (maxRecoveredChars 1, recoveredCharsPerInputChar 0)")
                 .hasMessageContaining("at offset " + doc.indexOf("<!-- wp:b"));
-        ParseOptions none = ParseOptions.DEFAULTS.withMaxRecoveredChars(0);
+        ParseOptions none = fixed.withMaxRecoveredChars(0);
         assertThat(WpBlocks.parse("<!-- wp:a -->x", none)).hasSize(1); // the outermost block is not a copy
         assertThat(none.maxDepth()).isEqualTo(1024);
         assertThat(none.maxBlocks()).isEqualTo(1_000_000);
+    }
+
+    @Test
+    void recoveredCharsBudgetIsTheLargerOfTheFloorAndTheInputMultiple() {
+        String doc = "p<!-- wp:a -->x<!-- wp:b -->y<!-- wp:c /-->z"; // 44 characters; the copies repeat 2
+        assertThat(doc).hasSize(44);
+        ParseOptions none = ParseOptions.DEFAULTS.withMaxRecoveredChars(0);
+        assertThatThrownBy(() -> WpBlocks.parse(doc, none.withRecoveredCharsPerInputChar(0)))
+                .isInstanceOf(BlockParseException.class)
+                .hasMessageContaining("more than 0 characters");
+        assertThat(WpBlocks.parse(doc, none.withRecoveredCharsPerInputChar(1))).hasSize(4); // budget 44
+        assertThat(WpBlocks.parse(doc, none.withRecoveredCharsPerInputChar(1).withMaxRecoveredChars(2)))
+                .hasSize(4);
+        ParseOptions multiple = ParseOptions.DEFAULTS.withRecoveredCharsPerInputChar(3);
+        assertThat(multiple.recoveredCharsPerInputChar()).isEqualTo(3);
+        assertThat(multiple.maxRecoveredChars()).isEqualTo(8_000_000);
+        assertThat(multiple.maxDepth()).isEqualTo(1024);
+        assertThat(multiple.maxBlocks()).isEqualTo(1_000_000);
     }
 
     @Test
@@ -97,6 +123,9 @@ class LimitsTest {
         assertThatThrownBy(() -> ParseOptions.DEFAULTS.withMaxBlocks(0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ParseOptions.DEFAULTS.withMaxRecoveredChars(-1))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ParseOptions.DEFAULTS.withRecoveredCharsPerInputChar(-1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(ParseOptions.DEFAULTS.recoveredCharsPerInputChar()).isEqualTo(16);
         assertThat(ParseOptions.DEFAULTS.maxDepth()).isEqualTo(1024);
         assertThat(ParseOptions.DEFAULTS.maxBlocks()).isEqualTo(1_000_000);
         assertThat(ParseOptions.DEFAULTS.maxRecoveredChars()).isEqualTo(8_000_000);

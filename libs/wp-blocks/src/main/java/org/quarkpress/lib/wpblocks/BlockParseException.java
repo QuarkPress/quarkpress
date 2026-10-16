@@ -1,6 +1,9 @@
 package org.quarkpress.lib.wpblocks;
 
-/** Thrown when a document exceeds the configured limits. Malformed markup never throws. */
+/**
+ * Thrown when a document exceeds a {@link ParseOptions} limit, and only then: malformed markup is otherwise read as
+ * WordPress reads it.
+ */
 public final class BlockParseException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

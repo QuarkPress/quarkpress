@@ -8,7 +8,10 @@ public final class WpBlocks {
 
     private WpBlocks() {}
 
-    /** Parses with {@link ParseOptions#DEFAULTS}. Never throws for malformed markup. */
+    /**
+     * Parses with {@link ParseOptions#DEFAULTS}. Throws {@link BlockParseException} only when a {@link ParseOptions}
+     * limit is exceeded; malformed markup is otherwise read as WordPress reads it.
+     */
     public static List<Block> parse(String content) {
         return parse(content, ParseOptions.DEFAULTS);
     }
@@ -46,6 +49,10 @@ public final class WpBlocks {
         return out.toString();
     }
 
+    /**
+     * Serializes one block as {@link #serialize(List)} serializes each block of a list. The block is written even
+     * when it is a {@linkplain Block#isRecoveredCopy() recovered copy}; only {@link #serialize(List)} skips copies.
+     */
     public static String serialize(Block block) {
         StringBuilder out = new StringBuilder();
         BlockSerializer.append(out, Objects.requireNonNull(block, "block"));

@@ -174,10 +174,12 @@ final class BlockParser {
     }
 
     /**
-     * Checks the text that the recovered copies will repeat (each copy's last chunk and leading text) against
-     * {@link ParseOptions#maxRecoveredChars()} before any of it is copied.
+     * Checks the text that the recovered copies will repeat (each copy's last chunk and leading text) against the
+     * budget, the larger of {@link ParseOptions#maxRecoveredChars()} and {@link
+     * ParseOptions#recoveredCharsPerInputChar()} times the input length, before any of it is copied.
      */
     private void checkRecoveredChars() {
+        long budget = options.recoveredCharsBudget(s.length());
         long total = 0;
         int copies = frames.size() - 1; // innermost first; the outermost open block is not a copy
         var it = frames.iterator();
@@ -187,10 +189,11 @@ final class BlockParser {
             if (f.leadingStart >= 0) {
                 total += f.opener.start() - f.leadingStart;
             }
-            if (total > options.maxRecoveredChars()) {
+            if (total > budget) {
                 throw new BlockParseException(
-                        "blocks left open at the end repeat more than maxRecoveredChars " + options.maxRecoveredChars()
-                                + " characters",
+                        "blocks left open at the end repeat more than " + budget + " characters (maxRecoveredChars "
+                                + options.maxRecoveredChars() + ", recoveredCharsPerInputChar "
+                                + options.recoveredCharsPerInputChar() + ")",
                         f.opener.start());
             }
         }

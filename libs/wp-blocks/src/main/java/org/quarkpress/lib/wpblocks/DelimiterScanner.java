@@ -31,15 +31,10 @@ final class DelimiterScanner {
 
     private DelimiterScanner() {}
 
-    /** Returns the delimiter starting exactly at {@code start}, or null if there is none. */
-    static Delimiter tryRead(String s, int start) {
-        return tryRead(s, start, new AttributeEnds(s));
-    }
-
     /**
-     * Same as {@link #tryRead(String, int)} but shares {@code ends} across calls on the same input, which
-     * keeps a whole scan linear. Attributes run from the {@code {} after the name to the first {@code }}
-     * followed by whitespace and {@code -->} or {@code /-->}.
+     * Returns the delimiter starting exactly at {@code start}, or null if there is none. {@code ends} is shared
+     * across calls on the same input, which keeps a whole scan linear. Attributes run from the {@code {} after the
+     * name to the first {@code }} followed by whitespace and {@code -->} or {@code /-->}.
      */
     static Delimiter tryRead(String s, int start, AttributeEnds ends) {
         if (!s.startsWith(COMMENT_OPEN, start)) {

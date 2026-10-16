@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Attribute JSON helpers: reading it, writing it as WordPress does ({@link WordPressJson}). Locating the attribute
+ * Attribute JSON helpers: reading it (writing it as WordPress does is {@link WordPressJson}). Locating the attribute
  * text inside a delimiter is done by {@link AttributeEnds} (first {@code }} followed by whitespace and {@code -->}).
  */
 final class AttributeJson {
@@ -45,16 +45,5 @@ final class AttributeJson {
             return null;
         }
         return node instanceof ObjectNode o && PhpJsonRules.accepts(o) ? o : null;
-    }
-
-    /** Like {@link #parseOrNull}, with an empty object for text PHP would reject. */
-    static ObjectNode parse(String raw) {
-        ObjectNode parsed = parseOrNull(raw);
-        return parsed != null ? parsed : emptyObject();
-    }
-
-    /** Writes attributes as WordPress's block serializer does; the caller's tree is not modified. */
-    static String write(ObjectNode node) {
-        return WordPressJson.write(node);
     }
 }

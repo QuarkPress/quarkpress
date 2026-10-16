@@ -12,7 +12,7 @@ class DelimiterScannerTest {
 
     @Test
     void readsOpenerWithoutAttributes() {
-        Delimiter d = DelimiterScanner.tryRead("<!-- wp:paragraph -->", 0);
+        Delimiter d = read("<!-- wp:paragraph -->", 0);
         assertThat(d.kind()).isEqualTo(Kind.OPENER);
         assertThat(d.name()).isEqualTo("core/paragraph");
         assertThat(d.rawAttributes()).isNull();
@@ -23,7 +23,7 @@ class DelimiterScannerTest {
     @Test
     void readsOpenerWithAttributesAndKeepsRawText() {
         String s = "xx<!-- wp:acme/hero {\"a\": 1,  \"b\":[1,2]} -->yy";
-        Delimiter d = DelimiterScanner.tryRead(s, 2);
+        Delimiter d = read(s, 2);
         assertThat(d.kind()).isEqualTo(Kind.OPENER);
         assertThat(d.name()).isEqualTo("acme/hero");
         assertThat(d.rawAttributes()).isEqualTo("{\"a\": 1,  \"b\":[1,2]}");
@@ -32,10 +32,10 @@ class DelimiterScannerTest {
 
     @Test
     void readsVoidAndCloser() {
-        Delimiter v = DelimiterScanner.tryRead("<!-- wp:spacer {\"height\":10} /-->", 0);
+        Delimiter v = read("<!-- wp:spacer {\"height\":10} /-->", 0);
         assertThat(v.kind()).isEqualTo(Kind.VOID);
         assertThat(v.rawAttributes()).isEqualTo("{\"height\":10}");
-        Delimiter c = DelimiterScanner.tryRead("<!-- /wp:core/group -->", 0);
+        Delimiter c = read("<!-- /wp:core/group -->", 0);
         assertThat(c.kind()).isEqualTo(Kind.CLOSER);
         assertThat(c.name()).isEqualTo("core/group");
         assertThat(c.rawAttributes()).isNull();
@@ -43,15 +43,14 @@ class DelimiterScannerTest {
 
     @Test
     void acceptsAnyWhitespaceMix() {
-        assertThat(DelimiterScanner.tryRead("<!--\twp:a\n{\"x\":1}\r\n/-->", 0).kind())
-                .isEqualTo(Kind.VOID);
-        assertThat(DelimiterScanner.tryRead("<!--   /wp:a\t\t-->", 0).kind()).isEqualTo(Kind.CLOSER);
+        assertThat(read("<!--\twp:a\n{\"x\":1}\r\n/-->", 0).kind()).isEqualTo(Kind.VOID);
+        assertThat(read("<!--   /wp:a\t\t-->", 0).kind()).isEqualTo(Kind.CLOSER);
     }
 
     @Test
     void attributeBracesInsideStringsAreSkipped() {
         String s = "<!-- wp:a {\"t\":\"}\",\"u\":\"\\\"}\\\"\",\"v\":\"-->\",\"w\":{\"x\":\"{\"}} -->";
-        Delimiter d = DelimiterScanner.tryRead(s, 0);
+        Delimiter d = read(s, 0);
         assertThat(d).isNotNull();
         assertThat(d.rawAttributes()).isEqualTo("{\"t\":\"}\",\"u\":\"\\\"}\\\"\",\"v\":\"-->\",\"w\":{\"x\":\"{\"}}");
         assertThat(d.end()).isEqualTo(s.length());
@@ -78,13 +77,13 @@ class DelimiterScannerTest {
                 "<!-- more -->"
             })
     void rejectsNearMisses(String s) {
-        assertThat(DelimiterScanner.tryRead(s, 0)).isNull();
+        assertThat(read(s, 0)).isNull();
     }
 
     @Test
     void closerMayCarryAttributesWhichAreIgnored() { // D4
         String s = "<!-- /wp:a {\"x\":1} -->";
-        Delimiter d = DelimiterScanner.tryRead(s, 0);
+        Delimiter d = read(s, 0);
         assertThat(d.kind()).isEqualTo(Kind.CLOSER);
         assertThat(d.name()).isEqualTo("core/a");
         assertThat(d.rawAttributes()).isNull();
@@ -93,27 +92,26 @@ class DelimiterScannerTest {
 
     @Test
     void closerWithVoidFlagIsAVoidBlock() { // D3
-        Delimiter bare = DelimiterScanner.tryRead("<!-- /wp:a /-->", 0);
+        Delimiter bare = read("<!-- /wp:a /-->", 0);
         assertThat(bare.kind()).isEqualTo(Kind.VOID);
         assertThat(bare.rawAttributes()).isNull();
-        Delimiter withAttributes = DelimiterScanner.tryRead("<!-- /wp:a {\"k\":2} /-->", 0);
+        Delimiter withAttributes = read("<!-- /wp:a {\"k\":2} /-->", 0);
         assertThat(withAttributes.kind()).isEqualTo(Kind.VOID);
         assertThat(withAttributes.rawAttributes()).isEqualTo("{\"k\":2}");
     }
 
     @Test
     void formFeedAndVerticalTabAreWhitespace() { // D6
-        assertThat(DelimiterScanner.tryRead("<!--\fwp:a\f/-->", 0).kind()).isEqualTo(Kind.VOID);
-        assertThat(DelimiterScanner.tryRead("<!--\u000Bwp:a\u000B/-->", 0).kind())
-                .isEqualTo(Kind.VOID);
-        assertThat(DelimiterScanner.tryRead("<!-- /wp:a\u000B-->", 0).kind()).isEqualTo(Kind.CLOSER);
+        assertThat(read("<!--\fwp:a\f/-->", 0).kind()).isEqualTo(Kind.VOID);
+        assertThat(read("<!--\u000Bwp:a\u000B/-->", 0).kind()).isEqualTo(Kind.VOID);
+        assertThat(read("<!-- /wp:a\u000B-->", 0).kind()).isEqualTo(Kind.CLOSER);
         assertThat(new AttributeEnds("{}\f-->").terminatorFrom(0)).isEqualTo(1);
     }
 
     @Test
     void requiresCandidateAtStartIndex() {
-        assertThat(DelimiterScanner.tryRead("x<!-- wp:a -->", 0)).isNull();
-        assertThat(DelimiterScanner.tryRead("x<!-- wp:a -->", 1)).isNotNull();
+        assertThat(read("x<!-- wp:a -->", 0)).isNull();
+        assertThat(read("x<!-- wp:a -->", 1)).isNotNull();
     }
 
     @Test
@@ -132,7 +130,7 @@ class DelimiterScannerTest {
     @Test
     void attributeEndsAtFirstBraceBeforeCloseEvenInsideString() {
         String doc = "<!-- wp:a {\"a\":\"} -->\"} -->";
-        Delimiter d = DelimiterScanner.tryRead(doc, 0);
+        Delimiter d = read(doc, 0);
         assertThat(d.kind()).isEqualTo(Kind.OPENER);
         assertThat(d.rawAttributes()).isEqualTo("{\"a\":\"}");
         assertThat(d.end()).isEqualTo(doc.indexOf("-->") + 3);
@@ -140,9 +138,13 @@ class DelimiterScannerTest {
 
     @Test
     void attributesNeedWhitespaceBeforeCloseButAnyWhitespaceWorks() {
-        assertThat(DelimiterScanner.tryRead("<!-- wp:a {}/-->", 0)).isNull();
-        Delimiter d = DelimiterScanner.tryRead("<!-- wp:a {\"a\":1}\n\t/-->", 0);
+        assertThat(read("<!-- wp:a {}/-->", 0)).isNull();
+        Delimiter d = read("<!-- wp:a {\"a\":1}\n\t/-->", 0);
         assertThat(d.kind()).isEqualTo(Kind.VOID);
         assertThat(d.rawAttributes()).isEqualTo("{\"a\":1}");
+    }
+
+    private static Delimiter read(String s, int start) {
+        return DelimiterScanner.tryRead(s, start, new AttributeEnds(s));
     }
 }

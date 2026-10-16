@@ -1,5 +1,7 @@
 package org.quarkpress.lib.wpblocks;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -89,6 +91,11 @@ class WpBlocksParityTest {
                     DeltaShrinker.shrink(
                             generatedDocs.get(id), candidates -> stillDiffer(oracle, candidates), SHRINK_ROUNDS));
         }
+        long gutenberg =
+                cases.stream().filter(c -> c.id().startsWith("gutenberg/")).count();
+        System.out.println("lib-wp-blocks parity: " + cases.size() + " documents (" + gutenberg
+                + " Gutenberg fixtures), " + run.comparisons() + " comparisons, "
+                + run.mismatches().size() + " differences");
         run.assertParity(MIN_COMPARISONS);
     }
 
@@ -276,7 +283,7 @@ class WpBlocksParityTest {
         }
     }
 
-    /** Gutenberg's fixture files, when the conformance profile has fetched them. */
+    /** Gutenberg's fixture files, when the conformance profile has fetched them; then there must be some. */
     private static List<DocCase> gutenbergCases() throws IOException, InterruptedException {
         Path dir = GutenbergFixtures.ensure();
         if (dir == null) {
@@ -290,6 +297,9 @@ class WpBlocksParityTest {
                 cases.add(new DocCase(
                         "gutenberg/" + p.getFileName(), Files.readString(p, StandardCharsets.UTF_8), false));
             }
+            assertThat(cases.size())
+                    .as("Gutenberg fixtures in %s", dir)
+                    .isGreaterThanOrEqualTo(GutenbergConformanceTest.MIN_FIXTURES);
             return cases;
         }
     }
