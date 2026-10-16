@@ -52,7 +52,7 @@ class AttributeJsonTest {
         ObjectNode n = JsonNodeFactory.instance.objectNode();
         n.put("p", "C:\\"); // value ends with a backslash: Jackson writes "C:\\" and the closing quote is structural
         String out = AttributeJson.write(n);
-        assertThat(out).isEqualTo("{\"p\":\"C:\\\\\"}");
+        assertThat(out).isEqualTo("{\"p\":\"C:\\u005c\"}");
         assertThat(AttributeJson.parse(out)).isEqualTo(n);
     }
 

@@ -52,12 +52,12 @@ final class BlockParser {
 
         /** A block from a void delimiter: no closer, not explicitly closed. */
         Block toVoidBlock() {
-            return new Block(name, attributes, rawAttributes, rawOpener, null, false, innerBlocks, innerContent);
+            return new Block(name, attributes, rawAttributes, rawOpener, null, innerBlocks, innerContent);
         }
 
         /** A block from an opener; {@code rawCloser} is null when the input ended before the closer. */
         Block toBlock(String rawCloser) {
-            return new Block(name, attributes, rawAttributes, rawOpener, rawCloser, true, innerBlocks, innerContent);
+            return new Block(name, attributes, rawAttributes, rawOpener, rawCloser, innerBlocks, innerContent);
         }
     }
 

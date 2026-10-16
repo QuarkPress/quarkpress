@@ -100,12 +100,32 @@ class BlockModelTest {
     void equalityIgnoresRawTextButNotValues() {
         ObjectNode a = attrs("a", 1);
         Block parsedLike = new Block(
-                "core/x", a, "{\"a\": 1}", "<!-- wp:x {\"a\": 1} -->", "<!-- /wp:x -->", true, List.of(), List.of());
+                "core/x", a, "{\"a\": 1}", "<!-- wp:x {\"a\": 1} -->", "<!-- /wp:x -->", List.of(), List.of());
         Block apiLike = Block.of("x", a);
         assertThat(parsedLike).isEqualTo(apiLike);
         assertThat(parsedLike.hashCode()).isEqualTo(apiLike.hashCode());
         assertThat(Block.of("x", attrs("a", 2))).isNotEqualTo(apiLike);
         assertThat(Block.of("y", a)).isNotEqualTo(apiLike);
+    }
+
+    @Test
+    void numbersCompareByValue() { // WordPress writes 3.0 as 3, so canonical round trips turn doubles into integers
+        Block three = Block.of("x", JsonNodeFactory.instance.objectNode().put("n", 3));
+        Block threePointZero =
+                Block.of("x", JsonNodeFactory.instance.objectNode().put("n", 3.0));
+        assertThat(threePointZero).isEqualTo(three);
+        assertThat(threePointZero.hashCode()).isEqualTo(three.hashCode());
+        assertThat(Block.of("x", JsonNodeFactory.instance.objectNode().put("n", 3.5)))
+                .isNotEqualTo(three);
+        assertThat(Block.of("x", JsonNodeFactory.instance.objectNode().put("n", "3")))
+                .isNotEqualTo(three);
+        ObjectNode doubles = JsonNodeFactory.instance.objectNode();
+        doubles.putArray("a").add(1.0).add(-0.0);
+        ObjectNode ints = JsonNodeFactory.instance.objectNode();
+        ints.putArray("a").add(1).add(0);
+        assertThat(Block.of("x", doubles)).isEqualTo(Block.of("x", ints));
+        assertThat(Block.of("x", doubles).hashCode())
+                .isEqualTo(Block.of("x", ints).hashCode());
     }
 
     @Test

@@ -10,10 +10,12 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,7 +30,8 @@ import java.util.Optional;
  * content chunk.
  *
  * <p>{@link #equals(Object)} compares name, attributes as JSON values, inner blocks and inner
- * content. Raw source text (attributes, delimiters) and the closing form are not part of equality.
+ * content. Numbers compare by value ({@code 3} equals {@code 3.0}; WordPress writes {@code 3.0} as {@code 3}).
+ * Raw source text (attributes, delimiters) is not part of equality.
  *
  * <p>Attributes may hold only JSON values (object, array, string, number, boolean, null); any other
  * node, such as a POJO or binary node, is rejected with {@link IllegalArgumentException}. Number nodes
@@ -49,7 +52,6 @@ public final class Block {
     private final String rawAttributes;
     private final String rawOpener;
     private final String rawCloser;
-    private final boolean explicitClose;
     private final List<Block> innerBlocks;
     private final String innerHtml;
     private final List<String> innerContent;
@@ -61,14 +63,12 @@ public final class Block {
             String rawAttributes,
             List<Block> innerBlocks,
             List<String> innerContent) {
-        this(name, attributes, rawAttributes, null, null, false, innerBlocks, innerContent);
+        this(name, attributes, rawAttributes, null, null, innerBlocks, innerContent);
     }
 
     /**
      * @param rawOpener the opener (or void) delimiter exactly as parsed, or null
      * @param rawCloser the closer delimiter exactly as parsed, or null when void or unclosed
-     * @param explicitClose true when the block came from an opener rather than a void delimiter; decides
-     *     the form used when the raw delimiters are absent
      */
     Block(
             String name,
@@ -76,7 +76,6 @@ public final class Block {
             String rawAttributes,
             String rawOpener,
             String rawCloser,
-            boolean explicitClose,
             List<Block> innerBlocks,
             List<String> innerContent) {
         Objects.requireNonNull(attributes, "attributes");
@@ -115,7 +114,6 @@ public final class Block {
         this.rawAttributes = rawAttributes;
         this.rawOpener = rawOpener;
         this.rawCloser = rawCloser;
-        this.explicitClose = explicitClose;
         this.innerBlocks = List.copyOf(innerBlocks);
         this.innerContent = Collections.unmodifiableList(new ArrayList<>(innerContent));
         this.innerHtml = html.toString();
@@ -283,7 +281,7 @@ public final class Block {
         if (isFreeform()) {
             throw new IllegalArgumentException("freeform blocks have no attributes");
         }
-        return new Block(name, attributes, null, null, null, explicitClose, innerBlocks, innerContent);
+        return new Block(name, attributes, null, null, null, innerBlocks, innerContent);
     }
 
     /**
@@ -299,7 +297,7 @@ public final class Block {
         for (int i = 0; i < innerBlocks.size(); i++) {
             content.add(null);
         }
-        return new Block(name, attributes, rawAttributes, null, null, explicitClose, innerBlocks, content);
+        return new Block(name, attributes, rawAttributes, null, null, innerBlocks, content);
     }
 
     /** Opener or void delimiter text exactly as parsed; null for API-built or modified blocks. */
@@ -312,9 +310,9 @@ public final class Block {
         return rawCloser;
     }
 
-    /** True when the block came from an opener delimiter rather than a void one. */
-    boolean explicitClose() {
-        return explicitClose;
+    /** The attribute node itself, without the copy {@link #attributes()} makes. Never modify it. */
+    ObjectNode attributesView() {
+        return attributes;
     }
 
     @Override
@@ -326,14 +324,59 @@ public final class Block {
             return false;
         }
         return Objects.equals(name, b.name)
-                && attributes.equals(b.attributes)
+                && attributes.equals(SAME_JSON_VALUE, b.attributes)
                 && innerBlocks.equals(b.innerBlocks)
                 && innerContent.equals(b.innerContent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, attributes, innerBlocks, innerContent);
+        return Objects.hash(name, valueHash(attributes), innerBlocks, innerContent);
+    }
+
+    /** Leaf comparison for attribute equality: numbers by value, everything else by {@code equals}. */
+    private static final Comparator<JsonNode> SAME_JSON_VALUE = (a, b) -> {
+        if (a.isNumber() && b.isNumber()) {
+            return compareNumbers(a, b);
+        }
+        return a.equals(b) ? 0 : 1;
+    };
+
+    private static int compareNumbers(JsonNode a, JsonNode b) {
+        if (!isFiniteNumber(a) || !isFiniteNumber(b)) {
+            return Double.compare(a.doubleValue(), b.doubleValue());
+        }
+        return exactValue(a).compareTo(exactValue(b));
+    }
+
+    private static boolean isFiniteNumber(JsonNode n) {
+        return n.isIntegralNumber() || Double.isFinite(n.doubleValue());
+    }
+
+    private static BigDecimal exactValue(JsonNode n) {
+        return n.isIntegralNumber() ? new BigDecimal(n.bigIntegerValue()) : new BigDecimal(n.doubleValue());
+    }
+
+    /** A hash consistent with {@link #SAME_JSON_VALUE}: numbers hash by value, objects ignore key order. */
+    private static int valueHash(JsonNode n) {
+        if (n.isNumber()) {
+            return isFiniteNumber(n) ? exactValue(n).stripTrailingZeros().hashCode() : Double.hashCode(n.doubleValue());
+        }
+        if (n.isObject()) {
+            int h = 0;
+            for (var e : n.properties()) {
+                h += e.getKey().hashCode() ^ valueHash(e.getValue());
+            }
+            return h;
+        }
+        if (n.isArray()) {
+            int h = 1;
+            for (JsonNode element : n) {
+                h = 31 * h + valueHash(element);
+            }
+            return h;
+        }
+        return n.hashCode();
     }
 
     @Override

@@ -4,19 +4,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Attribute JSON helpers: reading it, writing it comment-safe. Locating the attribute text inside a
- * delimiter is done by {@link AttributeEnds} (first {@code }} followed by whitespace and {@code -->}).
+ * Attribute JSON helpers: reading it, writing it as WordPress does ({@link WordPressJson}). Locating the attribute
+ * text inside a delimiter is done by {@link AttributeEnds} (first {@code }} followed by whitespace and {@code -->}).
  */
 final class AttributeJson {
 
     /**
-     * Shared, immutable mapper. Only {@code readTree} and tree writing are used: no data binding,
-     * no polymorphic typing, no modules. Default {@code StreamReadConstraints} apply.
+     * Shared, immutable mapper. Only {@code readTree} is used: no data binding, no polymorphic typing, no modules.
      */
     static final JsonMapper MAPPER = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -38,84 +36,8 @@ final class AttributeJson {
         }
     }
 
-    /**
-     * Writes compact JSON and then replaces the sequences that could end the HTML comment or inject
-     * markup with JSON unicode escapes: {@code --}, {@code <}, {@code >}, {@code &} and the escaped
-     * quote {@code \"}. The result is still valid JSON for the same value. Non-finite numbers (NaN,
-     * infinities), which JSON cannot express, are written as {@code null}; the caller's tree is not
-     * modified.
-     */
+    /** Writes attributes as WordPress's block serializer does; the caller's tree is not modified. */
     static String write(ObjectNode node) {
-        String json;
-        try {
-            json = MAPPER.writeValueAsString(finite(node));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("cannot serialize attributes", e);
-        }
-        StringBuilder out = new StringBuilder(json.length() + 16);
-        int n = json.length();
-        for (int i = 0; i < n; i++) {
-            char c = json.charAt(i);
-            switch (c) {
-                case '\\' -> {
-                    // an escape produced by Jackson: two characters, never split them
-                    char next = json.charAt(i + 1);
-                    if (next == '"') {
-                        out.append("\\u0022");
-                    } else {
-                        out.append(c).append(next);
-                    }
-                    i++;
-                }
-                case '-' -> {
-                    if (i + 1 < n && json.charAt(i + 1) == '-') {
-                        out.append("\\u002d\\u002d");
-                        i++;
-                    } else {
-                        out.append(c);
-                    }
-                }
-                case '<' -> out.append("\\u003c");
-                case '>' -> out.append("\\u003e");
-                case '&' -> out.append("\\u0026");
-                default -> out.append(c);
-            }
-        }
-        return out.toString();
-    }
-
-    /** The node itself when it holds no non-finite number, else a copy with each one replaced by null. */
-    private static JsonNode finite(JsonNode node) {
-        if (node.isFloatingPointNumber()) {
-            double d = node.doubleValue();
-            return Double.isFinite(d) || node.isBigDecimal() ? node : JsonNodeFactory.instance.nullNode();
-        }
-        if (node instanceof ObjectNode o) {
-            ObjectNode copy = null;
-            for (var e : o.properties()) {
-                JsonNode v = finite(e.getValue());
-                if (v != e.getValue() && copy == null) {
-                    copy = o.deepCopy();
-                }
-                if (copy != null) {
-                    copy.set(e.getKey(), v);
-                }
-            }
-            return copy == null ? o : copy;
-        }
-        if (node instanceof ArrayNode a) {
-            ArrayNode copy = null;
-            for (int i = 0; i < a.size(); i++) {
-                JsonNode v = finite(a.get(i));
-                if (v != a.get(i) && copy == null) {
-                    copy = a.deepCopy();
-                }
-                if (copy != null) {
-                    copy.set(i, v);
-                }
-            }
-            return copy == null ? a : copy;
-        }
-        return node;
+        return WordPressJson.write(node);
     }
 }

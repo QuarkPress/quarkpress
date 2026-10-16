@@ -58,10 +58,21 @@ class BlockApiTest {
     }
 
     @Test
-    void withInnerBlocksEmptyOnExplicitlyClosedBlockKeepsOpenerCloserForm() {
+    void withInnerBlocksEmptyWritesTheVoidFormAsWordPressDoes() { // D16
         Block parsed =
                 WpBlocks.parse("<!-- wp:g --><!-- wp:a /--><!-- /wp:g -->").get(0);
-        assertThat(WpBlocks.serialize(parsed.withInnerBlocks(List.of()))).isEqualTo("<!-- wp:g --><!-- /wp:g -->");
+        assertThat(WpBlocks.serialize(parsed.withInnerBlocks(List.of()))).isEqualTo("<!-- wp:g /-->");
+    }
+
+    @Test
+    void regeneratedAttributesUseWordPressJson() { // D14, D15
+        ObjectNode attrs = JsonNodeFactory.instance
+                .objectNode()
+                .put("f", 1.0)
+                .put("t", 1e20)
+                .put("latex", "\\frac");
+        assertThat(WpBlocks.serialize(Block.of("math", attrs)))
+                .isEqualTo("<!-- wp:math {\"f\":1,\"t\":1.0e+20,\"latex\":\"\\u005cfrac\"} /-->");
     }
 
     @Test

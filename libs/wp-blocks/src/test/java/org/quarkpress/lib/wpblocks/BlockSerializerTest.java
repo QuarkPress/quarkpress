@@ -100,4 +100,40 @@ class BlockSerializerTest {
         List<Block> back = WpBlocks.parse(WpBlocks.serialize(tree));
         assertThat(back).containsExactly(tree);
     }
+
+    private static void assertCanonical(String in, String wordpress) {
+        assertThat(WpBlocks.serializeCanonical(WpBlocks.parse(in))).as(in).isEqualTo(wordpress);
+    }
+
+    @Test
+    void canonicalSerializationMatchesWordPress() { // D14, D15, D16, D17
+        assertCanonical(
+                "<!-- wp:core/paragraph -->x<!-- /wp:core/paragraph -->",
+                "<!-- wp:paragraph -->x<!-- /wp:paragraph -->");
+        assertCanonical("<!--\twp:a\t{\"x\":1}\t/-->", "<!-- wp:a {\"x\":1} /-->");
+        assertCanonical("<!--\n wp:a \n {\"x\":1}\n\t/-->", "<!-- wp:a {\"x\":1} /-->");
+        assertCanonical("<!-- wp:a --><!-- /wp:a -->", "<!-- wp:a /-->");
+        assertCanonical("<!-- wp:a {} /-->", "<!-- wp:a /-->");
+        assertCanonical("<!-- wp:a {\"x\":} /-->", "<!-- wp:a /-->");
+        assertCanonical("<!-- wp:a {\"a\":1,\"b\":2,\"a\":3} /-->", "<!-- wp:a {\"a\":3,\"b\":2} /-->");
+        assertCanonical("<!-- wp:a --><!-- wp:b /--><!-- /wp:a -->", "<!-- wp:a --><!-- wp:b /--><!-- /wp:a -->");
+        assertCanonical(
+                "<!-- wp:a {\"f\":1.0,\"e\":1e2,\"g\":1.5e300,\"z\":-0.0,\"h\":0.1,\"t\":1e20,\"i\":-0} /-->",
+                "<!-- wp:a {\"f\":1,\"e\":100,\"g\":1.5e+300,\"z\":-0,\"h\":0.1,\"t\":1.0e+20,\"i\":0} /-->");
+        assertCanonical(
+                "<!-- wp:a {\"s\":\"a\\\\b \\\" -- --- < > & / é \u2028 \\u0001 \\u001f \\t \\/\"} /-->",
+                "<!-- wp:a {\"s\":\"a\\u005cb \\u0022 \\u002d\\u002d \\u002d\\u002d- \\u003c \\u003e \\u0026 / é"
+                        + " \\u2028 \\u0001 \\u001f \\t /\"} /-->");
+        assertCanonical(
+                "<!-- wp:math {\"latex\":\"\\\\frac{a}{b}\"} /-->",
+                "<!-- wp:math {\"latex\":\"\\u005cfrac{a}{b}\"} /-->");
+        assertCanonical("a<!-- wp:p /-->b", "a<!-- wp:p /-->b");
+    }
+
+    @Test
+    void serializeKeepsRawTextWhileCanonicalDoesNot() { // D17
+        String doc = "<!-- wp:core/a  {\"x\" : 1}  /-->";
+        assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+        assertThat(WpBlocks.serializeCanonical(WpBlocks.parse(doc))).isEqualTo("<!-- wp:a {\"x\":1} /-->");
+    }
 }

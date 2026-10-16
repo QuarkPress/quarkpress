@@ -49,6 +49,20 @@ public final class WpBlocks {
     }
 
     /**
+     * Serializes blocks exactly as WordPress's {@code serialize_blocks} does: every delimiter is regenerated from
+     * the block's name and attributes, ignoring raw source text; {@code core/} is dropped; a block with no content
+     * gets the void form; attributes are written as WordPress writes them.
+     */
+    public static String serializeCanonical(List<Block> blocks) {
+        Objects.requireNonNull(blocks, "blocks");
+        StringBuilder out = new StringBuilder();
+        for (Block b : blocks) {
+            BlockSerializer.appendCanonical(out, Objects.requireNonNull(b, "block"));
+        }
+        return out.toString();
+    }
+
+    /**
      * True if the content contains at least one valid block opener or void delimiter. A closer alone,
      * or a comment that only resembles a delimiter, does not count. Does not build a tree.
      */
