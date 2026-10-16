@@ -28,7 +28,12 @@ class PhpWriterTest {
         assertThat(PhpSerialize.serializeToString(new PhpFloat(0.1))).isEqualTo("d:0.1;");
         assertThat(PhpSerialize.serializeToString(new PhpFloat(100.0))).isEqualTo("d:100;");
         assertThat(PhpSerialize.serializeToString(new PhpFloat(-0.0))).isEqualTo("d:-0;");
-        assertThat(PhpSerialize.serializeToString(new PhpFloat(1e25))).isEqualTo("d:1.0E25;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(1e25))).isEqualTo("d:1.0E+25;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(1e7))).isEqualTo("d:10000000;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(1e15))).isEqualTo("d:1000000000000000;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(1e17))).isEqualTo("d:1.0E+17;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(1e-4))).isEqualTo("d:0.0001;");
+        assertThat(PhpSerialize.serializeToString(new PhpFloat(5e-324))).isEqualTo("d:5.0E-324;");
         assertThat(PhpSerialize.serializeToString(new PhpFloat(Double.POSITIVE_INFINITY)))
                 .isEqualTo("d:INF;");
         assertThat(PhpSerialize.serializeToString(new PhpFloat(Double.NEGATIVE_INFINITY)))

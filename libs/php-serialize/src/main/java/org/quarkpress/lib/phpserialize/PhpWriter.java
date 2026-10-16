@@ -91,19 +91,8 @@ final class PhpWriter {
         out.writeBytes(s.getBytes(StandardCharsets.US_ASCII));
     }
 
-    /** Uses the parsed lexeme when present; otherwise the shortest Java repr, PHP-style. */
+    /** Uses the parsed lexeme when present; otherwise the text PHP's serialize() writes for the value. */
     static String formatFloat(PhpFloat f) {
-        if (f.raw() != null) {
-            return f.raw();
-        }
-        double d = f.value();
-        if (Double.isNaN(d)) {
-            return "NAN";
-        }
-        if (Double.isInfinite(d)) {
-            return d > 0 ? "INF" : "-INF";
-        }
-        String s = Double.toString(d);
-        return s.endsWith(".0") ? s.substring(0, s.length() - 2) : s;
+        return f.raw() != null ? f.raw() : PhpFloatFormat.shortest(f.value());
     }
 }
