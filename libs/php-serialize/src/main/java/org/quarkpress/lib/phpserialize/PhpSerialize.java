@@ -2,46 +2,11 @@ package org.quarkpress.lib.phpserialize;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 /** Entry point: parse and write PHP {@code serialize()} data. */
 public final class PhpSerialize {
 
-    private static final Pattern NUMERIC_TAIL = Pattern.compile("-?[0-9.]+([eE][+-]?[0-9]+)?|-?INF|NAN");
-
     private PhpSerialize() {}
-
-    /**
-     * Cheap heuristic: does this text look like PHP serialized data? Derived from the format
-     * grammar: a one-letter type tag, {@code :} (except for {@code N;}), and the closing token that
-     * type requires. Surrounding whitespace is ignored because database drivers and copy/paste add
-     * it. The intent matches what a WordPress-style option store needs when deciding whether a
-     * value must be unserialized; it does not validate the content, use {@link #parse(String)} for
-     * that.
-     */
-    public static boolean looksSerialized(String text) {
-        if (text == null) {
-            return false;
-        }
-        String s = text.strip();
-        if (s.equals("N;")) {
-            return true;
-        }
-        if (s.length() < 3 || s.charAt(1) != ':') {
-            return false;
-        }
-        String tail = s.substring(2);
-        return switch (s.charAt(0)) {
-            case 's', 'E' -> tail.endsWith("\";");
-            case 'a', 'O', 'C' -> tail.endsWith("}");
-            case 'b', 'i', 'd' ->
-                tail.endsWith(";")
-                        && NUMERIC_TAIL
-                                .matcher(tail.substring(0, tail.length() - 1))
-                                .matches();
-            default -> false;
-        };
-    }
 
     /** Parses serialized bytes with {@link ParseOptions#DEFAULTS}. */
     public static PhpValue parse(byte[] input) {

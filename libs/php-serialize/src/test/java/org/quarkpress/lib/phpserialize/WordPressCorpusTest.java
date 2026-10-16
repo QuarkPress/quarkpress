@@ -36,7 +36,7 @@ class WordPressCorpusTest {
             })
     void fixtureParsesAndRoundTripsByteIdentically(String name) throws IOException {
         byte[] bytes = fixture(name);
-        assertThat(PhpSerialize.looksSerialized(new String(bytes, java.nio.charset.StandardCharsets.UTF_8)))
+        assertThat(WordPressSerialization.isSerialized(new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1)))
                 .isTrue();
         PhpValue v = PhpSerialize.parse(bytes);
         assertThat(PhpSerialize.serialize(v)).isEqualTo(bytes);
