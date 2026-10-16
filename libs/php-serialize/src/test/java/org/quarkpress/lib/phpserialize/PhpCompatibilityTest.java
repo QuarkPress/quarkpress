@@ -24,6 +24,14 @@ class PhpCompatibilityTest {
         assertThat(((PhpFloat) PhpSerialize.parse("d:+.5;")).value()).isEqualTo(0.5);
     }
 
+    @Test
+    void legacyEscapedKeysNormaliseLikePlainKeys() { // PHP: S:1:"\31" is int key 1, S:2:"\30\35" stays "05"
+        assertThat(PhpSerialize.serializeToString(lenient("a:1:{S:1:\"\\31\";i:1;}")))
+                .isEqualTo("a:1:{i:1;i:1;}");
+        assertThat(PhpSerialize.serializeToString(lenient("a:1:{S:2:\"\\30\\35\";i:1;}")))
+                .isEqualTo("a:1:{s:2:\"05\";i:1;}");
+    }
+
     @ParameterizedTest
     @ValueSource(
             strings = {

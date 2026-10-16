@@ -30,13 +30,13 @@ final class PhpWriter {
             }
             case PhpArray a -> {
                 ascii("a:");
-                entries(a);
+                entries(a, false);
             }
             case PhpObject o -> {
                 ascii("O:");
                 lengthPrefixed(o.className().getBytes(StandardCharsets.UTF_8));
                 ascii(":");
-                entries(o.properties());
+                entries(o.properties(), true);
             }
             case PhpCustomObject c -> {
                 byte[] payload = c.payload();
@@ -55,11 +55,20 @@ final class PhpWriter {
         }
     }
 
-    private void entries(PhpArray array) {
+    /** Writes {@code COUNT:{key;value;...}}. PHP stores property names as strings, so an integer name is written as text. */
+    private void entries(PhpArray array, boolean propertyNames) {
         ascii(array.size() + ":{");
         for (Map.Entry<PhpArray.Key, PhpValue> e : array.entries().entrySet()) {
             switch (e.getKey()) {
-                case PhpArray.Key.Int k -> ascii("i:" + k.value() + ";");
+                case PhpArray.Key.Int k -> {
+                    if (propertyNames) {
+                        ascii("s:");
+                        lengthPrefixed(Long.toString(k.value()).getBytes(StandardCharsets.US_ASCII));
+                        ascii(";");
+                    } else {
+                        ascii("i:" + k.value() + ";");
+                    }
+                }
                 case PhpArray.Key.Str k -> {
                     ascii("s:");
                     lengthPrefixed(k.value().bytes());

@@ -172,4 +172,27 @@ class PhpParserCompoundTest {
         assertThat(((PhpArray) PhpSerialize.parse(sb.toString())).size()).isEqualTo(20000);
         assertThat(System.nanoTime() - start).isLessThan(2_000_000_000L);
     }
+
+    private static String rt(String in) {
+        return PhpSerialize.serializeToString(PhpSerialize.parse(in));
+    }
+
+    @Test
+    void integerTextKeysParseAsIntegerKeysLikePhp() { // #10, #12, #13
+        assertThat(rt("a:1:{s:1:\"5\";i:1;}")).isEqualTo("a:1:{i:5;i:1;}");
+        assertThat(rt("a:1:{s:2:\"-5\";i:1;}")).isEqualTo("a:1:{i:-5;i:1;}");
+        assertThat(rt("a:1:{s:2:\"05\";i:1;}")).isEqualTo("a:1:{s:2:\"05\";i:1;}");
+        assertThat(rt("a:1:{s:2:\"-0\";i:1;}")).isEqualTo("a:1:{s:2:\"-0\";i:1;}");
+        assertThat(rt("a:1:{s:19:\"9223372036854775808\";i:1;}")).isEqualTo("a:1:{s:19:\"9223372036854775808\";i:1;}");
+        assertThat(rt("a:1:{s:20:\"-9223372036854775808\";i:1;}")).isEqualTo("a:1:{i:-9223372036854775808;i:1;}");
+        assertThat(rt("a:2:{s:1:\"5\";i:1;i:5;i:2;}")).isEqualTo("a:1:{i:5;i:2;}");
+        assertThat(rt("a:2:{i:0;i:1;i:0;i:2;}")).isEqualTo("a:1:{i:0;i:2;}");
+    }
+
+    @Test
+    void objectPropertyNamesAreWrittenAsStringsLikePhp() {
+        assertThat(rt("O:8:\"stdClass\":1:{i:5;i:1;}")).isEqualTo("O:8:\"stdClass\":1:{s:1:\"5\";i:1;}");
+        assertThat(rt("O:8:\"stdClass\":1:{s:1:\"5\";i:1;}")).isEqualTo("O:8:\"stdClass\":1:{s:1:\"5\";i:1;}");
+        assertThat(rt("O:3:\"Foo\":2:{s:1:\"5\";i:1;i:5;i:2;}")).isEqualTo("O:3:\"Foo\":1:{s:1:\"5\";i:2;}");
+    }
 }

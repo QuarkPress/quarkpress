@@ -188,4 +188,10 @@ class ConversionsTest {
         assertThat((List<?>) value.toJavaObject()).hasSize(n);
         assertThat(value.toJson()).startsWith("[{},{},{}").hasSize(2 * n + (n - 1) + 2);
     }
+
+    @Test
+    void integerTextAndIntegerKeysNoLongerCollide() { // #28
+        assertThat(PhpSerialize.parse("a:2:{s:1:\"1\";i:1;i:1;i:2;}").toJavaObject())
+                .isEqualTo(Map.of("1", 2L));
+    }
 }

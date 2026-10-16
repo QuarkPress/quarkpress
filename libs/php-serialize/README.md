@@ -4,8 +4,9 @@ A plain-Java reader and writer for the PHP `serialize()` format. Zero runtime de
 no reflection, no Quarkus.
 
 WordPress stores options, widget settings, post meta, user roles and cron data as PHP serialized
-strings. This library lets migration and import code read those values safely and write them back
-byte for byte.
+strings. This library lets migration and import code read those values safely and write them back.
+Values that PHP itself wrote round trip byte for byte; input PHP would not produce is normalised the
+way PHP reads it (for example, the string key `"5"` becomes the integer key `5`).
 
 ## Coordinates
 
@@ -92,7 +93,7 @@ float lexemes and non-UTF-8 string payloads.
 | `PhpInt` | `i:123;` | 64-bit |
 | `PhpFloat` | `d:0.1;` | keeps the original lexeme; `INF`, `-INF`, `NAN` supported |
 | `PhpString` | `s:5:"hello";` | raw bytes plus a charset hint; equality by bytes |
-| `PhpArray` | `a:2:{...}` | ordered; keys are `Key.Int` or `Key.Str` |
+| `PhpArray` | `a:2:{...}` | ordered; keys are `Key.Int` or `Key.Str`; integer text (`"5"`) is always an integer key, as in PHP |
 | `PhpObject` | `O:3:"Foo":1:{...}` | class name is data, never looked up |
 | `PhpCustomObject` | `C:3:"Foo":5:{hello}` | opaque payload bytes |
 | `PhpReference` | `r:2;` / `R:2;` | kept symbolic, not resolved |
