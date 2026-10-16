@@ -1,0 +1,20 @@
+# Deliberate differences between lib-wp-blocks and WordPress 7.1.3.
+# Format: <case-id-or-glob> <aspect-or-glob> <audit-item> <reason>. Audit items are those of
+# docs/superpowers/audits/2026-10-14-wp-blocks-vs-wordpress.md. An entry whose comparisons all match
+# WordPress fails the build: delete it.
+audit-D5-zero-chunks tree D5 WordPress drops a text chunk equal to "0" (PHP empty()); QuarkPress keeps the text
+audit-D5-zero-chunks serialize D5 same as above
+audit-D5-zero-only tree D5 same as above
+audit-D5-zero-only serialize D5 same as above; WordPress then writes the block in void form
+audit-D5-zero-nested-closer serialize D5 WordPress writes a block whose content is "0" in void form
+audit-D9-long-number tree D9 numbers whose integer, fraction or exponent part exceeds 1000 characters make the attributes invalid (Jackson's limit, kept for safety)
+audit-D9-long-number serialize D9 same as above
+audit-D10-big-int tree D10 integers beyond 64 bits stay exact; PHP turns them into floats
+audit-D10-big-int serialize D10 same as above
+audit-D11-overflow serialize D11 a number that overflows to infinity is written as null; WordPress cannot encode it and drops every attribute
+audit-D12-numeric-keys tree D12 an object with keys "0", "1", ... stays an object; PHP turns it into a list
+audit-D12-numeric-keys serialize D12 same as above
+audit-D12-numeric-keys-nested tree D12 same as above
+audit-D12-numeric-keys-nested serialize D12 same as above
+audit-D13-nested-empty serialize D13 an empty object stays {}; PHP writes []
+audit-D20-backtrack tree D20 WordPress's delimiter regex hits PCRE's limits and the whole document becomes freeform; QuarkPress scans linearly
