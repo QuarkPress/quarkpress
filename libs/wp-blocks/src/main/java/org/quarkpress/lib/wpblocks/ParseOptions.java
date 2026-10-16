@@ -9,7 +9,8 @@ public final class ParseOptions {
     /** Hard upper bound for {@link #maxDepth()}; the serializer is recursive and must stay stack-safe. */
     public static final int MAX_DEPTH_LIMIT = 1024;
 
-    public static final ParseOptions DEFAULTS = new ParseOptions(64, 100_000);
+    /** No WordPress limit corresponds to these; they bound memory and stack for hostile input only. */
+    public static final ParseOptions DEFAULTS = new ParseOptions(MAX_DEPTH_LIMIT, 1_000_000);
 
     private final int maxDepth;
     private final int maxBlocks;

@@ -113,7 +113,7 @@ attributes are serialized afresh (a built block, or one given new attributes wit
 - Closers match by position, not by name. A closer with nothing open is text. Open blocks are
   closed at end of input, keeping the trailing text as their inner HTML.
 - Malformed markup never throws. `BlockParseException` is thrown only when `ParseOptions`
-  limits are exceeded: `maxDepth` (default 64) and `maxBlocks` (default 100 000, freeform
+  limits are exceeded: `maxDepth` (default 1024) and `maxBlocks` (default 1 000 000, freeform
   blocks included).
 
 ## Serialization

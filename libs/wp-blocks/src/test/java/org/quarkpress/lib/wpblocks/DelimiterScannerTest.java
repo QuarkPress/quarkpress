@@ -69,8 +69,9 @@ class DelimiterScannerTest {
                 "<!-- wp:paragraph [1] -->", // not an object
                 "<!-- wp: paragraph -->", // space after colon
                 "<!-- wp:paragraph", // unterminated
-                "<!-- /wp:paragraph {\"a\":1} -->", // closers take no attributes
-                "<!-- /wp:paragraph /-->", // closers are not void
+                "<!-- / wp:a -->",
+                "<!--\u00A0 wp:a /-->",
+                "<!-- wp:a/-->",
                 "<!-- wp -->", // no colon
                 "<!---->",
                 "<!-- -->",
@@ -78,6 +79,35 @@ class DelimiterScannerTest {
             })
     void rejectsNearMisses(String s) {
         assertThat(DelimiterScanner.tryRead(s, 0)).isNull();
+    }
+
+    @Test
+    void closerMayCarryAttributesWhichAreIgnored() { // D4
+        String s = "<!-- /wp:a {\"x\":1} -->";
+        Delimiter d = DelimiterScanner.tryRead(s, 0);
+        assertThat(d.kind()).isEqualTo(Kind.CLOSER);
+        assertThat(d.name()).isEqualTo("core/a");
+        assertThat(d.rawAttributes()).isNull();
+        assertThat(d.end()).isEqualTo(s.length());
+    }
+
+    @Test
+    void closerWithVoidFlagIsAVoidBlock() { // D3
+        Delimiter bare = DelimiterScanner.tryRead("<!-- /wp:a /-->", 0);
+        assertThat(bare.kind()).isEqualTo(Kind.VOID);
+        assertThat(bare.rawAttributes()).isNull();
+        Delimiter withAttributes = DelimiterScanner.tryRead("<!-- /wp:a {\"k\":2} /-->", 0);
+        assertThat(withAttributes.kind()).isEqualTo(Kind.VOID);
+        assertThat(withAttributes.rawAttributes()).isEqualTo("{\"k\":2}");
+    }
+
+    @Test
+    void formFeedAndVerticalTabAreWhitespace() { // D6
+        assertThat(DelimiterScanner.tryRead("<!--\fwp:a\f/-->", 0).kind()).isEqualTo(Kind.VOID);
+        assertThat(DelimiterScanner.tryRead("<!--\u000Bwp:a\u000B/-->", 0).kind())
+                .isEqualTo(Kind.VOID);
+        assertThat(DelimiterScanner.tryRead("<!-- /wp:a\u000B-->", 0).kind()).isEqualTo(Kind.CLOSER);
+        assertThat(new AttributeEnds("{}\f-->").terminatorFrom(0)).isEqualTo(1);
     }
 
     @Test

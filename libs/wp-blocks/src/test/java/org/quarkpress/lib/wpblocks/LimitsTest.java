@@ -9,12 +9,19 @@ class LimitsTest {
 
     @Test
     void depthBeyondMaxDepthThrowsWithOffsetOfOffendingOpener() {
-        String doc = "<!-- wp:a -->".repeat(70);
-        assertThatThrownBy(() -> WpBlocks.parse(doc))
+        String doc = "<!-- wp:a -->".repeat(70) + "<!-- /wp:a -->".repeat(70);
+        assertThatThrownBy(() -> WpBlocks.parse(doc, ParseOptions.DEFAULTS.withMaxDepth(64)))
                 .isInstanceOf(BlockParseException.class)
                 .hasMessageContaining("depth")
                 .hasMessageContaining("at offset " + (64 * "<!-- wp:a -->".length()));
         assertThat(WpBlocks.parse(doc, ParseOptions.DEFAULTS.withMaxDepth(70))).hasSize(1);
+    }
+
+    @Test
+    void defaultsAcceptWhatWordPressAccepts() { // D19: WordPress has no limits; the defaults sit far above real posts
+        String deep = "<!-- wp:a -->".repeat(1000) + "x" + "<!-- /wp:a -->".repeat(1000);
+        assertThat(WpBlocks.parse(deep)).hasSize(1);
+        assertThat(WpBlocks.parse("<!-- wp:a /-->".repeat(200_000))).hasSize(200_000);
     }
 
     @Test
@@ -48,7 +55,7 @@ class LimitsTest {
         assertThatThrownBy(() -> ParseOptions.DEFAULTS.withMaxDepth(ParseOptions.MAX_DEPTH_LIMIT + 1))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ParseOptions.DEFAULTS.withMaxBlocks(0)).isInstanceOf(IllegalArgumentException.class);
-        assertThat(ParseOptions.DEFAULTS.maxDepth()).isEqualTo(64);
-        assertThat(ParseOptions.DEFAULTS.maxBlocks()).isEqualTo(100_000);
+        assertThat(ParseOptions.DEFAULTS.maxDepth()).isEqualTo(1024);
+        assertThat(ParseOptions.DEFAULTS.maxBlocks()).isEqualTo(1_000_000);
     }
 }

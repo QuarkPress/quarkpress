@@ -12,7 +12,11 @@ class HostileInputTest {
 
     private static final Duration LIMIT = Duration.ofSeconds(10);
     private static final String[] INPUTS = {
-        "<!-- wp:a {".repeat(100_000), "<!-- wp:a {\"".repeat(100_000), "<!-- wp:a {} ".repeat(100_000)
+        "<!-- wp:a {".repeat(100_000),
+        "<!-- wp:a {\"".repeat(100_000),
+        "<!-- wp:a {} ".repeat(100_000),
+        "<!-- /wp:a {".repeat(100_000),
+        "<!--\f/wp:a\f{} ".repeat(100_000)
     };
 
     @Test

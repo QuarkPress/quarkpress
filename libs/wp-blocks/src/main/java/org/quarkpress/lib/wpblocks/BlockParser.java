@@ -33,8 +33,9 @@ final class BlockParser {
             this.name = d.name();
             this.rawAttributes = d.rawAttributes();
             this.rawOpener = source.substring(d.start(), d.end());
-            this.attributes =
-                    d.rawAttributes() == null ? AttributeJson.emptyObject() : AttributeJson.parse(d.rawAttributes());
+            this.attributes = d.rawAttributes() == null || !d.attributesDecodable()
+                    ? AttributeJson.emptyObject()
+                    : AttributeJson.parse(d.rawAttributes());
         }
 
         void appendText(String text) {

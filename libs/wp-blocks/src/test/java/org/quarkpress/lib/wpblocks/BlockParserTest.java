@@ -177,4 +177,75 @@ class BlockParserTest {
         assertThat(b.rawOpener() + String.join("", b.innerContent()) + b.rawCloser())
                 .isEqualTo(doc);
     }
+
+    @Test
+    void voidCloserInsideABlockIsANestedVoidBlock() { // D3
+        Block a = WpBlocks.parse("<!-- wp:a -->x<!-- /wp:a /-->y").get(0);
+        assertThat(a.name()).isEqualTo("core/a");
+        assertThat(a.innerContent()).containsExactly("x", null, "y");
+        assertThat(a.innerBlocks()).extracting(Block::name).containsExactly("core/a");
+    }
+
+    @Test
+    void topLevelVoidCloserIsAVoidBlockWithAttributes() { // D3
+        List<Block> blocks = WpBlocks.parse("<!-- /wp:a {\"k\":2} /-->");
+        assertThat(blocks).hasSize(1);
+        assertThat(blocks.get(0).name()).isEqualTo("core/a");
+        assertThat(blocks.get(0).attributes().get("k").intValue()).isEqualTo(2);
+    }
+
+    @Test
+    void closerAttributesAreIgnored() { // D4
+        List<Block> blocks = WpBlocks.parse("<!-- wp:a -->x<!-- /wp:a {\"x\":1} -->y");
+        assertThat(blocks).extracting(Block::name).containsExactly("core/a", null);
+        assertThat(blocks.get(0).innerContent()).containsExactly("x");
+        assertThat(blocks.get(1).innerHtml()).isEqualTo("y");
+        Block kept = WpBlocks.parse("<!-- wp:a {\"k\":1} --><!-- /wp:a {\"k\":2} -->")
+                .get(0);
+        assertThat(kept.attributes().get("k").intValue()).isEqualTo(1);
+        assertThat(kept.innerContent()).isEmpty();
+    }
+
+    @Test
+    void formFeedAndVerticalTabDelimitBlocks() { // D6
+        assertThat(WpBlocks.parse("<!--\fwp:a\f/-->")).extracting(Block::name).containsExactly("core/a");
+        assertThat(WpBlocks.parse("<!--\u000Bwp:a\u000B/-->"))
+                .extracting(Block::name)
+                .containsExactly("core/a");
+        assertThat(WpBlocks.parse("<!-- wp:a -->\f<!-- /wp:a\u000B-->").get(0).innerContent())
+                .containsExactly("\f");
+        assertThat(WpBlocks.parse("<!--\u00A0 wp:a /-->").get(0).isFreeform()).isTrue();
+        assertThat(WpBlocks.parse("<!-- wp:a/-->").get(0).isFreeform()).isTrue();
+    }
+
+    @Test
+    void formFeedOrVerticalTabAfterAttributesMakesThemUndecodable() { // WordPress feeds the trailing space to
+        // json_decode
+        for (String doc :
+                new String[] {"<!-- wp:a {\"x\":1}\f-->", "<!-- wp:a {\"x\":1}\u000B/-->", "<!-- /wp:a {\"x\":1}\f/-->"
+                }) {
+            Block b = WpBlocks.parse(doc).get(0);
+            assertThat(b.name()).isEqualTo("core/a");
+            assertThat(b.attributes()).isEmpty();
+            assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+        }
+        assertThat(WpBlocks.parse("<!-- wp:a {\"x\":1}\n-->")
+                        .get(0)
+                        .attributes()
+                        .get("x")
+                        .intValue())
+                .isEqualTo(1);
+        assertThat(WpBlocks.parse("<!-- wp:a\f{\"x\":1} -->")
+                        .get(0)
+                        .attributes()
+                        .get("x")
+                        .intValue())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void closerWithoutWhitespaceBeforeCloseIsText() {
+        Block a = WpBlocks.parse("<!-- wp:a -->x<!-- /wp:a/-->y").get(0);
+        assertThat(a.innerContent()).containsExactly("x<!-- /wp:a/-->y");
+    }
 }
