@@ -23,7 +23,12 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
-      - name: Build and test (with Gutenberg conformance fixtures)
-        run: mvn -B -ntp verify -Pconformance
+      - uses: shivammathur/setup-php@2.37.2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, json
+          coverage: none
+      - name: Build and test (Gutenberg conformance and WordPress parity)
+        run: mvn -B -ntp verify -Pconformance,wp-parity
       - name: Check formatting
         run: mvn -B -ntp spotless:check

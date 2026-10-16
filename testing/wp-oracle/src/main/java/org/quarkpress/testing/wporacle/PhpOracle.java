@@ -63,6 +63,7 @@ public final class PhpOracle {
     }
 
     /** Runs {@code driver} once over {@code cases}; returns each case's {@code out} value by id, in case order. */
+    @SuppressWarnings("try")
     public Map<String, JsonNode> run(Path driver, List<Case> cases) throws IOException, InterruptedException {
         String name = driver.getFileName().toString().replaceFirst("\\.php$", "");
         Files.createDirectories(workDir);

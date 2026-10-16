@@ -64,6 +64,7 @@ public final class WordPressSources {
         return Path.of(root);
     }
 
+    @SuppressWarnings("try")
     static Path ensure(WordPressRelease release, Path dir, URI base, List<String> files)
             throws IOException, InterruptedException {
         Set<String> wanted = new LinkedHashSet<>(BOOTSTRAP_FILES);
