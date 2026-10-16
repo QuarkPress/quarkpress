@@ -60,6 +60,7 @@ function wp_is_valid_utf8($bytes)
 
 function wp_allowed_protocols()
 {
+    // Same set as WordPress's default allowed protocols; data, kept for later drivers (kses, shortcodes).
     return ['http', 'https', 'ftp', 'ftps', 'mailto', 'news', 'irc', 'irc6', 'ircs', 'gopher', 'nntp', 'feed',
         'telnet', 'mms', 'rtsp', 'sms', 'svn', 'tel', 'fax', 'xmpp', 'webcal', 'urn'];
 }
