@@ -129,6 +129,14 @@ class AttributeJsonTest {
     }
 
     @Test
+    void numbersWithAnOverlongPartAreRejected() { // D9: any number part beyond 1000 characters, floats included
+        assertThat(AttributeJson.parseOrNull("{\"n\":0." + "0".repeat(999) + "1}"))
+                .isNotNull();
+        assertThat(AttributeJson.parseOrNull("{\"n\":0." + "0".repeat(1000) + "1}"))
+                .isNull();
+    }
+
+    @Test
     void loneSurrogateFromApiIsWrittenAndRejectedOnReparse() { // Review Focus 4
         ObjectNode attrs = JsonNodeFactory.instance.objectNode().put("s", "x" + (char) 0xD800);
         String doc = WpBlocks.serializeCanonical(List.of(Block.of("a", attrs)));

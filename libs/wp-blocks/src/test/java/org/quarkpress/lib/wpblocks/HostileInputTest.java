@@ -43,9 +43,13 @@ class HostileInputTest {
 
     @Test
     void hasBlocksIsLinearOnUnterminatedAttributeCandidates() {
-        for (String doc : INPUTS) {
+        // Expected per INPUTS entry: an opener "<!-- wp:" is present in the first three only; the closer and
+        // form-feed variants never contain it.
+        boolean[] expected = {true, true, true, false, false};
+        for (int i = 0; i < INPUTS.length; i++) {
+            String doc = INPUTS[i];
             boolean found = assertTimeoutPreemptively(LIMIT, () -> WpBlocks.hasBlocks(doc));
-            assertThat(found).isFalse();
+            assertThat(found).as("input %d", i).isEqualTo(expected[i]);
         }
     }
 

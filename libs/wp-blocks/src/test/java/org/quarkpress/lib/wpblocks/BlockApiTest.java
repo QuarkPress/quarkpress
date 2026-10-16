@@ -11,18 +11,6 @@ import org.junit.jupiter.api.Test;
 class BlockApiTest {
 
     @Test
-    void hasBlocksDetectsValidOpenersAndVoidsOnly() {
-        assertThat(WpBlocks.hasBlocks("<p>x</p>")).isFalse();
-        assertThat(WpBlocks.hasBlocks("")).isFalse();
-        assertThat(WpBlocks.hasBlocks("<!-- wp:Paragraph -->")).isFalse();
-        assertThat(WpBlocks.hasBlocks("<!-- /wp:paragraph -->")).isFalse();
-        assertThat(WpBlocks.hasBlocks("text <!-- wp:paragraph --><p>x</p><!-- /wp:paragraph -->"))
-                .isTrue();
-        assertThat(WpBlocks.hasBlocks("<!-- wp:spacer {\"h\":1} /-->")).isTrue();
-        assertThat(WpBlocks.hasBlocks("<!-- wp:a {\"k\":")).isFalse();
-    }
-
-    @Test
     void withAttributesClearsRawAndRegeneratesOnSerialize() {
         Block parsed =
                 WpBlocks.parse("<!-- wp:a {\"k\" : 1} -->x<!-- /wp:a -->").get(0);

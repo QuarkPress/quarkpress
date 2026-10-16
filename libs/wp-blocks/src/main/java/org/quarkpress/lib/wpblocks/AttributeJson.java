@@ -17,8 +17,9 @@ final class AttributeJson {
 
     /**
      * Shared, immutable mapper. Only {@code readTree} is used. Strings and names have no length limit, as in PHP;
-     * nesting (1000) and number length (1000 characters) keep Jackson's defaults for safety, and {@link
-     * PhpJsonRules} applies PHP's stricter nesting limit.
+     * nesting (1000) and number length keep Jackson's defaults for safety, and {@link PhpJsonRules} applies
+     * PHP's stricter nesting limit. A number whose integer, fraction or exponent part exceeds 1000 characters makes
+     * the attributes invalid, floats included, where PHP accepts it (D9).
      */
     static final JsonMapper MAPPER = JsonMapper.builder(JsonFactory.builder()
                     .streamReadConstraints(StreamReadConstraints.builder()

@@ -66,24 +66,41 @@ public final class WpBlocks {
         return out.toString();
     }
 
+    private static final String BLOCK_COMMENT = "<!-- wp:";
+
     /**
-     * True if the content contains at least one valid block opener or void delimiter. A closer alone,
-     * or a comment that only resembles a delimiter, does not count. Does not build a tree.
+     * WordPress's {@code has_blocks}: true when the text contains {@code "<!-- wp:"}. A cheap, loose test: a comment
+     * that only resembles a delimiter counts, and a delimiter with a tab or a newline after {@code <!--} does not.
+     * WordPress uses it to decide whether a post is rendered as blocks. Parse the content for an exact answer.
      */
     public static boolean hasBlocks(String content) {
         Objects.requireNonNull(content, "content");
-        AttributeEnds ends = new AttributeEnds(content);
-        int from = 0;
-        while (true) {
-            int idx = content.indexOf(DelimiterScanner.COMMENT_OPEN, from);
-            if (idx < 0) {
-                return false;
-            }
-            DelimiterScanner.Delimiter d = DelimiterScanner.tryRead(content, idx, ends);
-            if (d != null && d.kind() != DelimiterScanner.Kind.CLOSER) {
-                return true;
-            }
-            from = idx + 1;
+        return content.contains(BLOCK_COMMENT);
+    }
+
+    /**
+     * WordPress's {@code has_block}: false when {@link #hasBlocks} is; otherwise whether the text contains {@code
+     * "<!-- wp:"} followed by the qualified name ({@code core/} added when {@code name} has no slash) and a space,
+     * or, for a core block, by its short name and a space. A substring test like WordPress's; names are compared
+     * exactly.
+     */
+    public static boolean hasBlock(String content, String name) {
+        Objects.requireNonNull(content, "content");
+        Objects.requireNonNull(name, "name");
+        if (!hasBlocks(content)) {
+            return false;
         }
+        String qualified = name.indexOf('/') < 0 ? BlockNames.CORE + name : name;
+        if (content.contains(BLOCK_COMMENT + qualified + " ")) {
+            return true;
+        }
+        String shortName = stripCoreNamespace(qualified);
+        return !shortName.equals(qualified) && content.contains(BLOCK_COMMENT + shortName + " ");
+    }
+
+    /** WordPress's {@code strip_core_block_namespace}: removes a leading {@code core/}; other names are unchanged. */
+    public static String stripCoreNamespace(String name) {
+        Objects.requireNonNull(name, "name");
+        return BlockNames.shorten(name);
     }
 }

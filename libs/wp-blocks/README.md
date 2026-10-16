@@ -1,11 +1,13 @@
 # quarkpress-lib-wp-blocks
 
 A plain-Java parser and serializer for Gutenberg block markup, the `<!-- wp:name {json} -->`
-comments WordPress stores in `post_content`. One dependency (Jackson databind), no reflection,
-no Quarkus.
+comments WordPress stores in `post_content`, plus WordPress's block helpers (`has_blocks`,
+`has_block`, `serialize_blocks`, `strip_core_block_namespace`). One dependency (Jackson databind),
+no reflection, no Quarkus.
 
-Parsed, untouched content serializes back **byte for byte**. Edited blocks re-serialize from
-their attribute nodes; their untouched siblings stay identical.
+The tree is the one WordPress's `parse_blocks` builds, malformed markup included. Parsed, untouched
+content serializes back **byte for byte**; `serializeCanonical` writes exactly what WordPress's
+`serialize_blocks` writes.
 
 ## Coordinates
 
@@ -40,14 +42,18 @@ for (Block b : blocks) {
     } else {
         System.out.println(b.name()); // "core/paragraph", "acme/hero", ...
         ObjectNode attrs = b.attributes();
+        b.attributesValid();          // false where WordPress has null attributes
         b.innerBlocks();              // nested blocks
         b.innerContent();             // text chunks, null where each inner block sits
     }
 }
 
-String same = WpBlocks.serialize(blocks);   // equals postContent, byte for byte
+String same = WpBlocks.serialize(blocks);               // equals postContent, byte for byte
+String wordpress = WpBlocks.serializeCanonical(blocks); // what serialize_blocks writes
 
-boolean usesBlocks = WpBlocks.hasBlocks(postContent);
+boolean usesBlocks = WpBlocks.hasBlocks(postContent);           // has_blocks
+boolean hasGallery = WpBlocks.hasBlock(postContent, "gallery"); // has_block
+String shortName = WpBlocks.stripCoreNamespace("core/gallery"); // "gallery"
 
 Block edited = blocks.get(0).withAttributes(newAttrs);   // re-serializes from the node
 Block rewired = blocks.get(0).withInnerBlocks(children); // one null chunk per child
@@ -66,14 +72,16 @@ Block fresh = Block.builder("acme/hero")
 |---|---|
 | `name()` | Qualified name (`core/paragraph`); bare names in the source get `core/`. `null` for freeform. |
 | `attributes()` | Deep copy of the JSON object; empty when absent or invalid. |
+| `attributesValid()` | False when the attribute text is not JSON that PHP's `json_decode` accepts; WordPress then has `null` attributes. |
 | `rawAttributes()` | Exact JSON text from the source, present on parsed, unmodified blocks. |
 | `innerBlocks()` | Nested blocks. |
 | `innerHtml()` | Own markup with inner block markup removed. |
 | `innerContent()` | Ordered chunks; `null` marks an inner block position. |
+| `isRecoveredCopy()` | True for a block WordPress repeats when blocks are left open at the end of the document (see below). |
 
 Invariants: `null` count equals `innerBlocks().size()`; non-null chunks concatenated equal
-`innerHtml()`. Equality compares name, attributes as JSON values, inner blocks and content, not
-the raw attribute text.
+`innerHtml()`. Equality compares name, attributes as JSON values (numbers by value, so `3` equals
+`3.0`), inner blocks and content (empty chunks ignored), not the raw attribute text.
 
 `attributes()` returns a fresh deep copy on every call; renderers walking large trees should
 read it once per block and keep it.
@@ -82,10 +90,7 @@ Attributes must be JSON values only (objects, arrays, strings, numbers, booleans
 or binary node is rejected with `IllegalArgumentException`. Number nodes are normalised when a
 block is built: short, int, long and big integer become the smallest of int, long or big
 integer; float becomes the double with the same decimal text (`0.1f` becomes `0.1`); big decimal
-becomes double. So API-built and parsed attributes compare equal. Non-finite doubles (NaN,
-infinities, or a literal such as `1e400` that overflows) are written as `null` when a block's
-attributes are serialized afresh (a built block, or one given new attributes with
-`withAttributes`); a parsed block keeps its original attribute text.
+becomes double.
 
 ### Round trip of API-built trees
 
@@ -96,56 +101,89 @@ attributes are serialized afresh (a built block, or one given new attributes wit
 - no text, from `Builder.text` or a freeform block, contains block delimiters. Text is written
   as is, so `text("<!-- /wp:p -->x")` closes the block early on re-parse.
 
-## Grammar and leniency
+Integral doubles come back as integers (`3.0` is written `3`, as WordPress writes it); they still
+compare equal.
+
+## Grammar and recovery
 
 - Delimiters: `<!-- wp:name {json} -->` ... `<!-- /wp:name -->`, and void `<!-- wp:name {json} /-->`.
-  Whitespace (space, tab, CR, LF) is required after `<!--`, after the name, and after the JSON.
+  Whitespace (space, tab, line feed, vertical tab, form feed, carriage return) is required after
+  `<!--`, after the name, and after the JSON. A no-break space is not whitespace.
+- A closer may carry attributes, which are ignored (`<!-- /wp:a {"x":1} -->`); a closer with the
+  void flag is a void block (`<!-- /wp:a {"k":2} /-->`).
 - Names: `[a-z][a-z0-9_-]*`, optionally `namespace/name` with the same shape. Uppercase or a
   digit-first segment makes the comment plain text.
 - Attributes run from the `{` after the name to the first `}` that is followed by whitespace
-  and then `-->` or `/-->` (the documented grammar). The search is linear, so hostile input
-  cannot make parsing quadratic. Invalid JSON yields empty attributes but the raw text is kept,
-  so the round trip still holds.
+  and then `-->` or `/-->`. The search is linear, so hostile input cannot make parsing quadratic.
+  The JSON is judged as PHP's `json_decode` judges it (at most 511 nested containers, surrogate
+  escapes in pairs); otherwise `attributes()` is empty, `attributesValid()` is false and the raw
+  text is kept, so the round trip still holds.
 - Importers of corrupted content: one malformed `{` in an opener (an unbalanced brace, a missing
   `}`) makes the attributes run to the next `} -->` anywhere later in the document, so the
-  following blocks are swallowed into that opener's raw attribute text. The round trip is still
-  exact, but renderers see one block with empty attributes where there were several.
-- Closers match by position, not by name. As in WordPress, a closer with nothing open ends
-  parsing: the rest of the document becomes one freeform block. Blocks left open at the end are
-  emitted the way WordPress emits them, innermost first; all but the outermost repeat text the
-  outermost already holds and are marked `isRecoveredCopy()`, which `serialize(List)` skips.
-- Malformed markup never throws. `BlockParseException` is thrown only when `ParseOptions`
-  limits are exceeded: `maxDepth` (default 1024), `maxBlocks` (default 1 000 000, freeform
-  blocks included) and `maxRecoveredChars` (default 8 000 000).
-- Difference from WordPress: `maxRecoveredChars` bounds the text repeated into recovered copies.
-  Each block left open at the end repeats the rest of the document, so 1024 unclosed openers
-  before 1 MB of text would copy about 1 GB; WordPress builds that tree (up to PHP's
-  `memory_limit`), QuarkPress throws instead.
+  following blocks are swallowed into that opener's raw attribute text, as in WordPress.
+- Closers match by position, not by name.
+- A closer while no block is open ends parsing, as in WordPress: everything after the previous
+  delimiter becomes one freeform block, so blocks after it are not parsed as blocks.
+- Blocks still open at the end of the document are closed as WordPress closes them: each is emitted
+  at top level, innermost first, after a freeform block holding the text before its opener, and the
+  outermost one keeps the rest of the document as its text. WordPress therefore shows inner text
+  twice. The repeated blocks are marked `isRecoveredCopy()`: `serialize` skips them, so the round
+  trip stays exact; `serializeCanonical` writes them, as WordPress does.
+- A nested block that closes right after an inner block or its own opener gets an empty text chunk,
+  as in WordPress.
+- Malformed markup never throws. `BlockParseException` is thrown only when `ParseOptions` limits
+  are exceeded: `maxDepth` (default 1024), `maxBlocks` (default 1 000 000, freeform blocks
+  included) and `maxRecoveredChars` (default 8 000 000, text repeated into recovered copies).
+  WordPress has no such limits; the defaults sit far above real content.
 
 ## Serialization
 
-- Freeform: written as is.
-- Parsed delimiters are written back verbatim. A block without them (API-built, or after
-  `withAttributes`/`withInnerBlocks`) gets regenerated delimiters: the void form when it has no
-  inner blocks and no inner HTML, unless it came from an opener/closer pair (that explicit close
-  is kept, also after `withAttributes` and `withInnerBlocks`); otherwise opener, content, closer.
-- `core/` is dropped from names on output; other namespaces are kept.
-- Raw attribute text is reused verbatim. Regenerated attributes are compact JSON with `--`,
-  `<`, `>`, `&` and escaped quotes written as `\u002d\u002d`, `\u003c`, `\u003e`, `\u0026`,
-  `\u0022`, so they can never terminate the comment.
+- `serialize`: parsed delimiters are written back verbatim and recovered copies are skipped. A
+  block without raw delimiters (API-built, or after `withAttributes`/`withInnerBlocks`) gets
+  canonical delimiters: the void form when its content is empty, otherwise opener, content,
+  closer. Raw attribute text is reused when present (`withInnerBlocks` keeps it).
+- `serializeCanonical`: ignores all raw text, as `serialize_blocks` does: `core/` dropped, single
+  spaces, void form exactly when the content is empty, and attributes as WordPress writes them:
+  PHP `json_encode` output (slashes and non-ASCII as they are, U+2028/U+2029 escaped, `1.0` as
+  `1`, `1e20` as `1.0e+20`) with backslash, `--`, `<`, `>`, `&` and quote written as `\u005c`,
+  `\u002d\u002d`, `\u003c`, `\u003e`, `\u0026` and `\u0022`, so the text can never end the comment.
+
+## Differences from WordPress
+
+Checked by the `wp-parity` profile; each is listed in `src/test/resources/wp-parity-skip.txt` with
+its audit item.
+
+| Item | QuarkPress | WordPress | Reason |
+|---|---|---|---|
+| D5 | a text chunk `"0"` is kept | dropped (PHP's `empty("0")`); a block whose content is `"0"` is written void | that is data loss |
+| D9 | a number whose integer, fraction or exponent part exceeds 1000 characters (floats included) makes the attributes invalid | parsed | bounded parsing (Jackson's limit is kept) |
+| D10 | integers beyond 64 bits stay exact | become floats (`1.2345678901234567e+19`) | precision |
+| D11 | a number that overflows to infinity is written as `null` | encoding fails and all attributes are dropped | that is data loss |
+| D12 | `{"0":"x","1":"y"}` stays an object | becomes a list, written `["x","y"]`, which no longer parses as attributes | that corrupts the block |
+| D13 | `{}` inside attributes stays `{}` | written as `[]` | same meaning |
+| D20 | attributes of any size parse in linear time | PCRE limits turn the whole document into one freeform block | robustness |
+| (limit) | `maxRecoveredChars` (default 8 000 000) bounds the text repeated into recovered copies; exceeding it throws `BlockParseException` | builds the tree, bounded only by PHP's `memory_limit` | each block left open at the end repeats the rest of the document, so 1024 unclosed openers before 1 MB of text would copy about 1 GB |
 
 ## Conformance
 
 `mvn verify -Pconformance` fetches Gutenberg's published parser fixtures at a pinned commit
 (shallow sparse git checkout into `target/`) and compares `parse` output with each
-`*.parsed.json`, plus a byte-identical round trip of every fixture file, plus canonical
-serialization: each `*.serialized.html` is parsed, rebuilt without raw delimiter and attribute
-text, and serialized again, which must reproduce the file. The fixtures are not
-part of this repository. CI runs the profile.
-The fetch is bounded by a 10-minute timeout per git step and the run fails if fewer than 300
-fixtures are found.
+`*.parsed.json`, checks a byte-identical round trip of every fixture file, and checks that
+`serializeCanonical` reproduces each `*.serialized.html`. The fixtures are not part of this
+repository. The fetch is bounded by a 10-minute timeout per git step and the run fails if fewer
+than 300 fixtures are found.
 
-## Clean-room
+## Parity testing
 
-Written from the block grammar documentation, the published fixtures and observed WordPress
-output. No WordPress PHP or Gutenberg JavaScript source was consulted.
+`mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 block
+parser files into `target/wp-source/` and compares the parse tree, `serializeCanonical`,
+`hasBlocks` and `hasBlock` with `parse_blocks`, `serialize_blocks`, `has_blocks` and `has_block` on
+hand-written cases (`src/test/resources/wp-parity-cases.json`), the corpus in
+`src/test/resources/wp/`, the Gutenberg fixtures when `-Pconformance` is active too, and a few
+thousand generated documents. CI runs both profiles. See `testing/wp-oracle`.
+
+## Source policy
+
+Written from the block grammar documentation, the published fixtures and WordPress's observed
+behaviour. WordPress PHP was read to understand that behaviour and runs as a test oracle; no
+WordPress code is copied (QUARKPRESS-SPEC.md §13).
