@@ -44,4 +44,26 @@ class ParseOptionsTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ParseOptions.DEFAULTS.withCharset(null)).isInstanceOf(NullPointerException.class);
     }
+
+    @Test
+    void phpCompatiblePresetEnablesThePhpLeniencies() {
+        assertThat(ParseOptions.DEFAULTS.allowTrailingData()).isFalse();
+        assertThat(ParseOptions.DEFAULTS.clampIntegers()).isFalse();
+        assertThat(ParseOptions.DEFAULTS.legacyEscapedStrings()).isFalse();
+        ParseOptions php = ParseOptions.PHP_COMPATIBLE;
+        assertThat(php.allowTrailingData()).isTrue();
+        assertThat(php.clampIntegers()).isTrue();
+        assertThat(php.legacyEscapedStrings()).isTrue();
+        assertThat(php.repairLengths()).isFalse();
+        assertThat(php.maxDepth()).isEqualTo(256);
+        assertThat(ParseOptions.DEFAULTS.withClampIntegers(true).clampIntegers())
+                .isTrue();
+        assertThat(ParseOptions.DEFAULTS.withLegacyEscapedStrings(true).legacyEscapedStrings())
+                .isTrue();
+        assertThat(ParseOptions.DEFAULTS
+                        .withAllowTrailingData(true)
+                        .withMaxDepth(10)
+                        .allowTrailingData())
+                .isTrue();
+    }
 }

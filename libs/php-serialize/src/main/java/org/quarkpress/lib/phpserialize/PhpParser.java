@@ -3,7 +3,13 @@ package org.quarkpress.lib.phpserialize;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-/** Recursive-descent parser over a byte array. Not thread-safe; one instance per document. */
+/**
+ * Recursive-descent parser over a byte array. Not thread-safe; one instance per document.
+ *
+ * <p>Integer values and keys and floats may carry a leading {@code +}, as PHP's grammar allows; lengths, counts
+ * and back-reference numbers are plain digits. Class names must be PHP class names: bytes from {@code A-Z a-z
+ * 0-9 _ \} and 0x80-0xFF, at least one, not starting with a backslash.
+ */
 final class PhpParser {
 
     private final byte[] in;
@@ -23,7 +29,7 @@ final class PhpParser {
 
     PhpValue parseDocument() {
         PhpValue value = readValue(0);
-        if (pos != in.length) {
+        if (pos != in.length && !options.allowTrailingData()) {
             throw fail("unexpected trailing data");
         }
         return value;
@@ -33,6 +39,7 @@ final class PhpParser {
         if (depth > options.maxDepth()) {
             throw fail("nesting depth exceeds " + options.maxDepth());
         }
+        int tagAt = pos;
         byte tag = next();
         switch (tag) {
             case 'N':
@@ -42,15 +49,14 @@ final class PhpParser {
                 return readBool();
             case 'i':
                 expect(':');
-                return new PhpInt(readLong(';'));
+                return new PhpInt(readSignedInteger(';'));
             case 'd':
                 expect(':');
                 return readFloat();
             case 's':
-                expect(':');
-                byte[] bytes = readLengthPrefixedBytes(';');
-                expect(';');
-                return new PhpString(bytes, options.charset());
+                return readString();
+            case 'S':
+                return readEscapedString(tagAt);
             case 'a':
                 expect(':');
                 return readEntries(depth).build();
@@ -58,16 +64,16 @@ final class PhpParser {
                 return readObject(depth);
             case 'C':
                 return readCustomObject();
-            case 'r':
-                expect(':');
-                return new PhpReference(readLong(';'), PhpReference.Kind.OBJECT);
-            case 'R':
-                expect(':');
-                return new PhpReference(readLong(';'), PhpReference.Kind.REFERENCE);
             case 'E':
                 return readEnum();
+            case 'r':
+                expect(':');
+                return new PhpReference(readUnsigned(';'), PhpReference.Kind.OBJECT);
+            case 'R':
+                expect(':');
+                return new PhpReference(readUnsigned(';'), PhpReference.Kind.REFERENCE);
             default:
-                pos--;
+                pos = tagAt;
                 throw fail("unknown type tag '" + (char) tag + "'");
         }
     }
@@ -75,8 +81,8 @@ final class PhpParser {
     /** Reads {@code COUNT:{key;value;...}} for arrays and object property lists. */
     private PhpArray.Builder readEntries(int depth) {
         int countStart = pos;
-        long count = readLong(':');
-        if (count < 0 || count > options.maxElements() - elements) {
+        long count = readUnsigned(':');
+        if (count > options.maxElements() - elements) {
             pos = countStart;
             throw fail("element count " + count + " exceeds limit " + options.maxElements());
         }
@@ -98,16 +104,79 @@ final class PhpParser {
         switch (tag) {
             case 'i':
                 expect(':');
-                return PhpArray.Key.of(readLong(';'));
+                return PhpArray.Key.of(readSignedInteger(';'));
             case 's':
                 expect(':');
                 byte[] bytes = readLengthPrefixedBytes(';');
                 expect(';');
                 return PhpArray.Key.of(new PhpString(bytes, options.charset()));
+            case 'S':
+                if (options.legacyEscapedStrings()) {
+                    return PhpArray.Key.of(readEscapedString(start));
+                }
+                pos = start;
+                throw fail("array key must be an integer or a string");
             default:
                 pos = start;
                 throw fail("array key must be an integer or a string");
         }
+    }
+
+    private PhpString readString() {
+        expect(':');
+        byte[] bytes = readLengthPrefixedBytes(';');
+        expect(';');
+        return new PhpString(bytes, options.charset());
+    }
+
+    /** Reads the legacy {@code S:LEN:"…";} form: LEN decoded bytes, where {@code \xx} (two hex digits) is one byte. */
+    private PhpString readEscapedString(int tagAt) {
+        if (!options.legacyEscapedStrings()) {
+            pos = tagAt;
+            throw fail("unknown type tag 'S'");
+        }
+        expect(':');
+        int lengthStart = pos;
+        long declared = readUnsigned(':');
+        checkStringLength(declared, lengthStart);
+        expect('"');
+        if (declared > in.length - pos) {
+            pos = lengthStart;
+            throw fail("string length " + declared + " exceeds remaining input");
+        }
+        byte[] out = new byte[(int) declared];
+        for (int i = 0; i < out.length; i++) {
+            if (pos >= in.length) {
+                throw fail("unexpected end of input in an S: string");
+            }
+            if (in[pos] != '\\') {
+                out[i] = in[pos++];
+                continue;
+            }
+            int high = pos + 1 < in.length ? hexValue(in[pos + 1]) : -1;
+            int low = pos + 2 < in.length ? hexValue(in[pos + 2]) : -1;
+            if (high < 0 || low < 0) {
+                throw fail("an S: string allows a backslash only before two hex digits");
+            }
+            out[i] = (byte) (high << 4 | low);
+            pos += 3;
+        }
+        expect('"');
+        expect(';');
+        return new PhpString(out, options.charset());
+    }
+
+    private static int hexValue(byte b) {
+        if (b >= '0' && b <= '9') {
+            return b - '0';
+        }
+        if (b >= 'a' && b <= 'f') {
+            return b - 'a' + 10;
+        }
+        if (b >= 'A' && b <= 'F') {
+            return b - 'A' + 10;
+        }
+        return -1;
     }
 
     private PhpObject readObject(int depth) {
@@ -122,8 +191,8 @@ final class PhpParser {
         String className = readClassName();
         expect(':');
         int lengthStart = pos;
-        long declared = readLong(':');
-        if (declared < 0 || declared > options.maxStringBytes()) {
+        long declared = readUnsigned(':');
+        if (declared > options.maxStringBytes()) {
             pos = lengthStart;
             throw fail("payload length " + declared + " exceeds limit " + options.maxStringBytes());
         }
@@ -141,19 +210,58 @@ final class PhpParser {
     private PhpEnum readEnum() {
         expect(':');
         int start = pos;
-        String text = new String(readLengthPrefixedBytes(';'), StandardCharsets.UTF_8);
+        byte[] text = readLengthPrefixedBytes(';');
         expect(';');
-        int colon = text.indexOf(':');
-        if (colon <= 0 || colon == text.length() - 1) {
+        int colon = -1;
+        for (int i = 0; i < text.length; i++) {
+            if (text[i] == ':') {
+                colon = i;
+                break;
+            }
+        }
+        if (colon <= 0 || colon == text.length - 1) {
             pos = start;
             throw fail("enum must be 'Class:Case'");
         }
-        return new PhpEnum(text.substring(0, colon), text.substring(colon + 1));
+        byte[] className = Arrays.copyOfRange(text, 0, colon);
+        if (!isValidClassName(className)) {
+            pos = start;
+            throw fail("invalid class name in enum");
+        }
+        return new PhpEnum(
+                new String(className, StandardCharsets.UTF_8),
+                new String(text, colon + 1, text.length - colon - 1, StandardCharsets.UTF_8));
     }
 
-    /** Reads {@code LEN:"Name"}; class names are ASCII identifiers, decoded as UTF-8 to be safe. */
+    /** Reads {@code LEN:"Name"} and checks PHP's class name rule; the name is decoded as UTF-8. */
     private String readClassName() {
-        return new String(readLengthPrefixedBytes(':'), StandardCharsets.UTF_8);
+        int start = pos;
+        byte[] name = readLengthPrefixedBytes(':');
+        if (!isValidClassName(name)) {
+            pos = start;
+            throw fail("invalid class name");
+        }
+        return new String(name, StandardCharsets.UTF_8);
+    }
+
+    /** Non-empty; bytes from A-Z a-z 0-9 _ \ or 0x80-0xFF; not starting with a backslash. */
+    static boolean isValidClassName(byte[] name) {
+        if (name.length == 0 || name[0] == '\\') {
+            return false;
+        }
+        for (byte b : name) {
+            int c = b & 0xFF;
+            boolean allowed = (c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '_'
+                    || c == '\\'
+                    || c >= 0x80;
+            if (!allowed) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private PhpBool readBool() {
@@ -181,13 +289,13 @@ final class PhpParser {
     }
 
     /**
-     * Reads {@code LEN:"BYTES"} and leaves the cursor after the closing quote. {@code after} is the
-     * byte that must follow the closing quote ({@code ;} for strings, {@code :} for class names);
-     * it is only used to locate the end in repair mode and is not consumed.
+     * Reads {@code LEN:"BYTES"} and leaves the cursor after the closing quote. {@code after} is the byte that must
+     * follow the closing quote ({@code ;} for strings, {@code :} for class names); it is only used to locate the
+     * end in repair mode and is not consumed.
      */
     private byte[] readLengthPrefixedBytes(char after) {
         int lengthStart = pos;
-        long declared = readLong(':');
+        long declared = readUnsigned(':');
         if (options.repairLengths()) {
             return readRepairingLength(lengthStart, declared, after);
         }
@@ -205,14 +313,14 @@ final class PhpParser {
     }
 
     /**
-     * Lenient variant: trusts the declared length only when it lands on {@code ";} followed by a
-     * plausible continuation; otherwise scans forward for the first such terminator.
+     * Lenient variant: trusts the declared length only when it lands on {@code ";} followed by a plausible
+     * continuation; otherwise scans forward for the first such terminator.
      */
     private byte[] readRepairingLength(int lengthStart, long declared, char after) {
         expect('"');
         int start = pos;
         int end = -1;
-        if (declared >= 0 && declared <= in.length - start && isTerminatorAt(start + (int) declared, after)) {
+        if (declared <= in.length - start && isTerminatorAt(start + (int) declared, after)) {
             end = start + (int) declared;
         } else {
             for (int i = start; i + 1 < in.length; i++) {
@@ -232,9 +340,9 @@ final class PhpParser {
     }
 
     /**
-     * True when {@code in[i..]} is a closing quote, the expected {@code after} byte, and then end of
-     * input or a plausible continuation: a value/key tag or {@code }} after {@code ";}, a digit after
-     * {@code ":} (the element count or payload length that follows a class name).
+     * True when {@code in[i..]} is a closing quote, the expected {@code after} byte, and then end of input or a
+     * plausible continuation: a value/key tag or {@code }} after {@code ";}, a digit after {@code ":} (the element
+     * count or payload length that follows a class name).
      */
     private boolean isTerminatorAt(int i, char after) {
         if (i + 1 >= in.length || in[i] != '"' || in[i + 1] != after) {
@@ -248,36 +356,47 @@ final class PhpParser {
             return c >= '0' && c <= '9';
         }
         return switch (c) {
-            case '}', 'N', 'b', 'i', 'd', 's', 'a', 'O', 'C', 'r', 'R', 'E' -> true;
+            case '}', 'N', 'b', 'i', 'd', 's', 'S', 'a', 'O', 'C', 'r', 'R', 'E' -> true;
             default -> false;
         };
     }
 
     private void checkStringLength(long length, int lengthStart) {
-        if (length < 0 || length > options.maxStringBytes()) {
+        if (length > options.maxStringBytes()) {
             pos = lengthStart;
             throw fail("string length " + length + " exceeds limit " + options.maxStringBytes());
         }
     }
 
-    /** Reads an optionally negative decimal integer up to (and consuming) the terminator. */
-    private long readLong(char terminator) {
+    /** Reads {@code [+-]?[0-9]+} up to and including the terminator; clamps out-of-range values when allowed. */
+    private long readSignedInteger(char terminator) {
         int start = pos;
         boolean negative = false;
-        if (pos < in.length && in[pos] == '-') {
-            negative = true;
+        if (pos < in.length && (in[pos] == '-' || in[pos] == '+')) {
+            negative = in[pos] == '-';
             pos++;
         }
+        return readDigits(start, terminator, negative, options.clampIntegers());
+    }
+
+    /** Reads {@code [0-9]+} up to and including the terminator: lengths, counts and reference numbers. */
+    private long readUnsigned(char terminator) {
+        return readDigits(pos, terminator, false, false);
+    }
+
+    private long readDigits(int start, char terminator, boolean negative, boolean clamp) {
         int digitsStart = pos;
-        long magnitude = 0;
+        long accumulated = 0; // kept negative so that Long.MIN_VALUE fits
+        boolean overflow = false;
         while (pos < in.length && in[pos] >= '0' && in[pos] <= '9') {
             int digit = in[pos] - '0';
-            // Accumulate as a negative number so Long.MIN_VALUE is representable.
-            if (magnitude < (Long.MIN_VALUE + digit) / 10) {
-                pos = start;
-                throw fail("integer out of range");
+            if (!overflow) {
+                if (accumulated < (Long.MIN_VALUE + digit) / 10) {
+                    overflow = true;
+                } else {
+                    accumulated = accumulated * 10 - digit;
+                }
             }
-            magnitude = magnitude * 10 - digit;
             pos++;
         }
         if (pos == digitsStart) {
@@ -292,11 +411,17 @@ final class PhpParser {
             throw fail("expected integer");
         }
         pos++;
-        if (!negative && magnitude == Long.MIN_VALUE) {
-            pos = start;
-            throw fail("integer out of range");
+        if (!negative && accumulated == Long.MIN_VALUE) {
+            overflow = true;
         }
-        return negative ? magnitude : -magnitude;
+        if (overflow) {
+            if (!clamp) {
+                pos = start;
+                throw fail("integer out of range");
+            }
+            return negative ? Long.MIN_VALUE : Long.MAX_VALUE;
+        }
+        return negative ? accumulated : -accumulated;
     }
 
     /** Reads ASCII bytes up to (and consuming) the terminator. */

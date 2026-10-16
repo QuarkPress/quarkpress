@@ -12,7 +12,8 @@ import java.util.regex.Pattern;
  */
 public record PhpFloat(double value, String raw) implements PhpValue {
 
-    private static final Pattern LEXEME = Pattern.compile("-?(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?|-?INF|NAN");
+    /** PHP's float grammar: optional sign, digits with an optional fraction (or a bare fraction), optional exponent. */
+    private static final Pattern LEXEME = Pattern.compile("[+-]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?|-?INF|NAN");
 
     public PhpFloat {
         if (raw != null && Double.compare(parseLexeme(raw), value) != 0) {
