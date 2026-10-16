@@ -2,72 +2,95 @@ package org.quarkpress.lib.phpserialize;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import net.jqwik.api.Arbitrary;
-import net.jqwik.api.ForAll;
-import net.jqwik.api.Property;
-import net.jqwik.api.Provide;
-import net.jqwik.api.constraints.IntRange;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.quarkpress.testing.gen.Gen;
+import org.quarkpress.testing.gen.Gens;
+import org.quarkpress.testing.gen.Properties;
 
 class RoundTripPropertyTest {
 
-    @Property(tries = 2000)
-    void serializeThenParseIsIdentity(@ForAll("values") PhpValue v) {
-        byte[] bytes = PhpSerialize.serialize(v);
-        PhpValue back = PhpSerialize.parse(bytes);
-        assertThat(back).isEqualTo(v);
-        assertThat(PhpSerialize.serialize(back)).isEqualTo(bytes);
+    @Test
+    void serializeThenParseIsIdentity() {
+        Properties.check(
+                "RoundTripPropertyTest.serializeThenParseIsIdentity", 2000, PhpValueArbitraries.values(), v -> {
+                    byte[] bytes = PhpSerialize.serialize(v);
+                    PhpValue back = PhpSerialize.parse(bytes);
+                    assertThat(back).isEqualTo(v);
+                    assertThat(PhpSerialize.serialize(back)).isEqualTo(bytes);
+                });
     }
 
-    @Property(tries = 2000)
-    void repairModeAcceptsEveryWellFormedDocument(@ForAll("values") PhpValue v) {
-        byte[] bytes = PhpSerialize.serialize(v);
-        assertThat(PhpSerialize.parse(bytes, ParseOptions.DEFAULTS.withRepairLengths(true)))
-                .isEqualTo(v);
+    @Test
+    void repairModeAcceptsEveryWellFormedDocument() {
+        Properties.check(
+                "RoundTripPropertyTest.repairModeAcceptsEveryWellFormedDocument",
+                2000,
+                PhpValueArbitraries.values(),
+                v -> {
+                    byte[] bytes = PhpSerialize.serialize(v);
+                    assertThat(PhpSerialize.parse(bytes, ParseOptions.DEFAULTS.withRepairLengths(true)))
+                            .isEqualTo(v);
+                });
     }
 
-    @Property(tries = 5000)
-    void parserNeverThrowsAnythingButPhpSerializeException(@ForAll byte[] junk) {
-        try {
-            PhpSerialize.parse(junk);
-        } catch (PhpSerializeException expected) {
-            // acceptable outcome for junk input
-        }
+    @Test
+    void parserNeverThrowsAnythingButPhpSerializeException() {
+        Properties.check(
+                "RoundTripPropertyTest.parserNeverThrowsAnythingButPhpSerializeException",
+                5000,
+                Gens.bytes(0, 255),
+                junk -> {
+                    try {
+                        PhpSerialize.parse(junk);
+                    } catch (PhpSerializeException expected) {
+                        // acceptable outcome for junk input
+                    }
+                });
     }
 
-    @Property(tries = 3000)
-    void mutatedValidInputNeverCrashes(
-            @ForAll("values") PhpValue v, @ForAll @IntRange(min = 0, max = 10_000) int at, @ForAll byte b) {
-        byte[] bytes = PhpSerialize.serialize(v);
-        bytes[at % bytes.length] = b;
-        try {
-            PhpSerialize.parse(bytes, ParseOptions.DEFAULTS.withRepairLengths(true));
-        } catch (PhpSerializeException expected) {
-            // acceptable outcome for corrupted input
-        }
+    /** A value to serialize, a position (modulo the length) and the byte to write there. */
+    private record Mutation(PhpValue value, int at, byte b) {}
+
+    @Test
+    void mutatedValidInputNeverCrashes() {
+        Gen<PhpValue> values = PhpValueArbitraries.values();
+        Gen<Integer> positions = Gens.ints(0, 10_000);
+        Gen<Integer> bytes = Gens.ints(Byte.MIN_VALUE, Byte.MAX_VALUE);
+        Gen<Mutation> mutations = random -> new Mutation(
+                values.next(random), positions.next(random), bytes.next(random).byteValue());
+        Properties.check("RoundTripPropertyTest.mutatedValidInputNeverCrashes", 3000, mutations, m -> {
+            byte[] serialized = PhpSerialize.serialize(m.value());
+            serialized[m.at() % serialized.length] = m.b();
+            try {
+                PhpSerialize.parse(serialized, ParseOptions.DEFAULTS.withRepairLengths(true));
+            } catch (PhpSerializeException expected) {
+                // acceptable outcome for corrupted input
+            }
+        });
     }
 
-    @Property(tries = 1000)
-    void conversionsNeverThrow(@ForAll("values") PhpValue v) {
-        v.toJavaObject();
-        assertThat(v.toJson()).isNotEmpty();
+    @Test
+    void conversionsNeverThrow() {
+        Properties.check("RoundTripPropertyTest.conversionsNeverThrow", 1000, PhpValueArbitraries.values(), v -> {
+            v.toJavaObject();
+            assertThat(v.toJson()).isNotEmpty();
+        });
     }
 
-    @Provide
-    Arbitrary<PhpValue> values() {
-        return PhpValueArbitraries.values();
-    }
-
-    @Provide
-    Arbitrary<PhpArray> withReferences() {
-        return PhpValueArbitraries.arraysWithBackReferences();
-    }
-
-    @Property(tries = 1000)
-    void backReferencesRoundTripAndResolve(@ForAll("withReferences") PhpArray value) {
-        byte[] bytes = PhpSerialize.serialize(value);
-        assertThat(PhpSerialize.parse(bytes)).isEqualTo(value);
-        assertThat(PhpSerialize.serialize(PhpSerialize.parse(bytes))).isEqualTo(bytes);
-        java.util.List<?> plain = (java.util.List<?>) value.toJavaObject();
-        assertThat(plain.get(1)).isEqualTo(plain.get(0));
+    @Test
+    void backReferencesRoundTripAndResolve() {
+        Properties.check(
+                "RoundTripPropertyTest.backReferencesRoundTripAndResolve",
+                1000,
+                PhpValueArbitraries.arraysWithBackReferences(),
+                value -> {
+                    byte[] bytes = PhpSerialize.serialize(value);
+                    assertThat(PhpSerialize.parse(bytes)).isEqualTo(value);
+                    assertThat(PhpSerialize.serialize(PhpSerialize.parse(bytes)))
+                            .isEqualTo(bytes);
+                    List<?> plain = (List<?>) value.toJavaObject();
+                    assertThat(plain.get(1)).isEqualTo(plain.get(0));
+                });
     }
 }

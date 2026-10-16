@@ -9,4 +9,3 @@ target/
 .classpath
 .factorypath
 .DS_Store
-.jqwik-database

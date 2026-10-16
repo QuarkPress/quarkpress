@@ -32,8 +32,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>net.jqwik</groupId>
-      <artifactId>jqwik</artifactId>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-gen</artifactId>
+      <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

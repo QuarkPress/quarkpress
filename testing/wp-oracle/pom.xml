@@ -23,8 +23,9 @@
       <artifactId>jackson-databind</artifactId>
     </dependency>
     <dependency>
-      <groupId>net.jqwik</groupId>
-      <artifactId>jqwik</artifactId>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-gen</artifactId>
+      <version>${project.version}</version>
     </dependency>
   </dependencies>
 </project>

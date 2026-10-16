@@ -20,6 +20,7 @@
   </properties>
 
   <modules>
+    <module>test-gen</module>
     <module>wp-oracle</module>
   </modules>
 

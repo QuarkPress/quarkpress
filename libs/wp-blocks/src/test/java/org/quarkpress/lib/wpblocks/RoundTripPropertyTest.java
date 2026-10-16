@@ -8,71 +8,109 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.util.List;
-import net.jqwik.api.Arbitraries;
-import net.jqwik.api.Arbitrary;
-import net.jqwik.api.Combinators;
-import net.jqwik.api.ForAll;
-import net.jqwik.api.Property;
-import net.jqwik.api.Provide;
-import net.jqwik.api.constraints.IntRange;
-import net.jqwik.api.statistics.Statistics;
+import org.junit.jupiter.api.Test;
+import org.quarkpress.testing.gen.Gen;
+import org.quarkpress.testing.gen.Gens;
+import org.quarkpress.testing.gen.Properties;
 
 class RoundTripPropertyTest {
 
-    @Property(tries = 2000)
-    void everyStringRoundTripsByteIdentically(@ForAll("documents") String doc) {
-        assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+    @Test
+    void everyStringRoundTripsByteIdentically() {
+        Properties.check("RoundTripPropertyTest.everyStringRoundTripsByteIdentically", 2000, documents(), doc -> {
+            assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+        });
     }
 
-    @Property(tries = 2000)
-    void arbitraryStringsRoundTripByteIdentically(@ForAll String junk) {
-        assertThat(WpBlocks.serialize(WpBlocks.parse(junk))).isEqualTo(junk);
+    @Test
+    void arbitraryStringsRoundTripByteIdentically() {
+        Properties.check(
+                "RoundTripPropertyTest.arbitraryStringsRoundTripByteIdentically",
+                2000,
+                Gens.strings(Gens.unicodeChars(), 0, 255),
+                junk -> {
+                    assertThat(WpBlocks.serialize(WpBlocks.parse(junk))).isEqualTo(junk);
+                });
     }
 
-    @Property(tries = 2000)
-    void mutatedDocumentsRoundTripByteIdentically(
-            @ForAll("documents") String doc,
-            @ForAll @IntRange(min = 0, max = 10_000) int at,
-            @ForAll("fragmentChars") char c) {
-        if (doc.isEmpty()) {
-            return;
-        }
-        int i = at % doc.length();
-        String mutated = doc.substring(0, i) + c + doc.substring(i + 1);
-        assertThat(WpBlocks.serialize(WpBlocks.parse(mutated))).isEqualTo(mutated);
+    /** A document, a position (modulo the length) and the character to write there. */
+    private record Mutation(String doc, int at, char c) {}
+
+    @Test
+    void mutatedDocumentsRoundTripByteIdentically() {
+        Gen<String> documents = documents();
+        Gen<Integer> positions = Gens.ints(0, 10_000);
+        Gen<Character> chars = fragmentChars();
+        Gen<Mutation> mutations =
+                random -> new Mutation(documents.next(random), positions.next(random), chars.next(random));
+        Properties.check("RoundTripPropertyTest.mutatedDocumentsRoundTripByteIdentically", 2000, mutations, m -> {
+            String doc = m.doc();
+            if (doc.isEmpty()) {
+                return;
+            }
+            int i = m.at() % doc.length();
+            String mutated = doc.substring(0, i) + m.c() + doc.substring(i + 1);
+            assertThat(WpBlocks.serialize(WpBlocks.parse(mutated))).isEqualTo(mutated);
+        });
     }
 
-    @Property(tries = 1500)
-    void parseOfSerializeIsStructurallyEqual(@ForAll("trees") List<Block> tree) {
-        String doc = WpBlocks.serialize(tree);
-        List<Block> back = WpBlocks.parse(doc);
-        assertThat(back).isEqualTo(tree);
-        assertThat(WpBlocks.serialize(back)).isEqualTo(doc);
+    @Test
+    void parseOfSerializeIsStructurallyEqual() {
+        Properties.check("RoundTripPropertyTest.parseOfSerializeIsStructurallyEqual", 1500, trees(), tree -> {
+            String doc = WpBlocks.serialize(tree);
+            List<Block> back = WpBlocks.parse(doc);
+            assertThat(back).isEqualTo(tree);
+            assertThat(WpBlocks.serialize(back)).isEqualTo(doc);
+        });
     }
 
-    @Property(tries = 2000)
-    void soupRoundTripsByteIdentically(@ForAll("commentSoup") String doc) {
-        assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+    @Test
+    void soupRoundTripsByteIdentically() {
+        Properties.check(
+                "RoundTripPropertyTest.soupRoundTripsByteIdentically",
+                2000,
+                BlockMarkupArbitraries.commentSoup(),
+                doc -> {
+                    assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+                });
     }
 
-    @Property(tries = 2000)
-    void delimiterVariantsRoundTripByteIdentically(@ForAll("delimiterVariants") String doc) {
-        assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+    @Test
+    void delimiterVariantsRoundTripByteIdentically() {
+        Properties.check(
+                "RoundTripPropertyTest.delimiterVariantsRoundTripByteIdentically",
+                2000,
+                BlockMarkupArbitraries.delimiterVariants(),
+                doc -> {
+                    assertThat(WpBlocks.serialize(WpBlocks.parse(doc))).isEqualTo(doc);
+                });
     }
 
-    @Property(tries = 1500)
-    void invariantsHoldOnEveryParsedBlock(@ForAll("documents") String doc) {
-        WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants);
+    @Test
+    void invariantsHoldOnEveryParsedBlock() {
+        Properties.check(
+                "RoundTripPropertyTest.invariantsHoldOnEveryParsedBlock",
+                1500,
+                documents(),
+                doc -> WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants));
     }
 
-    @Property(tries = 1500)
-    void invariantsHoldOnSoup(@ForAll("commentSoup") String doc) {
-        WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants);
+    @Test
+    void invariantsHoldOnSoup() {
+        Properties.check(
+                "RoundTripPropertyTest.invariantsHoldOnSoup",
+                1500,
+                BlockMarkupArbitraries.commentSoup(),
+                doc -> WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants));
     }
 
-    @Property(tries = 1500)
-    void invariantsHoldOnDelimiterVariants(@ForAll("delimiterVariants") String doc) {
-        WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants);
+    @Test
+    void invariantsHoldOnDelimiterVariants() {
+        Properties.check(
+                "RoundTripPropertyTest.invariantsHoldOnDelimiterVariants",
+                1500,
+                BlockMarkupArbitraries.delimiterVariants(),
+                doc -> WpBlocks.parse(doc).forEach(RoundTripPropertyTest::checkInvariants));
     }
 
     private static final java.util.regex.Pattern OPENER =
@@ -81,25 +119,27 @@ class RoundTripPropertyTest {
             java.util.regex.Pattern.compile("<!--\\s+/wp:[a-z0-9/_-]+\\s+-->");
 
     /** Guards against vacuous generation: variants must actually nest and leave blocks unclosed. */
-    @Property(tries = 1000)
-    void delimiterVariantsAreNotVacuous(@ForAll("delimiterVariants") String doc) {
-        boolean hasBlock = WpBlocks.parse(doc).stream().anyMatch(b -> !b.isFreeform());
-        long openers = OPENER.matcher(doc).results().count();
-        long closers = CLOSER.matcher(doc).results().count();
-        Statistics.label("hasBlock").collect(hasBlock);
-        Statistics.label("unclosed").collect(openers > closers);
-        Statistics.label("hasBlock").coverage(c -> c.check(true).percentage(p -> p >= 30.0));
-        Statistics.label("unclosed").coverage(c -> c.check(true).percentage(p -> p >= 10.0));
-    }
-
-    @Provide
-    Arbitrary<String> commentSoup() {
-        return BlockMarkupArbitraries.commentSoup();
-    }
-
-    @Provide
-    Arbitrary<String> delimiterVariants() {
-        return BlockMarkupArbitraries.delimiterVariants();
+    @Test
+    void delimiterVariantsAreNotVacuous() {
+        int tries = 1000;
+        int[] hasBlock = {0};
+        int[] unclosed = {0};
+        Properties.check(
+                "RoundTripPropertyTest.delimiterVariantsAreNotVacuous",
+                tries,
+                BlockMarkupArbitraries.delimiterVariants(),
+                doc -> {
+                    if (WpBlocks.parse(doc).stream().anyMatch(b -> !b.isFreeform())) {
+                        hasBlock[0]++;
+                    }
+                    long openers = OPENER.matcher(doc).results().count();
+                    long closers = CLOSER.matcher(doc).results().count();
+                    if (openers > closers) {
+                        unclosed[0]++;
+                    }
+                });
+        assertThat(hasBlock[0] * 100.0 / tries).as("%% with a block").isGreaterThanOrEqualTo(30.0);
+        assertThat(unclosed[0] * 100.0 / tries).as("%% with an unclosed opener").isGreaterThanOrEqualTo(10.0);
     }
 
     private static void checkInvariants(Block b) {
@@ -119,19 +159,16 @@ class RoundTripPropertyTest {
     // ---- generators ----
 
     /** Serialized documents assembled from random trees plus random freeform text and junk. */
-    @Provide
-    Arbitrary<String> documents() {
+    private static Gen<String> documents() {
         return trees().map(WpBlocks::serialize);
     }
 
-    @Provide
-    Arbitrary<Character> fragmentChars() {
-        return Arbitraries.of('<', '!', '-', '>', ' ', '/', 'w', 'p', ':', '{', '}', '"', '\\', 'a', '\n');
+    private static Gen<Character> fragmentChars() {
+        return Gens.elements('<', '!', '-', '>', ' ', '/', 'w', 'p', ':', '{', '}', '"', '\\', 'a', '\n');
     }
 
-    @Provide
-    Arbitrary<List<Block>> trees() {
-        return blocks(0).list().ofMinSize(0).ofMaxSize(6).map(RoundTripPropertyTest::mergeFreeform);
+    private static Gen<List<Block>> trees() {
+        return Gens.lists(blocks(0), 0, 6).map(RoundTripPropertyTest::mergeFreeform);
     }
 
     /** Adjacent top-level freeform blocks would merge on re-parse, so merge them in the generator. */
@@ -148,104 +185,106 @@ class RoundTripPropertyTest {
         return out;
     }
 
-    private Arbitrary<Block> blocks(int depth) {
-        Arbitrary<Block> leaf = Arbitraries.oneOf(freeform(), voidBlock(), textBlock());
+    private static Gen<Block> blocks(int depth) {
+        Gen<Block> leaf = Gens.oneOf(freeform(), voidBlock(), textBlock());
         if (depth >= 3) {
             return leaf;
         }
-        return Arbitraries.frequencyOf(
-                net.jqwik.api.Tuple.of(3, leaf),
-                net.jqwik.api.Tuple.of(1, Arbitraries.lazy(() -> container(depth + 1))));
+        return Gens.frequency(Gens.weighted(3, leaf), Gens.weighted(1, container(depth + 1)));
     }
 
-    private Arbitrary<Block> freeform() {
+    private static Gen<Block> freeform() {
         return text().filter(t -> !t.isEmpty()).map(Block::freeform);
     }
 
-    private Arbitrary<Block> voidBlock() {
-        return Combinators.combine(names(), attrs()).as(Block::of);
+    private static Gen<Block> voidBlock() {
+        Gen<String> names = names();
+        Gen<ObjectNode> attrs = attrs();
+        return random -> Block.of(names.next(random), attrs.next(random));
     }
 
-    private Arbitrary<Block> textBlock() {
-        return Combinators.combine(names(), attrs(), text().filter(t -> !t.isEmpty()))
-                .as((n, a, t) -> Block.builder(n).attributes(a).text(t).build());
+    private static Gen<Block> textBlock() {
+        Gen<String> names = names();
+        Gen<ObjectNode> attrs = attrs();
+        Gen<String> texts = text().filter(t -> !t.isEmpty());
+        return random -> Block.builder(names.next(random))
+                .attributes(attrs.next(random))
+                .text(texts.next(random))
+                .build();
     }
 
-    private Arbitrary<Block> container(int depth) {
-        return Combinators.combine(
-                        names(),
-                        attrs(),
-                        text(),
-                        blocks(depth).list().ofMinSize(1).ofMaxSize(3),
-                        text())
-                .as((n, a, before, inner, after) -> {
-                    Block.Builder b = Block.builder(n).attributes(a).text(before);
-                    for (Block child : inner) {
-                        if (child.isFreeform()) {
-                            b.text(child.innerHtml()); // freeform inside a block is just text
-                        } else {
-                            b.inner(child);
-                        }
-                    }
-                    return b.text(after).build();
-                });
+    private static Gen<Block> container(int depth) {
+        Gen<String> names = names();
+        Gen<ObjectNode> attrs = attrs();
+        Gen<String> texts = text();
+        Gen<List<Block>> children = Gens.lists(blocks(depth), 1, 3);
+        return random -> {
+            Block.Builder b = Block.builder(names.next(random))
+                    .attributes(attrs.next(random))
+                    .text(texts.next(random));
+            for (Block child : children.next(random)) {
+                if (child.isFreeform()) {
+                    b.text(child.innerHtml()); // freeform inside a block is just text
+                } else {
+                    b.inner(child);
+                }
+            }
+            return b.text(texts.next(random)).build();
+        };
     }
 
-    private Arbitrary<String> names() {
-        return Arbitraries.of("paragraph", "core/group", "acme/hero", "a", "my-plugin/x_y-2");
+    private static Gen<String> names() {
+        return Gens.elements("paragraph", "core/group", "acme/hero", "a", "my-plugin/x_y-2");
     }
 
     /** Text that cannot itself form a delimiter: no '!' means no "<!--". */
-    private Arbitrary<String> text() {
-        return Arbitraries.strings().withChars("abc <>/pdiv\n\t\"'&=-}{:\\é✓").ofMaxLength(24);
+    private static Gen<String> text() {
+        return Gens.strings("abc <>/pdiv\n\t\"'&=-}{:\\é✓", 0, 24);
     }
 
     /** Attribute objects with every JSON value kind, nested up to two levels below the top object. */
-    private Arbitrary<ObjectNode> attrs() {
+    private static Gen<ObjectNode> attrs() {
         return objectOf(0);
     }
 
-    private static Arbitrary<ObjectNode> objectOf(int depth) {
-        Arbitrary<String> key =
-                Arbitraries.strings().withChars("abcxyz_").ofMinLength(1).ofMaxLength(5);
-        return Arbitraries.maps(key, jsonValue(depth)).ofMaxSize(3).map(m -> {
+    private static Gen<ObjectNode> objectOf(int depth) {
+        Gen<String> keys = Gens.strings("abcxyz_", 1, 5);
+        Gen<JsonNode> values = jsonValue(depth);
+        Gen<List<String>> keyLists = Gens.lists(keys, 0, 3);
+        return random -> {
             ObjectNode n = JsonNodeFactory.instance.objectNode();
-            m.forEach(n::set);
+            for (String key : keyLists.next(random)) {
+                if (!n.has(key)) {
+                    n.set(key, values.next(random));
+                }
+            }
             return n;
-        });
+        };
     }
 
-    private static Arbitrary<JsonNode> jsonValue(int depth) {
+    private static Gen<JsonNode> jsonValue(int depth) {
         JsonNodeFactory f = JsonNodeFactory.instance;
-        Arbitrary<JsonNode> str = Arbitraries.strings()
-                .withChars("ab -<>&\"\\/{}:é\n")
-                .ofMaxLength(12)
-                .map(f::textNode);
-        Arbitrary<JsonNode> ints = Arbitraries.integers().map(f::numberNode);
-        Arbitrary<JsonNode> longs = Arbitraries.longs()
+        Gen<JsonNode> str = Gens.strings("ab -<>&\"\\/{}:é\n", 0, 12).map(f::textNode);
+        Gen<JsonNode> ints = Gens.ints(Integer.MIN_VALUE, Integer.MAX_VALUE).map(f::numberNode);
+        Gen<JsonNode> longs = Gens.longs(Long.MIN_VALUE, Long.MAX_VALUE)
                 .filter(l -> l < Integer.MIN_VALUE || l > Integer.MAX_VALUE)
                 .map(f::numberNode);
-        Arbitrary<JsonNode> doubles = Arbitraries.doubles().between(-1e9, 1e9).map(f::numberNode);
-        Arbitrary<JsonNode> floats = Arbitraries.floats().between(-1e6f, 1e6f).map(f::numberNode);
-        Arbitrary<JsonNode> decimals = Arbitraries.integers()
-                .between(-100_000, 100_000)
+        Gen<JsonNode> doubles = Gens.doubles(-1e9, 1e9).map(f::numberNode);
+        Gen<JsonNode> floats = Gens.doubles(-1e6, 1e6).map(d -> f.numberNode(d.floatValue()));
+        Gen<JsonNode> decimals = Gens.ints(-100_000, 100_000)
                 .map(i -> f.numberNode(BigDecimal.valueOf(i, 2).setScale(3))); // trailing zero
-        Arbitrary<JsonNode> bools = Arbitraries.of(true, false).map(f::booleanNode);
-        Arbitrary<JsonNode> nulls = Arbitraries.just(f.nullNode());
-        Arbitrary<JsonNode> scalar = Arbitraries.oneOf(str, ints, longs, doubles, floats, decimals, bools, nulls);
+        Gen<JsonNode> bools = Gens.booleans().map(f::booleanNode);
+        Gen<JsonNode> nulls = Gens.constant(f.nullNode());
+        Gen<JsonNode> scalar = Gens.oneOf(str, ints, longs, doubles, floats, decimals, bools, nulls);
         if (depth >= 2) {
             return scalar;
         }
-        Arbitrary<JsonNode> array = Arbitraries.lazy(() -> jsonValue(depth + 1))
-                .list()
-                .ofMaxSize(3)
-                .map(l -> {
-                    ArrayNode a = f.arrayNode();
-                    l.forEach(a::add);
-                    return a;
-                });
-        Arbitrary<JsonNode> object = Arbitraries.lazy(() -> objectOf(depth + 1)).map(o -> o);
-        return Arbitraries.frequencyOf(
-                net.jqwik.api.Tuple.of(6, scalar), net.jqwik.api.Tuple.of(1, array), net.jqwik.api.Tuple.of(1, object));
+        Gen<JsonNode> array = Gens.lists(jsonValue(depth + 1), 0, 3).map(l -> {
+            ArrayNode a = f.arrayNode();
+            l.forEach(a::add);
+            return a;
+        });
+        Gen<JsonNode> object = objectOf(depth + 1).map(o -> o);
+        return Gens.frequency(Gens.weighted(6, scalar), Gens.weighted(1, array), Gens.weighted(1, object));
     }
 }

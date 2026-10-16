@@ -1,9 +1,7 @@
 package org.quarkpress.lib.wpblocks;
 
-import java.util.List;
-import net.jqwik.api.Arbitraries;
-import net.jqwik.api.Arbitrary;
-import net.jqwik.api.Combinators;
+import org.quarkpress.testing.gen.Gen;
+import org.quarkpress.testing.gen.Gens;
 
 /** Shared generators of non-canonical block markup. */
 final class BlockMarkupArbitraries {
@@ -11,8 +9,8 @@ final class BlockMarkupArbitraries {
     private BlockMarkupArbitraries() {}
 
     /** Strings glued from delimiter fragments, so that many near-delimiters occur. */
-    static Arbitrary<String> commentSoup() {
-        Arbitrary<String> fragment = Arbitraries.of(
+    static Gen<String> commentSoup() {
+        Gen<String> fragment = Gens.elements(
                 "<!--",
                 " wp:",
                 " /wp:",
@@ -42,38 +40,40 @@ final class BlockMarkupArbitraries {
                 "<!--   /wp:core/a\n-->",
                 "<!-- wp:acme/x-y_2 {} -->",
                 "<!-- wp:A -->");
-        return fragment.list().ofMaxSize(40).map(l -> String.join("", l));
+        return Gens.lists(fragment, 0, 40).map(l -> String.join("", l));
     }
 
-    private static Arbitrary<String> ws() {
-        return Arbitraries.strings()
-                .withChars(' ', '\t', '\r', '\n')
-                .ofMinLength(1)
-                .ofMaxLength(3);
+    private static Gen<String> ws() {
+        return Gens.strings(" \t\r\n", 1, 3);
     }
 
-    private static Arbitrary<String> name() {
-        return Combinators.combine(Arbitraries.of("", "core/"), Arbitraries.of("a", "paragraph", "group", "x-y_2"))
-                .as((p, n) -> p + n);
+    private static Gen<String> name() {
+        Gen<String> prefix = Gens.elements("", "core/");
+        Gen<String> local = Gens.elements("a", "paragraph", "group", "x-y_2");
+        return random -> prefix.next(random) + local.next(random);
     }
 
-    private static Arbitrary<String> delimiter() {
-        Arbitrary<String> attrs = Arbitraries.of("", "{}", "{\"k\":\"v\"}");
-        Arbitrary<String> opener = Combinators.combine(ws(), name(), ws(), attrs, ws(), Arbitraries.of("-->", "/-->"))
-                .as((w1, n, w2, a, w3, end) -> {
-                    String mid = a.isEmpty() ? w2 : w2 + a + w3;
-                    return "<!--" + w1 + "wp:" + n + mid + end;
-                });
-        Arbitrary<String> closer =
-                Combinators.combine(ws(), name(), ws()).as((w1, n, w2) -> "<!--" + w1 + "/wp:" + n + w2 + "-->");
-        Arbitrary<String> text = Arbitraries.of("", "x", "<p>hi</p>", "\n", " t ");
-        return Arbitraries.frequencyOf(
-                net.jqwik.api.Tuple.of(4, opener), net.jqwik.api.Tuple.of(3, closer), net.jqwik.api.Tuple.of(3, text));
+    private static Gen<String> delimiter() {
+        Gen<String> ws = ws();
+        Gen<String> name = name();
+        Gen<String> attrs = Gens.elements("", "{}", "{\"k\":\"v\"}");
+        Gen<String> end = Gens.elements("-->", "/-->");
+        Gen<String> opener = random -> {
+            String w1 = ws.next(random);
+            String n = name.next(random);
+            String w2 = ws.next(random);
+            String a = attrs.next(random);
+            String w3 = ws.next(random);
+            String mid = a.isEmpty() ? w2 : w2 + a + w3;
+            return "<!--" + w1 + "wp:" + n + mid + end.next(random);
+        };
+        Gen<String> closer = random -> "<!--" + ws.next(random) + "/wp:" + name.next(random) + ws.next(random) + "-->";
+        Gen<String> text = Gens.elements("", "x", "<p>hi</p>", "\n", " t ");
+        return Gens.frequency(Gens.weighted(4, opener), Gens.weighted(3, closer), Gens.weighted(3, text));
     }
 
     /** Valid openers, voids and closers with varied whitespace and prefixes, interleaved with text. */
-    static Arbitrary<String> delimiterVariants() {
-        Arbitrary<List<String>> parts = delimiter().list().ofMinSize(1).ofMaxSize(12);
-        return parts.map(l -> String.join("", l));
+    static Gen<String> delimiterVariants() {
+        return Gens.lists(delimiter(), 1, 12).map(l -> String.join("", l));
     }
 }
