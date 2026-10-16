@@ -2,8 +2,10 @@ package org.quarkpress.lib.wpblocks;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -84,5 +86,55 @@ class AttributeJsonTest {
     void overflowingNumberParsesAndWritesAsNull() {
         ObjectNode n = AttributeJson.parse("{\"i\":1e400}");
         assertThat(AttributeJson.write(n)).isEqualTo("{\"i\":null}");
+    }
+
+    @Test
+    void unpairedSurrogateEscapesAreRejectedLikePhp() { // D8
+        assertThat(AttributeJson.parseOrNull("{\"a\":\"\\ud800\"}")).isNull();
+        assertThat(AttributeJson.parseOrNull("{\"a\":\"\\udc00\"}")).isNull();
+        assertThat(AttributeJson.parseOrNull("{\"a\":\"\\ud800x\"}")).isNull();
+        assertThat(AttributeJson.parseOrNull("{\"\\ud800\":1}")).isNull();
+        assertThat(AttributeJson.parseOrNull("{\"a\":\"\\ud83d\\ud83d\\ude00\"}"))
+                .isNull();
+        assertThat(AttributeJson.parseOrNull("{\"a\":\"\\ud83d\\ude00\"}")
+                        .get("a")
+                        .textValue())
+                .isEqualTo(new String(Character.toChars(0x1F600)));
+    }
+
+    @Test
+    void nestingFollowsPhpsDepthLimit() { // D8: PHP decodes 511 nested containers and rejects 512
+        assertThat(AttributeJson.parseOrNull(nested(511))).isNotNull();
+        assertThat(AttributeJson.parseOrNull(nested(512))).isNull();
+        assertThat(AttributeJson.parseOrNull(nested(600))).isNull();
+    }
+
+    /** An object holding {@code containers - 1} nested arrays. */
+    private static String nested(int containers) {
+        return "{\"x\":" + "[".repeat(containers - 1) + "]".repeat(containers - 1) + "}";
+    }
+
+    @Test
+    void stringsLongerThanJacksonsDefaultLimitAreAccepted() { // D9
+        int length = StreamReadConstraints.DEFAULT_MAX_STRING_LEN + 1;
+        ObjectNode parsed = AttributeJson.parseOrNull("{\"s\":\"" + "x".repeat(length) + "\"}");
+        assertThat(parsed).isNotNull();
+        assertThat(parsed.get("s").textValue()).hasSize(length);
+    }
+
+    @Test
+    void integersLongerThanOneThousandDigitsStayRejected() { // D9, a documented difference (PHP reads a float)
+        assertThat(AttributeJson.parseOrNull("{\"n\":1" + "0".repeat(1000) + "}"))
+                .isNull();
+    }
+
+    @Test
+    void loneSurrogateFromApiIsWrittenAndRejectedOnReparse() { // Review Focus 4
+        ObjectNode attrs = JsonNodeFactory.instance.objectNode().put("s", "x" + (char) 0xD800);
+        String doc = WpBlocks.serializeCanonical(List.of(Block.of("a", attrs)));
+        assertThat(doc).isEqualTo("<!-- wp:a {\"s\":\"x\\ud800\"} /-->");
+        Block back = WpBlocks.parse(doc).get(0);
+        assertThat(back.attributesValid()).isFalse();
+        assertThat(back.attributes().isEmpty()).isTrue();
     }
 }

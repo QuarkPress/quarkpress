@@ -248,4 +248,29 @@ class BlockParserTest {
         Block a = WpBlocks.parse("<!-- wp:a -->x<!-- /wp:a/-->y").get(0);
         assertThat(a.innerContent()).containsExactly("x<!-- /wp:a/-->y");
     }
+
+    @Test
+    void invalidAttributeJsonIsReportedAsInvalid() { // D7: WordPress has null attributes for these
+        Block broken = WpBlocks.parse("<!-- wp:a {\"x\":} /-->").get(0);
+        assertThat(broken.attributesValid()).isFalse();
+        assertThat(broken.attributes().isEmpty()).isTrue();
+        assertThat(broken.rawAttributes()).contains("{\"x\":}");
+        assertThat(WpBlocks.parse("<!-- wp:a {\"a\":1} {\"b\":2} /-->").get(0).attributesValid())
+                .isFalse();
+        assertThat(WpBlocks.parse("<!-- wp:a {\"x\":1} /-->").get(0).attributesValid())
+                .isTrue();
+        assertThat(WpBlocks.parse("<!-- wp:a /-->").get(0).attributesValid()).isTrue();
+        assertThat(WpBlocks.parse("<!-- wp:a {} -->x<!-- /wp:a -->").get(0).attributesValid())
+                .isTrue();
+    }
+
+    @Test
+    void formFeedOrVerticalTabBeforeTheCloseMakesAttributesInvalid() { // WordPress json_decode fails on \f and \u000b
+        assertThat(WpBlocks.parse("<!-- wp:a {\"x\":1}\f/-->").get(0).attributesValid())
+                .isFalse();
+        assertThat(WpBlocks.parse("<!-- wp:a {\"x\":1}\u000b-->").get(0).attributesValid())
+                .isFalse();
+        assertThat(WpBlocks.parse("<!-- wp:a {\"x\":1} /-->").get(0).attributesValid())
+                .isTrue();
+    }
 }

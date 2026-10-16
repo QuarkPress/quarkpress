@@ -26,6 +26,7 @@ final class BlockParser {
         final String rawAttributes;
         final String rawOpener;
         final ObjectNode attributes;
+        final boolean attributesValid;
         final List<Block> innerBlocks = new ArrayList<>();
         final List<String> innerContent = new ArrayList<>();
 
@@ -33,9 +34,11 @@ final class BlockParser {
             this.name = d.name();
             this.rawAttributes = d.rawAttributes();
             this.rawOpener = source.substring(d.start(), d.end());
-            this.attributes = d.rawAttributes() == null || !d.attributesDecodable()
+            ObjectNode parsed = d.rawAttributes() == null
                     ? AttributeJson.emptyObject()
-                    : AttributeJson.parse(d.rawAttributes());
+                    : d.attributesDecodable() ? AttributeJson.parseOrNull(d.rawAttributes()) : null;
+            this.attributesValid = parsed != null;
+            this.attributes = parsed != null ? parsed : AttributeJson.emptyObject();
         }
 
         void appendText(String text) {
@@ -52,12 +55,14 @@ final class BlockParser {
 
         /** A block from a void delimiter: no closer, not explicitly closed. */
         Block toVoidBlock() {
-            return new Block(name, attributes, rawAttributes, rawOpener, null, innerBlocks, innerContent);
+            return new Block(
+                    name, attributes, attributesValid, rawAttributes, rawOpener, null, innerBlocks, innerContent);
         }
 
         /** A block from an opener; {@code rawCloser} is null when the input ended before the closer. */
         Block toBlock(String rawCloser) {
-            return new Block(name, attributes, rawAttributes, rawOpener, rawCloser, innerBlocks, innerContent);
+            return new Block(
+                    name, attributes, attributesValid, rawAttributes, rawOpener, rawCloser, innerBlocks, innerContent);
         }
     }
 

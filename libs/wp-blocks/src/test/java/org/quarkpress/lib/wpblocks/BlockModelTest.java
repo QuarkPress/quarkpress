@@ -100,7 +100,7 @@ class BlockModelTest {
     void equalityIgnoresRawTextButNotValues() {
         ObjectNode a = attrs("a", 1);
         Block parsedLike = new Block(
-                "core/x", a, "{\"a\": 1}", "<!-- wp:x {\"a\": 1} -->", "<!-- /wp:x -->", List.of(), List.of());
+                "core/x", a, true, "{\"a\": 1}", "<!-- wp:x {\"a\": 1} -->", "<!-- /wp:x -->", List.of(), List.of());
         Block apiLike = Block.of("x", a);
         assertThat(parsedLike).isEqualTo(apiLike);
         assertThat(parsedLike.hashCode()).isEqualTo(apiLike.hashCode());

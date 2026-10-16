@@ -94,4 +94,14 @@ class BlockApiTest {
         assertThatThrownBy(() -> f.withInnerBlocks(List.of(Block.of("a"))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void attributeValidityFollowsTheMutation() {
+        Block broken = WpBlocks.parse("<!-- wp:g {\"x\":} --><!-- wp:a /--><!-- /wp:g -->")
+                .get(0);
+        assertThat(broken.withInnerBlocks(List.of()).attributesValid()).isFalse();
+        assertThat(broken.withAttributes(JsonNodeFactory.instance.objectNode()).attributesValid())
+                .isTrue();
+        assertThat(Block.of("a").attributesValid()).isTrue();
+    }
 }

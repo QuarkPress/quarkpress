@@ -1,6 +1,8 @@
 package org.quarkpress.lib.wpblocks;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -14,9 +16,16 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 final class AttributeJson {
 
     /**
-     * Shared, immutable mapper. Only {@code readTree} is used: no data binding, no polymorphic typing, no modules.
+     * Shared, immutable mapper. Only {@code readTree} is used. Strings and names have no length limit, as in PHP;
+     * nesting (1000) and number length (1000 characters) keep Jackson's defaults for safety, and {@link
+     * PhpJsonRules} applies PHP's stricter nesting limit.
      */
-    static final JsonMapper MAPPER = JsonMapper.builder()
+    static final JsonMapper MAPPER = JsonMapper.builder(JsonFactory.builder()
+                    .streamReadConstraints(StreamReadConstraints.builder()
+                            .maxStringLength(Integer.MAX_VALUE)
+                            .maxNameLength(Integer.MAX_VALUE)
+                            .build())
+                    .build())
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .build();
 
@@ -26,14 +35,21 @@ final class AttributeJson {
         return JsonNodeFactory.instance.objectNode();
     }
 
-    /** Parses attribute text; anything that is not exactly one JSON object yields an empty object. */
-    static ObjectNode parse(String raw) {
+    /** Parses attribute text as PHP's {@code json_decode} would; null when PHP would reject it. */
+    static ObjectNode parseOrNull(String raw) {
+        JsonNode node;
         try {
-            JsonNode node = MAPPER.readTree(raw);
-            return node instanceof ObjectNode o ? o : emptyObject();
+            node = MAPPER.readTree(raw);
         } catch (JsonProcessingException | IllegalArgumentException e) {
-            return emptyObject();
+            return null;
         }
+        return node instanceof ObjectNode o && PhpJsonRules.accepts(o) ? o : null;
+    }
+
+    /** Like {@link #parseOrNull}, with an empty object for text PHP would reject. */
+    static ObjectNode parse(String raw) {
+        ObjectNode parsed = parseOrNull(raw);
+        return parsed != null ? parsed : emptyObject();
     }
 
     /** Writes attributes as WordPress's block serializer does; the caller's tree is not modified. */

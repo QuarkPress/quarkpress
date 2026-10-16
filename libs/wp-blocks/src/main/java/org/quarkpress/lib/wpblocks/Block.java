@@ -49,6 +49,7 @@ public final class Block {
 
     private final String name;
     private final ObjectNode attributes;
+    private final boolean attributesValid;
     private final String rawAttributes;
     private final String rawOpener;
     private final String rawCloser;
@@ -63,7 +64,7 @@ public final class Block {
             String rawAttributes,
             List<Block> innerBlocks,
             List<String> innerContent) {
-        this(name, attributes, rawAttributes, null, null, innerBlocks, innerContent);
+        this(name, attributes, true, rawAttributes, null, null, innerBlocks, innerContent);
     }
 
     /**
@@ -73,6 +74,7 @@ public final class Block {
     Block(
             String name,
             ObjectNode attributes,
+            boolean attributesValid,
             String rawAttributes,
             String rawOpener,
             String rawCloser,
@@ -111,6 +113,7 @@ public final class Block {
             throw new IllegalArgumentException("attributes must contain only JSON values: " + e.path());
         }
         this.attributes = copied;
+        this.attributesValid = attributesValid;
         this.rawAttributes = rawAttributes;
         this.rawOpener = rawOpener;
         this.rawCloser = rawCloser;
@@ -250,6 +253,15 @@ public final class Block {
         return attributes.deepCopy();
     }
 
+    /**
+     * False when the source attribute text is not JSON that PHP's {@code json_decode} accepts (malformed text,
+     * an unpaired surrogate escape, nesting deeper than 511); WordPress then has {@code null} attributes, and
+     * {@link #attributes()} is empty. True for API-built blocks and after {@link #withAttributes}.
+     */
+    public boolean attributesValid() {
+        return attributesValid;
+    }
+
     /** The attribute JSON exactly as it appeared in the source; present only on parsed, unmodified blocks. */
     public Optional<String> rawAttributes() {
         return Optional.ofNullable(rawAttributes);
@@ -281,7 +293,7 @@ public final class Block {
         if (isFreeform()) {
             throw new IllegalArgumentException("freeform blocks have no attributes");
         }
-        return new Block(name, attributes, null, null, null, innerBlocks, innerContent);
+        return new Block(name, attributes, true, null, null, null, innerBlocks, innerContent);
     }
 
     /**
@@ -297,7 +309,7 @@ public final class Block {
         for (int i = 0; i < innerBlocks.size(); i++) {
             content.add(null);
         }
-        return new Block(name, attributes, rawAttributes, null, null, innerBlocks, content);
+        return new Block(name, attributes, attributesValid, rawAttributes, null, null, innerBlocks, content);
     }
 
     /** Opener or void delimiter text exactly as parsed; null for API-built or modified blocks. */
