@@ -25,6 +25,10 @@
     <it.app.argLine>${surefire.argLine.additional}</it.app.argLine>
   </properties>
 
+  <modules>
+    <module>tenancy-spike</module>
+  </modules>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
