@@ -7,7 +7,7 @@ import java.util.List;
 public interface StripTagsHook {
 
     /**
-     * Returns the names {@code strip} of {@link Shortcodes} removes; they need not be registered. Must not return
+     * Returns the names {@link Shortcodes#strip(String)} removes; they need not be registered. Must not return
      * null.
      */
     List<String> filter(List<String> tags, String content);

@@ -1,5 +1,9 @@
 package org.quarkpress.lib.wpshortcode;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -13,6 +17,18 @@ import java.util.function.Function;
  * Shortcodes shortcodes = Shortcodes.builder(registry).build();
  * String html = shortcodes.apply(postContent);
  * }</pre>
+ *
+ * <table>
+ *   <caption>WordPress mapping</caption>
+ *   <tr><th>Method</th><th>WordPress</th></tr>
+ *   <tr><td>{@link #apply(String)}</td><td>do_shortcode, apply_shortcodes</td></tr>
+ *   <tr><td>{@link #apply(String, boolean)}</td><td>do_shortcode($content, $ignore_html)</td></tr>
+ *   <tr><td>{@link #strip(String)}</td><td>strip_shortcodes</td></tr>
+ *   <tr><td>{@link #has(String, String)}</td><td>has_shortcode</td></tr>
+ *   <tr><td>{@link #tagsIn(String)}</td><td>get_shortcode_tags_in_content</td></tr>
+ *   <tr><td>{@link #parse(String)}</td><td>(none)</td></tr>
+ *   <tr><td>{@link #unautop(String)}</td><td>shortcode_unautop</td></tr>
+ * </table>
  */
 public final class Shortcodes {
 
@@ -20,12 +36,14 @@ public final class Shortcodes {
     private final ShortcodeHooks hooks;
     private final HtmlAttributeSanitizer sanitizer;
     private final ShortcodeOptions options;
+    private final ShortcodeScanner allNames;
 
     private Shortcodes(Builder b) {
         this.registry = b.registry;
         this.hooks = b.hooks;
         this.sanitizer = b.sanitizer;
         this.options = b.options;
+        this.allNames = new ShortcodeScanner(registry.names());
     }
 
     public static Builder builder(ShortcodeRegistry registry) {
@@ -48,12 +66,120 @@ public final class Shortcodes {
         }
     }
 
-    /** One do_shortcode run; its handlers receive {@code frame}. */
-    String expand(String content, boolean ignoreHtml, Frame frame) {
+    /** WordPress's strip_shortcodes: removes shortcodes (and enclosed content) outside HTML markup. */
+    public String strip(String content) {
+        Objects.requireNonNull(content, "content");
         if (content.indexOf('[') < 0 || registry.isEmpty()) {
             return content;
         }
-        List<String> active = TagPrefilter.active(content, registry.names());
+        List<String> active = TagPrefilter.active(content, hooks.stripTags(registry.names(), content));
+        if (active.isEmpty()) {
+            return content;
+        }
+        String stripped = new ShortcodeScanner(active)
+                .replace(protectIgnoringHtml(content), hit -> {
+                    ShortcodeMatch m = hit.match();
+                    return m.escaped() ? unwrap(m) : m.openEscape() + m.closeEscape();
+                })
+                .text();
+        return EntityCodec.unescape(stripped);
+    }
+
+    /**
+     * WordPress's has_shortcode: true when {@code tag} is registered and matches anywhere, escaped shortcodes,
+     * HTML attributes and nested content included.
+     */
+    public boolean has(String content, String tag) {
+        Objects.requireNonNull(content, "content");
+        Objects.requireNonNull(tag, "tag");
+        if (content.indexOf('[') < 0 || !registry.contains(tag)) {
+            return false;
+        }
+        Deque<String> pending = new ArrayDeque<>();
+        pending.push(content);
+        while (!pending.isEmpty()) {
+            for (ShortcodeScanner.Hit hit : allNames.scan(pending.pop())) {
+                if (hit.match().name().equals(tag)) {
+                    return true;
+                }
+                if (hit.match().content().indexOf('[') >= 0) {
+                    pending.push(hit.match().content());
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * WordPress's get_shortcode_tags_in_content: the registered names that match, in document order, each
+     * followed by the names nested in its content; duplicates and escaped shortcodes included.
+     */
+    public List<String> tagsIn(String content) {
+        Objects.requireNonNull(content, "content");
+        if (content.indexOf('[') < 0 || registry.isEmpty()) {
+            return List.of();
+        }
+        List<String> tags = new ArrayList<>();
+        Deque<Iterator<ShortcodeScanner.Hit>> stack = new ArrayDeque<>();
+        stack.push(allNames.scan(content).iterator());
+        while (!stack.isEmpty()) {
+            Iterator<ShortcodeScanner.Hit> hits = stack.peek();
+            if (!hits.hasNext()) {
+                stack.pop();
+                continue;
+            }
+            ShortcodeMatch m = hits.next().match();
+            tags.add(m.name());
+            if (m.content().indexOf('[') >= 0) {
+                stack.push(allNames.scan(m.content()).iterator());
+            }
+        }
+        return List.copyOf(tags);
+    }
+
+    /**
+     * The matches {@link #apply(String)} would render, without rendering: HTML is protected as with ignore_html,
+     * so no handler runs and shortcodes inside HTML attributes are not reported. Content is not parsed; call
+     * {@code parse} on {@link Shortcode#content()} for nested shortcodes.
+     */
+    public List<ShortcodeNode> parse(String content) {
+        Objects.requireNonNull(content, "content");
+        List<String> active = activeNames(content);
+        String guarded = active.isEmpty() ? content : protectIgnoringHtml(content);
+        List<ShortcodeNode> nodes = new ArrayList<>();
+        int last = 0;
+        if (!active.isEmpty()) {
+            for (ShortcodeScanner.Hit hit : new ShortcodeScanner(active).scan(guarded)) {
+                if (hit.start() > last) {
+                    nodes.add(new ShortcodeNode.Text(guarded.substring(last, hit.start())));
+                }
+                nodes.add(
+                        hit.match().escaped()
+                                ? new ShortcodeNode.Escaped(hit.match())
+                                : new ShortcodeNode.Match(shortcode(hit)));
+                last = hit.end();
+            }
+        }
+        if (last < guarded.length()) {
+            nodes.add(new ShortcodeNode.Text(guarded.substring(last)));
+        }
+        return List.copyOf(nodes);
+    }
+
+    /** WordPress's shortcode_unautop: unwraps paragraphs that hold only a registered shortcode. */
+    public String unautop(String content) {
+        Objects.requireNonNull(content, "content");
+        return Unautop.apply(content, registry.names());
+    }
+
+    /** The text {@link #parse(String)} splits. */
+    String protectForParse(String content) {
+        return activeNames(content).isEmpty() ? content : protectIgnoringHtml(content);
+    }
+
+    /** One do_shortcode run; its handlers receive {@code frame}. */
+    String expand(String content, boolean ignoreHtml, Frame frame) {
+        List<String> active = activeNames(content);
         if (active.isEmpty()) {
             return content;
         }
@@ -66,6 +192,19 @@ public final class Shortcodes {
 
     int maxDepth() {
         return options.maxDepth();
+    }
+
+    /** The early exits and prefilter shared by apply and parse: R2.1, R2.2, R2.3. */
+    private List<String> activeNames(String content) {
+        if (content.indexOf('[') < 0 || registry.isEmpty()) {
+            return List.of();
+        }
+        return TagPrefilter.active(content, registry.names());
+    }
+
+    private String protectIgnoringHtml(String content) {
+        return HtmlProtector.protect(
+                EntityCodec.normalize(content), true, text -> new ShortcodeScanner.Expansion(text, 0), sanitizer);
     }
 
     private String render(ShortcodeScanner.Hit hit, Frame frame) {
