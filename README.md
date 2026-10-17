@@ -23,6 +23,9 @@ Project home: <https://quarkpress.org>
 | `libs/wp-blocks/` | Parser and serializer for Gutenberg block markup |
 | `libs/wp-password/` | Verifier for passwords stored by WordPress (MD5, phpass, bcrypt, `$wp$`, application passwords) |
 | `libs/wxr/` | Streaming reader and writer for WordPress WXR export files |
+| `extensions/core/` | `quarkpress-core`: site context, typed ids, events, filter interfaces, per-site features |
+| `extensions/persistence/` | `quarkpress-persistence`: QuarkPress's datasource and persistence unit, sites, options, site isolation |
+| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI) |
 | `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |
 | `docs/` | Specification and planning documents |
 
@@ -45,6 +48,16 @@ Format sources before committing:
 ```bash
 mvn spotless:apply
 ```
+
+Tests of the extensions start PostgreSQL or MySQL through Quarkus Dev Services, so they need Docker or Podman.
+Choose the database with `-DtestDb=postgresql` (default) or `-DtestDb=mysql`; CI runs both. With rootless Podman:
+
+```bash
+export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+```
+
+Native executables are built and tested in GitHub Actions only; `-Dnative` fails outside CI.
 
 ## Licence
 

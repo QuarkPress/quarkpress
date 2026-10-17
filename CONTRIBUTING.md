@@ -4,6 +4,7 @@
 
 - JDK 21 or newer (CI runs 21 and 25)
 - Maven 3.9 or newer
+- Docker or Podman, for the database tests of the extensions (see the README)
 
 Build everything with `mvn verify`. Format with `mvn spotless:apply`; CI runs `spotless:check`.
 
