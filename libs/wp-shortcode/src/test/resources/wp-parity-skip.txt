@@ -1,0 +1,14 @@
+# Deliberate differences between lib-wp-shortcode and WordPress 7.1.3 (README "Differences from WordPress").
+# Format: <case-id-or-glob> <aspect-or-glob> <item> <reason>. A case of "none" documents a difference no oracle
+# case can show. An entry whose comparisons all match WordPress fails the run: delete it.
+none none D1 an invalid shortcode name throws IllegalArgumentException; WordPress reports doing_it_wrong and ignores the call
+none none D2 handlers are typed, so an uncallable callback (R1.5, R7.5) cannot exist
+none none D3 handlers return String; PHP's casts of other results (R7.4) do not apply and null renders as ""
+html-style-* apply D4 a style attribute in an expanded quoted value is rejected until lib-wp-kses provides safecss
+r15-jit-limit apply D5 WordPress's regex hits PCRE's JIT stack limit and returns ""; QuarkPress scans in linear time
+r15-jit-limit apply_ignore_html D5 same as above
+r15-jit-limit strip D5 same as above
+none none D6 ShortcodeContext.expand stops at maxDepth (default 64); WordPress recurses until PHP runs out of stack
+registry-empty-* tags D7 with no shortcodes registered WordPress's tag regex has an empty name and reports "" for "[ x]"
+none none D8 a positional attribute after integer key 9223372036854775807 is dropped; PHP 8.4 throws "next element is already occupied"
+none none D9 object data in an expanded quoted value is rejected; WordPress allows PDFs on the site's upload host

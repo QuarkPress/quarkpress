@@ -148,4 +148,36 @@ final class ShortcodeArbitraries {
                 Gens.frequency(Gens.weighted(6, Gens.elements(TAGS)), Gens.weighted(4, Gens.elements(PLAIN_TEXT)));
         return Gens.lists(fragment, 0, 30).map(parts -> String.join("", parts));
     }
+
+    /** Paragraph-wrapped shortcodes in the shapes shortcode_unautop rewrites, with whitespace around them. */
+    static Gen<String> unautopContent() {
+        Gen<String> open = Gens.elements("<p>", "<p>", "<p class=\"a\">", "<P>", "</p>", "<p><p>", "");
+        Gen<String> close = Gens.elements("</p>", "</p>", "<p>", "</P>", "");
+        Gen<String> space = Gens.elements("", " ", "\n", "\r\n", "\t", "&nbsp;", "\u00a0", " \n ", "\n\n");
+        Gen<String> code = Gens.elements(
+                "[inner]",
+                "[inner /]",
+                "[inner/]",
+                "[inner a=1]x[/inner]",
+                "[outer]x[/outer]",
+                "[outer]",
+                "[/outer]",
+                "[[inner]]",
+                "[x.y]",
+                "[foo]",
+                "[foo a=\"1\"/]",
+                "[innerx]",
+                "[inner",
+                "[nope]",
+                "text",
+                "[ü]",
+                "[b]");
+        Gen<String> unit = random -> open.next(random)
+                + space.next(random)
+                + code.next(random)
+                + space.next(random)
+                + close.next(random)
+                + space.next(random);
+        return Gens.lists(unit, 0, 6).map(parts -> String.join("", parts));
+    }
 }
