@@ -25,6 +25,9 @@ public final class WpPasswords {
     /** Longer passwords never verify, except against an MD5 hash (that rule comes first). */
     static final int MAX_PASSWORD_BYTES = 4096;
 
+    /** The bcrypt cost PHP 8.4 uses when WordPress's filters set none; any other cost asks for a rehash. */
+    static final int TARGET_COST = 12;
+
     private static final int BCRYPT_LENGTH = 60;
     private static final String WP_PREFIX = "$wp";
     private static final String FAST_HASH_PREFIX = "$generic$";
@@ -136,6 +139,28 @@ public final class WpPasswords {
         return HashType.UNKNOWN;
     }
 
+    /**
+     * {@code wp_password_needs_rehash} with WordPress's default filters on PHP 8.4 (bcrypt, cost 12): {@code true}
+     * for every hash except a {@code $wp} hash whose remaining 60 bytes are {@code $2y$} bcrypt of cost 12. The cost
+     * is read as PHP reads it (leading whitespace and a sign are allowed; without digits PHP assumes 12). Call it
+     * after a successful {@link #verify}, and hash the password anew in the identity provider when it is
+     * {@code true}.
+     *
+     * @throws NullPointerException if {@code storedHash} is {@code null}
+     */
+    public static boolean needsRehash(String storedHash) {
+        Objects.requireNonNull(storedHash, "storedHash");
+        byte[] hash = PhpBytes.utf8(storedHash);
+        if (!PhpBytes.startsWith(hash, WP_PREFIX)) {
+            return true;
+        }
+        int rest = WP_PREFIX.length();
+        if (hash.length - rest != BCRYPT_LENGTH || !PhpBytes.startsWith(hash, rest, "$2y$")) {
+            return true;
+        }
+        return scannedCost(hash, rest + 4) != TARGET_COST;
+    }
+
     /** The decision of {@code wp_check_password} on bytes, in WordPress's rule order. */
     static boolean checkBytes(byte[] password, byte[] hash) {
         if (hash.length <= SHORT_HASH_BYTES) {
@@ -177,6 +202,37 @@ public final class WpPasswords {
      */
     static String wpBcryptHash(byte[] password, int cost, byte[] salt) {
         return WP_PREFIX + Bcrypt.hash(prehash(password), 'y', cost, salt);
+    }
+
+    /**
+     * The number C's {@code sscanf("%ld")} reads at {@code from}: optional whitespace, an optional sign, then
+     * decimal digits (saturated; only the comparison with 12 matters). Without digits the result is
+     * {@link #TARGET_COST}, the value PHP keeps when the scan fails.
+     */
+    static long scannedCost(byte[] text, int from) {
+        int i = from;
+        while (i < text.length && isCSpace(text[i])) {
+            i++;
+        }
+        boolean negative = false;
+        if (i < text.length && (text[i] == '+' || text[i] == '-')) {
+            negative = text[i] == '-';
+            i++;
+        }
+        if (i >= text.length || text[i] < '0' || text[i] > '9') {
+            return TARGET_COST;
+        }
+        long value = 0;
+        while (i < text.length && text[i] >= '0' && text[i] <= '9') {
+            value = Math.min(value * 10 + (text[i] - '0'), Integer.MAX_VALUE);
+            i++;
+        }
+        return negative ? -value : value;
+    }
+
+    /** C's isspace() in the default locale: space, tab, line feed, vertical tab, form feed, carriage return. */
+    private static boolean isCSpace(byte b) {
+        return b == ' ' || (b >= '\t' && b <= '\r');
     }
 
     private static boolean isBcryptId(byte[] hash) {
