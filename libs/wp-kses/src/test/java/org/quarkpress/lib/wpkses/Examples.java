@@ -102,6 +102,12 @@ final class Examples {
             case "hair" -> {
                 return hair(text);
             }
+            case "safecss" -> {
+                List<String> properties = e.has("properties")
+                        ? strings(e.get("properties"))
+                        : WordPressTables.INSTANCE.safeStyleProperties();
+                return str(new SafeCss(properties, null, WordPressTables.INSTANCE.protocols()).filter(text));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
