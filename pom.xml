@@ -25,6 +25,7 @@
     <!-- test-only support; listed before libs because the libs use it at test scope -->
     <module>testing</module>
     <module>libs</module>
+    <module>integration-tests</module>
   </modules>
 
   <scm>
@@ -50,6 +51,7 @@
     <!-- Plugins -->
     <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
     <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+    <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
     <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
     <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
     <spotless.version>3.10.4</spotless.version>
@@ -59,6 +61,8 @@
          under heavy multi-threaded JIT load (C1 only, 8 visible processors); they are not needed
          for correctness. Override with -Dsurefire.argLine.additional=... -->
     <surefire.argLine.additional>-XX:TieredStopAtLevel=1 -XX:ActiveProcessorCount=8</surefire.argLine.additional>
+    <!-- Database used by container-backed tests: postgresql or mysql. CI runs both. -->
+    <quarkpress.test.db>postgresql</quarkpress.test.db>
   </properties>
 
   <dependencyManagement>
@@ -191,6 +195,115 @@
             </plugin>
           </plugins>
         </pluginManagement>
+      </build>
+    </profile>
+    <profile>
+      <!-- Native executables are built and tested only in GitHub Actions. -Dnative, -Dquarkus.native.enabled=true
+           and -Dquarkus.package.type=native fail at validate unless the CI environment variable is "true". -->
+      <id>native</id>
+      <activation>
+        <property>
+          <name>native</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-enforcer-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>native-only-in-ci</id>
+                <phase>validate</phase>
+                <goals>
+                  <goal>enforce</goal>
+                </goals>
+                <configuration>
+                  <rules>
+                    <requireEnvironmentVariable>
+                      <variableName>CI</variableName>
+                      <regex>true</regex>
+                      <message>Native builds run only in GitHub Actions (CI=true). Run the JVM tests locally.</message>
+                      <regexMessage>Native builds run only in GitHub Actions (CI=true). Run the JVM tests locally.</regexMessage>
+                    </requireEnvironmentVariable>
+                  </rules>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>native-enabled-guard</id>
+      <activation>
+        <property>
+          <name>quarkus.native.enabled</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-enforcer-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>native-only-in-ci</id>
+                <phase>validate</phase>
+                <goals>
+                  <goal>enforce</goal>
+                </goals>
+                <configuration>
+                  <rules>
+                    <requireEnvironmentVariable>
+                      <variableName>CI</variableName>
+                      <regex>true</regex>
+                      <message>Native builds run only in GitHub Actions (CI=true). Run the JVM tests locally.</message>
+                      <regexMessage>Native builds run only in GitHub Actions (CI=true). Run the JVM tests locally.</regexMessage>
+                    </requireEnvironmentVariable>
+                  </rules>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>native-package-guard</id>
+      <activation>
+        <property>
+          <name>quarkus.package.type</name>
+          <value>native</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-enforcer-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>native-only-in-ci</id>
+                <phase>validate</phase>
+                <goals>
+                  <goal>enforce</goal>
+                </goals>
+                <configuration>
+                  <rules>
+                    <requireEnvironmentVariable>
+                      <variableName>CI</variableName>
+                      <regex>true</regex>
+                      <message>Native builds run only in GitHub Actions (CI=true). Run the JVM tests locally.</message>
+                      <regexMessage>Native builds run only in GitHub Actions (CI=true). Run the JVM tests locally.</regexMessage>
+                    </requireEnvironmentVariable>
+                  </rules>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
       </build>
     </profile>
   </profiles>
