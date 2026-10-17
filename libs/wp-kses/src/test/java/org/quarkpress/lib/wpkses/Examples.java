@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -97,9 +99,34 @@ final class Examples {
                 return str(ProtocolFilter.filter(
                         text, !e.has("protocols") ? WordPressTables.INSTANCE.protocols() : protocols));
             }
+            case "hair" -> {
+                return hair(text);
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
+    }
+
+    /** wp_kses_hair's result: name => {name, value, whole, vless}, or [] when there is none. */
+    static JsonNode hair(String attr) {
+        List<HairAttribute> attributes = AttributeParser.parse(attr);
+        if (attributes.isEmpty()) {
+            return JsonNodeFactory.instance.arrayNode();
+        }
+        ObjectNode out = JsonNodeFactory.instance.objectNode();
+        for (HairAttribute a : attributes) {
+            String value = a.value();
+            if (value != null && WordPressTables.INSTANCE.uriAttributes().contains(a.name())) {
+                value = ProtocolFilter.filter(value, WordPressTables.INSTANCE.protocols());
+            }
+            String recoded = value == null ? "" : AttributeParser.reencode(value);
+            out.putObject(a.name())
+                    .put("name", a.name())
+                    .put("value", recoded)
+                    .put("whole", value == null ? a.name() : a.name() + "=\"" + recoded + "\"")
+                    .put("vless", value == null ? "y" : "n");
+        }
+        return out;
     }
 
     static TextNode str(String s) {
