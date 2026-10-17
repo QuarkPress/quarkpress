@@ -89,8 +89,8 @@ public final class WpPasswords {
      * Whether {@code secret} matches {@code storedHash} as {@code WP_Application_Passwords::check_password} decides
      * it: a {@code $generic$} hash is keyed BLAKE2b ({@code wp_fast_hash}) of the secret; any other hash goes to
      * {@link #check(String, String)}, as application passwords made before WordPress 6.8 were stored with
-     * {@code wp_hash_password}. The secret is used as given: strip the spaces of the displayed
-     * {@code abcd EFGH …} form first, as WordPress's login does.
+     * {@code wp_hash_password}. The secret is used as given: remove every character other than
+     * ASCII letters and digits from the displayed {@code abcd EFGH …} form first, as WordPress's login does.
      *
      * @throws NullPointerException if an argument is {@code null}
      */

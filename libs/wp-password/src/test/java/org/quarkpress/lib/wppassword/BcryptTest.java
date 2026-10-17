@@ -3,7 +3,9 @@ package org.quarkpress.lib.wppassword;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,8 @@ class BcryptTest {
 
     /** bcrypt of "password" at cost 05, made by PHP password_hash (reference vector 12.2#2). */
     private static final String PASSWORD_HASH = "$2y$05$06gRD94okD45dxtYQWn5quHxb9lT1cn7c8781KPpb5OP8SoVDUyq2";
+
+    private static final String BASE = "abcdefghi".repeat(9);
 
     private static byte[] ascii(String text) {
         return text.getBytes(US_ASCII);
@@ -77,12 +81,10 @@ class BcryptTest {
         assertThat(Bcrypt.hash(password, minor, cost, salt)).isEqualTo(hash);
     }
 
-    private static final String BASE = "abcdefghi".repeat(9);
-
     /** Vectors made with PHP 8.4 crypt() at cost 04, each confirmed with password_verify. */
     static Stream<Arguments> keyLengthVectors() {
         String saltA = "$2y$04$mZJBzMV0/venMiraZV4Ni."; // 16 salt bytes a1b2c3...8f90
-        String saltB = "$2a$04$..CA.uOD/eaGAOmJB.yMBu"; // 16 salt bytes 00 01 02 ... 0f: sixteen distinct words
+        String saltB = "$2a$04$..CA.uOD/eaGAOmJB.yMBu"; // 16 salt bytes 00 01 02 ... 0f: four distinct words
         return Stream.of(
                 Arguments.of(ascii(BASE.substring(0, 71)), saltA + "bRYyCm4GUSJ80taxab8x2mDxKSk1d6."),
                 Arguments.of(ascii(BASE.substring(0, 71)), saltB + "ZKtUnLN3isSoXCF2f5EBdqKpedoa9/O"),
@@ -111,13 +113,6 @@ class BcryptTest {
         assertThat(Bcrypt.verify(password, ascii(hash))).isTrue();
         assertThat(Bcrypt.hash(password, hash.charAt(2), 4, Bcrypt.decodeSalt(hash.substring(7, 29))))
                 .isEqualTo(hash);
-    }
-
-    @Test
-    void the71And72ByteKeysDiffer() {
-        byte[] salt = Bcrypt.decodeSalt("mZJBzMV0/venMiraZV4Ni.");
-        assertThat(Bcrypt.hash(ascii(BASE.substring(0, 71)), 'y', 4, salt))
-                .isNotEqualTo(Bcrypt.hash(ascii(BASE.substring(0, 72)), 'y', 4, salt));
     }
 
     @Test
@@ -185,10 +180,12 @@ class BcryptTest {
     void costsAbove16AreRefusedWithoutComputing() {
         // well-formed; PHP would run 2^17 or more rounds (README D3)
         String afterCost = PASSWORD_HASH.substring(6);
-        assertThat(Bcrypt.verify(ascii("password"), ascii("$2y$17" + afterCost)))
-                .isFalse();
-        assertThat(Bcrypt.verify(ascii("password"), ascii("$2y$31" + afterCost)))
-                .isFalse();
+        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+            assertThat(Bcrypt.verify(ascii("password"), ascii("$2y$17" + afterCost)))
+                    .isFalse();
+            assertThat(Bcrypt.verify(ascii("password"), ascii("$2y$31" + afterCost)))
+                    .isFalse();
+        });
     }
 
     @Test

@@ -9,10 +9,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /** The behaviour reference's vectors (section 12), each produced by running WordPress 7.1.3. */
@@ -29,12 +29,12 @@ class WordPressVectorsTest {
      * the README section "Differences from WordPress", never a silent skip. The expected value is QuarkPress's.
      */
     static final Map<String, Boolean> QUARKPRESS_CHECK = Map.of(
-            "12.2#12", false, // README difference: $2x$ hashes are refused (WordPress accepts them)
-            "12.6#1", false, // README difference: crypt formats are not verified, $1$
-            "12.6#2", false, // README difference: crypt formats are not verified, $5$
-            "12.6#3", false, // README difference: crypt formats are not verified, $6$
-            "12.6#6", false, // README difference: argon2 is not verified, $argon2id$
-            "12.4#4", false); // README difference: the $wp_hasher global is not modeled; without it $H$ is rejected
+            "12.2#12", false, // README D1: $2x$ hashes are refused (WordPress accepts them)
+            "12.6#1", false, // README D2: crypt formats are not verified, $1$
+            "12.6#2", false, // README D2: crypt formats are not verified, $5$
+            "12.6#3", false, // README D2: crypt formats are not verified, $6$
+            "12.6#6", false, // README D2: argon2 is not verified, $argon2id$
+            "12.4#4", false); // README D4: the $wp_hasher global is not modeled; without it $H$ is rejected
 
     record Vector(
             String id, String function, String context, byte[] password, String hash, String check, String rehash) {}
@@ -81,7 +81,7 @@ class WordPressVectorsTest {
         List<Vector> vectors = load();
         assertThat(vectors).isNotEmpty();
         assertThat(vectors.stream().map(Vector::id).distinct()).hasSameSizeAs(vectors);
-        assertThat(vectors.stream().map(Vector::function).collect(java.util.stream.Collectors.toSet()))
+        assertThat(vectors.stream().map(Vector::function).collect(Collectors.toSet()))
                 .containsExactlyInAnyOrder("wp_check_password", "app_check_password", "wp_hash_password");
         assertThat(vectors.stream().filter(v -> !v.rehash().equals("-"))).isNotEmpty();
         assertThat(vectors.stream().filter(v -> v.context().equals("wp_hasher")))
@@ -108,6 +108,8 @@ class WordPressVectorsTest {
         }
         // every row is checked except the cost-12 rows kept out for the CPU budget
         assertThat(checked).isPositive().isEqualTo(rows.size() - skipped);
+        assertThat(rows.stream().filter(WordPressVectorsTest::skippedForCpu).map(Vector::id))
+                .containsExactlyInAnyOrder("12.1#13", "12.8#2", "12.8#3");
         assertThat(skipped)
                 .isEqualTo(rows.stream()
                         .filter(WordPressVectorsTest::skippedForCpu)
@@ -143,8 +145,12 @@ class WordPressVectorsTest {
         assertThat(rows).isNotEmpty();
         int checked = 0;
         for (Vector v : rows) {
-            // With $wp_hasher set WordPress never asks for a rehash; QuarkPress does not model it (README difference).
+            // With $wp_hasher set WordPress never asks for a rehash; QuarkPress does not model it (README D4).
             boolean expected = v.context().equals("wp_hasher") || Boolean.parseBoolean(v.rehash());
+            if (v.context().equals("wp_hasher")) {
+                // the override really differs from WordPress, so it is not stale
+                assertThat(Boolean.parseBoolean(v.rehash())).as(v.id()).isFalse();
+            }
             assertThat(WpPasswords.needsRehash(v.hash())).as(v.id()).isEqualTo(expected);
             checked++;
         }
@@ -158,18 +164,5 @@ class WordPressVectorsTest {
         assertThat(v.function()).isEqualTo("wp_hash_password");
         assertThat(v.hash()).isEqualTo("*");
         assertThat(WpPasswords.check(v.password(), v.hash())).isFalse();
-    }
-
-    @Test
-    void everyRowIsCoveredByOneKindOfCheck() throws IOException {
-        // wp_check_password and app_check_password rows are checked above, wp_hash_password rows in the test above
-        Set<String> covered = new LinkedHashSet<>();
-        for (Vector v : load()) {
-            switch (v.function()) {
-                case "wp_check_password", "app_check_password", "wp_hash_password" -> covered.add(v.id());
-                default -> throw new IllegalStateException("row without a check: " + v.id());
-            }
-        }
-        assertThat(covered).hasSameSizeAs(load());
     }
 }
