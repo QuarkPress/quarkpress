@@ -22,6 +22,8 @@ final class StaxFactory {
     static final String MAX_GENERAL_ENTITY_SIZE = "jdk.xml.maxGeneralEntitySizeLimit";
     static final String TOTAL_ENTITY_SIZE = "jdk.xml.totalEntitySizeLimit";
     static final String MAX_NAME = "jdk.xml.maxXMLNameLimit";
+    /** Held to {@link RepairingReader#MAX_ATTRIBUTES} by the pre-filter instead. */
+    static final String MAX_ATTRIBUTES = "jdk.xml.elementAttributeLimit";
     /** The JDK's value for "no limit". */
     private static final int UNLIMITED = 0;
 
@@ -44,6 +46,7 @@ final class StaxFactory {
         factory.setProperty(MAX_GENERAL_ENTITY_SIZE, UNLIMITED);
         factory.setProperty(TOTAL_ENTITY_SIZE, UNLIMITED);
         factory.setProperty(MAX_NAME, UNLIMITED);
+        factory.setProperty(MAX_ATTRIBUTES, UNLIMITED);
         if (reportCdata) {
             factory.setProperty(REPORT_CDATA, Boolean.TRUE);
         }

@@ -102,12 +102,16 @@ final class XmlInput {
                         WxrProblem.Kind.UNSUPPORTED_ENCODING,
                         1,
                         1,
-                        "declared " + name + " but the bytes are single-byte ASCII; read as UTF-8");
+                        "declared " + Texts.clip(name) + " but the bytes are single-byte ASCII; read as UTF-8");
                 return StandardCharsets.UTF_8;
             }
             return declared;
         } catch (IllegalCharsetNameException | UnsupportedCharsetException e) {
-            log.repair(WxrProblem.Kind.UNSUPPORTED_ENCODING, 1, 1, "unknown encoding '" + name + "'; read as UTF-8");
+            log.repair(
+                    WxrProblem.Kind.UNSUPPORTED_ENCODING,
+                    1,
+                    1,
+                    "unknown encoding '" + Texts.clip(name) + "'; read as UTF-8");
             return StandardCharsets.UTF_8;
         }
     }

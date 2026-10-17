@@ -213,11 +213,15 @@ public final class WxrReader implements AutoCloseable {
                     WxrProblem.Kind.VERSION_INVALID,
                     line(),
                     column(),
-                    "wp:wxr_version '" + version + "' is not <digits>.<digits>");
+                    "wp:wxr_version '" + Texts.clip(version) + "' is not <digits>.<digits>");
             return;
         }
         if (newerThanCurrent(trimmed, dot)) {
-            log.note(WxrProblem.Kind.VERSION_NEWER, line(), column(), "WXR " + trimmed + " is newer than 1.2");
+            log.note(
+                    WxrProblem.Kind.VERSION_NEWER,
+                    line(),
+                    column(),
+                    "WXR " + Texts.clip(trimmed) + " is newer than 1.2");
         }
     }
 
@@ -286,7 +290,8 @@ public final class WxrReader implements AutoCloseable {
         boolean truncated =
                 repairing.atEof() && (at == null || atEndOfInput(at.getCharacterOffset(), repairing.delivered()));
         WxrProblem.Kind kind = truncated ? WxrProblem.Kind.TRUNCATED : WxrProblem.Kind.MALFORMED;
-        String message = truncated ? "the file ends before the document does" : "malformed XML: " + e.getMessage();
+        String message =
+                truncated ? "the file ends before the document does" : "malformed XML: " + Texts.clip(e.getMessage());
         if (!log.lenient()) {
             throw new WxrException(kind, lineOf(at), columnOf(at), message, e);
         }
@@ -338,7 +343,8 @@ public final class WxrReader implements AutoCloseable {
         }
         boolean early = e instanceof EOFException;
         WxrProblem.Kind kind = early ? WxrProblem.Kind.TRUNCATED : WxrProblem.Kind.MALFORMED;
-        String detail = (early ? "the compressed input ends early: " : "the compressed input is damaged: ") + e;
+        String detail = (early ? "the compressed input ends early: " : "the compressed input is damaged: ")
+                + Texts.clip(String.valueOf(e));
         if (!log.lenient()) {
             throw new WxrException(kind, line(), column(), detail, e);
         }
@@ -354,7 +360,11 @@ public final class WxrReader implements AutoCloseable {
         }
         rootSeen = true;
         if (!"rss".equals(xml.getLocalName())) {
-            log.repair(WxrProblem.Kind.NOT_WXR, line(), column(), "the root element is <" + xml.getLocalName() + ">");
+            log.repair(
+                    WxrProblem.Kind.NOT_WXR,
+                    line(),
+                    column(),
+                    "the root element is <" + Texts.clip(xml.getLocalName()) + ">");
         }
         while (true) {
             int event = xml.next();
@@ -589,7 +599,8 @@ public final class WxrReader implements AutoCloseable {
                             WxrProblem.Kind.UNKNOWN_NAMESPACE,
                             line(),
                             column(),
-                            "'" + written + "' is bound to " + uri + ", a URI WordPress never used; read anyway");
+                            "'" + written + "' is bound to " + Texts.clip(uri)
+                                    + ", a URI WordPress never used; read anyway");
                 }
             }
         }

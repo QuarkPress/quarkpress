@@ -5,6 +5,18 @@ final class Texts {
 
     private Texts() {}
 
+    /** Longest input echoed into a problem detail or exception message. */
+    static final int ECHO_LIMIT = 100;
+
+    /** {@code s} cut to about {@link #ECHO_LIMIT} chars with an ellipsis, so hostile input cannot inflate the heap. */
+    static String clip(String s) {
+        if (s == null || s.length() <= ECHO_LIMIT) {
+            return s;
+        }
+        int end = Character.isHighSurrogate(s.charAt(ECHO_LIMIT - 1)) ? ECHO_LIMIT - 1 : ECHO_LIMIT;
+        return s.substring(0, end) + "\u2026";
+    }
+
     /** Strips XML whitespace (space, tab, LF, CR) from both ends. */
     static String xmlTrim(String s) {
         return trim(s, false);

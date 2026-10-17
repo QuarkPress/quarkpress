@@ -38,6 +38,12 @@ public final class WxrReadOptions {
         return lenient;
     }
 
+    /**
+     * The most characters one value (a text node, CDATA section, comment, attribute value or name) may hold. The
+     * limit is per value, not per entity: an entity can hold many values. A value costs roughly 3 to 6 bytes of heap
+     * per character (Latin-1 strings against UTF-16 ones, plus the copy made while it is assembled). The default is
+     * generous; callers that read untrusted files should lower it to what their largest legitimate value needs.
+     */
     public int maxCharsPerValue() {
         return maxCharsPerValue;
     }

@@ -68,6 +68,17 @@ final class RepairingReader extends Reader {
     private int closers;
 
     private int doctypeBrackets;
+
+    /** The most attributes (namespace declarations included) one start tag may have; the JDK's own cap skips these. */
+    static final int MAX_ATTRIBUTES = 10_000;
+    /** Names seen in the current tag (the element name first). */
+    private int tagNames;
+    /** Whether the previous tag char outside quotes belonged to a name. */
+    private boolean inName;
+    /** Whether the attribute being read is past {@link #MAX_ATTRIBUTES} and is left out of the output. */
+    private boolean dropping;
+
+    private boolean attributesNoted;
     private char doctypeQuote;
     private long line = 1;
     private long column = 1;
@@ -432,6 +443,10 @@ final class RepairingReader extends Reader {
             quote = 0;
             valueLength = 0;
             closers = 0;
+            tagNames = 0;
+            inName = false;
+            dropping = false;
+            attributesNoted = false;
             state = State.TAG;
         } else {
             bareLessThan("a '<' that starts no markup is text");
@@ -529,13 +544,27 @@ final class RepairingReader extends Reader {
                 }
                 quote = c;
                 valueLength = 0;
-                emit(1);
+                inName = false;
+                if (dropping) {
+                    consume(1);
+                } else {
+                    emit(1);
+                }
             } else if (c == '<' || c == '&') {
                 emit(1); // not well-formed; StAX reports it
             } else {
                 character(false);
             }
             return;
+        }
+        if (dropping) {
+            while (i < limit && window[i] != quote) {
+                i++;
+            }
+            if (i > pos) {
+                consume(i - pos);
+                return;
+            }
         }
         if (valueLength > valueCap) {
             // the value is already cut off: skip to its closing quote without looking at what is in between
@@ -561,7 +590,12 @@ final class RepairingReader extends Reader {
             }
             quote = 0;
             valueLength = 0;
-            emit(1);
+            if (dropping) {
+                dropping = false;
+                consume(1);
+            } else {
+                emit(1);
+            }
         } else if (c == '&') {
             reference(true);
         } else if (c == '<') {
@@ -586,11 +620,32 @@ final class RepairingReader extends Reader {
             boolean space = c == ' ' || c == '\t' || c == '\n' || c == '\r';
             if (space || c == '=' || c == '/') {
                 valueLength = 0;
+                inName = false;
+                if (dropping && c == '=') {
+                    continue;
+                }
                 out.append(c);
                 if (inRoot) {
                     rootChar(c, space, true);
                 }
+            } else if (dropping) {
+                continue;
             } else {
+                if (!inName) {
+                    inName = true;
+                    if (++tagNames > MAX_ATTRIBUTES + 1) {
+                        if (!attributesNoted) {
+                            attributesNoted = true;
+                            log.repair(
+                                    WxrProblem.Kind.VALUE_TOO_LARGE,
+                                    line,
+                                    column,
+                                    "a start tag has more than " + MAX_ATTRIBUTES + " attributes");
+                        }
+                        dropping = true;
+                        continue;
+                    }
+                }
                 boolean kept = admit(1) == 1;
                 if (kept) {
                     out.append(c);
@@ -782,7 +837,7 @@ final class RepairingReader extends Reader {
                 WxrProblem.Kind.UNDEFINED_ENTITY,
                 line,
                 column,
-                "undefined entity &" + new String(window, pos + 1, length - 2) + "; is text");
+                "undefined entity &" + Texts.clip(new String(window, pos + 1, length - 2)) + "; is text");
         appendBounded("&amp;", bounded);
         consume(1);
     }
