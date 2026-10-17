@@ -29,6 +29,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.flywaydb.core.Flyway;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.persistence.Options;
@@ -162,7 +163,7 @@ public class HostResource {
                 entityNames(quarkpressUnit),
                 locations(hostFlyway),
                 locations(quarkpressFlyway),
-                url(hostDataSource).equals(url(quarkpressDataSource)));
+                databaseIdentity(hostDataSource).equals(databaseIdentity(quarkpressDataSource)));
     }
 
     private static List<String> locations(Flyway flyway) {
@@ -193,9 +194,22 @@ public class HostResource {
         return names;
     }
 
-    private static String url(AgroalDataSource dataSource) throws SQLException {
+    /**
+     * The database a connection lands in, as the server reports it (not the configured URL): the database name and the
+     * server's own identity, so two servers with equally named databases differ.
+     */
+    private static String databaseIdentity(AgroalDataSource dataSource) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
-            return connection.getMetaData().getURL();
+            String product = connection.getMetaData().getDatabaseProductName();
+            String sql = product.toLowerCase(Locale.ROOT).contains("postgres")
+                    ? "select current_database() || '@' || pg_postmaster_start_time()::text || ':'"
+                            + " || coalesce(inet_server_port(), 0)::text"
+                    : "select concat(database(), '@', @@server_uuid, ':', @@port)";
+            try (Statement statement = connection.createStatement();
+                    ResultSet rows = statement.executeQuery(sql)) {
+                rows.next();
+                return rows.getString(1);
+            }
         }
     }
 }
