@@ -27,18 +27,29 @@ import java.util.Set;
  *
  * <p>Sections must come in WordPress's order: authors, categories, tags, terms, items; {@link #close()} ends the
  * document and closes the stream. A category or term must come after its parent, which it names by slug or, in
- * data read from a WXR 1.0 file, by name. Everything else is the caller's policy: the writer does not skip or
- * reorder anything it is given.
+ * data read from a WXR 1.0 file, by name. Which entries to export is the caller's policy: the writer neither
+ * filters nor reorders the entries it is given (WordPress's exporter skips edit locks, spam comments, revisions and
+ * auto-drafts before writing).
  *
- * <p>Values are written as given; the site's {@code wxrVersion} is ignored, since the file is 1.2. A field that is
- * null is not written (WordPress always has every field; data read from a file may lack some), except that an
- * integer field that is null is written from its raw text in {@code rawFields()} when there is one, and the
- * channel {@code pubDate} falls back to the clock. Category, tag and term names and descriptions are omitted when
- * empty, as WordPress omits them. Memory: one entry. Not thread-safe; I/O errors surface as {@link
- * UncheckedIOException}.
+ * <p>Within an entry the writer writes WordPress's fields, as given; the site's {@code wxrVersion} is ignored, since
+ * the file is 1.2. A field that is null is not written (WordPress always has every field; data read from a file may
+ * lack some), except that an integer field that is null is written from its raw text in {@code rawFields()} when
+ * there is one, and the channel {@code pubDate} falls back to the clock. That fallback is the only use of
+ * {@code rawFields()}: elements WordPress does not write (unknown or foreign elements a reader kept there) are not
+ * written. {@code attachmentUrl} is written for attachments only, as WordPress does. Category, tag and term names
+ * and descriptions are omitted when empty, as WordPress omits them.
+ *
+ * <p>Memory: one entry at a time, buffered as text before it is written (about 2 to 3 times the chars of its
+ * values), plus the slug and name of every category and term written so far, kept for the parent checks.
+ *
+ * <p>Errors: an entry that is out of order or names a parent not written before it is refused before anything is
+ * written, and the writer stays usable. Any other failure inside an entry method (an I/O error, surfacing as
+ * {@link UncheckedIOException}) breaks the writer: later entry calls throw {@link IllegalStateException}, and
+ * {@link #close()} closes the stream without ending the document. Not thread-safe.
  */
 public final class WxrWriter implements AutoCloseable {
 
+    /** The WXR version every file is written as. */
     public static final String WXR_VERSION = "1.2";
 
     private static final DateTimeFormatter RFC_822 = DateTimeFormatter.ofPattern(
@@ -63,6 +74,7 @@ public final class WxrWriter implements AutoCloseable {
         }
     }
 
+    private final OutputStream sink;
     private final Writer out;
     private final WxrSite site;
     private final StringBuilder buf = new StringBuilder(8192);
@@ -70,84 +82,141 @@ public final class WxrWriter implements AutoCloseable {
     private final Set<String> categoryParents = new HashSet<>();
     private final Map<String, Set<String>> termParents = new HashMap<>();
     private Phase phase = Phase.AUTHORS;
+    /** Set when an entry failed part-way: nothing more is written. */
+    private boolean broken;
 
-    private WxrWriter(OutputStream out, WxrSite site, Clock clock) {
+    private WxrWriter(OutputStream out, WxrSite site) {
+        this.sink = out;
         this.out = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8), 65_536);
         this.site = site;
-        header(clock);
     }
 
+    /** A writer to {@code out} dated by the system clock; see {@link #open(OutputStream, WxrSite, Clock)}. */
     public static WxrWriter open(OutputStream out, WxrSite site) {
         return open(out, site, Clock.systemUTC());
     }
 
-    /** {@code clock} dates the channel {@code pubDate} when the site has none. */
+    /**
+     * A writer to {@code out} that has written the XML declaration, the namespaces and the channel fields of
+     * {@code site}. {@code clock} dates the channel {@code pubDate} when the site has none. The writer owns the
+     * stream: {@link #close()} closes it, and so does this method when writing the header fails.
+     *
+     * @throws NullPointerException when an argument is null
+     * @throws UncheckedIOException when writing the header fails
+     */
     public static WxrWriter open(OutputStream out, WxrSite site, Clock clock) {
         Objects.requireNonNull(out, "out");
         Objects.requireNonNull(site, "site");
         Objects.requireNonNull(clock, "clock");
-        return new WxrWriter(out, site, clock);
-    }
-
-    public void author(WxrAuthor a) {
-        Objects.requireNonNull(a, "author");
-        advance(Phase.AUTHORS);
-        indent(1);
-        buf.append("<wp:author>");
-        inlineInteger("wp:author_id", a.id(), a.rawFields());
-        inlineCdata("wp:author_login", a.login());
-        inlineCdata("wp:author_email", a.email());
-        inlineCdata("wp:author_display_name", a.displayName());
-        inlineCdata("wp:author_first_name", a.firstName());
-        inlineCdata("wp:author_last_name", a.lastName());
-        buf.append("</wp:author>\n");
-        flush();
-    }
-
-    public void category(WxrCategory c) {
-        Objects.requireNonNull(c, "category");
-        advance(Phase.CATEGORIES);
-        checkParent("category", c.nicename(), c.parent(), categoryParents);
-        indent(1);
-        buf.append("<wp:category>\n");
-        integer(2, "wp:term_id", c.termId(), c.rawFields());
-        cdata(2, "wp:category_nicename", c.nicename());
-        cdata(2, "wp:category_parent", c.parent());
-        optionalCdata(2, "wp:cat_name", c.name());
-        optionalCdata(2, "wp:category_description", c.description());
-        meta(2, "wp:termmeta", c.termMeta());
-        indent(1);
-        buf.append("</wp:category>\n");
-        remember(categoryParents, c.nicename(), c.name());
-        flush();
-    }
-
-    public void tag(WxrTag t) {
-        Objects.requireNonNull(t, "tag");
-        advance(Phase.TAGS);
-        indent(1);
-        buf.append("<wp:tag>\n");
-        integer(2, "wp:term_id", t.termId(), t.rawFields());
-        cdata(2, "wp:tag_slug", t.slug());
-        optionalCdata(2, "wp:tag_name", t.name());
-        optionalCdata(2, "wp:tag_description", t.description());
-        meta(2, "wp:termmeta", t.termMeta());
-        indent(1);
-        buf.append("</wp:tag>\n");
-        flush();
+        WxrWriter writer = new WxrWriter(out, site);
+        try {
+            writer.header(clock);
+        } catch (RuntimeException | Error e) {
+            try {
+                out.close();
+            } catch (IOException closing) {
+                e.addSuppressed(closing);
+            }
+            throw e;
+        }
+        return writer;
     }
 
     /**
-     * A custom-taxonomy term, or a nav menu ({@code taxonomy} "nav_menu", written in WordPress's short form without
-     * parent, description or term meta). A term's parent is looked up among the terms of its own taxonomy.
+     * Writes an author. Authors come first.
+     *
+     * @throws IllegalStateException when another section was already started, the writer is closed, or it broke
+     * @throws UncheckedIOException when writing fails (the writer is then broken)
+     */
+    public void author(WxrAuthor a) {
+        Objects.requireNonNull(a, "author");
+        checkOrder(Phase.AUTHORS);
+        write(Phase.AUTHORS, () -> {
+            indent(1);
+            buf.append("<wp:author>");
+            inlineInteger("wp:author_id", a.id(), a.rawFields());
+            inlineCdata("wp:author_login", a.login());
+            inlineCdata("wp:author_email", a.email());
+            inlineCdata("wp:author_display_name", a.displayName());
+            inlineCdata("wp:author_first_name", a.firstName());
+            inlineCdata("wp:author_last_name", a.lastName());
+            buf.append("</wp:author>\n");
+        });
+    }
+
+    /**
+     * Writes a category, after the authors. Its parent (a slug, or a name in data from a WXR 1.0 file) must be a
+     * category written before it.
+     *
+     * @throws IllegalStateException when tags, terms or items were already started, the writer is closed, or it broke
+     * @throws IllegalArgumentException when the parent was not written before (nothing is written)
+     * @throws UncheckedIOException when writing fails (the writer is then broken)
+     */
+    public void category(WxrCategory c) {
+        Objects.requireNonNull(c, "category");
+        checkOrder(Phase.CATEGORIES);
+        checkParent("category", c.nicename(), c.parent(), categoryParents);
+        write(Phase.CATEGORIES, () -> {
+            indent(1);
+            buf.append("<wp:category>\n");
+            integer(2, "wp:term_id", c.termId(), c.rawFields());
+            cdata(2, "wp:category_nicename", c.nicename());
+            cdata(2, "wp:category_parent", c.parent());
+            optionalCdata(2, "wp:cat_name", c.name());
+            optionalCdata(2, "wp:category_description", c.description());
+            meta(2, "wp:termmeta", c.termMeta());
+            indent(1);
+            buf.append("</wp:category>\n");
+        });
+        remember(categoryParents, c.nicename(), c.name());
+    }
+
+    /**
+     * Writes a tag, after the categories.
+     *
+     * @throws IllegalStateException when terms or items were already started, the writer is closed, or it broke
+     * @throws UncheckedIOException when writing fails (the writer is then broken)
+     */
+    public void tag(WxrTag t) {
+        Objects.requireNonNull(t, "tag");
+        checkOrder(Phase.TAGS);
+        write(Phase.TAGS, () -> {
+            indent(1);
+            buf.append("<wp:tag>\n");
+            integer(2, "wp:term_id", t.termId(), t.rawFields());
+            cdata(2, "wp:tag_slug", t.slug());
+            optionalCdata(2, "wp:tag_name", t.name());
+            optionalCdata(2, "wp:tag_description", t.description());
+            meta(2, "wp:termmeta", t.termMeta());
+            indent(1);
+            buf.append("</wp:tag>\n");
+        });
+    }
+
+    /**
+     * Writes a custom-taxonomy term, or a nav menu ({@code taxonomy} "nav_menu", written in WordPress's short form
+     * without parent, description or term meta), after the tags. A term's parent is looked up among the terms of
+     * its own taxonomy written before it.
+     *
+     * @throws IllegalStateException when items were already started, the writer is closed, or it broke
+     * @throws IllegalArgumentException when the parent was not written before (nothing is written)
+     * @throws UncheckedIOException when writing fails (the writer is then broken)
      */
     public void term(WxrTerm t) {
         Objects.requireNonNull(t, "term");
-        advance(Phase.TERMS);
-        Set<String> sameTaxonomy =
-                termParents.computeIfAbsent(t.taxonomy() == null ? "" : t.taxonomy(), k -> new HashSet<>());
+        checkOrder(Phase.TERMS);
+        String taxonomy = t.taxonomy() == null ? "" : t.taxonomy();
+        boolean navMenu = "nav_menu".equals(t.taxonomy());
+        if (!navMenu) {
+            checkParent("term", t.slug(), t.parent(), termParents.getOrDefault(taxonomy, Set.of()));
+        }
+        write(Phase.TERMS, () -> writeTerm(t, navMenu));
+        remember(termParents.computeIfAbsent(taxonomy, k -> new HashSet<>()), t.slug(), t.name());
+    }
+
+    private void writeTerm(WxrTerm t, boolean navMenu) {
         indent(1);
-        if ("nav_menu".equals(t.taxonomy())) {
+        if (navMenu) {
             buf.append("<wp:term>");
             inlineInteger("wp:term_id", t.termId(), t.rawFields());
             buf.append("<wp:term_taxonomy>nav_menu</wp:term_taxonomy>");
@@ -157,7 +226,6 @@ public final class WxrWriter implements AutoCloseable {
             }
             buf.append("</wp:term>\n");
         } else {
-            checkParent("term", t.slug(), t.parent(), sameTaxonomy);
             buf.append("<wp:term>\n");
             integer(2, "wp:term_id", t.termId(), t.rawFields());
             cdata(2, "wp:term_taxonomy", t.taxonomy());
@@ -169,13 +237,22 @@ public final class WxrWriter implements AutoCloseable {
             indent(1);
             buf.append("</wp:term>\n");
         }
-        remember(sameTaxonomy, t.slug(), t.name());
-        flush();
     }
 
+    /**
+     * Writes an item (a post, page, attachment, nav menu item or any other post type) with its terms, post meta and
+     * comments, after the terms.
+     *
+     * @throws IllegalStateException when the writer is closed or broke
+     * @throws UncheckedIOException when writing fails (the writer is then broken)
+     */
     public void item(WxrItem i) {
         Objects.requireNonNull(i, "item");
-        advance(Phase.ITEMS);
+        checkOrder(Phase.ITEMS);
+        write(Phase.ITEMS, () -> writeItem(i));
+    }
+
+    private void writeItem(WxrItem i) {
         Map<String, String> raw = i.rawFields();
         indent(1);
         buf.append("<item>\n");
@@ -238,25 +315,53 @@ public final class WxrWriter implements AutoCloseable {
         }
         indent(1);
         buf.append("</item>\n");
-        flush();
     }
 
-    /** Ends the channel and the document and closes the stream; later calls do nothing. */
+    /**
+     * Ends the channel and the document and closes the stream; later calls do nothing. A broken writer only closes
+     * the stream: what the writers in front of it still hold is dropped, so that nothing is written twice, and the
+     * document stays unfinished. The stream is closed also when writing the end fails.
+     *
+     * @throws UncheckedIOException when writing the end or closing the stream fails
+     */
     @Override
     public void close() {
         if (phase == Phase.CLOSED) {
             return;
         }
-        if (phase != Phase.ITEMS) {
-            channelTail();
-        }
+        Phase was = phase;
         phase = Phase.CLOSED;
-        buf.append("</channel>\n</rss>\n");
-        flush();
+        RuntimeException failure = null;
         try {
-            out.close();
+            if (!broken) {
+                if (was != Phase.ITEMS) {
+                    channelTail();
+                }
+                buf.append("</channel>\n</rss>\n");
+                flush();
+                out.flush();
+            }
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            broken = true;
+            failure = new UncheckedIOException(e);
+        } catch (RuntimeException e) {
+            broken = true;
+            failure = e;
+        } finally {
+            buf.setLength(0);
+            try {
+                // the stream itself: the writers above it may hold chars of a failed entry, which must not follow
+                sink.close();
+            } catch (IOException e) {
+                if (failure == null) {
+                    failure = new UncheckedIOException(e);
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
         }
     }
 
@@ -299,17 +404,36 @@ public final class WxrWriter implements AutoCloseable {
         buf.append('\n');
     }
 
-    private void advance(Phase target) {
+    /** Refuses an entry that may not be written now, before anything is touched. */
+    private void checkOrder(Phase target) {
         if (phase == Phase.CLOSED) {
             throw new IllegalStateException("the writer is closed");
+        }
+        if (broken) {
+            throw new IllegalStateException("an earlier entry failed; the writer is broken and only closes the stream");
         }
         if (phase.compareTo(target) > 0) {
             throw new IllegalStateException(target.label + " must be written before " + phase.label);
         }
-        if (target == Phase.ITEMS && phase != Phase.ITEMS) {
-            channelTail();
+    }
+
+    /**
+     * Enters {@code target}'s section, buffers an entry with {@code body} and writes it. Any failure breaks the
+     * writer: the buffered rest is dropped and nothing more is written.
+     */
+    private void write(Phase target, Runnable body) {
+        try {
+            if (target == Phase.ITEMS && phase != Phase.ITEMS) {
+                channelTail();
+            }
+            phase = target;
+            body.run();
+            flush();
+        } catch (RuntimeException | Error e) {
+            broken = true;
+            buf.setLength(0);
+            throw e;
         }
-        phase = target;
     }
 
     private static void checkParent(String what, String slug, String parent, Set<String> written) {
@@ -415,7 +539,10 @@ public final class WxrWriter implements AutoCloseable {
         }
     }
 
-    /** Hands the buffered entry to the stream in chunks, so a huge entry is never copied whole. */
+    /**
+     * Hands the buffered entry to the stream in chunks, so a huge entry is never copied whole. The buffer is emptied
+     * also when writing fails, so that nothing is written twice.
+     */
     private void flush() {
         try {
             int n = buf.length();
@@ -424,12 +551,13 @@ public final class WxrWriter implements AutoCloseable {
                 buf.getChars(at, end, chunk, 0);
                 out.write(chunk, 0, end - at);
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
             buf.setLength(0);
             if (buf.capacity() > RETAINED_CAPACITY) {
                 buf.trimToSize();
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 }

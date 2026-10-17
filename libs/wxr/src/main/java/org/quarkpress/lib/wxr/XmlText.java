@@ -6,8 +6,6 @@ package org.quarkpress.lib.wxr;
  */
 final class XmlText {
 
-    static final char REPLACEMENT = '\uFFFD';
-
     private XmlText() {}
 
     /** The value with XML-illegal chars and unpaired surrogates replaced by U+FFFD; the same instance if clean. */
@@ -29,7 +27,7 @@ final class XmlText {
                 if (out == null) {
                     out = new StringBuilder(n).append(s, 0, i);
                 }
-                out.append(REPLACEMENT);
+                out.append(XmlChars.REPLACEMENT);
             }
         }
         return out == null ? s : out.toString();

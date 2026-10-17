@@ -413,7 +413,8 @@ class WxrReaderHardeningTest {
 
     @Test
     void theCutIsWhereTheRemainderWasReadAsTheEnd() throws IOException {
-        // "<r>ab<" then a read error: the '<' at column 6 is processed as if the input ended there.
+        // "<r>ab<" then a read error: the '<' at column 6 is processed as if the input ended there, so it is passed
+        // on unrepaired for the parser to report the cut.
         Reader failing = new Reader() {
             private boolean sent;
 
@@ -440,7 +441,7 @@ class WxrReaderHardeningTest {
                 })
                 .isInstanceOf(IOException.class)
                 .hasMessage("gone");
-        assertThat(out.toString()).isEqualTo("<r>ab&lt;");
+        assertThat(out.toString()).isEqualTo("<r>ab<");
         assertThat(repairing.beforeCut(1, 5)).isTrue();
         assertThat(repairing.beforeCut(1, 6)).isFalse();
         assertThat(repairing.beforeCut(2, 1)).isFalse();

@@ -3,6 +3,9 @@ package org.quarkpress.lib.wxr;
 /** Which characters XML 1.0 allows in a document. The one definition shared by everything that checks text. */
 final class XmlChars {
 
+    /** U+FFFD, the replacement character: what an illegal character or an invalid byte sequence becomes. */
+    static final char REPLACEMENT = '\uFFFD';
+
     private XmlChars() {}
 
     /** True for a code point XML 1.0 allows: tab, LF, CR, U+0020 to U+D7FF, U+E000 to U+FFFD, U+10000 and up. */
@@ -18,19 +21,6 @@ final class XmlChars {
     /** True for a UTF-16 unit that is a legal character by itself, so not half of a surrogate pair. */
     static boolean isLegal(char c) {
         return c >= 0x20 ? c < 0xD800 || (c >= 0xE000 && c <= 0xFFFD) : c == 0x9 || c == 0xA || c == 0xD;
-    }
-
-    /** True when the whole text consists of legal characters (surrogates must be paired). */
-    static boolean isLegal(CharSequence text) {
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (Character.isHighSurrogate(c) && i + 1 < text.length() && Character.isLowSurrogate(text.charAt(i + 1))) {
-                i++;
-            } else if (!isLegal(c)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**

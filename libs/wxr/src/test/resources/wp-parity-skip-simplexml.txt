@@ -3,7 +3,7 @@
 # Format: <case-id-or-glob> <aspect-or-glob> <item> <reason>. Items are those of libs/wxr/README.md,
 # "Differences from WordPress". "none" documents a difference no case shows. An entry whose comparisons
 # all match fails the build: delete it.
-corpus/export-full.xml reader:/posts/0/guid D1 SimpleXML rejects the raw & (R48); the fallback parser drops the text before &#038;
+corpus/export-full.xml reader:/posts/0/guid D1 SimpleXML rejects the raw & WordPress writes (D7); the fallback parser drops the text before &#038;
 corpus/export-quirks.xml reader:/posts/0/guid D1 SimpleXML rejects the control characters; the fallback parser drops the text before &#038;
 corpus/cases/raw-amp.xml reader:/posts/0/guid D1 SimpleXML rejects the raw &; the fallback parser drops the text before each numeric reference
 corpus/cases/raw-amp.xml reader:/posts/0/post_name D1 SimpleXML rejects the raw &; the fallback parser drops the text before each numeric reference
@@ -17,7 +17,7 @@ corpus/cases/no-wp-ns-decl.xml reader:* D4 lenient mode reads a wp: prefix used 
 corpus/cases/ctrl-char.xml reader:/posts/0/post_content D8 SimpleXML rejects the control characters; the fallback parser keeps them, we write U+FFFD
 corpus/export-quirks.xml reader:/posts/0/post_content D8 same as above
 corpus/example-c.xml roundtrip:/version D14 the writer always writes version 1.2; the original says 1.0
-export/full roundtrip:/posts/0/guid D1 SimpleXML rejects the original (raw &, R48); the fallback parser drops the text before &#038;
+export/full roundtrip:/posts/0/guid D1 SimpleXML rejects the original (the raw & WordPress writes, D7); the fallback parser drops the text before &#038;
 export/quirks roundtrip:/posts/0/guid D1 SimpleXML rejects the original's control characters; the fallback parser drops the text before &#038;
 export/quirks roundtrip:/posts/0/post_content D8 SimpleXML rejects the original's control characters; the fallback keeps them, the rewrite has U+FFFD
 meta/enum-unknown meta-kept-enum D13 an unknown enum parses to an enum; WordPress returns false (inherited from lib-php-serialize; checked by WxrParityTest.keptEnumDifference)

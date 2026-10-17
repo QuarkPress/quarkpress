@@ -275,4 +275,90 @@ class WxrReaderEdgeCasesTest {
                 .containsOnly(WxrProblem.Kind.ILLEGAL_CHARACTER)
                 .hasSize(3);
     }
+
+    private static byte[] gzip(byte[] bytes) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.GZIPOutputStream z = new java.util.zip.GZIPOutputStream(out)) {
+            z.write(bytes);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return out.toByteArray();
+    }
+
+    @Test
+    void whitespaceBeforeTheXmlDeclarationIsDroppedOrRefused() {
+        // themes and plugins print blank lines before the export; the declaration names Latin-1, so the e-acute
+        // byte reads right only if the declaration is still found behind the whitespace
+        String body = "<item><title>caf\u00e9 &amp</title></item>\n<x></y>";
+        String doc = TestWxr.doc(body).replace("encoding=\"UTF-8\"", "encoding=\"ISO-8859-1\"");
+        byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        for (String space : List.of("\n", "\n\n", " \t\r\n ", "\r\r")) {
+            byte[] latin1 = (space + doc).getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            byte[] utf8 =
+                    (space + doc.replace("ISO-8859-1", "UTF-8")).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] withBom = new byte[bom.length + utf8.length];
+            System.arraycopy(bom, 0, withBom, 0, bom.length);
+            System.arraycopy(utf8, 0, withBom, bom.length, utf8.length);
+            long lines = space.chars().filter(c -> c == '\n').count()
+                    + space.replace("\r\n", "\n").chars().filter(c -> c == '\r').count();
+            for (byte[] bytes : List.of(latin1, withBom, gzip(latin1), gzip(withBom))) {
+                TestWxr.Result r = TestWxr.read(bytes, WxrReadOptions.LENIENT);
+                assertThat(r.items()).extracting(WxrItem::title).as(space).containsExactly("caf\u00e9 &amp");
+                assertThat(r.kinds())
+                        .as(space)
+                        .containsExactly(
+                                WxrProblem.Kind.INVALID_MARKUP,
+                                WxrProblem.Kind.BARE_AMPERSAND,
+                                WxrProblem.Kind.MALFORMED);
+                assertThat(r.problems().get(0).detail()).isEqualTo("whitespace before the XML declaration");
+                // positions after the declaration stay those of the file: the pre-filter's and the parser's
+                assertThat(r.problems().get(1).line()).as(space).isEqualTo(5 + lines);
+                assertThat(r.problems().get(2).line()).as(space).isEqualTo(6 + lines);
+                assertThatThrownBy(() -> TestWxr.read(bytes, WxrReadOptions.STRICT))
+                        .isInstanceOfSatisfying(
+                                WxrException.class,
+                                e -> assertThat(e.kind()).isEqualTo(WxrProblem.Kind.INVALID_MARKUP));
+            }
+        }
+        // whitespace before a document without a declaration is fine, as XML allows it there
+        TestWxr.Result plain = TestWxr.read(
+                "\n \n"
+                        + TestWxr.doc("<item><title>t</title></item>")
+                                .substring(TestWxr.doc("").indexOf("<rss")),
+                WxrReadOptions.STRICT);
+        assertThat(plain.items()).extracting(WxrItem::title).containsExactly("t");
+        assertThat(plain.problems()).isEmpty();
+    }
+
+    @Test
+    void aClosedReaderHasNoNextEntry() {
+        byte[] bytes = TestWxr.doc("<item><title>a</title></item><item><title>b</title></item>")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        WxrReader reader = WxrReader.open(new ByteArrayInputStream(bytes));
+        assertThat(reader.hasNext()).isTrue();
+        reader.close();
+        assertThat(reader.hasNext()).isFalse();
+        assertThatThrownBy(reader::next).isInstanceOf(java.util.NoSuchElementException.class);
+    }
+
+    @Test
+    void theEncodingSniffAndThePreFilterAgreeOnHowMuchLeadingWhitespaceIsAllowed() {
+        String doc = TestWxr.doc("<item><title>caf\u00e9</title></item>")
+                .replace("encoding=\"UTF-8\"", "encoding=\"ISO-8859-1\"");
+        for (int blanks : new int[] {2_000, XmlInput.MAX_LEADING_WHITESPACE - 1}) {
+            byte[] bytes = (" ".repeat(blanks) + doc).getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            TestWxr.Result r = TestWxr.read(bytes, WxrReadOptions.LENIENT);
+            assertThat(r.items())
+                    .extracting(WxrItem::title)
+                    .as("%d blanks", blanks)
+                    .containsExactly("caf\u00e9");
+            assertThat(r.kinds()).as("%d blanks", blanks).containsExactly(WxrProblem.Kind.INVALID_MARKUP);
+        }
+        // at the bound neither takes it for a declaration: read as UTF-8, the declaration is out of place
+        byte[] far = (" ".repeat(XmlInput.MAX_LEADING_WHITESPACE) + doc)
+                .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        TestWxr.Result r = TestWxr.read(far, WxrReadOptions.LENIENT);
+        assertThat(r.kinds()).contains(WxrProblem.Kind.INVALID_ENCODING).doesNotContain(WxrProblem.Kind.INVALID_MARKUP);
+    }
 }

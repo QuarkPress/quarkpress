@@ -215,4 +215,41 @@ class HostileInputTest {
         assertThat(r.items().get(0).title()).isEqualTo("T");
         assertThat(r.kinds()).containsExactly(WxrProblem.Kind.VALUE_TOO_LARGE);
     }
+
+    @Test
+    void theAttributeCapIsAThousandAndKeepsTheFirstOnes() throws java.io.IOException {
+        assertThat(RepairingReader.MAX_ATTRIBUTES).isEqualTo(1_000);
+        StringBuilder tag = new StringBuilder("<t");
+        for (int i = 0; i <= 1_000; i++) {
+            tag.append(" a").append(i).append("='v'");
+        }
+        ProblemLog log = new ProblemLog(true);
+        StringBuilder out = new StringBuilder();
+        try (RepairingReader reader = new RepairingReader(new java.io.StringReader(tag + "/>"), log)) {
+            char[] buffer = new char[8192];
+            for (int n; (n = reader.read(buffer, 0, buffer.length)) >= 0; ) {
+                out.append(buffer, 0, n);
+            }
+        }
+        assertThat(out.toString())
+                .contains(" a0='v'", " a999='v'")
+                .doesNotContain("a1000")
+                .endsWith("/>");
+        assertThat(log.problems()).extracting(WxrProblem::kind).containsExactly(WxrProblem.Kind.VALUE_TOO_LARGE);
+    }
+
+    @Test
+    void manyTagsAtTheAttributeCapReadInBoundedTime() {
+        // the JDK's namespace support is quadratic in the declarations of one tag; the cap keeps each tag cheap
+        String decls = declarations(RepairingReader.MAX_ATTRIBUTES);
+        StringBuilder body = new StringBuilder();
+        for (int i = 0; i < 2_000; i++) {
+            body.append("<item").append(decls).append("><title>t").append(i).append("</title></item>\n");
+        }
+        String xml = TestWxr.doc(body.toString());
+        TestWxr.Result r = assertTimeoutPreemptively(LIMIT, () -> TestWxr.read(xml, WxrReadOptions.STRICT));
+        assertThat(r.items()).hasSize(2_000);
+        assertThat(r.items().get(1_999).title()).isEqualTo("t1999");
+        assertThat(r.problems()).isEmpty();
+    }
 }

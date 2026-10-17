@@ -388,4 +388,162 @@ class WxrWriterTest {
             assertThat(i.comments().get(0).authorUrl()).isEqualTo(XmlText.sanitize(v.get(1)));
         });
     }
+
+    /** Fails the writes numbered {@code failFrom} up to {@code failTo} (1-based, inclusive); remembers close(). */
+    private static final class FlakyStream extends ByteArrayOutputStream {
+        int writes;
+        int failFrom = Integer.MAX_VALUE;
+        int failTo = Integer.MAX_VALUE;
+        boolean closed;
+
+        @Override
+        public synchronized void write(byte[] b, int off, int len) {
+            writes++;
+            if (writes >= failFrom && writes <= failTo) {
+                throw new java.io.UncheckedIOException(new java.io.IOException("disk full"));
+            }
+            super.write(b, off, len);
+        }
+
+        @Override
+        public void write(byte[] b) throws java.io.IOException {
+            write(b, 0, b.length);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+
+        int count(String needle) {
+            String all = toString(StandardCharsets.UTF_8);
+            int n = 0;
+            for (int at = all.indexOf(needle); at >= 0; at = all.indexOf(needle, at + 1)) {
+                n++;
+            }
+            return n;
+        }
+    }
+
+    /** An OutputStream wrapper that turns the flaky stream's unchecked failures into the IOExceptions streams throw. */
+    private static java.io.OutputStream checked(FlakyStream flaky) {
+        return new java.io.OutputStream() {
+            @Override
+            public void write(int b) throws java.io.IOException {
+                write(new byte[] {(byte) b}, 0, 1);
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws java.io.IOException {
+                try {
+                    flaky.write(b, off, len);
+                } catch (java.io.UncheckedIOException e) {
+                    throw e.getCause();
+                }
+            }
+
+            @Override
+            public void close() {
+                flaky.close();
+            }
+        };
+    }
+
+    @Test
+    void anIoErrorInsideAnEntryBreaksTheWriterWithoutDuplicatesOrTail() {
+        FlakyStream flaky = new FlakyStream();
+        WxrWriter writer = WxrWriter.open(checked(flaky), SITE);
+        writer.author(new WxrAuthor(1L, "first-author", "", "", "", ""));
+        writer.item(
+                WxrItem.builder().title("item-one").content("x".repeat(100_000)).build());
+        int before = flaky.writes;
+        flaky.failFrom = before + 3; // a few chunks of item two reach the stream, then one write fails
+        flaky.failTo = before + 3;
+        assertThatThrownBy(() -> writer.item(WxrItem.builder()
+                        .title("item-two")
+                        .content("y".repeat(200_000))
+                        .build()))
+                .isInstanceOf(java.io.UncheckedIOException.class)
+                .hasRootCauseMessage("disk full");
+        // the stream works again: nothing more may be written to it all the same
+        assertThatThrownBy(
+                        () -> writer.item(WxrItem.builder().title("item-three").build()))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> writer.author(new WxrAuthor(2L, "late", "", "", "", "")))
+                .isInstanceOf(IllegalStateException.class);
+        writer.close();
+        assertThat(flaky.closed).isTrue();
+        assertThat(flaky.count("<?xml")).isEqualTo(1);
+        assertThat(flaky.count("first-author")).isEqualTo(1);
+        assertThat(flaky.count("item-one")).isLessThanOrEqualTo(1);
+        assertThat(flaky.count("item-two")).isLessThanOrEqualTo(1);
+        assertThat(flaky.count("y")).isLessThanOrEqualTo(200_000);
+        assertThat(flaky.count("item-three")).isZero();
+        assertThat(flaky.count("</rss>"))
+                .as("a broken writer does not end the document")
+                .isZero();
+        writer.close();
+    }
+
+    @Test
+    void aRefusedEntryLeavesNoTraceAndTheWriterUsable() {
+        String out = text(write(SITE, w -> {
+            w.category(new WxrCategory(2L, "news", "", "News", null, null));
+            assertThatThrownBy(() -> w.category(new WxrCategory(3L, "child", "nope", "Child", null, null)))
+                    .isInstanceOf(IllegalArgumentException.class);
+            w.category(new WxrCategory(4L, "local", "news", "Local", null, null));
+            assertThatThrownBy(() -> w.term(new WxrTerm(8L, "genre", "sci-fi", "fiction", "S", null, null)))
+                    .isInstanceOf(IllegalArgumentException.class);
+            w.term(new WxrTerm(9L, "genre", "fiction", "", "F", null, null));
+            w.item(WxrItem.builder().title("t").build());
+            assertThatThrownBy(() -> w.tag(new WxrTag(5L, "php", "PHP", null, null)))
+                    .isInstanceOf(IllegalStateException.class);
+            w.item(WxrItem.builder().title("u").build());
+        }));
+        assertThat(out).doesNotContain("\t\t<wp:term>", "\t\t<wp:category>", "\t\t<item>", "\t\t\t", "sci-fi", "child");
+        assertThat(out).contains("\n\t<wp:term>\n", "\n\t<wp:category>\n").endsWith("</channel>\n</rss>\n");
+        TestWxr.Result r = TestWxr.read(out, WxrReadOptions.STRICT);
+        assertThat(r.entries()).hasSize(5);
+    }
+
+    @Test
+    void aFailingHeaderClosesTheStream() {
+        FlakyStream flaky = new FlakyStream();
+        flaky.failFrom = 1;
+        WxrSite huge = new WxrSite("t".repeat(300_000), "l", "", null, "en", null, "b", "b", null);
+        assertThatThrownBy(() -> WxrWriter.open(checked(flaky), huge)).isInstanceOf(java.io.UncheckedIOException.class);
+        assertThat(flaky.closed).isTrue();
+
+        FlakyStream ok = new FlakyStream();
+        Clock broken = new Clock() {
+            @Override
+            public java.time.ZoneId getZone() {
+                return ZoneOffset.UTC;
+            }
+
+            @Override
+            public Clock withZone(java.time.ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public Instant instant() {
+                throw new IllegalStateException("no time");
+            }
+        };
+        WxrSite noDate = new WxrSite("t", "l", "", null, "en", null, "b", "b", null);
+        assertThatThrownBy(() -> WxrWriter.open(ok, noDate, broken)).hasMessage("no time");
+        assertThat(ok.closed).isTrue();
+    }
+
+    @Test
+    void closeClosesTheStreamWhenWritingTheEndFails() {
+        FlakyStream flaky = new FlakyStream();
+        WxrWriter writer = WxrWriter.open(checked(flaky), SITE);
+        writer.item(WxrItem.builder().title("t").build());
+        flaky.failFrom = 1;
+        assertThatThrownBy(writer::close).isInstanceOf(java.io.UncheckedIOException.class);
+        assertThat(flaky.closed).isTrue();
+        writer.close(); // already closed: nothing happens
+    }
 }

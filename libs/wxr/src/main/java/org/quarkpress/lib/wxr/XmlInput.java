@@ -22,20 +22,43 @@ import java.util.zip.GZIPInputStream;
 final class XmlInput {
 
     static final int DECLARATION_SNIFF = 1024;
+    /**
+     * The most whitespace chars before an XML declaration that still let it be recognised, here for its encoding and
+     * in the pre-filter, which drops them; one byte each in every encoding sniffed here.
+     */
+    static final int MAX_LEADING_WHITESPACE = 65_536;
+
     private static final int BUFFER = 65_536;
 
     private XmlInput() {}
 
+    /**
+     * The decoded input. When this throws after the decompressor was created, the decompressor is closed, which ends
+     * its inflater and closes the given stream.
+     */
     static Reader decode(InputStream in, WxrReadOptions options, ProblemLog log) throws IOException {
         BufferedInputStream bytes = new BufferedInputStream(new Guarded(in, true), BUFFER);
-        if (options.gzipAutoDetect() && isGzip(bytes)) {
-            bytes = new BufferedInputStream(new Guarded(new GZIPInputStream(bytes, BUFFER), false), BUFFER);
+        GZIPInputStream gzip = null;
+        try {
+            if (options.gzipAutoDetect() && isGzip(bytes)) {
+                gzip = new GZIPInputStream(bytes, BUFFER);
+                bytes = new BufferedInputStream(new Guarded(gzip, false), BUFFER);
+            }
+            Charset charset = charset(bytes, log);
+            CharsetDecoder decoder = charset.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT);
+            return new DecodingReader(bytes, decoder, log);
+        } catch (IOException | RuntimeException e) {
+            if (gzip != null) {
+                try {
+                    gzip.close();
+                } catch (IOException closing) {
+                    e.addSuppressed(closing);
+                }
+            }
+            throw e;
         }
-        Charset charset = charset(bytes, log);
-        CharsetDecoder decoder = charset.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT);
-        return new DecodingReader(bytes, decoder, log);
     }
 
     private static boolean isGzip(BufferedInputStream in) throws IOException {
@@ -85,8 +108,14 @@ final class XmlInput {
         if (b0 == 0x00 && b1 == 0x3C && b2 == 0x00 && b3 == 0x3F) {
             return StandardCharsets.UTF_16BE;
         }
-        byte[] head = peekHead(in, DECLARATION_SNIFF);
+        byte[] head = peekHead(in, MAX_LEADING_WHITESPACE + DECLARATION_SNIFF);
+        // whitespace before the declaration is not allowed, but real exports have it; the pre-filter reports it
         String text = new String(head, StandardCharsets.ISO_8859_1);
+        int start = skipBlanks(text, 0);
+        if (start >= MAX_LEADING_WHITESPACE) {
+            return StandardCharsets.UTF_8; // too far in: the pre-filter does not take it for a declaration either
+        }
+        text = text.substring(start, Math.min(text.length(), start + DECLARATION_SNIFF));
         int end = text.indexOf("?>");
         if (!text.startsWith("<?xml") || end < 0 || text.length() < 6 || !isBlank(text.charAt(5))) {
             return StandardCharsets.UTF_8;

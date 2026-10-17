@@ -232,4 +232,46 @@ class XmlInputTest {
         decode(utf8("<?xml-stylesheet encoding=\"x-nonexistent-42\"?><r/>"), WxrReadOptions.LENIENT, quiet);
         assertThat(quiet.problems()).isEmpty();
     }
+
+    @Test
+    void aDecompressorThatFailsDuringDetectionIsClosed() throws IOException {
+        // a valid gzip header followed by data that is not deflate: the encoding sniff fails inside the inflater
+        byte[] bytes = {0x1F, (byte) 0x8B, 8, 0, 0, 0, 0, 0, 0, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 1, 2, 3, 4};
+        boolean[] closed = {false};
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes) {
+            @Override
+            public void close() {
+                closed[0] = true;
+            }
+        };
+        assertThatThrownBy(() -> XmlInput.decode(in, WxrReadOptions.LENIENT, new ProblemLog(true)))
+                .isInstanceOf(IOException.class);
+        assertThat(closed[0])
+                .as("closing the decompressor ends its inflater and closes the stream")
+                .isTrue();
+    }
+
+    @Test
+    void theDeclaredEncodingIsFoundBehindLeadingWhitespace() throws IOException {
+        byte[] latin1 = "\r\n \t<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><r>\u00e9</r>"
+                .getBytes(StandardCharsets.ISO_8859_1);
+        ProblemLog log = new ProblemLog(true);
+        assertThat(decode(latin1, WxrReadOptions.LENIENT, log))
+                .isEqualTo("\r\n \t<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><r>\u00e9</r>");
+        assertThat(log.problems()).as("reported by the pre-filter, not here").isEmpty();
+    }
+
+    @Test
+    void optionsAreEqualByValue() {
+        WxrReadOptions a = WxrReadOptions.LENIENT.withMaxItems(3);
+        WxrReadOptions b = WxrReadOptions.LENIENT.withMaxItems(3);
+        assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
+        assertThat(a).isNotEqualTo(WxrReadOptions.LENIENT);
+        assertThat(WxrReadOptions.LENIENT.withMaxItems(Long.MAX_VALUE)).isEqualTo(WxrReadOptions.LENIENT);
+        assertThat(WxrReadOptions.STRICT).isNotEqualTo(WxrReadOptions.LENIENT);
+        assertThat(WxrReadOptions.LENIENT.withGzipAutoDetect(false)).isNotEqualTo(WxrReadOptions.LENIENT);
+        assertThat(WxrReadOptions.LENIENT.withAcceptAnyWpNamespace(false)).isNotEqualTo(WxrReadOptions.LENIENT);
+        assertThat(WxrReadOptions.LENIENT.withMaxCharsPerValue(9)).isNotEqualTo(WxrReadOptions.LENIENT);
+        assertThat(WxrReadOptions.LENIENT).isNotEqualTo(null).isNotEqualTo("LENIENT");
+    }
 }

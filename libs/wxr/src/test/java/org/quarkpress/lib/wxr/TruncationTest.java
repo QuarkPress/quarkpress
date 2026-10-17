@@ -2,6 +2,7 @@ package org.quarkpress.lib.wxr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -86,6 +87,55 @@ class TruncationTest {
                             WxrException.class, e -> assertThat(e.kind()).isEqualTo(WxrProblem.Kind.TRUNCATED));
             assertThat(reader.hasNext()).isFalse();
         }
+    }
+
+    @Test
+    void aCutInsideAnOpenerOrAReferenceIsTruncationNotARepair() {
+        String head = EXAMPLE_A.substring(0, EXAMPLE_A.indexOf("</wp:category>") + "</wp:category>".length());
+        for (String tail : List.of("<", "</", "<!", "<!-", "<![CDA", "<?", "&", "&am", "&#3", "&#x", "<!-- c --")) {
+            byte[] bytes = (head + "\n\t" + tail).getBytes(StandardCharsets.UTF_8);
+            TestWxr.Result r = TestWxr.read(bytes, WxrReadOptions.LENIENT);
+            assertThat(r.entries().stream().map(Canonical::strip).toList())
+                    .as(tail)
+                    .containsExactly(ExampleA.AUTHOR, ExampleA.CATEGORY);
+            assertThat(r.kinds()).as(tail).containsExactly(WxrProblem.Kind.TRUNCATED);
+            try (WxrReader reader = WxrReader.open(new ByteArrayInputStream(bytes), WxrReadOptions.STRICT)) {
+                assertThat(reader.next()).as(tail).isInstanceOf(WxrAuthor.class);
+                assertThat(reader.next()).as(tail).isInstanceOf(WxrCategory.class);
+                assertThatThrownBy(reader::hasNext)
+                        .as(tail)
+                        .isInstanceOfSatisfying(
+                                WxrException.class, e -> assertThat(e.kind()).isEqualTo(WxrProblem.Kind.TRUNCATED));
+            }
+        }
+    }
+
+    @Test
+    void theCauseOfAMalformedBreakIsListed() {
+        // an illegal char inside an end tag is repaired by the pre-filter, and the tag still breaks the document
+        String broken = EXAMPLE_A.replace("</wp:post_type>", "</wp:post_t\u0001ype>");
+        TestWxr.Result r = TestWxr.read(broken, WxrReadOptions.LENIENT);
+        assertThat(r.kinds()).containsExactly(WxrProblem.Kind.ILLEGAL_CHARACTER, WxrProblem.Kind.MALFORMED);
+    }
+
+    @Test
+    void carriageReturnsAloneEndLines() {
+        String xml = TestWxr.doc("<item>\r<title>a & b</title>\r<x></y>\r</item>")
+                .replace("\n", "\r")
+                .replace("</title>\r", "</title>\r\n"); // one CRLF: a single line break
+        TestWxr.Result r = TestWxr.read(xml, WxrReadOptions.LENIENT);
+        // line 1 declaration, 2 rss, 3 channel, 4 version, 5 item, 6 title
+        assertThat(r.problems())
+                .extracting(WxrProblem::kind, WxrProblem::line)
+                .containsExactly(tuple(WxrProblem.Kind.BARE_AMPERSAND, 6L), tuple(WxrProblem.Kind.MALFORMED, 7L));
+        // the decoder counts the same way: a bad byte on line 6
+        byte[] bytes = TestWxr.doc("<item>\r<title>a \u00e9 b</title></item>")
+                .replace("\n", "\r")
+                .getBytes(StandardCharsets.ISO_8859_1);
+        TestWxr.Result s = TestWxr.read(bytes, WxrReadOptions.LENIENT);
+        assertThat(s.problems())
+                .extracting(WxrProblem::kind, WxrProblem::line)
+                .containsExactly(tuple(WxrProblem.Kind.INVALID_ENCODING, 6L));
     }
 
     @Test

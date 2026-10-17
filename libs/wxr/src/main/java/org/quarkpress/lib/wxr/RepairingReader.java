@@ -10,6 +10,12 @@ import java.util.Objects;
  * {@link ProblemLog#repair}, which throws in strict mode. Linear time; lookahead is at most {@link #LOOKAHEAD}
  * characters; memory is one input window plus the output of one step.
  *
+ * <p>Input that ends while a construct is still undecided (inside "&lt;!-" or "&amp;am") is passed on unrepaired, so
+ * that the parser reports the input as cut off instead of this filter reporting a repair. Positions count a line feed,
+ * a carriage return and the two together as one line break, as XML does; a DOCTYPE before the root element becomes
+ * whitespace of the same shape and whitespace dropped before the XML declaration comes back as line feeds after it, so
+ * that the parser's lines stay those of the file.
+ *
  * <p>The parser buffers one whole comment, processing instruction, attribute name or attribute value at a time, so
  * this filter also holds each of them to the per-value limit: longer ones are refused (strict) or cut off with a
  * {@link WxrProblem.Kind#VALUE_TOO_LARGE} problem (lenient). Text and CDATA content are not cut here; the reader
@@ -68,9 +74,11 @@ final class RepairingReader extends Reader {
     private int closers;
 
     private int doctypeBrackets;
+    /** Inside a comment or processing instruction of the internal subset: what ends it ("--&gt;" or "?&gt;"). */
+    private String doctypeEnd;
 
     /** The most attributes (namespace declarations included) one start tag may have; the JDK's own cap skips these. */
-    static final int MAX_ATTRIBUTES = 10_000;
+    static final int MAX_ATTRIBUTES = 1_000;
     /** Names seen in the current tag (the element name first). */
     private int tagNames;
     /** Whether the previous tag char outside quotes belonged to a name. */
@@ -82,6 +90,13 @@ final class RepairingReader extends Reader {
     private char doctypeQuote;
     private long line = 1;
     private long column = 1;
+    /** Whether the last char consumed was a carriage return: a line feed right after it ends no further line. */
+    private boolean afterCr;
+    /** Whether no step has run yet: the input may still start with whitespace before the XML declaration. */
+    private boolean atStart = true;
+    /** Whether an XML declaration is still allowed here: only in the first step, as the first markup. */
+    private boolean declarationAllowed = true;
+
     private long delivered;
     private IOException pendingIo;
     private RuntimeException pendingRuntime;
@@ -229,6 +244,14 @@ final class RepairingReader extends Reader {
             }
             return false;
         }
+        if (atStart) {
+            atStart = false;
+            if (isSpace(peek(0))) {
+                leadingWhitespace();
+                declarationAllowed = false;
+                return true;
+            }
+        }
         switch (state) {
             case TEXT -> text();
             case TAG -> tag();
@@ -237,7 +260,42 @@ final class RepairingReader extends Reader {
             case PI -> section("?>", true);
             case DOCTYPE -> doctype();
         }
+        declarationAllowed = false;
         return true;
+    }
+
+    /**
+     * Whitespace at the very start of the input. Before an XML declaration it is not allowed (themes and plugins print
+     * blank lines before an export): it is dropped with a problem, and as many line feeds as it held lines are added
+     * after the declaration, so that the parser's line numbers stay those of the file. Otherwise it is copied as is;
+     * so is a run of {@link XmlInput#MAX_LEADING_WHITESPACE} chars or more, after which a declaration is no longer
+     * recognised (by the encoding sniff either).
+     */
+    private void leadingWhitespace() throws IOException {
+        int n = 0;
+        while (n < XmlInput.MAX_LEADING_WHITESPACE && isSpace(peek(n))) {
+            n++;
+        }
+        boolean declarationFollows = n < XmlInput.MAX_LEADING_WHITESPACE;
+        for (int i = 0; declarationFollows && i < 5; i++) {
+            declarationFollows = peek(n + i) == "<?xml".charAt(i);
+        }
+        if (!declarationFollows || continuesName(peek(n + 5))) {
+            emit(n);
+            return;
+        }
+        log.repair(WxrProblem.Kind.INVALID_MARKUP, line, column, "whitespace before the XML declaration");
+        long before = line;
+        consume(n);
+        long breaks = line - before;
+        markup();
+        for (long i = 0; i < breaks; i++) {
+            out.append('\n');
+        }
+    }
+
+    private static boolean isSpace(int c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r';
     }
 
     // ---- input window ----
@@ -304,14 +362,26 @@ final class RepairingReader extends Reader {
         return true;
     }
 
-    /** Moves past {@code n} chars, keeping line and column. */
+    /**
+     * Moves past {@code n} chars, keeping line and column. A line feed, a carriage return, and the two together end a
+     * line, as in XML's end-of-line handling.
+     */
     private void consume(int n) {
         for (int i = pos; i < pos + n; i++) {
-            if (window[i] == '\n') {
+            char c = window[i];
+            if (c == '\n') {
+                if (!afterCr) {
+                    line++;
+                    column = 1;
+                }
+                afterCr = false;
+            } else if (c == '\r') {
                 line++;
                 column = 1;
+                afterCr = true;
             } else {
                 column++;
+                afterCr = false;
             }
         }
         pos += n;
@@ -402,7 +472,9 @@ final class RepairingReader extends Reader {
     }
 
     private void markup() throws IOException {
-        if (startsWith("<!--")) {
+        if (cutOpener()) {
+            passRest(false);
+        } else if (startsWith("<!--")) {
             emit(4);
             valueLength = 0;
             closers = 0;
@@ -413,9 +485,10 @@ final class RepairingReader extends Reader {
             state = State.CDATA;
         } else if (startsWithIgnoreCase("<!DOCTYPE")) {
             log.repair(WxrProblem.Kind.DOCTYPE, line, column, "DOCTYPE (DTDs are never processed)");
-            consume(9);
+            skipDoctype(9);
             doctypeBrackets = 0;
             doctypeQuote = 0;
+            doctypeEnd = null;
             state = State.DOCTYPE;
         } else if (startsWith("<?")) {
             if (!startsName(2)) {
@@ -451,6 +524,42 @@ final class RepairingReader extends Reader {
         } else {
             bareLessThan("a '<' that starts no markup is text");
         }
+    }
+
+    /**
+     * Whether the input ends before the markup at the current '&lt;' can be told: what is left is the start of an
+     * opener. It is then passed on unrepaired, for the parser to report the input as cut off.
+     */
+    private boolean cutOpener() throws IOException {
+        int second = peek(1);
+        if (second < 0) {
+            return true;
+        }
+        if (second == '/' || second == '?') {
+            return peek(2) < 0;
+        }
+        return second == '!'
+                && (endsInside("<!--", false) || endsInside("<![CDATA[", false) || endsInside("<!DOCTYPE", true));
+    }
+
+    /** True when the input ends inside {@code opener}: every char left matches it and fewer are left than it has. */
+    private boolean endsInside(String opener, boolean ignoreCase) throws IOException {
+        for (int i = 0; i < opener.length(); i++) {
+            int c = peek(i);
+            if (c < 0) {
+                return true;
+            }
+            char want = opener.charAt(i);
+            if (c != want && !(ignoreCase && c == Character.toLowerCase(want))) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** Copies what is left of the input (a few chars, all in the window) unrepaired. */
+    private void passRest(boolean bounded) {
+        emitOrDrop(limit - pos, bounded);
     }
 
     /**
@@ -493,20 +602,23 @@ final class RepairingReader extends Reader {
                 return false;
             }
         }
-        int after = peek(5);
-        boolean continuesName = (after >= 'a' && after <= 'z')
-                || (after >= 'A' && after <= 'Z')
-                || (after >= '0' && after <= '9')
-                || after == '-'
-                || after == '.'
-                || after == '_'
-                || after == ':'
-                || (after >= 0x80 && XmlChars.isNameStart(after));
-        if (continuesName) {
+        if (continuesName(peek(5))) {
             return false;
         }
-        declaration = line == 1 && column == 1 && startsWith("<?xml");
+        declaration = declarationAllowed && startsWith("<?xml");
         return !declaration;
+    }
+
+    /** Whether {@code c} (-1 at the end of input) would continue a target name of ASCII or name-start chars. */
+    private static boolean continuesName(int c) {
+        return (c >= 'a' && c <= 'z')
+                || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9')
+                || c == '-'
+                || c == '.'
+                || c == '_'
+                || c == ':'
+                || (c >= 0x80 && XmlChars.isNameStart(c));
     }
 
     /** Whether an XML name starts {@code ahead} chars past the current one. */
@@ -613,7 +725,9 @@ final class RepairingReader extends Reader {
         }
     }
 
-    /** Copies a run of tag chars outside quotes, holding each name (a stretch without space, '=' or '/') to the limit. */
+    /**
+     * Copies a run of tag chars outside quotes, holding each name (a stretch without space, '=' or '/') to the limit.
+     */
     private void copyNames(int n) {
         for (int i = pos; i < pos + n; i++) {
             char c = window[i];
@@ -743,6 +857,8 @@ final class RepairingReader extends Reader {
             }
             emit(end.length());
             state = State.TEXT;
+        } else if (window[pos] == '-' && state == State.COMMENT && peek(1) == '-' && peek(2) < 0) {
+            passRest(true); // the input ends after "--": cut off, not a "--" inside the comment
         } else if (window[pos] == '-' && state == State.COMMENT && peek(1) == '-' && valueLength <= valueCap) {
             log.repair(WxrProblem.Kind.INVALID_MARKUP, line, column, "'--' is not allowed inside a comment");
             appendBounded("- ", true); // counted as the two chars it becomes
@@ -754,23 +870,38 @@ final class RepairingReader extends Reader {
         }
     }
 
-    /** Skips the rest of a DOCTYPE, internal subset included; emits nothing. */
+    /**
+     * Skips the rest of a DOCTYPE, internal subset included. Before the root element it becomes whitespace of the
+     * same length and lines, so that the parser's positions stay those of the file; elsewhere it is dropped.
+     */
     private void doctype() throws IOException {
         int c;
-        while ((c = peek(0)) >= 0) {
-            if (c == '<' && doctypeQuote == 0 && doctypeBrackets > 0) {
+        // one window of output per step at most: a DOCTYPE before the root becomes as much whitespace
+        while (out.length() < WINDOW && (c = peek(0)) >= 0) {
+            if (doctypeEnd != null) {
                 // comments and instructions in the internal subset are skipped whole: quotes and brackets in them mean
                 // nothing
+                if (startsWith(doctypeEnd)) {
+                    skipDoctype(doctypeEnd.length());
+                    doctypeEnd = null;
+                } else {
+                    skipDoctype(1);
+                }
+                continue;
+            }
+            if (c == '<' && doctypeQuote == 0 && doctypeBrackets > 0) {
                 if (startsWith("<!--")) {
-                    skipThrough("-->", 4);
+                    skipDoctype(4);
+                    doctypeEnd = "-->";
                     continue;
                 }
                 if (startsWith("<?")) {
-                    skipThrough("?>", 2);
+                    skipDoctype(2);
+                    doctypeEnd = "?>";
                     continue;
                 }
             }
-            consume(1);
+            skipDoctype(1);
             if (doctypeQuote != 0) {
                 if (c == doctypeQuote) {
                     doctypeQuote = 0;
@@ -788,16 +919,15 @@ final class RepairingReader extends Reader {
         }
     }
 
-    /** Skips {@code opening} chars and then everything up to and including {@code end}, or to the end of input. */
-    private void skipThrough(String end, int opening) throws IOException {
-        consume(opening);
-        while (peek(0) >= 0) {
-            if (startsWith(end)) {
-                consume(end.length());
-                return;
+    /** Moves past {@code n} chars of a DOCTYPE: as whitespace keeping the line breaks before the root, else dropped. */
+    private void skipDoctype(int n) {
+        if (!startTagSeen) {
+            for (int i = pos; i < pos + n; i++) {
+                char c = window[i];
+                out.append(c == '\n' || c == '\r' ? c : ' ');
             }
-            consume(1);
         }
+        consume(n);
     }
 
     private void reference(boolean bounded) throws IOException {
@@ -807,6 +937,10 @@ final class RepairingReader extends Reader {
             return;
         }
         int length = referenceLength();
+        if (length < 0) {
+            passRest(bounded); // the input ends inside what may be a reference: cut off, not a bare '&'
+            return;
+        }
         if (length == 0) {
             log.repair(WxrProblem.Kind.BARE_AMPERSAND, line, column, "a '&' that starts no reference is text");
             appendBounded("&amp;", bounded);
@@ -867,8 +1001,14 @@ final class RepairingReader extends Reader {
         return true;
     }
 
-    /** The length of a well-formed reference starting at the current '&', or 0. Fills the window as needed. */
+    /**
+     * The length of a well-formed reference starting at the current '&', 0 if there is none, or -1 if the input ends
+     * before that can be told. Fills the window as needed.
+     */
     private int referenceLength() throws IOException {
+        if (peek(1) < 0) {
+            return -1;
+        }
         if (peek(1) == '#') {
             boolean hex = peek(2) == 'x';
             int start = hex ? 3 : 2;
@@ -880,7 +1020,11 @@ final class RepairingReader extends Reader {
             while (i - significant < MAX_DIGITS && isDigit(peek(i), hex)) {
                 i++;
             }
-            return i > start && peek(i) == ';' ? i + 1 : 0;
+            int end = peek(i);
+            if (end < 0) {
+                return -1;
+            }
+            return i > start && end == ';' ? i + 1 : 0;
         }
         if (!isAsciiNameStart(peek(1))) {
             return 0;
@@ -889,7 +1033,11 @@ final class RepairingReader extends Reader {
         while (i <= MAX_NAME && isAsciiNameChar(peek(i))) {
             i++;
         }
-        return peek(i) == ';' ? i + 1 : 0;
+        int end = peek(i);
+        if (end < 0) {
+            return -1;
+        }
+        return end == ';' ? i + 1 : 0;
     }
 
     /** A char that is not plain: an XML-illegal one, or half of a surrogate pair. */
@@ -914,7 +1062,7 @@ final class RepairingReader extends Reader {
                 column,
                 "char 0x" + Integer.toHexString(window[pos]) + " is not allowed in XML");
         if (!bounded || admit(1) == 1) {
-            out.append('\uFFFD');
+            out.append(XmlChars.REPLACEMENT);
         }
         consume(1);
     }

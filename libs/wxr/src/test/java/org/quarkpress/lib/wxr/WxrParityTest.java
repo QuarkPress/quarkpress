@@ -37,12 +37,12 @@ class WxrParityTest {
 
     static final Path FAILURES = Path.of("target/wp-parity-failures.json");
     static final int GENERATED_DOCUMENTS = 300;
-    static final int MIN_COMPARISONS = 20_000;
+    static final int MIN_COMPARISONS = 30_000;
     /** Floors per section, so that neither the reader nor the writer comparisons can vanish behind the other. */
     static final int MIN_READER_COMPARISONS = 10_000;
 
     static final int MIN_WRITER_COMPARISONS = 5_000;
-    static final int MIN_ROUND_TRIP_COMPARISONS = 1_000;
+    static final int MIN_ROUND_TRIP_COMPARISONS = 5_000;
     static final int MIN_META_COMPARISONS = 200;
     static final int MIN_DATASETS = 65;
     /** The aspect prefix of a value that differs only as {@link WxrParity#undecodedTailReference} explains. */
@@ -217,7 +217,20 @@ class WxrParityTest {
             "a:1:{i:0;s:3:\"red\";}",
             "O:3:\"Foo\":1:{s:1:\"a\";i:1;}",
             "a:1:{i:0;s:13:\"O:3:\"Foo\":0:{\";}",
-            " b:1; ");
+            " b:1; ",
+            "d:INF;",
+            "d:-INF;",
+            "d:NAN;",
+            "d:-0;",
+            "s:2:\"\u00e9\";",
+            "s:1:\"\u00e9\";",
+            "s:3:\"\u00e9\";",
+            "a:2:{s:1:\"a\";a:1:{s:1:\"b\";i:1;}s:1:\"c\";a:1:{s:3:\"k-1\";s:0:\"\";}}",
+            "s:14:\"a:1:{i:0;i:1;}\";",
+            "s:22:\"s:14:\"a:1:{i:0;i:1;}\";\";",
+            "a:2:{i:0;s:1:\"x\";i:1;R:2;}",
+            "a:2:{i:0;O:8:\"stdClass\":1:{s:1:\"p\";i:1;}i:1;r:2;}",
+            "a:3:{i:0;a:1:{i:0;i:7;}i:1;R:3;i:2;R:2;}");
 
     /** The library's rewrite of a WordPress file: read leniently, write everything back in order. */
     static byte[] rewrite(byte[] original) {
@@ -266,6 +279,12 @@ class WxrParityTest {
         for (String id : originals.keySet()) {
             JsonNode original = parsed.get(id + "#original");
             JsonNode rewritten = parsed.get(id + "#rewritten");
+            // an original the importer refuses would make the comparison one of two errors, not of two files' data
+            assertThat(original.has("error"))
+                    .as(
+                            "the importer refused %s: %s",
+                            id, original.path("message").asText())
+                    .isFalse();
             boolean modified = original.get("parser").asText().equals("xmlprocessor")
                     && rewritten.get("parser").asText().equals("xmlprocessor");
             WxrParity.compare(

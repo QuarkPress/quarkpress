@@ -6,7 +6,9 @@ package org.quarkpress.lib.wxr;
  */
 public record WxrItemTerm(String domain, String nicename, String name) {
 
-    /** The taxonomy the importer files this under: {@code "tag"} becomes {@code "post_tag"}, no domain means category. */
+    /**
+     * The taxonomy the importer files this under: {@code "tag"} becomes {@code "post_tag"}, no domain means category.
+     */
     public String taxonomy() {
         if (domain == null) {
             return "category";

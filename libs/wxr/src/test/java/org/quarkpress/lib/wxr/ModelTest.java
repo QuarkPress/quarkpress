@@ -55,16 +55,61 @@ class ModelTest {
                 .parent(0L)
                 .userId(0L)
                 .commentMeta(List.of(new WxrMeta("rating", "5")))
+                .rawFields(Map.of("wp:comment_id", "100"))
                 .build();
         WxrItem item = WxrItem.builder()
                 .title("Hello")
-                .postId(10L)
+                .link("https://example.test/hello/")
+                .pubDate("Sun, 04 Jan 2026 14:00:00 +0000")
+                .creator("admin")
+                .guid("https://example.test/?p=10")
                 .guidIsPermaLink(false)
+                .description("d")
+                .content("<p>c</p>")
+                .excerpt("e")
+                .postId(10L)
+                .postDate("2026-01-04 09:00:00")
+                .postDateGmt("2026-01-04 14:00:00")
+                .postModified("2026-01-05 09:00:00")
+                .postModifiedGmt("2026-01-05 14:00:00")
+                .commentStatus("open")
+                .pingStatus("closed")
+                .postName("hello")
+                .status("publish")
+                .postParent(3L)
+                .menuOrder(4L)
+                .postType("attachment")
+                .postPassword("pw")
+                .isSticky(1L)
+                .attachmentUrl("https://example.test/a.png")
+                .terms(List.of(new WxrItemTerm("category", "news", "News")))
+                .postMeta(List.of(new WxrMeta("colors", "a:0:{}")))
                 .comments(List.of(comment))
                 .rawFields(Map.of("wp:post_id", "10"))
                 .build();
+        // every component is set, so a field the builder or toBuilder forgot cannot pass unnoticed
+        for (Record r : List.<Record>of(item, comment)) {
+            for (java.lang.reflect.RecordComponent c : r.getClass().getRecordComponents()) {
+                try {
+                    Object value = c.getAccessor().invoke(r);
+                    assertThat(value).as(c.getName()).isNotNull();
+                    if (value instanceof java.util.Collection<?> list) {
+                        assertThat(list).as(c.getName()).isNotEmpty();
+                    } else if (value instanceof Map<?, ?> map) {
+                        assertThat(map).as(c.getName()).isNotEmpty();
+                    }
+                } catch (ReflectiveOperationException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }
         assertThat(item.toBuilder().build()).isEqualTo(item);
         assertThat(comment.toBuilder().build()).isEqualTo(comment);
+        WxrItem retitled = item.toBuilder().title("other").build();
+        assertThat(retitled.title()).isEqualTo("other");
+        assertThat(retitled.toBuilder().title("Hello").build())
+                .as("only the title changed")
+                .isEqualTo(item);
         assertThat(item.comments().get(0).commentMeta()).containsExactly(new WxrMeta("rating", "5"));
     }
 

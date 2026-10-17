@@ -40,9 +40,17 @@ import javax.xml.stream.XMLStreamReader;
  * document never declares them, as the WordPress Importer's regular-expression parser does, recording
  * {@link WxrProblem.Kind#UNKNOWN_NAMESPACE}; strict mode refuses such a document as malformed.
  *
- * <p>Problem positions come from the parser and the pre-filter. On the root element's line, columns after the
- * root start tag are shifted by the prefix declarations lenient mode adds there. The parser counts lines, columns
- * and offsets in {@code int}s, so on inputs beyond 2<sup>31</sup> chars its positions can wrap.
+ * <p>Lenient mode does not make every limit a problem: a text or CDATA value longer than
+ * {@link WxrReadOptions#maxCharsPerValue()} and an item past {@link WxrReadOptions#maxItems()} throw
+ * {@link WxrException} ({@link WxrProblem.Kind#VALUE_TOO_LARGE}, {@link WxrProblem.Kind#TOO_MANY_ITEMS}) in both
+ * modes; only overlong comments, processing instructions and attributes are cut off with a problem.
+ *
+ * <p>Problem positions come from the parser and the pre-filter. The reader reads ahead, so lenient mode can list
+ * problems found past the point where reading stopped (junk after {@code </rss>}, or repairs just past a
+ * {@link WxrProblem.Kind#MALFORMED} break): the problem list may include positions no entry covers. On the root
+ * element's line, columns after the root start tag are shifted by the prefix declarations lenient mode adds there.
+ * The parser counts lines, columns and offsets in {@code int}s, so on inputs beyond 2<sup>31</sup> chars its
+ * positions can wrap.
  *
  * <p>Not thread-safe. I/O errors of the given stream surface as {@link UncheckedIOException} in both modes. A gzip
  * stream that is cut off or damaged is a content problem: strict mode throws {@link WxrException} of kind
@@ -82,23 +90,39 @@ public final class WxrReader implements AutoCloseable {
         this.log = new ProblemLog(options.lenient());
     }
 
-    /** A lenient reader. */
+    /** A lenient reader of {@code in}; see {@link #open(InputStream, WxrReadOptions)}. */
     public static WxrReader open(InputStream in) {
         return open(in, WxrReadOptions.LENIENT);
     }
 
+    /**
+     * A reader of {@code in} with {@code options}. Nothing is read until the first call to {@link #hasNext()},
+     * {@link #next()} or {@link #site()}. The reader owns the stream: closing the reader closes it.
+     *
+     * @throws NullPointerException when {@code in} or {@code options} is null
+     */
     public static WxrReader open(InputStream in, WxrReadOptions options) {
         Objects.requireNonNull(in, "in");
         Objects.requireNonNull(options, "options");
         return new WxrReader(in, options);
     }
 
-    /** The channel fields read so far (all those before the first entry once {@link #hasNext()} was called). */
+    /**
+     * The channel fields read so far (all those before the first entry once {@link #hasNext()} was called). Calls
+     * {@link #hasNext()}, so it can throw what that throws.
+     */
     public WxrSite site() {
         hasNext();
         return site.snapshot();
     }
 
+    /**
+     * Whether another entry follows, reading up to the end of it. False at the end of the channel, after a break in
+     * lenient mode, and once the reader is closed.
+     *
+     * @throws WxrException in strict mode at the first problem, and in both modes when a limit is exceeded
+     * @throws UncheckedIOException when the given stream fails
+     */
     public boolean hasNext() {
         if (pending == null) {
             pending = fetch();
@@ -106,6 +130,13 @@ public final class WxrReader implements AutoCloseable {
         return pending != null;
     }
 
+    /**
+     * The next entry.
+     *
+     * @throws NoSuchElementException when there is none ({@link #hasNext()} is false)
+     * @throws WxrException as {@link #hasNext()} does
+     * @throws UncheckedIOException as {@link #hasNext()} does
+     */
     public WxrEntry next() {
         if (!hasNext()) {
             throw new NoSuchElementException();
@@ -120,13 +151,21 @@ public final class WxrReader implements AutoCloseable {
         return log.problems();
     }
 
+    /** How many problems were found so far, including those beyond the 1000 that {@link #problems()} keeps. */
     public long problemCount() {
         return log.count();
     }
 
+    /**
+     * Closes the reader and the given stream. Afterwards {@link #hasNext()} is false; {@link #problems()} and
+     * {@link #site()} still give what was read.
+     *
+     * @throws UncheckedIOException when closing the given stream fails
+     */
     @Override
     public void close() {
         finished = true;
+        pending = null;
         try {
             if (xml != null) {
                 xml.close();

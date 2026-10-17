@@ -36,6 +36,13 @@ class RepairingReaderTest {
         }
     }
 
+    /** What a DOCTYPE before the root becomes: a space for each char, line breaks kept. */
+    private static String blank(String doctype) {
+        StringBuilder b = new StringBuilder();
+        doctype.chars().forEach(c -> b.append(c == '\n' || c == '\r' ? (char) c : ' '));
+        return b.toString();
+    }
+
     private static final String CLEAN = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             + "<rss version=\"2.0\" xmlns:wp=\"http://wordpress.org/export/1.2/\">\n"
             + "<!-- a comment with < and & inside -->\n"
@@ -142,7 +149,10 @@ class RepairingReaderTest {
     void doctypeIsSkippedInLenientMode() throws IOException {
         ProblemLog log = new ProblemLog(true);
         String in = "<?xml version=\"1.0\"?>\n<!DOCTYPE rss [\n<!ENTITY x \"y>z\">\n]>\n<rss/>";
-        assertThat(repair(in, log)).isEqualTo("<?xml version=\"1.0\"?>\n\n<rss/>");
+        // before the root it becomes whitespace of the same shape, so that positions after it stay those of the file
+        assertThat(repair(in, log))
+                .isEqualTo(
+                        "<?xml version=\"1.0\"?>\n" + blank("<!DOCTYPE rss [\n<!ENTITY x \"y>z\">\n]>") + "\n<rss/>");
         assertThat(log.problems()).singleElement().satisfies(p -> {
             assertThat(p.kind()).isEqualTo(WxrProblem.Kind.DOCTYPE);
             assertThat(p.line()).isEqualTo(2);
@@ -175,7 +185,15 @@ class RepairingReaderTest {
     @Test
     void constructsCutOffByTheEndOfInputAreLeftForTheParser() throws IOException {
         assertThat(repair("<c><![CDATA[abc", new ProblemLog(true))).isEqualTo("<c><![CDATA[abc");
-        assertThat(repair("<t>a &", new ProblemLog(true))).isEqualTo("<t>a &amp;");
+        ProblemLog cut = new ProblemLog(true);
+        assertThat(repair("<t>a &", cut)).isEqualTo("<t>a &");
+        assertThat(repair("<t>a &#x1", cut)).isEqualTo("<t>a &#x1");
+        assertThat(repair("<t>a <!", cut)).isEqualTo("<t>a <!");
+        assertThat(repair("<t a='&lt", cut)).isEqualTo("<t a='&lt");
+        assertThat(cut.problems()).as("an end of input is not a repair").isEmpty();
+        // a DOCTYPE inside the root is dropped
+        ProblemLog inside = new ProblemLog(true);
+        assertThat(repair("<r><!DOCTYPE x></r>", inside)).isEqualTo("<r></r>");
         assertThat(repair("<!-- open", new ProblemLog(true))).isEqualTo("<!-- open");
     }
 
@@ -351,8 +369,9 @@ class RepairingReaderTest {
         Instant start = Instant.now();
         String out = drain("<".repeat(count), log);
         assertThat(Duration.between(start, Instant.now())).isLessThan(Duration.ofSeconds(30));
-        assertThat(out).hasSize(count * 4).isEqualTo("&lt;".repeat(count));
-        assertThat(log.count()).isEqualTo(count);
+        // the last one ends the input: left for the parser to report the cut
+        assertThat(out).hasSize(count * 4 - 3).isEqualTo("&lt;".repeat(count - 1) + "<");
+        assertThat(log.count()).isEqualTo(count - 1);
         assertThat(log.problems()).hasSize(ProblemLog.MAX_STORED + 1);
     }
 
@@ -421,7 +440,7 @@ class RepairingReaderTest {
                     try {
                         ProblemLog first = new ProblemLog(true);
                         String once = repair(xml, first, 4096);
-                        assertThat(XmlChars.isLegal(once)).isTrue();
+                        assertThat(XmlText.sanitize(once)).as("all legal").isSameAs(once);
                         assertThat(repair(xml, new ProblemLog(true), 1)).isEqualTo(once);
                         assertThat(repair(xml, new ProblemLog(true), 7)).isEqualTo(once);
                         // repairing a repaired text changes nothing and finds nothing
@@ -446,8 +465,9 @@ class RepairingReaderTest {
         assertThat(XmlChars.isLegal('\uD800')).isFalse();
         assertThat(XmlChars.isLegal(0x10FFFF)).isTrue();
         assertThat(XmlChars.isLegal(0x110000)).isFalse();
-        assertThat(XmlChars.isLegal("a\uD83D\uDE00")).isTrue();
-        assertThat(XmlChars.isLegal("a\uD83D")).isFalse();
+        String pair = "a\uD83D\uDE00";
+        assertThat(XmlText.sanitize(pair)).isSameAs(pair);
+        assertThat(XmlText.sanitize("a\uD83D")).isEqualTo("a" + XmlChars.REPLACEMENT);
         assertThat(XmlChars.isNameStart('a')).isTrue();
         assertThat(XmlChars.isNameStart('1')).isFalse();
         assertThat(XmlChars.isNameStart(0xD7)).isFalse();
@@ -460,11 +480,11 @@ class RepairingReaderTest {
         assertThat(repair(
                         "<?xml version=\"1.0\"?><!DOCTYPE rss [<!-- it's a test -->]><rss>t</rss>",
                         new ProblemLog(true)))
-                .isEqualTo("<?xml version=\"1.0\"?><rss>t</rss>");
+                .isEqualTo("<?xml version=\"1.0\"?>" + blank("<!DOCTYPE rss [<!-- it's a test -->]>") + "<rss>t</rss>");
         assertThat(repair("<!DOCTYPE r [<!-- ] --><!ENTITY x \"y\">]><r/>", new ProblemLog(true)))
-                .isEqualTo("<r/>");
+                .isEqualTo(blank("<!DOCTYPE r [<!-- ] --><!ENTITY x \"y\">]>") + "<r/>");
         assertThat(repair("<!DOCTYPE r [<?pi ] \" ?><!ENTITY x \"y\">]><r/>", new ProblemLog(true)))
-                .isEqualTo("<r/>");
+                .isEqualTo(blank("<!DOCTYPE r [<?pi ] \" ?><!ENTITY x \"y\">]>") + "<r/>");
     }
 
     // ---- lexical repairs ----
@@ -542,7 +562,7 @@ class RepairingReaderTest {
     void doctypeIsRecognisedInAnyCase() throws IOException {
         ProblemLog log = new ProblemLog(true);
         assertThat(repair("<!doctype rss><!DocType x [<!ENTITY a \"b\">]><rss/>", log))
-                .isEqualTo("<rss/>");
+                .isEqualTo(blank("<!doctype rss><!DocType x [<!ENTITY a \"b\">]>") + "<rss/>");
         assertThat(log.problems()).hasSize(2).allMatch(p -> p.kind() == WxrProblem.Kind.DOCTYPE);
         assertStrict("<!doctype rss><rss/>", WxrProblem.Kind.DOCTYPE);
     }

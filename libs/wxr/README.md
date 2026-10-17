@@ -51,8 +51,8 @@ try (WxrReader reader = WxrReader.open(Files.newInputStream(path), WxrReadOption
 - Text is the concatenation of text and CDATA with references decoded, and is never trimmed.
 - Integer fields are `Long`, null when absent or not a whole number; the text of every field stays in `rawFields()`.
 - Meta values are raw strings. `WxrMeta.parsed()` gives the value the importer would store: WordPress's
-  `is_serialized` check, every object header rewritten to `stdClass`, then `maybe_unserialize`. It is empty when the value is not serialized or cannot be
-  parsed, and is recomputed on each call.
+  `is_serialized` check, every object header rewritten to `stdClass`, then `maybe_unserialize`. It is empty when
+  the value is not serialized or cannot be parsed, and is recomputed on each call.
 - WXR 1.0 shapes are read as written: bare `<category>` elements keep a null domain, `domain="tag"` stays `tag`
   (`WxrItemTerm.taxonomy()` gives `post_tag`), parents may be names.
 - `withAcceptAnyWpNamespace(boolean)` controls whether any URI bound to `wp`/`excerpt` counts as WordPress's.
@@ -71,6 +71,7 @@ try (WxrReader reader = WxrReader.open(Files.newInputStream(path), WxrReadOption
 | `UNDEFINED_ENTITY` | `&nbsp;` and other undefined named references stay as text | throws |
 | `BARE_LESS_THAN` | a `<` that starts no markup is text | throws |
 | `INVALID_MARKUP` | `]]>` in text and `--` in a comment are escaped or split | throws |
+| `INVALID_MARKUP` (whitespace before the XML declaration) | dropped; themes and plugins print blank lines before an export | throws |
 | `DOCTYPE` | skipped; DTDs are never processed | throws |
 | `UNKNOWN_NAMESPACE` | another URI bound to `wp`/`excerpt`, or a WordPress prefix used without a declaration, is accepted | not accepted: an undeclared prefix throws `MALFORMED`; a foreign URI leaves the elements unrecognised, so `VERSION_MISSING` is thrown |
 | `NOT_WXR` | the root is not `rss`, there is no `channel`, or there is no element at all | throws |
@@ -79,9 +80,13 @@ try (WxrReader reader = WxrReader.open(Files.newInputStream(path), WxrReadOption
 | `TRUNCATED`, `MALFORMED` | every complete entry, then the entry being read with its completed fields, then the end | the complete entries, then throws |
 
 A byte-order mark is not a problem: it is skipped. At most 1000 problems are stored (`TOO_MANY_PROBLEMS` marks
-the cut); `problemCount()` counts all of them. A gzip stream that is cut off or corrupt is a content problem
-(`TRUNCATED` or `MALFORMED`); any other `IOException` of the stream surfaces as `UncheckedIOException` in both
-modes.
+the cut); `problemCount()` counts all of them. The reader reads ahead, so lenient mode can list problems found
+past the point where reading stopped (junk after `</rss>`, or repairs just past a `MALFORMED` break): the problem
+list may include positions the entries never covered. Lines end
+at a line feed, a carriage return or both together, as in XML. A gzip stream that is cut off or corrupt is a
+content problem (`TRUNCATED` or `MALFORMED`); any other `IOException` of the stream surfaces as
+`UncheckedIOException` in both modes. A file that ends inside a tag opener or a reference (`<!-`, `&am`) is
+`TRUNCATED`, not a repair.
 
 ### Limits and security
 
@@ -91,8 +96,9 @@ modes.
   and records the problem. A value costs roughly 3 to 6 bytes of heap per character while it is assembled, and the
   limit is per value, not per entry, so lower it to what your largest legitimate value needs when reading
   untrusted files. `withMaxItems(long)` (default unbounded) throws `TOO_MANY_ITEMS`.
-- A start tag may carry at most 10000 attributes, namespace declarations included. Strict mode throws
-  `VALUE_TOO_LARGE`; lenient mode drops the extra attributes and records one problem. WXR never needs more.
+- A start tag may carry at most 1000 attributes, namespace declarations included. Strict mode throws
+  `VALUE_TOO_LARGE`; lenient mode drops the extra attributes and records one problem. WXR elements carry about
+  five.
 - No DTD is ever processed and no external entity or DTD is ever fetched. Entity expansion is not a risk: only
   the five predefined references exist.
 - The repairs run in a streaming pre-filter with bounded lookahead; its cost is linear in the input.
@@ -109,15 +115,27 @@ try (WxrWriter writer = WxrWriter.open(out, site)) {   // XML declaration, names
 }                                                       // ends channel and rss, closes the stream
 ```
 
-Elements, namespaces and CDATA usage follow WordPress 7.1.3's export. Policy stays with the caller: WordPress's
-exporter skips `_edit_lock` meta, spam comments, revisions and auto-drafts, and lists parents first; this writer
-writes what it is given and only checks that each parent was written earlier. Memory is one entry at a time.
+Elements, namespaces and CDATA usage follow WordPress 7.1.3's export. Which entries to export stays with the
+caller: WordPress's exporter skips `_edit_lock` meta, spam comments, revisions and auto-drafts, and lists parents
+first; this writer neither filters nor reorders the entries it is given, and only checks that each parent was
+written earlier.
+
+- Each entry gets WordPress's fields. `rawFields()` is used only as a fallback for an integer field that is null;
+  other elements a reader kept there (unknown or foreign ones) are not written. `wp:attachment_url` is written
+  for attachments only, as WordPress does.
+- An entry out of order (`IllegalStateException`) or naming a parent not written before it
+  (`IllegalArgumentException`) is refused before anything is written; the writer stays usable. Any other failure
+  inside an entry, such as an I/O error, breaks the writer: later entries throw `IllegalStateException`, and
+  `close()` only closes the stream, leaving the document unfinished. `close()` closes the stream even when writing
+  the end fails, and so does `open` when writing the header fails.
+- Memory: one entry at a time, buffered as text before it is written (about 2 to 3 times the chars of its
+  values), plus the slug and name of every category and term written, kept for the parent checks.
 
 ## Differences from WordPress
 
 The reader and writer follow WordPress's export and the WordPress Importer (0.9.6) closely. These are the
 deliberate or unavoidable differences. The parity tests' skip lists cite the items they need by their label
-(D1 to D12).
+(D1 to D14).
 
 ### Reading
 
@@ -184,7 +202,8 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files and the
 WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-source/`, and runs the importer
 (`src/test/php/importer-driver.php`) and WordPress's own `export_wp()` (`src/test/php/export-driver.php`) through
-`testing/wp-oracle` on the same inputs as this library. The reader, the writer, a round trip and the meta values are compared.
+`testing/wp-oracle` on the same inputs as this library. The reader, the writer, a round trip and the meta values
+are compared.
 
 - **Reader against the importer's parsers** (`WxrParityTest`): the reference examples, two real WordPress
   exports, the edge cases in `src/test/resources/wxr/cases/` and 300 generated documents. The importer parses each
@@ -211,19 +230,21 @@ WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-sou
   rewrite of it (read in lenient mode, every entry written back in order). The files are the three reference
   examples and the 65 files `export_wp()` wrote above, except the Windows line endings one (D10 is shown there).
   Both views go through the importer's parser and the normal form of the reader comparison.
-- **Meta values** (`WxrParityTest`): each meta value of the corpus, 19 fixed shapes (wrong lengths, objects, object
-  headers inside strings, surrounding whitespace, cuts) and 200 generated values go through `WxrMeta.unserialized()`
-  and through the importer's own object-header rewrite and `maybe_unserialize`; the typed trees (types, array
-  order, byte strings, floats, objects with their class names) are compared.
+- **Meta values** (`WxrParityTest`): each meta value of the corpus, 32 fixed shapes (wrong lengths, multibyte
+  strings, infinite and not-a-number floats, negative zero, nested arrays with string keys, objects, object headers
+  inside strings, double-serialized strings, `R:` and `r:` references, surrounding whitespace, cuts) and 200
+  generated values go through `WxrMeta.unserialized()` and through the importer's own object-header rewrite and
+  `maybe_unserialize`; the typed trees (types, array order, byte strings, floats, objects with their class names)
+  are compared. A reference is compared as the value it names, as PHP shows it.
 - **Differences.** `src/test/resources/wp-parity-skip-simplexml.txt` and `wp-parity-skip-xmlprocessor.txt` list
   each expected difference with its item above: numeric references and short trailing named references (D1),
   fields after meta (D2), a BOM, a Latin-1 declaration and `standalone` (D3), foreign or undeclared namespaces
-  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8); for the round trip, the version the writer always sets (D14),
-  D1 and D8 where the original's own parse shows them; for the meta values, an unknown enum (D13: the `C:` payload
-  and malformed-header differences of that row are shown by no value); for the writer, carriage returns (D10) and a category
-  named `0` (D12), with escaped attributes (D7), XML-illegal characters (D8), valid UTF-8 (D9) and channel text
-  (D11) listed as differences no dataset shows once both files are parsed. An entry that no longer differs fails
-  the build.
+  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8); for the round trip, the version the writer always
+  sets (D14), D1 and D8 where the original's own parse shows them; for the meta values, an unknown enum (D13: the
+  `C:` payload and malformed-header differences of that row are shown by no value); for the writer, carriage
+  returns (D10) and a category named `0` (D12), with escaped attributes (D7), XML-illegal characters (D8), valid
+  UTF-8 (D9) and channel text (D11) listed as differences no dataset shows once both files are parsed. An entry
+  that no longer differs fails the build. The round trip also requires that the importer accepts each original.
 
 ## Source policy
 

@@ -17,8 +17,6 @@ import java.util.Objects;
  */
 final class DecodingReader extends Reader {
 
-    private static final char REPLACEMENT = '\uFFFD';
-
     private final InputStream in;
     private final CharsetDecoder decoder;
     private final ProblemLog log;
@@ -28,6 +26,8 @@ final class DecodingReader extends Reader {
     private boolean flushed;
     private long line = 1;
     private long column = 1;
+    /** Whether the last char returned was a carriage return, so that a line feed after it ends no further line. */
+    private boolean afterCr;
     /** A strict refusal of bytes met while decoded chars were still to be returned; thrown by the next fill. */
     private XmlInput.Refusal refusal;
 
@@ -51,14 +51,23 @@ final class DecodingReader extends Reader {
         int n = Math.min(length, chars.remaining());
         chars.get(buffer, offset, n);
         for (int i = offset; i < offset + n; i++) {
-            if (buffer[i] == '\n') {
-                line++;
-                column = 1;
-            } else {
-                column++;
-            }
+            advance(buffer[i]);
         }
         return n;
+    }
+
+    /**
+     * Moves the position past {@code c}. A line feed, a carriage return, and the two together end a line, as in XML's
+     * end-of-line handling.
+     */
+    private void advance(char c) {
+        if (c == '\r' || (c == '\n' && !afterCr)) {
+            line++;
+            column = 1;
+        } else if (c != '\n') {
+            column++;
+        }
+        afterCr = c == '\r';
     }
 
     /** Decodes at least one char into {@code chars}; false at the end of input. */
@@ -93,7 +102,7 @@ final class DecodingReader extends Reader {
                     break;
                 }
                 bytes.position(bytes.position() + result.length());
-                chars.put(REPLACEMENT);
+                chars.put(XmlChars.REPLACEMENT);
                 log.repair(
                         WxrProblem.Kind.INVALID_ENCODING,
                         at[0],
@@ -133,17 +142,17 @@ final class DecodingReader extends Reader {
 
     /** Line and column of the char about to be added to {@code chars}. */
     private long[] positionOfNextChar() {
-        long l = line;
-        long c = column;
+        long savedLine = line;
+        long savedColumn = column;
+        boolean savedCr = afterCr;
         for (int i = 0; i < chars.position(); i++) {
-            if (chars.get(i) == '\n') {
-                l++;
-                c = 1;
-            } else {
-                c++;
-            }
+            advance(chars.get(i));
         }
-        return new long[] {l, c};
+        long[] at = {line, column};
+        line = savedLine;
+        column = savedColumn;
+        afterCr = savedCr;
+        return at;
     }
 
     @Override
