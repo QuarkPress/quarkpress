@@ -65,6 +65,12 @@ final class RepairingReader extends Reader {
     private long delivered;
     private IOException pendingIo;
     private RuntimeException pendingRuntime;
+    /** A read error met while chars were still waiting in the window; thrown once they are processed. */
+    private IOException inputFailure;
+    /** Where the input failed: the position of the first char processed as if the input had ended there. */
+    private long cutLine = Long.MAX_VALUE;
+
+    private long cutColumn = Long.MAX_VALUE;
 
     RepairingReader(Reader in, ProblemLog log) {
         this(in, log, WxrReadOptions.DEFAULT_MAX_CHARS_PER_VALUE);
@@ -80,9 +86,17 @@ final class RepairingReader extends Reader {
         this.valueCap = maxCharsPerValue;
     }
 
-    /** True when the underlying input is exhausted and every char of it has been consumed. */
+    /** True when the underlying input ended without a read error and every char of it has been consumed. */
     boolean atEof() {
-        return inputDone && pos >= limit;
+        return inputDone && pos >= limit && inputFailure == null;
+    }
+
+    /**
+     * True when a problem at {@code problemLine}:{@code problemColumn} lies before the point where a read error cut
+     * the input (always, when there was none): it was not caused by processing the remainder as the end of input.
+     */
+    boolean beforeCut(long problemLine, long problemColumn) {
+        return problemLine < cutLine || (problemLine == cutLine && problemColumn < cutColumn);
     }
 
     /** The number of chars returned by {@link #read} so far. */
@@ -154,6 +168,9 @@ final class RepairingReader extends Reader {
     /** Processes one construct or run of chars; false at the end of input. */
     private boolean step() throws IOException {
         if (peek(0) < 0) {
+            if (inputFailure != null) {
+                throw inputFailure;
+            }
             return false;
         }
         switch (state) {
@@ -187,7 +204,20 @@ final class RepairingReader extends Reader {
             pos = 0;
         }
         while (limit <= ahead && !inputDone) {
-            int n = in.read(window, limit, window.length - limit);
+            int n;
+            try {
+                n = in.read(window, limit, window.length - limit);
+            } catch (IOException e) {
+                cutLine = line;
+                cutColumn = column;
+                if (limit == 0) {
+                    throw e;
+                }
+                // the chars already read are processed as the end of the input, then the error is thrown
+                inputFailure = e;
+                inputDone = true;
+                return;
+            }
             if (n < 0) {
                 inputDone = true;
             } else {

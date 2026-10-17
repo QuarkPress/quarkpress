@@ -91,6 +91,10 @@ final class DecodingReader extends Reader {
                 flushed = true;
                 break;
             }
+            if (chars.position() > 0) {
+                // deliver these before reading on: a read error must not take decoded chars with it
+                break;
+            }
             readMore();
         }
         chars.flip();

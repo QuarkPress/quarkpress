@@ -1,6 +1,7 @@
 package org.quarkpress.lib.wxr;
 
 import java.io.BufferedInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -26,9 +27,9 @@ final class XmlInput {
     private XmlInput() {}
 
     static Reader decode(InputStream in, WxrReadOptions options, ProblemLog log) throws IOException {
-        BufferedInputStream bytes = new BufferedInputStream(in, BUFFER);
+        BufferedInputStream bytes = new BufferedInputStream(new Guarded(in, true), BUFFER);
         if (options.gzipAutoDetect() && isGzip(bytes)) {
-            bytes = new BufferedInputStream(new GZIPInputStream(bytes, BUFFER), BUFFER);
+            bytes = new BufferedInputStream(new Guarded(new GZIPInputStream(bytes, BUFFER), false), BUFFER);
         }
         Charset charset = charset(bytes, log);
         CharsetDecoder decoder = charset.newDecoder()
@@ -84,9 +85,7 @@ final class XmlInput {
         if (b0 == 0x00 && b1 == 0x3C && b2 == 0x00 && b3 == 0x3F) {
             return StandardCharsets.UTF_16BE;
         }
-        in.mark(DECLARATION_SNIFF);
-        byte[] head = in.readNBytes(DECLARATION_SNIFF);
-        in.reset();
+        byte[] head = peekHead(in, DECLARATION_SNIFF);
         String text = new String(head, StandardCharsets.ISO_8859_1);
         int end = text.indexOf("?>");
         if (!text.startsWith("<?xml") || end < 0 || text.length() < 6 || !isBlank(text.charAt(5))) {
@@ -111,6 +110,29 @@ final class XmlInput {
             log.repair(WxrProblem.Kind.UNSUPPORTED_ENCODING, 1, 1, "unknown encoding '" + name + "'; read as UTF-8");
             return StandardCharsets.UTF_8;
         }
+    }
+
+    /**
+     * Up to {@code n} bytes from the current position, which stays where it is. A read error ends the peek early:
+     * the {@link Guarded} stream below repeats it to the reader once the bytes before it are consumed.
+     */
+    private static byte[] peekHead(BufferedInputStream in, int n) throws IOException {
+        in.mark(n);
+        byte[] head = new byte[n];
+        int got = 0;
+        try {
+            while (got < n) {
+                int r = in.read(head, got, n - got);
+                if (r < 0) {
+                    break;
+                }
+                got += r;
+            }
+        } catch (IOException e) {
+            // repeated by the next read past these bytes
+        }
+        in.reset();
+        return Arrays.copyOf(head, got);
     }
 
     /** The value of {@code encoding="..."} (either quote) in an XML declaration, or null. */
@@ -150,5 +172,91 @@ final class XmlInput {
 
     private static boolean isBlank(char c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+    }
+
+    /**
+     * Keeps read errors from losing bytes. Once a read fails, every later read fails with the same exception without
+     * touching the stream again, so bytes buffered above it are delivered first and the error still arrives. It
+     * reports nothing available, so a buffered stream on top makes one read per call: otherwise it reads again in the
+     * same call while more is claimed, and an error there would discard the bytes already read in that call. Around
+     * the caller's stream it tags each failure as a {@link SourceException}.
+     */
+    private static final class Guarded extends FilterInputStream {
+
+        private final boolean source;
+        private IOException failure;
+
+        Guarded(InputStream in, boolean source) {
+            super(in);
+            this.source = source;
+        }
+
+        @Override
+        public int read() throws IOException {
+            check();
+            try {
+                return in.read();
+            } catch (IOException e) {
+                throw fail(e);
+            }
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            check();
+            try {
+                return in.read(b, off, len);
+            } catch (IOException e) {
+                throw fail(e);
+            }
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            check();
+            try {
+                return in.skip(n);
+            } catch (IOException e) {
+                throw fail(e);
+            }
+        }
+
+        @Override
+        public int available() {
+            return 0;
+        }
+
+        @Override
+        public boolean markSupported() {
+            return false;
+        }
+
+        private void check() throws IOException {
+            if (failure != null) {
+                throw failure;
+            }
+        }
+
+        private IOException fail(IOException e) {
+            failure = source && !(e instanceof SourceException) ? new SourceException(e) : e;
+            return failure;
+        }
+    }
+
+    /**
+     * A read error of the caller's own stream, as opposed to damage found while decompressing it: the I/O failed,
+     * the content is not to blame. The original exception is the cause.
+     */
+    static final class SourceException extends IOException {
+
+        private static final long serialVersionUID = 1L;
+
+        SourceException(IOException cause) {
+            super(cause.getMessage(), cause);
+        }
+
+        IOException original() {
+            return (IOException) getCause();
+        }
     }
 }
