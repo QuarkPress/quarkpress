@@ -28,7 +28,11 @@ public class FeatureResolver {
     @Inject
     RequestFeatureCache cache;
 
-    /** The features of a site; a null site is rejected (a SiteId is always a real, positive id). */
+    /**
+     * The features of a site; a null site is rejected (a SiteId is always a real, positive id). Reading the switches of
+     * a site other than the bound one runs on a thread of its own in a scope for that site (persistence module), which
+     * needs a second database connection while the caller holds one.
+     */
     public SiteFeatures forSite(SiteId site) {
         Objects.requireNonNull(site, "site");
         if (!Arc.container().requestContext().isActive()) {

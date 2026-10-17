@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.quarkpress.testing.gen.Gen;
 import org.quarkpress.testing.gen.Gens;
 import org.quarkpress.testing.gen.Properties;
 
@@ -18,12 +22,34 @@ class FeatureDescriptorTest {
         assertThat(FeatureDescriptor.isValidKey(key)).isTrue();
     }
 
+    static Stream<String> otherKeys() {
+        // Built from a code point: the formatter turns printable escapes into literal characters.
+        String eAcute = Character.toString(0xE9);
+        return Stream.of("", "Revisions", "1abc", "-a", "a b", "a.b", "caf" + eAcute);
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"", "Revisions", "1abc", "-a", "a b", "a.b", "café"})
+    @MethodSource("otherKeys")
     void rejectsOtherKeys(String key) {
         assertThat(FeatureDescriptor.isValidKey(key)).isFalse();
         assertThatThrownBy(() -> new FeatureDescriptor(key, "m", true, "d"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("invalid feature key '" + key
+                        + "': use 1 to 64 characters a-z, 0-9, '-' or '_', starting with a letter");
+    }
+
+    @Test
+    void nullPartsAreRejected() {
+        assertThat(FeatureDescriptor.isValidKey(null)).isFalse();
+        assertThatThrownBy(() -> new FeatureDescriptor(null, "m", true, "d"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("key");
+        assertThatThrownBy(() -> new FeatureDescriptor("k", null, true, "d"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("module");
+        assertThatThrownBy(() -> new FeatureDescriptor("k", "m", true, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("description");
     }
 
     @Test
@@ -48,21 +74,56 @@ class FeatureDescriptorTest {
 
     @Test
     void validityMatchesTheRuleOnAnyText() {
+        int tries = 3000;
+        AtomicInteger accepted = new AtomicInteger();
         Properties.check(
                 "FeatureDescriptorTest.anyText",
-                3000,
-                Gens.oneOf(Gens.strings(Gens.unicodeChars(), 0, 70), Gens.strings("abz09-_A ", 0, 70)),
-                text -> assertThat(FeatureDescriptor.isValidKey(text)).isEqualTo(followsTheRule(text)));
+                tries,
+                Gens.oneOf(Gens.strings(Gens.unicodeChars(), 0, 70), Gens.strings("abz09-_A ", 0, 70), mutatedKeys()),
+                text -> {
+                    boolean valid = FeatureDescriptor.isValidKey(text);
+                    assertThat(valid).isEqualTo(followsTheRule(text));
+                    if (valid) {
+                        accepted.incrementAndGet();
+                    }
+                });
+        // The mutated keys keep both answers frequent, so the property checks the accept path too.
+        assertThat(accepted.get()).isBetween(tries / 20, tries - tries / 20);
+    }
+
+    /** Valid keys (lengths 1 to 66, around the limit) with at most one character replaced, inserted or removed. */
+    private static Gen<String> mutatedKeys() {
+        String alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-_";
+        String noise = alphabet + "A.Z ";
+        Gen<String> keys = Gens.ints(0, 65)
+                .flatMap(length -> Gens.strings(alphabet, length, length).map(rest -> "k" + rest));
+        return random -> {
+            StringBuilder key = new StringBuilder(keys.next(random));
+            int at = random.nextInt(key.length() + 1);
+            char c = noise.charAt(random.nextInt(noise.length()));
+            switch (random.nextInt(4)) {
+                case 0 -> {}
+                case 1 -> key.insert(at, c);
+                case 2 -> key.setCharAt(Math.min(at, key.length() - 1), c);
+                default -> key.deleteCharAt(Math.min(at, key.length() - 1));
+            }
+            return key.toString();
+        };
     }
 
     @Test
     void keysBuiltFromTheAlphabetAreAccepted() {
+        int tries = 2000;
+        AtomicInteger accepted = new AtomicInteger();
         Properties.check(
                 "FeatureDescriptorTest.valid",
-                2000,
+                tries,
                 Gens.strings("abcdefghijklmnopqrstuvwxyz0123456789-_", 0, 63).map(rest -> "k" + rest),
-                key -> assertThat(new FeatureDescriptor(key, "m", true, "d").key())
-                        .isEqualTo(key));
+                key -> {
+                    assertThat(new FeatureDescriptor(key, "m", true, "d").key()).isEqualTo(key);
+                    accepted.incrementAndGet();
+                });
+        assertThat(accepted.get()).isEqualTo(tries);
     }
 
     /** The key rule written another way: a lower-case ASCII letter, then up to 63 of a-z, 0-9, '-', '_'. */

@@ -66,7 +66,7 @@ final class CachedSiteOptions implements SiteOptions {
         return false;
     }
 
-    /** An optional minus sign and 1 to 19 ASCII digits, within the range of long. */
+    /** An optional minus sign and 1 to 19 ASCII digits, within the range of long (Long.MIN_VALUE included). */
     static Optional<Long> parseLong(String text) {
         if (text.isEmpty() || text.length() > MAX_INTEGER_TEXT) {
             return Optional.empty();
@@ -76,6 +76,7 @@ final class CachedSiteOptions implements SiteOptions {
         if (start == text.length() || text.length() - start > 19) {
             return Optional.empty();
         }
+        // Accumulated negatively: the negative range is one larger, so Long.MIN_VALUE fits.
         long value = 0;
         for (int i = start; i < text.length(); i++) {
             char c = text.charAt(i);
@@ -83,11 +84,14 @@ final class CachedSiteOptions implements SiteOptions {
                 return Optional.empty();
             }
             int digit = c - '0';
-            if (value > (Long.MAX_VALUE - digit) / 10) {
+            if (value < (Long.MIN_VALUE + digit) / 10) {
                 return Optional.empty();
             }
-            value = value * 10 + digit;
+            value = value * 10 - digit;
         }
-        return Optional.of(negative ? -value : value);
+        if (negative) {
+            return Optional.of(value);
+        }
+        return value == Long.MIN_VALUE ? Optional.empty() : Optional.of(-value);
     }
 }

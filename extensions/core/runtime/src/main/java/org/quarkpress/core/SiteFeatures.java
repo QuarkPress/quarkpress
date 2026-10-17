@@ -8,6 +8,10 @@ public interface SiteFeatures {
     /** Whether the feature is on. Throws IllegalArgumentException for a key no installed module declares. */
     boolean isEnabled(String key);
 
+    /**
+     * The feature's value and where it comes from (the site, the network default or the module default). Throws
+     * IllegalArgumentException for a key no installed module declares.
+     */
     FeatureValue value(String key);
 
     /** Every installed feature, sorted by key. */

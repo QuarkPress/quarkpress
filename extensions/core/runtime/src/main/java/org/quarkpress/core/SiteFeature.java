@@ -14,10 +14,10 @@ import java.lang.annotation.Target;
  * {@link SiteFeatureDisabledException}. The site is read on every call.
  *
  * <p>On a class it applies to the non-private, non-static methods declared in that class and to the public methods
- * (and observer methods) it inherits from superclasses, and to the default methods it inherits from interfaces;
- * {@code equals}, {@code hashCode} and {@code toString} are never
- * gated, and a method's own annotation wins. The annotation is not inherited: a subclass of a gated class must carry
- * its own.
+ * (and observer methods) it inherits from superclasses, and to the default methods it inherits from interfaces, except
+ * default methods of JDK interfaces ({@code java.*}), which are not gated; {@code equals}, {@code hashCode} and
+ * {@code toString} are never gated, and a method's own annotation wins. The annotation is not inherited: a subclass of
+ * a gated class must carry its own.
  *
  * <p>The build fails when the key is not declared by an installed module, and for placements that could not be
  * enforced: interfaces, annotation types (stereotypes), abstract interface methods (default methods are allowed),
