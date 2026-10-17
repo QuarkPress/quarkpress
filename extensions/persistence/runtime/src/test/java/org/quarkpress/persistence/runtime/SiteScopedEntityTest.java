@@ -3,6 +3,8 @@ package org.quarkpress.persistence.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.node.TextNode;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.core.SiteId;
 
@@ -31,6 +33,22 @@ class SiteScopedEntityTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cannot change");
         assertThat(option.site()).isEqualTo(SiteId.of(7));
+    }
+
+    @Test
+    void aNewRowMayNameItsSite() {
+        OptionEntity row = OptionEntity.create(SiteId.of(3), "n", TextNode.valueOf("v"), true, Instant.EPOCH);
+        assertThat(row.site()).isEqualTo(SiteId.of(3));
+    }
+
+    @Test
+    void aStoredRowsSiteCannotBeReassigned() {
+        OptionEntity row = OptionEntity.create(SiteId.of(3), "n", TextNode.valueOf("v"), true, Instant.EPOCH);
+        row.rememberStoredSite();
+        assertThatThrownBy(() -> row.assignSite(SiteId.of(4)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cannot change");
+        assertThat(row.site()).isEqualTo(SiteId.of(3));
     }
 
     @Test

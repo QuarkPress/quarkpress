@@ -1,5 +1,6 @@
 package org.quarkpress.persistence.deployment;
 
+import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.arc.deployment.ValidationPhaseBuildItem.ValidationErrorBuildItem;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -12,7 +13,9 @@ import java.util.Optional;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
+import org.quarkpress.persistence.NetworkScope;
 import org.quarkpress.persistence.QuarkPressPersistence;
+import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.CurrentSiteIdSupplier;
 import org.quarkpress.persistence.runtime.QuarkPressBuildTimeConfig;
 import org.quarkpress.persistence.runtime.QuarkPressJsonJdbcType;
@@ -25,6 +28,11 @@ class PersistenceProcessor {
     @BuildStep
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
+    }
+
+    @BuildStep
+    UnremovableBeanBuildItem unremovable() {
+        return UnremovableBeanBuildItem.beanTypes(SiteScope.class, NetworkScope.class);
     }
 
     @BuildStep
