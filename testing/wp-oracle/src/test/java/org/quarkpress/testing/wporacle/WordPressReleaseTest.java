@@ -13,7 +13,10 @@ class WordPressReleaseTest {
         assertThat(release.version()).isEqualTo("7.1.3");
         assertThat(release.tag()).isEqualTo("7.1.3");
         assertThat(release.commit()).isEqualTo("ab1bc858a3f02a99c175d9e93c019254a4d5692c");
-        assertThat(release.sha256ByPath()).hasSize(8);
+        assertThat(release.sha256ByPath().keySet()).containsAll(WordPressSources.BOOTSTRAP_FILES);
+        assertThat(release.sha256ByPath().keySet())
+                .contains("wp-includes/shortcodes.php", "wp-includes/kses.php", "wp-includes/formatting.php");
+        assertThat(release.sha256ByPath().values()).allMatch(hash -> hash.matches("[0-9a-f]{64}"));
         assertThat(release.sha256ByPath())
                 .containsEntry(
                         "wp-includes/blocks.php", "99de93fa9afbf4576d5a34d1e46365980d510de59f565bece9f4db178625a460")
