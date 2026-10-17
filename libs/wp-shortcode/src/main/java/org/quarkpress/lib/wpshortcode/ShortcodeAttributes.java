@@ -60,6 +60,15 @@ public final class ShortcodeAttributes {
         return EMPTY;
     }
 
+    /**
+     * WordPress's shortcode_parse_atts: reads attribute text such as {@code  id="5" size=large 'a b' last}.
+     * Never throws; malformed text becomes positional values, as in WordPress.
+     */
+    public static ShortcodeAttributes parse(String attributeText) {
+        Objects.requireNonNull(attributeText, "attributeText");
+        return AttributeParser.parse(attributeText);
+    }
+
     /** The value of a name; a name made of digits reads the integer key, as in PHP. */
     public Optional<String> get(String name) {
         Objects.requireNonNull(name, "name");
