@@ -12,6 +12,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The reference examples in src/test/resources/examples. Each "expected" value is WordPress's own result
@@ -37,6 +39,8 @@ final class Examples {
 
     /** The upload URL the oracle driver's wp_upload_dir() returns (kses-env.php). */
     static final String UPLOAD_URL = "https://example.org/wp-content/uploads/2026/10";
+
+    private static final Map<String, Kses> KSES = new ConcurrentHashMap<>();
 
     private Examples() {}
 
@@ -109,15 +113,25 @@ final class Examples {
                 return str(new SafeCss(properties, null, WordPressTables.INSTANCE.protocols()).filter(text));
             }
             case "kses" -> {
-                if (!e.path("mode").asText("bare").equals("bare")) {
-                    throw new UnsupportedOperationException("WordPress mode needs the default pre-filters");
-                }
-                KsesConfig config = KsesConfig.defaults(false, UPLOAD_URL);
-                return str(KsesRun.sanitize(config, text, allowedHtml(e), strings(e.get("protocols"))));
+                return str(kses(e).sanitize(text, allowedHtml(e), strings(e.get("protocols"))));
+            }
+            case "one_attr" -> {
+                return str(kses(e).oneAttrText(e.get("element").asText(), text));
             }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
+    }
+
+    /** A Kses configured like the oracle driver: default filters in "wp" mode, the driver's upload URL. */
+    static Kses kses(JsonNode e) {
+        String mode = e.path("mode").asText("bare");
+        return KSES.computeIfAbsent(
+                mode,
+                m -> Kses.builder()
+                        .preFilters(m.equals("wp"))
+                        .uploadBaseUrl(UPLOAD_URL)
+                        .build());
     }
 
     /** The example's explicit allowlist ("allowed") or its context name. */
