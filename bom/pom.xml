@@ -55,6 +55,18 @@
         <artifactId>quarkpress-lib-wxr</artifactId>
         <version>${project.version}</version>
       </dependency>
+
+      <!-- Quarkus extensions -->
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-core-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

@@ -1,0 +1,11 @@
+---
+name: "QuarkPress Core"
+description: "Site context, typed ids, events, filter interfaces and per-site features for QuarkPress"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "wordpress"
+  categories:
+    - "web"
+  status: "experimental"
