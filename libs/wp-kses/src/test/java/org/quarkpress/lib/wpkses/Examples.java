@@ -83,6 +83,9 @@ final class Examples {
             case "html_error" -> {
                 return str(TextUtils.htmlError(text));
             }
+            case "decode_attribute" -> {
+                return str(CharacterReferences.decodeAttribute(text));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
