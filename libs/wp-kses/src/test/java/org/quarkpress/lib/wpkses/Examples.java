@@ -92,6 +92,11 @@ final class Examples {
             case "esc_attr" -> {
                 return str(HtmlEscaper.escape(text));
             }
+            case "bad_protocol" -> {
+                List<String> protocols = strings(e.get("protocols"));
+                return str(ProtocolFilter.filter(
+                        text, !e.has("protocols") ? WordPressTables.INSTANCE.protocols() : protocols));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
