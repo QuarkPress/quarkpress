@@ -24,24 +24,36 @@ The specification in `QUARKPRESS-SPEC.md` is binding. In short:
 5. Standalone libraries under `libs/` have zero Quarkus dependency.
 6. Both PostgreSQL and MySQL are first-class.
 
-## Clean-room policy
+## Source policy
 
-QuarkPress implements WordPress behaviour from public documentation and observed behaviour,
-never by reading or translating WordPress PHP source code.
+QuarkPress reproduces what WordPress does for its users with an original Java and Quarkus
+design. It is never a port of WordPress.
 
 Allowed sources:
 
+- WordPress PHP source code, read to understand how a feature behaves and to build test
+  harnesses.
 - Public documentation: the REST API handbook, developer reference prose, block grammar
   documentation, WXR samples, role and capability documentation.
 - Observed behaviour of a running WordPress instance: HTTP requests and responses, database
-  contents of a test install, exported files.
+  contents of a test install, exported files, and WordPress code run as a black-box oracle in
+  tests.
 - Third-party specifications and articles describing formats (for example the PHP
   serialization format).
 - Gutenberg's published npm packages, consumed as dependencies only in GPL-licensed repositories.
 
 Not allowed in this Apache-licensed repository:
 
-- Reading, translating or copying WordPress PHP source code.
-- Copying WordPress CSS, images or text assets. Those belong in the GPL repositories.
+- Translating or copying WordPress PHP source code: no line-by-line ports, and no copied regular
+  expressions, identifiers or comments. Code follows Java and Quarkus idioms and is designed
+  independently.
+- Copying WordPress CSS, images or text assets. Those belong in the GPL-licensed repositories.
+- Committing WordPress source files. Test harnesses download a pinned WordPress release at test
+  time.
+
+When a component must reproduce a WordPress algorithm closely (parsers, hashing, formatting),
+work in two steps: one person reads the source and writes a behaviour description in prose with
+examples and no code; the implementation is written from that description, and differential
+tests against the real WordPress code confirm it.
 
 Every pull request confirms this policy through the PR template checkbox.
