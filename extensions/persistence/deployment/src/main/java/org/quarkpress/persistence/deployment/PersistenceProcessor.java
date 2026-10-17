@@ -1,18 +1,32 @@
 package org.quarkpress.persistence.deployment;
 
+import io.quarkus.arc.deployment.BeanDiscoveryFinishedBuildItem;
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.arc.deployment.ValidationPhaseBuildItem.ValidationErrorBuildItem;
+import io.quarkus.arc.processor.InjectionPointInfo;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.AdditionalIndexedClassesBuildItem;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.runtime.configuration.ConfigurationException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.Type;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
+import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.persistence.FeatureToggles;
 import org.quarkpress.persistence.NetworkOptionStore;
 import org.quarkpress.persistence.NetworkScope;
@@ -27,6 +41,9 @@ import org.quarkpress.persistence.runtime.SiteStampListener;
 class PersistenceProcessor {
 
     static final String FEATURE = "quarkpress-persistence";
+    static final DotName STATELESS_SESSION = DotName.createSimple("org.hibernate.StatelessSession");
+    static final String UNIT_PREFIX = "quarkus.hibernate-orm.\"" + QuarkPressPersistence.UNIT + "\".";
+    static final DotName PERSISTENCE_UNIT = DotName.createSimple("io.quarkus.hibernate.orm.PersistenceUnit");
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -84,5 +101,118 @@ class PersistenceProcessor {
         for (String problem : MigrationBands.problems(locations)) {
             errors.produce(new ValidationErrorBuildItem(new IllegalStateException(problem)));
         }
+    }
+
+    @BuildStep
+    SiteScopedTableBuildItem optionTable() {
+        return new SiteScopedTableBuildItem("qp_option");
+    }
+
+    @BuildStep
+    void checkSiteIsolation(
+            CombinedIndexBuildItem combined,
+            List<SiteScopedTableBuildItem> tables,
+            BuildProducer<ValidationErrorBuildItem> errors)
+            throws IOException {
+        IndexView index = combined.getIndex();
+        for (String problem : SiteIsolationModel.problems(index)) {
+            errors.produce(new ValidationErrorBuildItem(new IllegalStateException("QuarkPress: " + problem)));
+        }
+        Set<String> tableNames = new TreeSet<>();
+        for (SiteScopedTableBuildItem table : tables) {
+            tableNames.add(table.table());
+        }
+        Set<String> entityNames = SiteIsolationModel.siteScopedEntityNames(index);
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        List<SiteIsolationScanner.Finding> findings =
+                new ArrayList<>(SiteIsolationModel.queryAnnotations(index, tableNames, entityNames));
+        for (ClassInfo type : index.getKnownClasses()) {
+            String name = type.name().toString();
+            if (!name.startsWith("org.quarkpress.")) {
+                continue;
+            }
+            byte[] bytes = null;
+            try (InputStream in = loader.getResourceAsStream(name.replace('.', '/') + ".class")) {
+                if (in != null) {
+                    bytes = in.readAllBytes();
+                }
+            }
+            if (bytes == null) {
+                errors.produce(new ValidationErrorBuildItem(new IllegalStateException("QuarkPress: cannot read the"
+                        + " bytecode of " + name + " to check that it keeps to its site; the class must be loadable"
+                        + " from the application class path")));
+                continue;
+            }
+            try {
+                findings.addAll(SiteIsolationScanner.scan(bytes, tableNames, entityNames));
+            } catch (RuntimeException unreadable) {
+                errors.produce(new ValidationErrorBuildItem(new IllegalStateException(
+                        "QuarkPress: cannot read the bytecode of " + name + " to check that it keeps to its site",
+                        unreadable)));
+            }
+        }
+        if (!findings.isEmpty()) {
+            errors.produce(
+                    new ValidationErrorBuildItem(new IllegalStateException(SiteIsolationScanner.message(findings))));
+        }
+    }
+
+    @BuildStep
+    void checkStatelessSessions(BeanDiscoveryFinishedBuildItem beans, BuildProducer<ValidationErrorBuildItem> errors) {
+        for (InjectionPointInfo point : beans.getInjectionPoints()) {
+            if (namesStatelessSession(point.getType()) && namesQuarkPressUnit(point)) {
+                errors.produce(new ValidationErrorBuildItem(new IllegalStateException(
+                        "QuarkPress: a StatelessSession for the quarkpress unit is not allowed: updates of"
+                                + " detached objects bypass the stored-site snapshot and its DML is not filtered by"
+                                + " site; inject the EntityManager instead (" + point.getTargetInfo() + ")")));
+            }
+        }
+    }
+
+    @BuildStep
+    void checkCaching(BuildProducer<ValidationErrorBuildItem> errors) {
+        Config config = ConfigProvider.getConfig();
+        boolean caching = config.getOptionalValue(UNIT_PREFIX + "second-level-caching-enabled", Boolean.class)
+                .orElse(false);
+        if (caching) {
+            errors.produce(new ValidationErrorBuildItem(
+                    new IllegalStateException("QuarkPress: " + UNIT_PREFIX + "second-level-caching-enabled must stay"
+                            + " false; cached rows and query results bypass the site filter")));
+        }
+        for (String property : List.of("hibernate.cache.use_second_level_cache", "hibernate.cache.use_query_cache")) {
+            String key = UNIT_PREFIX + "unsupported-properties.\"" + property + "\"";
+            boolean on = config.getOptionalValue(key, String.class)
+                    .map(value -> value.trim().equalsIgnoreCase("true"))
+                    .orElse(false);
+            if (on) {
+                errors.produce(new ValidationErrorBuildItem(new IllegalStateException("QuarkPress: " + key
+                        + " must not be true; cached rows and query results bypass the site filter")));
+            }
+        }
+    }
+
+    /** A StatelessSession, or an Instance or Provider of one. */
+    private static boolean namesStatelessSession(Type type) {
+        if (type.name().equals(STATELESS_SESSION)) {
+            return true;
+        }
+        if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+            for (Type argument : type.asParameterizedType().arguments()) {
+                if (argument.name().equals(STATELESS_SESSION)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean namesQuarkPressUnit(InjectionPointInfo point) {
+        for (AnnotationInstance qualifier : point.getRequiredQualifiers()) {
+            if (qualifier.name().equals(PERSISTENCE_UNIT)
+                    && QuarkPressPersistence.UNIT.equals(qualifier.value().asString())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
