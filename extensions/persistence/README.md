@@ -16,8 +16,10 @@ and per-site feature switches, and keeps every site's rows away from the other s
 ```
 
 Public API lives in `org.quarkpress.persistence`: `SiteScope`, `NetworkScope`, `NetworkScopePolicy`, `Options`,
-`NetworkOptionStore`, `FeatureToggles`, `SiteScopedNativeSql` and `QuarkPressPersistence`. Entities and
-`org.quarkpress.persistence.runtime` are implementation and may change.
+`NetworkOptions`, `FeatureToggles`, `SiteScopedNativeSql` and `QuarkPressPersistence`. Entities and
+`org.quarkpress.persistence.runtime` are implementation and may change, with three exceptions that QuarkPress modules
+build on and that are kept stable as their SPI although they live in the runtime package: `SiteScopedEntity` (with its
+`FILTER` name and `assignSite`) and `TenantIds.param`.
 
 ## Configuration
 
@@ -45,7 +47,8 @@ Everything else has defaults (shipped with ordinal 100) that `application.proper
   `qp_schema_history`, out of order (modules added later still migrate), with `baseline-on-migrate=true` and
   `baseline-version=0`, so on a database the application already populated every QuarkPress script still runs.
 
-PostgreSQL and MySQL are tested on every change; MySQL must be 8.0.13 or newer. MariaDB is best effort and untested:
+PostgreSQL and MySQL are tested on every change; MySQL must be 8.0.16 or newer (CHECK constraints, which keep option
+values valid JSON, are enforced from 8.0.16). MariaDB is best effort and untested:
 it uses the MySQL migrations, so set `quarkpress.persistence.migration-vendor=mysql`.
 
 | Key | Default | Meaning |
@@ -160,7 +163,7 @@ binding other code can see.
 ## Options
 
 `Options` writes the current site's options (`SiteContext.options()` reads them, through the request cache);
-`NetworkOptionStore` reads and writes network options; `FeatureToggles` switches features per site or as network
+`NetworkOptions` reads and writes network options; `FeatureToggles` switches features per site or as network
 defaults. Site options and network options live in separate tables (`qp_option`, `qp_network_option`).
 
 ### Behaviour compared with WordPress
@@ -182,8 +185,10 @@ defaults. Site options and network options live in separate tables (`qp_option`,
 - **Events.** A write that creates, changes or deletes a value fires `OptionChanged` (or `NetworkOptionChanged`) inside
   the transaction; an observer that throws rolls the transaction back, whatever the exception type.
 - **Errors.** An invalid name or value throws `IllegalArgumentException` before any SQL and leaves the caller's
-  transaction usable. When a transaction rolls back, the writing request's cached reads of the option (and of the
-  feature switches) are dropped.
+  transaction usable.
+- **Request cache.** A write drops the writing request's cached reads of the option (and of the feature switches), and
+  drops them again when the transaction commits or rolls back, so a value another thread of the request cached while
+  the transaction was open is not kept.
 - **Reads** of the store join the caller's transaction or run in a short one of their own. Reading another site's
   options from a site-bound request finds nothing (the filter); use a `SiteScope` for that site.
 - **Typed reads** (`string`, `number`, `flag`) and the **time zone** follow PHP's conversions and WordPress's rules,
@@ -218,11 +223,19 @@ query, so MySQL's trailing-space comparison never matches `"foo "` with `"foo"`.
 `FeatureToggles.setForSite` / `clearForSite` change the current site's switch (stored in the site option
 `qp_features`) and fire `SiteFeatureToggled` when the site's effective value changes. `setNetworkDefault` /
 `clearNetworkDefault` change the network default (network option `qp_feature_defaults`) and fire
-`NetworkOptionChanged`. Unknown keys are refused with `IllegalArgumentException`.
+`NetworkOptionChanged`. Unknown keys are refused with `IllegalArgumentException`. An observer that throws rolls the
+change back, whatever the exception type.
+
+Each change locks what it reads until its transaction ends (`SELECT ... FOR UPDATE`: the site's `qp_site` row and its
+`qp_features` option, or the `qp_feature_defaults` network option), so two concurrent changes of different keys both
+survive. The effective values before and after a site change are computed from the stored switches, not from the
+request's cached feature values. Stored members that are not booleans, and a stored value that is not an object, are
+ignored.
 
 A site's switches are read for that site whatever the request is bound to (another site's are read in a scope of its
-own). The writing request's cached feature values are dropped on every write and on rollback; other requests, and a
-request whose write ran inside a scope for another binding, see the change from their next request.
+own). The writing request's cached feature values are dropped on every write and again when its transaction
+completes; other requests, and a request whose write ran inside a scope for another binding, see the change from their
+next request.
 
 ## Limits for application code
 
@@ -269,6 +282,11 @@ string cannot be traced counts every string of its method, so it fails the build
   filter and no `StatelessSession` in QuarkPress classes; the build rejects them.
 - Native SQL on a site-scoped table only in classes annotated `@SiteScopedNativeSql`, taking the site explicitly.
   Declare new site-scoped tables with `SiteScopedTableBuildItem`.
+- Every foreign key from a site-scoped table to another site-scoped table is composite and includes the site:
+  `foreign key (site_id, x_id) references x_table (site_id, id)`, with `unique (site_id, id)` on the parent. The row's
+  own `site_id` (stamped by the listener) is then part of the reference, so the database refuses a row that points at
+  another site's row, on both databases and whatever the application code does. The entity may keep mapping the
+  association by id alone.
 - Inserts in the network scope name their site (`assignSite`).
 - Reads are `@Transactional`; writes are `@Transactional(dontRollbackOn = IllegalArgumentException.class)`, so a
   validation error leaves the caller's transaction usable.

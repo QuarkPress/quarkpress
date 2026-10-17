@@ -117,9 +117,9 @@ into another status. `SiteFeatureDisabledException` has no mapper: when a REST m
 not catch it, the application's mappers decide the answer (unmapped, Quarkus answers 500).
 
 On a class, the annotation covers the non-private, non-static methods the class declares, the public methods and
-observer methods it inherits from superclasses, and the default methods it inherits from interfaces; `equals`,
-`hashCode` and `toString` are never gated, and a method's own annotation wins. It is not inherited: a subclass of a
-gated class must carry its own.
+observer methods it inherits from superclasses, and the default methods it inherits from interfaces other than JDK
+(`java.*`) interfaces, whose default methods are not gated; `equals`, `hashCode` and `toString` are never gated, and a
+method's own annotation wins. It is not inherited: a subclass of a gated class must carry its own.
 
 The build fails, instead of leaving code ungated, when `@SiteFeature`:
 
@@ -146,9 +146,9 @@ event-loop thread. A gated REST method that would run on the event loop (one ret
 
 **Caching.** Inside a request the features of each site are computed once and kept until a switch changes. A switch
 change through the persistence module (`FeatureToggles`, or a write of the option that stores the switches) drops the
-cached values of the writing request, also when its transaction rolls back. Other requests, and a request that changed switches inside a
-scope for another site (which has its own request context), see the change from their next request. Outside a
-request context nothing is cached.
+cached values of the writing request, and drops them again when its transaction commits or rolls back. Other requests,
+and a request that changed switches inside a scope for another site (which has its own request context), see the
+change from their next request. Outside a request context nothing is cached.
 
 ## Events and filters
 
