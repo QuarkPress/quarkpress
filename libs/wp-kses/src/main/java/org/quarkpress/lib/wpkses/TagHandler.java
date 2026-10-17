@@ -19,7 +19,15 @@ final class TagHandler {
             if (inner == null || inner.isEmpty()) {
                 return "";
             }
-            return "<!--" + collapseDashes(inner) + "-->";
+            String comment = "<!--" + collapseDashes(inner) + "-->";
+            // A comment that starts like a block delimiter but was rebuilt, or is not a whole delimiter on its own
+            // (its JSON may end in a later token), was never filtered as one: neutralize it (README #11).
+            if (run.blockFilter()
+                    && PreFilters.startsLikeBlockDelimiter(comment)
+                    && (!comment.equals(rawToken) || !PreFilters.isCompleteBlockDelimiter(comment))) {
+                return "&lt;" + comment.substring(1);
+            }
+            return comment;
         }
         return element(token, run);
     }

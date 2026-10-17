@@ -58,6 +58,11 @@ final class KsesRun {
                 .kses(input);
     }
 
+    /** Whether this run applies WordPress's block-attribute pre-filter. */
+    boolean blockFilter() {
+        return blockFilter;
+    }
+
     Allowlist allowlist() {
         return allowlist;
     }
@@ -77,6 +82,12 @@ final class KsesRun {
     String kses(String content) {
         String s = NullFilter.clean(content, true);
         s = EntityNormalizer.normalize(s, false);
+        if (config.defaultPreFilters()) {
+            s = PreFilters.lessThan(s);
+            if (blockFilter) {
+                s = PreFilters.blockAttributes(s, withoutBlockFilter());
+            }
+        }
         for (PreKsesFilter filter : config.preFilters()) {
             s = Objects.requireNonNull(filter.filter(s, allowedHtml, protocols), "a PreKsesFilter returned null");
         }
