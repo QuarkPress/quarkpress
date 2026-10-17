@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkpress</groupId>
+    <artifactId>quarkpress-extensions-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../../extensions/pom.xml</relativePath>
+  </parent>
+
+  <artifactId>quarkpress-it-feature-extension-parent</artifactId>
+  <packaging>pom</packaging>
+
+  <name>QuarkPress :: Integration tests :: Feature extension</name>
+  <description>A test-only extension that declares per-site features, the way a QuarkPress module does. Never published.</description>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <modules>
+    <module>runtime</module>
+    <module>deployment</module>
+  </modules>
+</project>

@@ -27,6 +27,7 @@
 
   <modules>
     <module>tenancy-spike</module>
+    <module>feature-extension</module>
     <module>content</module>
   </modules>
 

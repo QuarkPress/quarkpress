@@ -1,0 +1,6 @@
+---
+name: "QuarkPress test features"
+description: "Declares per-site features for the QuarkPress integration tests"
+metadata:
+  status: "experimental"
+  unlisted: true
