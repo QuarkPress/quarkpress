@@ -74,6 +74,15 @@ final class Examples {
         String fn = e.get("fn").asText();
         String text = e.path("text").asText();
         switch (fn) {
+            case "no_null" -> {
+                return str(NullFilter.clean(text, e.get("keep").asBoolean()));
+            }
+            case "stripslashes" -> {
+                return str(TextUtils.stripSlashes(text));
+            }
+            case "html_error" -> {
+                return str(TextUtils.htmlError(text));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
