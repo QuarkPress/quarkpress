@@ -28,7 +28,7 @@ import org.jboss.jandex.Type;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.persistence.FeatureToggles;
-import org.quarkpress.persistence.NetworkOptionStore;
+import org.quarkpress.persistence.NetworkOptions;
 import org.quarkpress.persistence.NetworkScope;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.QuarkPressPersistence;
@@ -53,7 +53,7 @@ class PersistenceProcessor {
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
         return UnremovableBeanBuildItem.beanTypes(
-                SiteScope.class, NetworkScope.class, Options.class, NetworkOptionStore.class, FeatureToggles.class);
+                SiteScope.class, NetworkScope.class, Options.class, NetworkOptions.class, FeatureToggles.class);
     }
 
     @BuildStep

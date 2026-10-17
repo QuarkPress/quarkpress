@@ -1,6 +1,7 @@
 package org.quarkpress.persistence.deployment;
 
 import io.quarkus.arc.Arc;
+import io.quarkus.arc.InjectableContext;
 import io.quarkus.arc.ManagedContext;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -39,6 +40,25 @@ public final class Requests {
     /** Runs {@code work} on a new thread without any request context. */
     public static void outside(Runnable work) {
         onNewThread(work);
+    }
+
+    /**
+     * Runs {@code work} on a new thread that shares the current request context (as another thread serving the same
+     * request would) and returns its result. The caller's thread, and its transaction, are left as they are.
+     */
+    public static <T> T onSharedContext(Supplier<T> work) {
+        ManagedContext requestContext = Arc.container().requestContext();
+        InjectableContext.ContextState state = requestContext.getState();
+        AtomicReference<T> result = new AtomicReference<>();
+        onNewThread(() -> {
+            requestContext.activate(state);
+            try {
+                result.set(work.get());
+            } finally {
+                requestContext.deactivate();
+            }
+        });
+        return result.get();
     }
 
     private static void onNewThread(Runnable work) {

@@ -31,7 +31,7 @@ import org.quarkpress.persistence.runtime.OptionTransactions;
  * of {@link JsonValues}; numbers compare by value and object keys in order. A write that creates, changes or deletes a
  * value fires {@link OptionChanged} inside the transaction; an observer that throws rolls the transaction back. An
  * invalid name or value throws {@link IllegalArgumentException} without marking the caller's transaction for rollback.
- * When the transaction rolls back, the request's cached reads of the option are dropped.
+ * The request's cached reads of the option are dropped on the write and again when the transaction completes.
  */
 @ApplicationScoped
 public class Options {
@@ -160,7 +160,7 @@ public class Options {
         transactions.fire(() -> changed.fire(new OptionChanged(siteId, at, name, before, after)));
     }
 
-    /** Drops the request's cached reads now, and again if the transaction does not commit. */
+    /** Drops the request's cached reads now, and again when the transaction completes. */
     private void forgetCached(SiteId siteId, String name) {
         RequestOptionCache requestCache = ClientProxy.unwrap(cache);
         boolean featureOption = name.equals(FeatureOptions.SITE);
@@ -171,7 +171,7 @@ public class Options {
                 requestFeatures.invalidate(siteId);
             }
         };
-        transactions.onRollback(forget);
+        transactions.afterCompletion(forget);
         forget.run();
     }
 

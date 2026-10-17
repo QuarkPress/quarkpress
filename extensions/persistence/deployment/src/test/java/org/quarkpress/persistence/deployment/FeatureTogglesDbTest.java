@@ -2,25 +2,43 @@ package org.quarkpress.persistence.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import jakarta.transaction.UserTransaction;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.FeatureValue;
 import org.quarkpress.core.FeatureValue.Source;
+import org.quarkpress.core.OptionChanged;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteFeatureToggled;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
+import org.quarkpress.core.runtime.Binding;
+import org.quarkpress.core.runtime.SiteBinding;
 import org.quarkpress.persistence.FeatureToggles;
+import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
+import org.quarkpress.persistence.runtime.FeatureOptions;
 import org.quarkpress.persistence.runtime.OptionFeatureSettings;
 
 class FeatureTogglesDbTest {
@@ -30,23 +48,46 @@ class FeatureTogglesDbTest {
             .addBuildChainCustomizer(chain -> TestFeatures.declare(
                     chain,
                     new SiteFeatureBuildItem("demo-off", "test", false, "Off by default"),
-                    new SiteFeatureBuildItem("demo-on", "test", true, "On by default")));
+                    new SiteFeatureBuildItem("demo-on", "test", true, "On by default"),
+                    new SiteFeatureBuildItem("demo-third", "test", false, "Off by default")));
 
     @ApplicationScoped
     public static class ToggleLog {
         private final List<SiteFeatureToggled> events = new CopyOnWriteArrayList<>();
 
-        private final java.util.Set<SiteId> failing = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private final Set<SiteId> failing = ConcurrentHashMap.newKeySet();
+
+        private final Set<SiteId> refusing = ConcurrentHashMap.newKeySet();
+
+        private final Set<SiteId> slow = ConcurrentHashMap.newKeySet();
 
         void on(@Observes SiteFeatureToggled event) {
             events.add(event);
             if (failing.contains(event.site())) {
                 throw new IllegalStateException("observer failed");
             }
+            if (refusing.contains(event.site())) {
+                throw new IllegalArgumentException("observer refused");
+            }
+        }
+
+        /** Holds a write of the switches open, so a concurrent change would read the old switches without a lock. */
+        void onOption(@Observes OptionChanged event) throws InterruptedException {
+            if (slow.contains(event.site()) && event.name().equals(FeatureOptions.SITE)) {
+                Thread.sleep(300);
+            }
         }
 
         public void failFor(SiteId site) {
             failing.add(site);
+        }
+
+        public void refuseFor(SiteId site) {
+            refusing.add(site);
+        }
+
+        public void slowFor(SiteId site) {
+            slow.add(site);
         }
 
         public List<SiteFeatureToggled> of(SiteId site) {
@@ -71,6 +112,15 @@ class FeatureTogglesDbTest {
 
     @Inject
     OptionFeatureSettings settings;
+
+    @Inject
+    Options options;
+
+    @Inject
+    SiteBinding binding;
+
+    @Inject
+    UserTransaction userTransaction;
 
     /** The feature's value for {@code site}, read in a new request so no per-request cache is reused. */
     private FeatureValue valueIn(SiteId site, String key) {
@@ -175,5 +225,151 @@ class FeatureTogglesDbTest {
                             .isInstanceOf(IllegalArgumentException.class);
                     assertThat(QuarkusTransaction.getStatus()).isEqualTo(jakarta.transaction.Status.STATUS_ACTIVE);
                 }));
+    }
+
+    @Test
+    void anIllegalArgumentFromAnObserverRollsTheToggleBack() {
+        SiteId a = sites.create("observer-iae");
+        log.refuseFor(a);
+        Requests.fresh(() -> {
+            binding.bind(Binding.site(a));
+            assertThatThrownBy(() -> toggles.setForSite("demo-on", false))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("observer refused");
+        });
+        assertThat(valueIn(a, "demo-on").enabled()).isTrue();
+        assertThatThrownBy(() -> scope.run(
+                        a,
+                        () -> QuarkusTransaction.requiringNew()
+                                .run(() -> assertThatThrownBy(() -> toggles.setForSite("demo-on", false))
+                                        .isInstanceOf(IllegalArgumentException.class)
+                                        .hasMessage("observer refused"))))
+                .satisfies(failure -> assertThat(Failures.messages(failure)).containsIgnoringCase("rollback"));
+        Requests.fresh(() -> assertThat(settings.siteValues(a)).isEmpty());
+    }
+
+    @Test
+    void concurrentTogglesOfDifferentKeysBothSurvive() throws Exception {
+        SiteId withoutRow = sites.create("concurrent-new");
+        SiteId withRow = sites.create("concurrent-existing");
+        scope.run(withRow, () -> toggles.setForSite("demo-third", true));
+        for (SiteId site : List.of(withoutRow, withRow)) {
+            log.slowFor(site);
+            CountDownLatch start = new CountDownLatch(1);
+            ExecutorService pool = Executors.newFixedThreadPool(2);
+            try {
+                Future<?> first = pool.submit(() -> {
+                    start.await();
+                    scope.run(site, () -> toggles.setForSite("demo-off", true));
+                    return null;
+                });
+                Future<?> second = pool.submit(() -> {
+                    start.await();
+                    scope.run(site, () -> toggles.setForSite("demo-on", false));
+                    return null;
+                });
+                start.countDown();
+                first.get(60, TimeUnit.SECONDS);
+                second.get(60, TimeUnit.SECONDS);
+            } finally {
+                pool.shutdownNow();
+            }
+            Requests.fresh(() -> assertThat(settings.siteValues(site))
+                    .containsEntry("demo-off", true)
+                    .containsEntry("demo-on", false));
+            assertThat(valueIn(site, "demo-off").enabled()).isTrue();
+            assertThat(valueIn(site, "demo-on").enabled()).isFalse();
+        }
+        Requests.fresh(() -> assertThat(settings.siteValues(withRow)).containsEntry("demo-third", true));
+    }
+
+    @Test
+    void theBeforeValueComesFromTheStoredSwitchesNotTheRequestCache() {
+        SiteId a = sites.create("before");
+        Requests.fresh(() -> {
+            binding.bind(Binding.site(a));
+            assertThat(context.features().isEnabled("demo-off")).isFalse();
+            // Another request turns it on; this request's cached value is now stale.
+            Requests.fresh(() -> scope.run(a, () -> toggles.setForSite("demo-off", true)));
+            toggles.setForSite("demo-off", false);
+        });
+        assertThat(log.of(a))
+                .extracting(SiteFeatureToggled::key, SiteFeatureToggled::enabled)
+                .containsExactly(tuple("demo-off", true), tuple("demo-off", false));
+    }
+
+    @Test
+    void storedValuesThatAreNotSwitchesAreIgnored() {
+        SiteId text = sites.create("not-object");
+        scope.run(text, () -> options.set(FeatureOptions.SITE, TextNode.valueOf("on")));
+        assertThat(valueIn(text, "demo-off")).isEqualTo(new FeatureValue("demo-off", false, Source.MODULE));
+        scope.run(text, () -> toggles.setForSite("demo-off", true));
+        assertThat(valueIn(text, "demo-off")).isEqualTo(new FeatureValue("demo-off", true, Source.SITE));
+        assertThat(log.of(text)).extracting(SiteFeatureToggled::enabled).containsExactly(true);
+
+        SiteId members = sites.create("not-boolean");
+        ObjectNode stored =
+                JsonNodeFactory.instance.objectNode().put("demo-on", "no").put("demo-off", 1);
+        scope.run(members, () -> options.set(FeatureOptions.SITE, stored));
+        assertThat(valueIn(members, "demo-on")).isEqualTo(new FeatureValue("demo-on", true, Source.MODULE));
+        assertThat(valueIn(members, "demo-off")).isEqualTo(new FeatureValue("demo-off", false, Source.MODULE));
+        scope.run(members, () -> toggles.setForSite("demo-on", false));
+        assertThat(log.of(members))
+                .extracting(SiteFeatureToggled::key, SiteFeatureToggled::enabled)
+                .containsExactly(tuple("demo-on", false));
+        Requests.fresh(() -> assertThat(settings.siteValues(members)).containsExactly(entry("demo-on", false)));
+    }
+
+    @Test
+    void aNetworkBoundCallerReadsASitesSwitches() {
+        SiteId a = sites.create("network-reader");
+        scope.run(a, () -> toggles.setForSite("demo-off", true));
+        Requests.fresh(() -> {
+            binding.bind(Binding.NETWORK);
+            assertThat(settings.siteValues(a)).containsExactly(entry("demo-off", true));
+        });
+    }
+
+    @Test
+    void aRolledBackNetworkDefaultLeavesNoStaleCachedValue() {
+        SiteId a = sites.create("network-rollback");
+        Requests.fresh(() -> {
+            binding.bind(Binding.site(a));
+            assertThat(context.features().isEnabled("demo-third")).isFalse();
+            try {
+                userTransaction.begin();
+                toggles.setNetworkDefault("demo-third", true);
+                assertThat(context.features().isEnabled("demo-third")).isTrue();
+                userTransaction.rollback();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            assertThat(context.features().isEnabled("demo-third")).isFalse();
+        });
+        assertThat(valueIn(a, "demo-third").enabled()).isFalse();
+    }
+
+    @Test
+    void aCommittedNetworkDefaultDropsWhatAnotherThreadOfTheRequestCachedMeanwhile() {
+        SiteId a = sites.create("network-commit");
+        try {
+            Requests.fresh(() -> {
+                binding.bind(Binding.site(a));
+                try {
+                    userTransaction.begin();
+                    toggles.setNetworkDefault("demo-third", true);
+                    // Another thread of the request computes the features in a transaction of its own.
+                    boolean seen =
+                            Requests.onSharedContext(() -> context.features().isEnabled("demo-third"));
+                    assertThat(seen).isFalse();
+                    userTransaction.commit();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                assertThat(context.features().isEnabled("demo-third")).isTrue();
+            });
+        } finally {
+            Requests.fresh(() -> toggles.clearNetworkDefault("demo-third"));
+        }
     }
 }

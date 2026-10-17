@@ -38,7 +38,7 @@ import org.quarkpress.core.SiteNotResolvedException;
 import org.quarkpress.core.SiteStatus;
 import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.core.runtime.SiteBinding;
-import org.quarkpress.persistence.NetworkOptionStore;
+import org.quarkpress.persistence.NetworkOptions;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.JsonValues;
@@ -106,7 +106,7 @@ class OptionsDbTest {
     UserTransaction userTransaction;
 
     @Inject
-    NetworkOptionStore network;
+    NetworkOptions network;
 
     @Inject
     OptionStore store;
@@ -330,6 +330,30 @@ class OptionsDbTest {
                 assertThat(context.options().get(name)).contains(TextNode.valueOf("old"));
             });
             assertThat(stored(site, name)).contains(TextNode.valueOf("old"));
+        }
+    }
+
+    @Test
+    void aCommitDropsWhatAnotherThreadOfTheRequestCachedMeanwhile() {
+        SiteId site = sites.create("commit-cache");
+        for (boolean autoload : new boolean[] {true, false}) {
+            String name = "committed-" + autoload + "-" + UUID.randomUUID();
+            Requests.fresh(() -> {
+                binding.bind(Binding.site(site));
+                assertThat(options.set(name, TextNode.valueOf("old"), autoload)).isTrue();
+                try {
+                    userTransaction.begin();
+                    assertThat(options.set(name, TextNode.valueOf("new"))).isTrue();
+                    // Another thread of the request reads in a transaction of its own and caches the committed value.
+                    Optional<JsonNode> seen =
+                            Requests.onSharedContext(() -> context.options().get(name));
+                    assertThat(seen).contains(TextNode.valueOf("old"));
+                    userTransaction.commit();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                assertThat(context.options().get(name)).contains(TextNode.valueOf("new"));
+            });
         }
     }
 

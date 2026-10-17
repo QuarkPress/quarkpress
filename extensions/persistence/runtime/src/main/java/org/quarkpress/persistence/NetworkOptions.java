@@ -26,12 +26,13 @@ import org.quarkpress.persistence.runtime.OptionTransactions;
  * {@link Options}). Reads return copies, and a stored JSON null reads as a {@code NullNode}. A write that changes the
  * value fires {@link NetworkOptionChanged}; an observer that throws rolls the transaction back.
  *
- * <p>A change of the network feature defaults drops the feature values cached by the request that writes it (also
- * when its transaction rolls back). Work running in a scope for another binding has its own request, so such a write
- * does not refresh the feature values the calling request already computed; they are refreshed by its next request.
+ * <p>A change of the network feature defaults drops the feature values cached by the request that writes it, and
+ * again when its transaction completes (commit or rollback). Work running in a scope for another binding has its own
+ * request, so such a write does not refresh the feature values the calling request already computed; they are
+ * refreshed by its next request.
  */
 @ApplicationScoped
-public class NetworkOptionStore {
+public class NetworkOptions {
 
     @Inject
     NetworkOptionRepository repository;
@@ -94,7 +95,7 @@ public class NetworkOptionStore {
         if (name.equals(FeatureOptions.NETWORK)
                 && Arc.container().requestContext().isActive()) {
             RequestFeatureCache requestFeatures = ClientProxy.unwrap(features);
-            transactions.onRollback(requestFeatures::invalidateAll);
+            transactions.afterCompletion(requestFeatures::invalidateAll);
             requestFeatures.invalidateAll();
         }
         transactions.fire(() -> changed.fire(new NetworkOptionChanged(at, name, before, after)));

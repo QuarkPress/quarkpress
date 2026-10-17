@@ -208,6 +208,18 @@ class SiteIsolationScannerTest {
     }
 
     @Test
+    void aPanacheUpdateAssignsOnlyAtTheTopLevel() {
+        assertThat(SiteIsolationScanner.assignsSiteId("autoload = false where (siteId = ?1 or name = ?2)", true))
+                .isFalse();
+        assertThat(SiteIsolationScanner.assignsSiteId("autoload = false where ((siteId = ?1))", true))
+                .isFalse();
+        assertThat(SiteIsolationScanner.assignsSiteId("  siteId = ?1 where id = ?2", true))
+                .isTrue();
+        assertThat(SiteIsolationScanner.assignsSiteId("autoload = (select 1), siteId = ?1", true))
+                .isTrue();
+    }
+
+    @Test
     void aMatchMeansTheTextContainsTheTable() {
         Properties.check("SiteIsolationScannerTest.containment", 3000, Gens.strings("qp_otin \"`.$Q", 0, 40), text -> {
             if (SiteIsolationScanner.mentionsTable(text, "qp_option")) {

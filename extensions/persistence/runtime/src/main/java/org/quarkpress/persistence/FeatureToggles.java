@@ -8,20 +8,32 @@ import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.quarkpress.core.FeatureDescriptor;
 import org.quarkpress.core.FeatureRegistry;
-import org.quarkpress.core.OptionStore;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteFeatureToggled;
 import org.quarkpress.core.SiteId;
+import org.quarkpress.core.runtime.FeatureValues;
 import org.quarkpress.persistence.runtime.FeatureOptions;
+import org.quarkpress.persistence.runtime.JsonValues;
+import org.quarkpress.persistence.runtime.NetworkOptionRepository;
+import org.quarkpress.persistence.runtime.OptionRepository;
+import org.quarkpress.persistence.runtime.OptionTransactions;
+import org.quarkpress.persistence.runtime.SiteRepository;
 
 /**
  * Switches per-site features on and off: for the current site, or as network defaults. A site change fires
  * {@link SiteFeatureToggled} when the site's effective value changes; a network default change fires the network
- * option event.
+ * option event. An observer that throws rolls the change back, whatever the exception type.
+ *
+ * <p>Each change reads the stored switches with a lock held until the transaction ends (the site's row and its
+ * {@code qp_features} option, or the {@code qp_feature_defaults} network option), so concurrent changes of different
+ * keys do not overwrite each other. The effective values before and after a site change are computed from the stored
+ * switches, never from the request's cached feature values.
  */
 @ApplicationScoped
 public class FeatureToggles {
@@ -36,16 +48,25 @@ public class FeatureToggles {
     Options options;
 
     @Inject
-    OptionStore store;
+    OptionRepository siteOptions;
 
     @Inject
-    NetworkOptionStore network;
+    SiteRepository sites;
+
+    @Inject
+    NetworkOptions network;
+
+    @Inject
+    NetworkOptionRepository networkOptions;
 
     @Inject
     QuarkPressClock clock;
 
     @Inject
     Event<SiteFeatureToggled> toggled;
+
+    @Inject
+    OptionTransactions transactions;
 
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public void setForSite(String key, boolean enabled) {
@@ -59,37 +80,48 @@ public class FeatureToggles {
 
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public void setNetworkDefault(String key, boolean enabled) {
-        requireKnown(key);
-        ObjectNode values = objectOf(network.find(FeatureOptions.NETWORK));
-        values.put(key, enabled);
-        network.set(FeatureOptions.NETWORK, values);
+        changeNetwork(key, values -> values.put(key, enabled));
     }
 
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public void clearNetworkDefault(String key) {
-        requireKnown(key);
-        ObjectNode values = objectOf(network.find(FeatureOptions.NETWORK));
-        values.remove(key);
-        network.set(FeatureOptions.NETWORK, values);
+        changeNetwork(key, values -> values.remove(key));
     }
 
     private void changeSite(String key, Consumer<ObjectNode> edit) {
-        requireKnown(key);
+        FeatureDescriptor feature = requireKnown(key);
         SiteId siteId = site.siteId();
-        boolean before = site.features().isEnabled(key);
-        ObjectNode values = objectOf(store.find(siteId, FeatureOptions.SITE));
+        // The site's row serializes its feature changes, also while its qp_features option does not exist yet.
+        sites.lockForUpdate(siteId);
+        ObjectNode values = objectOf(siteOptions
+                .findOptionForUpdate(siteId, FeatureOptions.SITE)
+                .map(option -> JsonValues.copyOfStored(option.value)));
+        Map<String, Boolean> defaults = FeatureOptions.switches(network.find(FeatureOptions.NETWORK));
+        boolean before = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
+                .enabled();
         edit.accept(values);
+        boolean after = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
+                .enabled();
         options.set(FeatureOptions.SITE, values);
-        boolean after = site.features().isEnabled(key);
         if (before != after) {
-            toggled.fire(new SiteFeatureToggled(siteId, clock.now().truncatedTo(ChronoUnit.MICROS), key, after));
+            SiteFeatureToggled event =
+                    new SiteFeatureToggled(siteId, clock.now().truncatedTo(ChronoUnit.MICROS), key, after);
+            transactions.fire(() -> toggled.fire(event));
         }
     }
 
-    private void requireKnown(String key) {
-        if (!registry.contains(key)) {
-            throw new IllegalArgumentException("unknown QuarkPress feature '" + key + "'");
-        }
+    private void changeNetwork(String key, Consumer<ObjectNode> edit) {
+        requireKnown(key);
+        ObjectNode values = objectOf(networkOptions
+                .findOptionForUpdate(FeatureOptions.NETWORK)
+                .map(option -> JsonValues.copyOfStored(option.value)));
+        edit.accept(values);
+        network.set(FeatureOptions.NETWORK, values);
+    }
+
+    private FeatureDescriptor requireKnown(String key) {
+        return registry.find(key)
+                .orElseThrow(() -> new IllegalArgumentException("unknown QuarkPress feature '" + key + "'"));
     }
 
     private static ObjectNode objectOf(Optional<JsonNode> value) {

@@ -463,7 +463,8 @@ final class SiteIsolationScanner {
     /**
      * Whether {@code text} assigns {@code siteId}: {@code siteId =} (not {@code ==}) after a {@code set} keyword with no
      * later {@code where} at the same parenthesis depth (a subquery's {@code where} does not end the assignment list),
-     * or, for Panache {@code update(...)} strings (which have no {@code set}), at the start of the assignment list.
+     * or, for Panache {@code update(...)} strings (which have no {@code set}), at the start of the assignment list: at
+     * parenthesis depth 0 with no clause keyword before it ({@code where (siteId = ?1 or ...)} is a condition).
      */
     static boolean assignsSiteId(String text, boolean panacheUpdate) {
         int from = 0;
@@ -483,7 +484,8 @@ final class SiteIsolationScanner {
                 if (set > where) {
                     return true;
                 }
-                if (panacheUpdate && set < 0 && where < 0 && last[2] < 0 && last[3] < 0) {
+                boolean topLevel = last[4] == 0;
+                if (panacheUpdate && topLevel && set < 0 && where < 0 && last[2] < 0 && last[3] < 0) {
                     return true;
                 }
             }
@@ -493,7 +495,7 @@ final class SiteIsolationScanner {
 
     /**
      * The last positions of {@code set}, {@code where}, {@code from} and {@code select} before {@code end} at the
-     * parenthesis depth of {@code end}, outside quoted text; -1 where there is none.
+     * parenthesis depth of {@code end}, outside quoted text; -1 where there is none. A fifth element holds that depth.
      */
     private static int[] clauseKeywordsBefore(String text, int end) {
         String[] keywords = {"set", "where", "from", "select"};
@@ -525,8 +527,9 @@ final class SiteIsolationScanner {
                 }
             }
         }
-        int[] result = new int[keywords.length];
+        int[] result = new int[keywords.length + 1];
         System.arraycopy(last, depth * keywords.length, result, 0, keywords.length);
+        result[keywords.length] = depth;
         return result;
     }
 
@@ -556,16 +559,6 @@ final class SiteIsolationScanner {
             }
         }
         return -1;
-    }
-
-    private static int lastIndexOfWord(String text, String word) {
-        int last = -1;
-        int at = indexOfWord(text, word, 0);
-        while (at >= 0) {
-            last = at;
-            at = indexOfWord(text, word, at + word.length());
-        }
-        return last;
     }
 
     private static boolean startsWithWord(String text, int at, String word) {

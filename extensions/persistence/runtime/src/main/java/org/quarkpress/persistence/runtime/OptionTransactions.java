@@ -2,11 +2,13 @@ package org.quarkpress.persistence.runtime;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 
-/** Ties option writes to their transaction: observer failures roll it back, and a rollback undoes cache changes. */
+/**
+ * Ties option writes to their transaction: observer failures roll it back, and the request's caches are dropped again
+ * when it completes.
+ */
 @ApplicationScoped
 public class OptionTransactions {
 
@@ -30,17 +32,19 @@ public class OptionTransactions {
         }
     }
 
-    /** Runs {@code undo} after the current transaction completes without committing. */
-    public void onRollback(Runnable undo) {
+    /**
+     * Runs {@code forget} after the current transaction completes, whether it commits or rolls back: a thread sharing
+     * the request may have cached the old value while the transaction was open, and after a rollback the value the
+     * writer cached is gone.
+     */
+    public void afterCompletion(Runnable forget) {
         registry.registerInterposedSynchronization(new Synchronization() {
             @Override
             public void beforeCompletion() {}
 
             @Override
             public void afterCompletion(int status) {
-                if (status != Status.STATUS_COMMITTED) {
-                    undo.run();
-                }
+                forget.run();
             }
         });
     }
