@@ -11,8 +11,13 @@ import java.util.ArrayList;
 import java.util.List;
 import org.quarkpress.core.FeatureDescriptor;
 import org.quarkpress.core.FeatureRegistry;
+import org.quarkpress.core.QuarkPressClock;
+import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.core.runtime.CoreRecorder;
+import org.quarkpress.core.runtime.FeatureResolver;
+import org.quarkpress.core.runtime.RequestFeatureCache;
+import org.quarkpress.core.runtime.RequestOptionCache;
 import org.quarkpress.core.runtime.SiteBinding;
 import org.quarkpress.core.runtime.SiteResolution;
 
@@ -27,7 +32,14 @@ class CoreProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(SiteBinding.class, SiteResolution.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                SiteBinding.class,
+                SiteResolution.class,
+                SiteContext.class,
+                RequestOptionCache.class,
+                RequestFeatureCache.class,
+                FeatureResolver.class,
+                QuarkPressClock.class);
     }
 
     @BuildStep
