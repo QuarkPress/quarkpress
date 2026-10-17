@@ -86,6 +86,12 @@ final class Examples {
             case "decode_attribute" -> {
                 return str(CharacterReferences.decodeAttribute(text));
             }
+            case "normalize_entities" -> {
+                return str(EntityNormalizer.normalize(text, e.get("xml").asBoolean()));
+            }
+            case "esc_attr" -> {
+                return str(HtmlEscaper.escape(text));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
