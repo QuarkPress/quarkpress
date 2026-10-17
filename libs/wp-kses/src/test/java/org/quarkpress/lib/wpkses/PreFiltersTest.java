@@ -98,7 +98,7 @@ class PreFiltersTest {
 
     @Test
     void deeplyNestedBlockAttributesAreFilteredWithoutOverflow() {
-        // Review focus 4 (harness-verified at depth 300)
+        // Deep nesting must not overflow the stack (harness-verified at depth 300)
         int depth = 300;
         String in =
                 "<!-- wp:p {\"a\":" + "[".repeat(depth) + "\"\\u003cscript\\u003ex\"" + "]".repeat(depth) + "} /-->";

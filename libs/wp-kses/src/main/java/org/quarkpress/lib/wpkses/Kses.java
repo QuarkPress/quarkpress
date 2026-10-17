@@ -67,6 +67,7 @@ public final class Kses {
         return WORDPRESS;
     }
 
+    /** A builder with WordPress's defaults for every option. */
     public static Builder builder() {
         return new Builder();
     }
@@ -140,14 +141,20 @@ public final class Kses {
         return config.allowlists().apply(context);
     }
 
+    /** The allowed URL protocols this instance filters with (kses_allowed_protocols). */
     public List<String> protocols() {
         return config.protocols();
     }
 
+    /** The attributes this instance treats as URLs (wp_kses_uri_attributes). */
     public List<String> uriAttributes() {
         return uriAttributes;
     }
 
+    /**
+     * The allowed CSS properties (safe_style_css). An empty list means every declaration is kept unfiltered, as in
+     * WordPress.
+     */
     public List<String> safeStyleProperties() {
         return config.safeCss().properties();
     }
@@ -203,7 +210,10 @@ public final class Kses {
             return this;
         }
 
-        /** The allowed CSS properties (safe_style_css); an empty list turns CSS filtering off, as in WordPress. */
+        /**
+         * The allowed CSS properties (safe_style_css). An empty list keeps EVERY declaration unfiltered (WordPress
+         * parity); it does not mean "allow no CSS". To drop all CSS, remove the style attribute from the allowlist.
+         */
         public Builder safeStyleProperties(List<String> properties) {
             this.safeStyleProperties = List.copyOf(Objects.requireNonNull(properties, "properties"));
             return this;
@@ -218,9 +228,20 @@ public final class Kses {
         /**
          * The URL of the uploads directory, for WordPress's PDF-object rule. Without it, object
          * elements never keep their data attribute.
+         *
+         * <p>Only the host and port are compared. A host that {@link java.net.URI} cannot parse as a host (for
+         * example one with underscores) makes every PDF object fail closed: no data URL is accepted.
+         *
+         * @throws IllegalArgumentException if {@code url} is not a valid URI
          */
         public Builder uploadBaseUrl(String url) {
-            this.uploadBaseUrl = Objects.requireNonNull(url, "url");
+            Objects.requireNonNull(url, "url");
+            try {
+                java.net.URI.create(url);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("uploadBaseUrl is not a valid URI: " + url, e);
+            }
+            this.uploadBaseUrl = url;
             return this;
         }
 
@@ -239,6 +260,7 @@ public final class Kses {
             return this;
         }
 
+        /** Builds an immutable, thread-safe {@link Kses}; contexts and filters are resolved here. */
         public Kses build() {
             return new Kses(this);
         }

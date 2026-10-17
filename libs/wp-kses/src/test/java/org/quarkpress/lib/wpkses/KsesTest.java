@@ -202,4 +202,33 @@ class KsesTest {
                 .isFalse();
         assertThat(kses.allowedHtml(KsesContext.named("anything"))).isEqualTo(kses.allowedHtml(KsesContext.DATA));
     }
+
+    @Test
+    void uploadBaseUrlIsValidatedWhenSet() {
+        assertThatThrownBy(() -> Kses.builder().uploadBaseUrl("http://exa mple.org/u"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("uploadBaseUrl");
+    }
+
+    @Test
+    void aHostJavaCannotParseFailsClosedForPdfObjects() {
+        String object = "<object data=\"https://my_host/u/a.pdf\" type=\"application/pdf\"></object>";
+        assertThat(Kses.builder().uploadBaseUrl("https://my_host/u").build().post(object))
+                .isEqualTo("<object></object>");
+    }
+
+    @Test
+    void wordPressModeIsStableOnTheNonIdempotentBareCase() {
+        Kses wordPress = Kses.wordPress();
+        String once = wordPress.post("<!a<b>>");
+        assertThat(wordPress.post(once)).isEqualTo(once);
+        String bareOnce = BARE.post("<!a<b>>");
+        assertThat(BARE.post(bareOnce)).isNotEqualTo(bareOnce);
+    }
+
+    @Test
+    void emptySafeStylePropertiesKeepEveryDeclaration() {
+        Kses open = Kses.builder().safeStyleProperties(List.of()).build();
+        assertThat(open.safeCss("position:fixed; color:red")).isEqualTo("position:fixed; color:red");
+    }
 }

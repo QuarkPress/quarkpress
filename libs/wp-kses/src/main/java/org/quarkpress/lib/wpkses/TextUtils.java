@@ -135,30 +135,6 @@ final class TextUtils {
         return out.append(s, copied, s.length()).toString();
     }
 
-    /**
-     * wp_kses_html_error: removes a leading run of quoted strings (closed or not) and non-space
-     * characters, then the whitespace after it.
-     */
-    static String htmlError(String s) {
-        int i = 0;
-        int n = s.length();
-        while (i < n) {
-            char c = s.charAt(i);
-            if (c == '"' || c == '\'') {
-                int close = s.indexOf(c, i + 1);
-                i = close < 0 ? n : close + 1;
-            } else if (!isPcreSpace(c)) {
-                i++;
-            } else {
-                break;
-            }
-        }
-        while (i < n && isPcreSpace(s.charAt(i))) {
-            i++;
-        }
-        return s.substring(i);
-    }
-
     /** Replaces unpaired UTF-16 surrogates with U+FFFD. */
     static String wellFormed(String s) {
         int n = s.length();

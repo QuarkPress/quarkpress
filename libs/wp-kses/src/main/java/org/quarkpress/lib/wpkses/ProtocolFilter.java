@@ -52,7 +52,10 @@ final class ProtocolFilter {
         return allowed + rest;
     }
 
-    /** Adds the missing semicolon: "&#58" (any leading zeros) and "&#x3a" not followed by ';' or another digit get a ';'. */
+    /**
+     * Adds the missing semicolon: "&#58" (any leading zeros) and "&#x3a" not followed by ';' or another digit get
+     * a ';'.
+     */
     static String addMissingColonSemicolons(String s) {
         int amp = s.indexOf("&#");
         if (amp < 0) {

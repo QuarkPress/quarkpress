@@ -48,11 +48,11 @@ Every WordPress filter that changes kses becomes a typed builder option, set onc
 | `wp_kses_allowed_html` | `allowedHtmlFilter(AllowedHtmlFilter)`; `allowlist(KsesContext, Allowlist)` replaces a context's table |
 | `kses_allowed_protocols` | `protocols(List<String>)` |
 | `wp_kses_uri_attributes` | `uriAttributes(List<String>)` |
-| `safe_style_css` | `safeStyleProperties(List<String>)` (empty turns CSS filtering off, as in WordPress) |
+| `safe_style_css` | `safeStyleProperties(List<String>)` (an empty list keeps every declaration unfiltered, as in WordPress; it does not mean "allow no CSS") |
 | `safecss_filter_attr_allow_css` | `cssAllowFilter(CssAllowFilter)` |
 | `pre_kses` | `preFilter(PreKsesFilter)` |
 | default filters (`wp_pre_kses_less_than`, `wp_pre_kses_block_attributes`, `_wp_kses_allow_note_mention_span`) | `preFilters(boolean)`, default `true`; `false` gives bare kses |
-| `wp_upload_dir()` for PDF objects | `uploadBaseUrl(String)`; without it `<object>` never keeps `data` |
+| `wp_upload_dir()` for PDF objects | `uploadBaseUrl(String)`; without it `<object>` never keeps `data`; an invalid URI throws `IllegalArgumentException`, and a host `java.net.URI` cannot parse (for example with underscores) makes PDF objects fail closed |
 
 `Kses` instances are immutable and thread-safe. Built-in contexts and contexts registered with
 `allowlist(...)` are resolved once, when the instance is built; other context names (for example a
@@ -69,8 +69,8 @@ The behaviour is WordPress's, including the parts that surprise:
 - CSS declarations without a colon are kept; `rgb()` is dropped while `calc(1px & 2)` passes.
 - A protocol list without `http` turns `http://x` into `//x`.
 - `<!DOCTYPE html>` is removed, `<!doctype html>` kept.
-- kses is not idempotent: a second pass can change WordPress's own output (`<!a<b>>` gains a `&gt;`
-  on every pass).
+- kses is not idempotent: a second pass can change WordPress's own output (in bare mode `<!a<b>>` gains a
+  `&gt;` on every pass; with `Kses.wordPress()` the output is stable).
 
 ## Differences from WordPress
 
@@ -96,7 +96,7 @@ other change in them still fails.
 | 11 | with the block pre-filter on, a block delimiter that the filter did not process is neutralized the same way: (a) delimiters in the recovered text of unclosed blocks and after a closer that closes nothing, plain closers in that text included; (b) comments that kses rebuilds into a delimiter (for example `<!--\nwp:p {...} --->`); (c) comments that start like a delimiter but are not a complete delimiter on their own, such as `<!-- wp:more text -->` or `<!-- wp:p {"a":"x"}-->`, even when nothing later completes them; (d) closers with JSON (`<!-- /wp:p {"a":1} -->`) in classic content | leaves them live, some with unfiltered attributes | no unfiltered block attributes reach a renderer |
 | 12 | above 32 `url()` or gradient removals in one declaration, matched spans are removed instead of every occurrence of each text, and the declaration is dropped if a removed text still occurs: some pathological style values that WordPress keeps are dropped | removes every occurrence with `str_replace` | linear time; fails closed |
 | 13 | a `pre_kses` filter (`preFilter`) always runs after the default pre-filters | the block-attribute filter re-adds itself at the end of priority 10, so from the second kses call on, a host filter at priority 10 runs before it | fixed order, no global hook state |
-| 14 | the attribute parser reads an unquoted value past `>` (`x=a>b c=d` gives `x` and `c`) | stops at `>` (`x=a` only) | unreachable through kses and `oneAttr`, whose attribute text never contains `>` |
+| 14 | the attribute parser reads an unquoted value past `>` (`x=a>b c=d` gives `x` and `c`) | stops at `>` (`x=a` only) | unreachable: kses's tokenizer ends the attribute text at `>`, and `oneAttr` (whose text can contain `>`, as in `title=a>b c=d`) splits on `=` itself and never uses the parser |
 
 ## Parity testing
 

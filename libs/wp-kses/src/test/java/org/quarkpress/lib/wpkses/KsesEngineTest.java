@@ -5,11 +5,27 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class KsesEngineTest {
 
-    private static final KsesConfig BARE = KsesConfig.defaults(false, Examples.UPLOAD_URL);
+    private static final KsesConfig BARE = bare(Examples.UPLOAD_URL);
+
+    /** WordPress's tables and lists with the default pre-filters off; contexts are resolved on every call. */
+    private static KsesConfig bare(String uploadBaseUrl) {
+        WordPressTables tables = WordPressTables.INSTANCE;
+        SafeCss safeCss = new SafeCss(tables.safeStyleProperties(), null, tables.protocols());
+        return new KsesConfig(
+                tables.protocols(),
+                Set.copyOf(tables.uriAttributes()),
+                safeCss,
+                new AttributeChecker.Environment(safeCss::filter, PdfObjects.policy(uploadBaseUrl)),
+                false,
+                List.of(),
+                context -> Contexts.resolve(context, Map.of(), List.of()));
+    }
 
     private static String kses(String html, AllowedHtml allowed) {
         return KsesRun.sanitize(BARE, html, allowed, List.of());

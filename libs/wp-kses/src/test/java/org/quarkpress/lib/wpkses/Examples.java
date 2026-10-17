@@ -42,6 +42,30 @@ final class Examples {
 
     private static final Map<String, Kses> KSES = new ConcurrentHashMap<>();
 
+    /**
+     * wp_kses_html_error: removes a leading run of quoted strings (closed or not) and non-space
+     * characters, then the whitespace after it.
+     */
+    static String htmlError(String s) {
+        int i = 0;
+        int n = s.length();
+        while (i < n) {
+            char c = s.charAt(i);
+            if (c == '"' || c == '\'') {
+                int close = s.indexOf(c, i + 1);
+                i = close < 0 ? n : close + 1;
+            } else if (!TextUtils.isPcreSpace(c)) {
+                i++;
+            } else {
+                break;
+            }
+        }
+        while (i < n && TextUtils.isPcreSpace(s.charAt(i))) {
+            i++;
+        }
+        return s.substring(i);
+    }
+
     private Examples() {}
 
     static List<JsonNode> load(String file) {
@@ -87,7 +111,7 @@ final class Examples {
                 return str(TextUtils.stripSlashes(text));
             }
             case "html_error" -> {
-                return str(TextUtils.htmlError(text));
+                return str(htmlError(text));
             }
             case "decode_attribute" -> {
                 return str(CharacterReferences.decodeAttribute(text));

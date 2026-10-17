@@ -12,9 +12,9 @@ import java.util.Map;
  * occurrence of a lowercase name wins; an unclosed quote drops every attribute; carriage returns are normalized
  * and NUL becomes U+FFFD before character references are decoded.
  *
- * <p>Known edge: the text handed in here ends at the first '>' that the tag tokenizer found, so a '>' inside an
- * unquoted value ends the tag early, exactly as it does in WordPress; the rest of the value is then outside the
- * attribute text.
+ * <p>Known edge: this parser reads an unquoted value past a '>' (for {@code x=a>b c=d} it finds {@code x} and
+ * {@code c}), where WordPress's tag processor stops at the '>'. No caller can show it: kses's tokenizer ends the
+ * attribute text at the first '>', and {@code oneAttr} splits on '=' itself and never uses this parser.
  */
 final class AttributeParser {
 

@@ -1,7 +1,6 @@
 package org.quarkpress.lib.wpkses;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -23,20 +22,5 @@ record KsesConfig(
         Objects.requireNonNull(checks, "checks");
         preFilters = List.copyOf(preFilters);
         Objects.requireNonNull(allowlists, "allowlists");
-    }
-
-    /** WordPress's tables and lists; {@code uploadBaseUrl} may be null. Contexts are resolved on every call. */
-    static KsesConfig defaults(boolean defaultPreFilters, String uploadBaseUrl) {
-        WordPressTables tables = WordPressTables.INSTANCE;
-        SafeCss safeCss = new SafeCss(tables.safeStyleProperties(), null, tables.protocols());
-        List<AllowedHtmlFilter> filters = defaultPreFilters ? List.of(Contexts.NOTE_MENTION) : List.of();
-        return new KsesConfig(
-                tables.protocols(),
-                Set.copyOf(tables.uriAttributes()),
-                safeCss,
-                new AttributeChecker.Environment(safeCss::filter, PdfObjects.policy(uploadBaseUrl)),
-                defaultPreFilters,
-                List.of(),
-                context -> Contexts.resolve(context, Map.of(), filters));
     }
 }

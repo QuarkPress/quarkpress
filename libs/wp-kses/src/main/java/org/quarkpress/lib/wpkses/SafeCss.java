@@ -252,7 +252,10 @@ final class SafeCss {
         return body.substring(start);
     }
 
-    /** Removes gradient functions whose arguments nest at most one level of parentheses; null if the span fallback leaves one behind. */
+    /**
+     * Removes gradient functions whose arguments nest at most one level of parentheses; null if the span fallback
+     * leaves one behind.
+     */
     static String removeGradients(String test) {
         List<int[]> spans = new ArrayList<>();
         int position = 0;

@@ -25,7 +25,10 @@ public final class AttributeRule {
         return ALLOWED;
     }
 
-    /** Allowed when every check passes, in this order. */
+    /**
+     * Allowed when every check passes, in this order. With no checks the attribute is allowed with any value, unlike
+     * PHP's falsy {@code []} (for example on {@code data-*}), which WordPress treats as not allowed.
+     */
     public static AttributeRule of(AttributeCheck... checks) {
         return new AttributeRule(false, List.of(checks));
     }

@@ -173,12 +173,11 @@ class HostileInputTest {
 
     @Test
     void htmlErrorOnAMebibyte() {
-        assertThat(timed(() -> TextUtils.htmlError("\"".repeat(MIB)))).isEmpty();
-        assertThat(timed(() -> TextUtils.htmlError("\"".repeat(MIB + 1)))).isEmpty();
-        assertThat(timed(() -> TextUtils.htmlError("x".repeat(MIB)))).isEmpty();
-        assertThat(timed(() -> TextUtils.htmlError("x" + " ".repeat(MIB) + "y")))
-                .isEqualTo("y");
-        assertThat(timed(() -> TextUtils.htmlError("x ".repeat(MIB / 2)))).isEqualTo("x ".repeat(MIB / 2 - 1));
+        assertThat(timed(() -> Examples.htmlError("\"".repeat(MIB)))).isEmpty();
+        assertThat(timed(() -> Examples.htmlError("\"".repeat(MIB + 1)))).isEmpty();
+        assertThat(timed(() -> Examples.htmlError("x".repeat(MIB)))).isEmpty();
+        assertThat(timed(() -> Examples.htmlError("x" + " ".repeat(MIB) + "y"))).isEqualTo("y");
+        assertThat(timed(() -> Examples.htmlError("x ".repeat(MIB / 2)))).isEqualTo("x ".repeat(MIB / 2 - 1));
     }
 
     @Test

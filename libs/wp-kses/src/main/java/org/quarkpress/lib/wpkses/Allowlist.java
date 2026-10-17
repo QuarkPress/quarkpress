@@ -76,6 +76,7 @@ public final class Allowlist implements AllowedHtml {
             return this;
         }
 
+        /** Allows {@code name} with exactly this rule, replacing any earlier rule for it. */
         public Builder element(String name, ElementRule rule) {
             elements.put(Objects.requireNonNull(name, "name"), Objects.requireNonNull(rule, "rule"));
             return this;
@@ -86,6 +87,7 @@ public final class Allowlist implements AllowedHtml {
             return attribute(element, attribute, AttributeRule.allowed());
         }
 
+        /** Allows {@code attribute} on {@code element} under {@code rule}, allowing the element if needed. */
         public Builder attribute(String element, String attribute, AttributeRule rule) {
             Objects.requireNonNull(element, "element");
             ElementRule current = elements.getOrDefault(element, ElementRule.noAttributes());
@@ -93,11 +95,13 @@ public final class Allowlist implements AllowedHtml {
             return this;
         }
 
+        /** Disallows {@code name} with all its attributes; no effect if it is not allowed. */
         public Builder removeElement(String name) {
             elements.remove(name);
             return this;
         }
 
+        /** Disallows {@code attribute} on {@code element}; no effect if either is not allowed. */
         public Builder removeAttribute(String element, String attribute) {
             ElementRule current = elements.get(element);
             if (current != null) {
@@ -106,6 +110,7 @@ public final class Allowlist implements AllowedHtml {
             return this;
         }
 
+        /** The immutable allowlist collected so far. */
         public Allowlist build() {
             return elements.isEmpty() ? EMPTY : new Allowlist(elements);
         }
