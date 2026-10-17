@@ -1,8 +1,8 @@
 package org.quarkpress.lib.wpkses;
 
 /**
- * WordPress's esc_attr and esc_html, which are the same for UTF-8 text: character references are normalized
- *, '&' is not escaped again when it starts one (except {@code &apos;}, which HTML 4.01 does not know), and
+ * WordPress's esc_attr and esc_html, which are the same for UTF-8 text: character references are normalized, '&' is
+ * not escaped again when it starts one (except {@code &apos;}, which HTML 4.01 does not know), and
  * {@code < > " '} become {@code &lt; &gt; &quot; &#039;}.
  */
 final class HtmlEscaper {
