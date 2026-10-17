@@ -21,6 +21,7 @@ Project home: <https://quarkpress.org>
 | `libs/` | Plain Java libraries (`org.quarkpress.lib`), zero Quarkus dependency |
 | `libs/php-serialize/` | Reader/writer for the PHP `serialize()` format |
 | `libs/wp-blocks/` | Parser and serializer for Gutenberg block markup |
+| `libs/wxr/` | Streaming reader and writer for WordPress WXR export files |
 | `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |
 | `docs/` | Specification and planning documents |
 

@@ -45,6 +45,11 @@
         <artifactId>quarkpress-lib-wp-shortcode</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.quarkpress.lib</groupId>
+        <artifactId>quarkpress-lib-wxr</artifactId>
+        <version>${project.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkpress.lib</groupId>
+    <artifactId>quarkpress-libs-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkpress-lib-wxr</artifactId>
+
+  <name>QuarkPress :: lib :: WXR</name>
+  <description>Stream-read and write WordPress eXtended RSS (WXR) export files</description>
+
+  <properties>
+    <automatic.module.name>org.quarkpress.lib.wxr</automatic.module.name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.quarkpress.lib</groupId>
+      <artifactId>quarkpress-lib-php-serialize</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -20,6 +20,7 @@
     <module>wp-blocks</module>
     <module>wp-kses</module>
     <module>wp-shortcode</module>
+    <module>wxr</module>
   </modules>
 
   <dependencies>
