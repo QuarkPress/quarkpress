@@ -38,6 +38,15 @@ public final class Jdbc {
         }
     }
 
+    public static int update(DataSource dataSource, String sql, Object... params) {
+        try (Connection connection = dataSource.getConnection();
+                PreparedStatement statement = prepare(connection, sql, params)) {
+            return statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static PreparedStatement prepare(Connection connection, String sql, Object... params) throws SQLException {
         PreparedStatement statement = connection.prepareStatement(sql);
         for (int i = 0; i < params.length; i++) {

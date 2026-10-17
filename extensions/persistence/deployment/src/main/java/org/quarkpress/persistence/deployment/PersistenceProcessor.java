@@ -13,7 +13,9 @@ import java.util.Optional;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
+import org.quarkpress.persistence.NetworkOptionStore;
 import org.quarkpress.persistence.NetworkScope;
+import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.QuarkPressPersistence;
 import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.CurrentSiteIdSupplier;
@@ -32,7 +34,8 @@ class PersistenceProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(SiteScope.class, NetworkScope.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                SiteScope.class, NetworkScope.class, Options.class, NetworkOptionStore.class);
     }
 
     @BuildStep
