@@ -6,7 +6,10 @@ import java.util.Map;
 @FunctionalInterface
 public interface AttributeDefaultsHook {
 
-    /** Returns the merged attributes; may add or change keys. Must not return null. */
+    /**
+     * Returns the merged attributes; may add or change keys. The input maps are unmodifiable: return a new map.
+     * Must not return null.
+     */
     Map<String, String> filter(
             Map<String, String> out, Map<String, String> defaults, ShortcodeAttributes attributes, String tag);
 }

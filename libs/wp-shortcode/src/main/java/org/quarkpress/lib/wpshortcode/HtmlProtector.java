@@ -77,7 +77,7 @@ final class HtmlProtector {
         boolean unquoted = (singleQuote < 0 || open < singleQuote) && (doubleQuote < 0 || open < doubleQuote);
         ShortcodeScanner.Expansion expansion = expander.apply(attribute);
         if (unquoted) {
-            return expansion.text(); // trusted author: raw output, no sanitizing (R12.6a)
+            return expansion.text(); // trusted author: raw output, no sanitizing
         }
         if (expansion.replacements() == 0) {
             return attribute;

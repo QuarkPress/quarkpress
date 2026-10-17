@@ -2,8 +2,8 @@
 # Format: <case-id-or-glob> <aspect-or-glob> <item> <reason>. A case of "none" documents a difference no oracle
 # case can show. An entry whose comparisons all match WordPress fails the run: delete it.
 none none D1 an invalid shortcode name throws IllegalArgumentException; WordPress reports doing_it_wrong and ignores the call
-none none D2 handlers are typed, so an uncallable callback (R1.5, R7.5) cannot exist
-none none D3 handlers return String; PHP's casts of other results (R7.4) do not apply and null renders as ""
+none none D2 handlers are typed, so an uncallable callback cannot exist
+none none D3 handlers return String; PHP's casts of other results do not apply and null renders as ""
 html-style-* apply D4 a style attribute in an expanded quoted value is rejected until lib-wp-kses provides safecss
 r15-jit-limit apply D5 WordPress's regex hits PCRE's JIT stack limit and returns ""; QuarkPress scans in linear time
 r15-jit-limit apply_ignore_html D5 same as above

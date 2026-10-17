@@ -4,7 +4,7 @@ import java.util.Optional;
 
 /**
  * Cleans one HTML attribute after shortcodes in its quoted value were expanded (WordPress runs
- * wp_kses_one_attr there). {@code BasicAttributeSanitizer} is the default.
+ * wp_kses_one_attr there). {@link BasicAttributeSanitizer} is the default.
  */
 public interface HtmlAttributeSanitizer {
 

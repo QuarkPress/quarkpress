@@ -104,11 +104,11 @@ Each is listed in `src/test/resources/wp-parity-skip.txt`.
 
 | Item | WordPress | QuarkPress | Why |
 |---|---|---|---|
-| D1 invalid name (R1.2) | notice, call ignored | `IllegalArgumentException` | fail fast |
-| D2 uncallable callback (R1.5, R7.5) | notice, text unchanged | impossible | typed handlers |
-| D3 non-string results (R7.4) | PHP casts (`true` → `1`, arrays → `Array`) | handlers return `String`; `null` → `""` | Java types |
+| D1 invalid name | notice, call ignored | `IllegalArgumentException` | fail fast |
+| D2 uncallable callback | notice, text unchanged | impossible | typed handlers |
+| D3 non-string results | PHP casts (`true` → `1`, arrays → `Array`) | handlers return `String`; `null` → `""` | Java types |
 | D4 `style` in an expanded quoted attribute | filtered by safecss | rejected (original text kept) | no safe-CSS filter until lib-wp-kses |
-| D5 regex engine failure (R15.1) | whole content becomes `""` | processed normally, linear time | PHP artifact |
+| D5 regex engine failure | whole content becomes `""` | processed normally, linear time | PHP artifact |
 | D6 `expand` depth | unlimited (until PHP crashes) | `ShortcodeOptions.maxDepth`, default 64, cap 256, `ShortcodeException` | stack safety |
 | D7 `tagsIn` with no shortcodes registered | reports `""` for `[ x]` | no tags | PHP artifact |
 | D8 positional after integer key 9223372036854775807 | fatal error | dropped | robustness |

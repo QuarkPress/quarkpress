@@ -9,7 +9,7 @@ import java.util.Optional;
 
 /**
  * An immutable, ordered map from shortcode name to handler. Order matters: when two names could match at the
- * same place, the earlier one wins (R3.3a). Re-adding a name replaces its handler and keeps its position.
+ * same place, the earlier one wins. Re-adding a name replaces its handler and keeps its position.
  */
 public final class ShortcodeRegistry {
 
