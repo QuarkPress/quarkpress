@@ -23,6 +23,11 @@ public class ItBook extends SiteScopedEntity {
     @Column(nullable = false, length = 100)
     public String title;
 
+    /**
+     * The database key is composite, (site_id, shelf_id) to it_shelf (site_id, id): the row's own site_id, stamped by
+     * the listener, is part of the reference, so a book can only sit on a shelf of its own site. Hibernate maps the
+     * shelf by id and writes both columns.
+     */
     @ManyToOne(optional = false)
     @JoinColumn(name = "shelf_id", nullable = false)
     public ItShelf shelf;

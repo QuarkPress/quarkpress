@@ -52,4 +52,11 @@ public class DemoProbeResource {
             return "disabled";
         }
     }
+
+    /** Calls the gated service without catching: the application's exception mappers decide the answer. */
+    @GET
+    @Path("/service-uncaught")
+    public String serviceUncaught() {
+        return service.hello();
+    }
 }

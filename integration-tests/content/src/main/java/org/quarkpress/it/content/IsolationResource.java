@@ -30,7 +30,7 @@ public class IsolationResource {
     public String check(@PathParam("criterion") String criterion) throws Exception {
         return switch (criterion) {
             case "caches-off" -> attempts.cachesOff(newSite("cache-a"), newSite("cache-b"));
-            case "collections-filtered" -> attempts.collectionsFiltered(newSite("shelf-a"), newSite("shelf-b"));
+            case "cross-site-attach-refused" -> attempts.crossSiteAttachRefused(newSite("shelf-a"), newSite("shelf-b"));
             case "loaded-site-guarded" -> attempts.loadedSiteGuarded(newSite("guard-a"), newSite("guard-b"));
             case "propagated-tasks-keep-their-site" -> attempts.propagatedTasksKeepTheirSite(newSite("prop-b"));
             case "unbound-writes-refused" -> attempts.unboundWritesRefused(newSite("unbound"));

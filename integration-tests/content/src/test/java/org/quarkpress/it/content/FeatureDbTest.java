@@ -52,6 +52,32 @@ class FeatureDbTest {
     }
 
     @Test
+    void anUncaughtDisabledServiceCallIsLeftToTheApplicationsMappers() {
+        // No mapper in this application: Quarkus answers 500 for the unmapped SiteFeatureDisabledException.
+        given().when().get("/it/demo-probe/service-uncaught").then().statusCode(500);
+        given().when().put("/it/features/demo/true").then().statusCode(204);
+        given().when()
+                .get("/it/demo-probe/service-uncaught")
+                .then()
+                .statusCode(200)
+                .body(equalTo("hello"));
+    }
+
+    @Test
+    void aFeatureOnByDefaultGatesUntilTheSiteOrTheNetworkTurnsItOff() {
+        given().when().get("/it/demo-on").then().statusCode(200).body(equalTo("demo-on"));
+        given().when().put("/it/features/network/demo-on/false").then().statusCode(204);
+        given().when().get("/it/demo-on").then().statusCode(404).body(emptyString());
+        given().when().put("/it/features/demo-on/true").then().statusCode(204);
+        given().when().get("/it/demo-on").then().statusCode(200).body(equalTo("demo-on"));
+        given().when().put("/it/features/demo-on/false").then().statusCode(204);
+        given().when().get("/it/demo-on").then().statusCode(404).body(emptyString());
+        given().when().delete("/it/features/demo-on").then().statusCode(204);
+        given().when().delete("/it/features/network/demo-on").then().statusCode(204);
+        given().when().get("/it/demo-on").then().statusCode(200).body(equalTo("demo-on"));
+    }
+
+    @Test
     void anEnabledFeatureRunsEverything() {
         given().when().put("/it/features/demo/true").then().statusCode(204);
         given().when().get("/it/demo").then().statusCode(200).body(equalTo("demo"));

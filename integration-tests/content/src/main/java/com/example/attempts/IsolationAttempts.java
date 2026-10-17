@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManagerFactory;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.microprofile.context.ManagedExecutor;
 import org.hibernate.boot.spi.SessionFactoryOptions;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.core.runtime.SiteBinding;
@@ -88,8 +90,11 @@ public class IsolationAttempts {
         return foundByA && !foundByB ? "ok" : "loaded by id: site A " + foundByA + ", site B " + foundByB;
     }
 
-    /** A collection of a site-A row must not show children that site B attached to it. */
-    public String collectionsFiltered(long a, long b) throws Exception {
+    /**
+     * Site B must not attach a row to a row of site A: the composite foreign key (site_id, shelf_id) refuses the write,
+     * nothing is stored, and the collection of the site-A row shows only its own children.
+     */
+    public String crossSiteAttachRefused(long a, long b) throws Exception {
         SiteId siteA = SiteId.of(a);
         SiteId siteB = SiteId.of(b);
         long shelfId = scope.call(siteA, () -> {
@@ -99,17 +104,29 @@ public class IsolationAttempts {
             em.flush();
             return shelf.id;
         });
-        scope.run(siteB, () -> {
-            em.persist(ItBook.on(em.getReference(ItShelf.class, shelfId), "book of B"));
-            em.flush();
-        });
+        String outcome;
+        try {
+            scope.run(siteB, () -> {
+                em.persist(ItBook.on(em.getReference(ItShelf.class, shelfId), "book of B"));
+                em.flush();
+            });
+            outcome = "written";
+        } catch (RuntimeException refused) {
+            outcome = refusedByConstraint(refused, "it_book_shelf_fk") ? "refused" : "failed otherwise: " + refused;
+        }
+        Number stored = scope.call(
+                siteA, () -> (Number) em.createNativeQuery("select count(*) from it_book where shelf_id = :shelf")
+                        .setParameter("shelf", shelfId)
+                        .getSingleResult());
         List<String> titles = scope.call(
                 siteA,
                 () -> em.find(ItShelf.class, shelfId).books.stream()
                         .map(book -> book.title)
                         .sorted()
                         .toList());
-        return titles.equals(List.of("book of A")) ? "ok" : "the shelf of site A shows " + titles;
+        return outcome.equals("refused") && stored.longValue() == 1 && titles.equals(List.of("book of A"))
+                ? "ok"
+                : outcome + ", rows on the shelf " + stored + ", the shelf of site A shows " + titles;
     }
 
     /** A row loaded around the filter must not be writable from another site. */
@@ -235,6 +252,21 @@ public class IsolationAttempts {
         boolean stored =
                 scope.call(siteA, () -> optionRepository.findOption(siteA, name).isPresent());
         return "refused".equals(outcome.get()) && !stored ? "ok" : outcome.get() + ", stored " + stored;
+    }
+
+    private static boolean refusedByConstraint(Throwable failure, String constraint) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof ConstraintViolationException violation
+                    && (contains(violation.getConstraintName(), constraint)
+                            || contains(violation.getMessage(), constraint))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean contains(String text, String needle) {
+        return text != null && text.toLowerCase(Locale.ROOT).contains(needle);
     }
 
     private static boolean mentions(Throwable failure, String needle) {

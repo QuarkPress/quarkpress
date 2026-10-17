@@ -14,7 +14,7 @@ class IsolationDbTest {
     @ValueSource(
             strings = {
                 "caches-off",
-                "collections-filtered",
+                "cross-site-attach-refused",
                 "loaded-site-guarded",
                 "propagated-tasks-keep-their-site",
                 "unbound-writes-refused"
