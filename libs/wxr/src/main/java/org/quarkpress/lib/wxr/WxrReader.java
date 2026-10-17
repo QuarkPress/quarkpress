@@ -51,6 +51,8 @@ public final class WxrReader implements AutoCloseable {
     private WxrEntry pending;
     private boolean started;
     private boolean finished;
+    private boolean versionChecked;
+    private boolean unknownNamespaceNoted;
     private boolean inChannel;
     private long items;
     private Fields current;
@@ -168,10 +170,74 @@ public final class WxrReader implements AutoCloseable {
 
     private void finish() {
         finished = true;
+        checkVersion();
         if (readError() != null) {
             // the parser read ahead past the end of the channel and met a read error there
             readFailure(readError());
         }
+    }
+
+    /** Once, before the first entry or at the end of the channel: what the WordPress Importer requires. */
+    private void checkVersion() {
+        if (versionChecked) {
+            return;
+        }
+        versionChecked = true;
+        String version = site.get("wp:wxr_version");
+        if (version == null) {
+            log.repair(WxrProblem.Kind.VERSION_MISSING, line(), column(), "no wp:wxr_version before the first entry");
+            return;
+        }
+        String trimmed = Texts.phpTrim(version);
+        int dot = trimmed.indexOf('.');
+        if (dot < 1 || !digitsOnly(trimmed, 0, dot) || !digitsOnly(trimmed, dot + 1, trimmed.length())) {
+            log.repair(
+                    WxrProblem.Kind.VERSION_INVALID,
+                    line(),
+                    column(),
+                    "wp:wxr_version '" + version + "' is not <digits>.<digits>");
+            return;
+        }
+        if (newerThanCurrent(trimmed, dot)) {
+            log.note(WxrProblem.Kind.VERSION_NEWER, line(), column(), "WXR " + trimmed + " is newer than 1.2");
+        }
+    }
+
+    /** True for a non-empty run of ASCII digits in {@code s[from, to)}. */
+    private static boolean digitsOnly(String s, int from, int to) {
+        if (from >= to) {
+            return false;
+        }
+        for (int i = from; i < to; i++) {
+            char c = s.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether the number {@code <major>.<fraction>} is greater than 1.2, compared as a number (so "1.10" is 1.1 and
+     * "1.20" is 1.2), without any size limit on the digits.
+     */
+    private static boolean newerThanCurrent(String version, int dot) {
+        int start = 0;
+        while (start < dot - 1 && version.charAt(start) == '0') {
+            start++;
+        }
+        String major = version.substring(start, dot);
+        if (!"0".equals(major) && !"1".equals(major)) {
+            return true;
+        }
+        if ("0".equals(major)) {
+            return false;
+        }
+        int end = version.length();
+        while (end > dot + 1 && version.charAt(end - 1) == '0') {
+            end--;
+        }
+        return version.substring(dot + 1, end).compareTo("2") > 0;
     }
 
     private WxrEntry recover(XMLStreamException e) {
@@ -224,6 +290,9 @@ public final class WxrReader implements AutoCloseable {
         if (!nextStartElement()) {
             return;
         }
+        if (!"rss".equals(xml.getLocalName())) {
+            log.repair(WxrProblem.Kind.NOT_WXR, line(), column(), "the root element is <" + xml.getLocalName() + ">");
+        }
         while (true) {
             int event = xml.next();
             if (event == XMLStreamConstants.START_ELEMENT) {
@@ -233,6 +302,7 @@ public final class WxrReader implements AutoCloseable {
                 }
                 skipElement();
             } else if (event == XMLStreamConstants.END_ELEMENT || event == XMLStreamConstants.END_DOCUMENT) {
+                log.repair(WxrProblem.Kind.NOT_WXR, line(), column(), "the document has no <channel>");
                 return;
             }
         }
@@ -271,6 +341,7 @@ public final class WxrReader implements AutoCloseable {
     }
 
     private WxrEntry entity(String name) throws XMLStreamException {
+        checkVersion();
         if ("item".equals(name) && ++items > options.maxItems()) {
             throw new WxrException(
                     WxrProblem.Kind.TOO_MANY_ITEMS, line(), column(), "more than " + options.maxItems() + " items");
@@ -432,6 +503,20 @@ public final class WxrReader implements AutoCloseable {
             return local;
         }
         String prefix = WxrNames.knownPrefix(uri);
+        if (prefix == null && options.acceptAnyWpNamespace()) {
+            String written = xml.getPrefix();
+            if ("wp".equals(written) || "excerpt".equals(written)) {
+                prefix = written;
+                if (!unknownNamespaceNoted) {
+                    unknownNamespaceNoted = true;
+                    log.note(
+                            WxrProblem.Kind.UNKNOWN_NAMESPACE,
+                            line(),
+                            column(),
+                            "'" + written + "' is bound to " + uri + ", a URI WordPress never used; read anyway");
+                }
+            }
+        }
         return prefix == null ? "{" + uri + "}" + local : prefix + ":" + local;
     }
 
