@@ -16,7 +16,7 @@ import java.util.random.RandomGenerator;
  */
 public final class Properties {
 
-    public static final String SEED_PROPERTY = "quarkpress.gen.seed";
+    public static final String SEED_PROPERTY = "quarkpressGenSeed";
 
     private static final int MAX_INPUT_CHARS = 2000;
 

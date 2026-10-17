@@ -59,9 +59,9 @@ public final class WordPressSources {
     }
 
     static Path projectRoot() {
-        String root = System.getProperty("quarkpress.root");
+        String root = System.getProperty("quarkpressRoot");
         if (root == null || root.isBlank()) {
-            throw new IllegalStateException("quarkpress.root is not set; run with -Pwp-parity");
+            throw new IllegalStateException("quarkpressRoot is not set; run with -Pwp-parity");
         }
         return Path.of(root);
     }

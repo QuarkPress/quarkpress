@@ -141,14 +141,14 @@ class WordPressSourcesTest {
 
     @Test
     void projectRootComesFromTheProfile() {
-        String saved = System.clearProperty("quarkpress.root");
+        String saved = System.clearProperty("quarkpressRoot");
         try {
             assertThatThrownBy(WordPressSources::projectRoot)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("-Pwp-parity");
         } finally {
             if (saved != null) {
-                System.setProperty("quarkpress.root", saved);
+                System.setProperty("quarkpressRoot", saved);
             }
         }
     }

@@ -190,7 +190,7 @@
                 <systemPropertyVariables>
                   <wp.version>${wp.version}</wp.version>
                   <wp.php>${wp.php}</wp.php>
-                  <quarkpress.root>${maven.multiModuleProjectDirectory}</quarkpress.root>
+                  <quarkpressRoot>${maven.multiModuleProjectDirectory}</quarkpressRoot>
                 </systemPropertyVariables>
               </configuration>
             </plugin>

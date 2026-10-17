@@ -41,7 +41,7 @@ class PropertiesTest {
                 }))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("PropertiesTest.fails")
-                .hasMessageContaining("-Dquarkpress.gen.seed=4242")
+                .hasMessageContaining("-DquarkpressGenSeed=4242")
                 .hasMessageContaining("try 1 of 100")
                 .hasMessageContaining("input: 5")
                 .hasMessageContaining("boom")
@@ -56,7 +56,7 @@ class PropertiesTest {
         assertThatThrownBy(() -> Properties.check("PropertiesTest.broken", 10, 7L, broken, v -> {}))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("PropertiesTest.broken")
-                .hasMessageContaining("-Dquarkpress.gen.seed=7")
+                .hasMessageContaining("-DquarkpressGenSeed=7")
                 .hasMessageContaining("try 1 of 10")
                 .hasMessageContaining("bad generator");
     }
@@ -69,7 +69,7 @@ class PropertiesTest {
             assertThatThrownBy(() -> Properties.check("PropertiesTest.badSeed", 1, Gens.constant(1), v -> {}))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("PropertiesTest.badSeed")
-                    .hasMessageContaining("-Dquarkpress.gen.seed=12x");
+                    .hasMessageContaining("-DquarkpressGenSeed=12x");
         } finally {
             if (before == null) {
                 System.clearProperty(Properties.SEED_PROPERTY);
