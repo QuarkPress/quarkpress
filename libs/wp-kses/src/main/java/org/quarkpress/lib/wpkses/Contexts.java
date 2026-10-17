@@ -21,6 +21,8 @@ final class Contexts {
     private static final List<String> FORM_ATTRIBUTES =
             List.of("action", "accept", "accept-charset", "enctype", "method", "name", "target");
 
+    private static final Allowlist ENTITIES = entities();
+
     private Contexts() {}
 
     /** The table a context starts from, before filters; {@code bases} replaces built-in tables by context. */
@@ -34,7 +36,7 @@ final class Contexts {
             case "post" -> tables.post();
             case "user_description", "pre_term_description", "pre_user_description" -> userDescription(tables.data());
             case "strip" -> Allowlist.empty();
-            case "entities" -> entities();
+            case "entities" -> ENTITIES;
             default -> tables.data();
         };
     }

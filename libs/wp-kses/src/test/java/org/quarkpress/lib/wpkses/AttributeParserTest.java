@@ -28,6 +28,16 @@ class AttributeParserTest {
     }
 
     @Test
+    void rawNulBecomesTheReplacementCharacter() {
+        // Harness-verified with wp_kses_hair: "a\0b=\"x\0y\"", "a=x\0y" and "a\0=1".
+        String r = String.valueOf(TextUtils.REPLACEMENT_CHARACTER);
+        assertThat(AttributeParser.parse("a\0b=\"x\0y\""))
+                .containsExactly(new HairAttribute("a" + r + "b", "x" + r + "y"));
+        assertThat(AttributeParser.parse("a=x\0y")).containsExactly(new HairAttribute("a", "x" + r + "y"));
+        assertThat(AttributeParser.parse("a\0=1")).containsExactly(new HairAttribute("a" + r, "1"));
+    }
+
+    @Test
     void anUnclosedQuoteLosesEveryAttribute() {
         assertThat(AttributeParser.parse("a=1 b=\"2")).isEmpty();
         assertThat(AttributeParser.parse("a=1 b='2")).isEmpty();

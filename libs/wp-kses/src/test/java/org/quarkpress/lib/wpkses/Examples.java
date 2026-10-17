@@ -108,9 +108,24 @@ final class Examples {
                         : WordPressTables.INSTANCE.safeStyleProperties();
                 return str(new SafeCss(properties, null, WordPressTables.INSTANCE.protocols()).filter(text));
             }
+            case "kses" -> {
+                if (!e.path("mode").asText("bare").equals("bare")) {
+                    throw new UnsupportedOperationException("WordPress mode needs the default pre-filters");
+                }
+                KsesConfig config = KsesConfig.defaults(false, UPLOAD_URL);
+                return str(KsesRun.sanitize(config, text, allowedHtml(e), strings(e.get("protocols"))));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }
+    }
+
+    /** The example's explicit allowlist ("allowed") or its context name. */
+    static AllowedHtml allowedHtml(JsonNode e) {
+        JsonNode allowed = e.get("allowed");
+        return allowed != null && !allowed.isNull()
+                ? AllowlistJson.fromPhp(allowed)
+                : KsesContext.named(e.get("context").asText());
     }
 
     /** wp_kses_hair's result: name => {name, value, whole, vless}, or [] when there is none. */

@@ -10,7 +10,7 @@ import java.util.Map;
  *
  * <p>Observable behavior: attributes are separated by HTML whitespace or '/'; a name may start with '='; the first
  * occurrence of a lowercase name wins; an unclosed quote drops every attribute; carriage returns are normalized
- * before character references are decoded.
+ * and NUL becomes U+FFFD before character references are decoded.
  *
  * <p>Known edge: the text handed in here ends at the first '>' that the tag tokenizer found, so a '>' inside an
  * unquoted value ends the tag early, exactly as it does in WordPress; the rest of the value is then outside the
@@ -39,7 +39,7 @@ final class AttributeParser {
             while (i < n && !endsName(attr.charAt(i))) {
                 i++;
             }
-            String name = TextUtils.asciiLower(attr.substring(nameStart, i));
+            String name = TextUtils.asciiLower(withoutNul(attr.substring(nameStart, i)));
             int j = skipSpaces(attr, i);
             String value = null;
             if (j < n && attr.charAt(j) == '=') {
@@ -80,10 +80,15 @@ final class AttributeParser {
         return i;
     }
 
-    /** CR LF and lone CR become LF, then character references are decoded. */
+    /** CR LF and lone CR become LF, NUL becomes U+FFFD, then character references are decoded. */
     static String decodeValue(String raw) {
         String text = raw.indexOf('\r') < 0 ? raw : raw.replace("\r\n", "\n").replace('\r', '\n');
-        return CharacterReferences.decodeAttribute(text);
+        return CharacterReferences.decodeAttribute(withoutNul(text));
+    }
+
+    /** NUL becomes U+FFFD, as the HTML tokenizer does in attribute names and values. */
+    private static String withoutNul(String s) {
+        return s.indexOf('\0') < 0 ? s : s.replace('\0', TextUtils.REPLACEMENT_CHARACTER);
     }
 
     /** {@code & < > ' "} become {@code &amp; &lt; &gt; &apos; &quot;}; nothing else changes. */
