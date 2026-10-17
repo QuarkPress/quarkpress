@@ -144,4 +144,19 @@ final class Chars {
         }
         return true;
     }
+
+    /** The non-empty pieces of {@code s} between runs of {@code separator}, in order. No regex is involved. */
+    static java.util.List<String> pieces(String s, char separator) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        int start = 0;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i == s.length() || s.charAt(i) == separator) {
+                if (i > start) {
+                    out.add(s.substring(start, i));
+                }
+                start = i + 1;
+            }
+        }
+        return out;
+    }
 }
