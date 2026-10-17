@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,10 +49,24 @@ public final class PhpOracle {
     private final Path wordpress;
     private final Path workDir;
 
+    private final Map<String, String> environment;
+
     public PhpOracle(String php, Path wordpress, Path workDir) {
+        this(php, wordpress, workDir, Map.of());
+    }
+
+    private PhpOracle(String php, Path wordpress, Path workDir, Map<String, String> environment) {
         this.php = Objects.requireNonNull(php, "php");
         this.wordpress = Objects.requireNonNull(wordpress, "wordpress");
         this.workDir = Objects.requireNonNull(workDir, "workDir");
+        this.environment = Map.copyOf(environment);
+    }
+
+    /** A copy of this oracle whose PHP process also gets the environment variable {@code name=value}. */
+    public PhpOracle withEnvironment(String name, String value) {
+        Map<String, String> more = new HashMap<>(environment);
+        more.put(Objects.requireNonNull(name, "name"), Objects.requireNonNull(value, "value"));
+        return new PhpOracle(php, wordpress, workDir, more);
     }
 
     /** Uses {@code -Dwp.php} (default {@code php}) and the module's {@code target/} directory. */
@@ -84,6 +99,7 @@ public final class PhpOracle {
                 .redirectErrorStream(true)
                 .redirectOutput(log.toFile());
         builder.environment().put("QP_ORACLE_HOME", home.toString());
+        builder.environment().putAll(environment);
         // modules build in parallel (-T4); the lock in the shared WordPress directory runs one php at a time
         try (FileChannel lockChannel =
                         FileChannel.open(wordpress.resolve(LOCK), StandardOpenOption.CREATE, StandardOpenOption.WRITE);

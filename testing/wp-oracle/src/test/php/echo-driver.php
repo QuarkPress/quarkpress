@@ -12,6 +12,9 @@ declare(strict_types=1);
 require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
 
 qp_run(function (array $in): array {
+    if (isset($in['env'])) {
+        return ['env' => getenv($in['env'])];
+    }
     if (isset($in['fail'])) {
         throw new RuntimeException($in['fail']);
     }

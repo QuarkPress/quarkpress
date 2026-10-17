@@ -111,4 +111,13 @@ class PhpOracleParityTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("duplicate case id x");
     }
+
+    @Test
+    void environmentReachesTheDriver() throws Exception {
+        ObjectNode in = OracleJson.MAPPER.createObjectNode().put("env", "QP_TEST_VALUE");
+        Map<String, JsonNode> out = PhpOracle.create(wordpress)
+                .withEnvironment("QP_TEST_VALUE", "hello")
+                .run(DRIVER, List.of(new PhpOracle.Case("env", in)));
+        assertThat(out.get("env").get("env").asText()).isEqualTo("hello");
+    }
 }

@@ -20,11 +20,13 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 /**
  * Downloads WordPress source files of a pinned release into {@code target/wp-source/<version>/} of the project
@@ -64,14 +66,39 @@ public final class WordPressSources {
         return Path.of(root);
     }
 
-    @SuppressWarnings("try")
+    /**
+     * Makes sure {@code files} (paths relative to the repository root) of a pinned non-WordPress repository are
+     * present and verified in {@code target/wp-source/<name>/}, and returns that directory.
+     */
+    public static Path ensure(PinnedRepository repository, String... files) throws IOException, InterruptedException {
+        Path dir = projectRoot().resolve("target").resolve("wp-source").resolve(repository.name());
+        return ensure(repository, dir, List.of(files));
+    }
+
+    static Path ensure(PinnedRepository repository, Path dir, List<String> files)
+            throws IOException, InterruptedException {
+        return fetch(repository.sha256ByPath(), repository.name(), repository::uri, dir, new LinkedHashSet<>(files));
+    }
+
     static Path ensure(WordPressRelease release, Path dir, URI base, List<String> files)
             throws IOException, InterruptedException {
         Set<String> wanted = new LinkedHashSet<>(BOOTSTRAP_FILES);
         wanted.addAll(files);
+        return fetch(
+                release.sha256ByPath(),
+                "WordPress " + release.version(),
+                path -> base.resolve(release.tag() + "/src/" + path),
+                dir,
+                wanted);
+    }
+
+    @SuppressWarnings("try")
+    private static Path fetch(
+            Map<String, String> pins, String what, Function<String, URI> uriOf, Path dir, Set<String> wanted)
+            throws IOException, InterruptedException {
         for (String path : wanted) {
-            if (!release.sha256ByPath().containsKey(path)) {
-                throw new IllegalArgumentException("no SHA-256 pin for " + path + " in WordPress " + release.version());
+            if (!pins.containsKey(path)) {
+                throw new IllegalArgumentException("no SHA-256 pin for " + path + " in " + what);
             }
         }
         Files.createDirectories(dir);
@@ -86,10 +113,10 @@ public final class WordPressSources {
                         .followRedirects(HttpClient.Redirect.NORMAL)
                         .build()) {
             for (String path : wanted) {
-                String expected = release.sha256ByPath().get(path);
+                String expected = pins.get(path);
                 Path target = dir.resolve(path);
                 if (!Files.isRegularFile(target) || !expected.equals(sha256(target))) {
-                    download(client, base.resolve(release.tag() + "/src/" + path), target, deadline);
+                    download(client, uriOf.apply(path), target, deadline);
                     String actual = sha256(target);
                     if (!expected.equals(actual)) {
                         Files.delete(target);

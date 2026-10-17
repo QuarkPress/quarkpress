@@ -22,3 +22,7 @@ fa5d1dd7457cf6e884f713e674d4174b67f3ae0039e06c239defdfa84f8b9620  wp-includes/ht
 0a4ed9e30b81c83bda38d6cc2ce1e45ecbd6f1bea37f386a670d311cb82d6746  wp-includes/html-api/class-wp-html-doctype-info.php
 e82869802ff119d4b34c654d8be60c2f9459a481567b04db960ed8c2e0fc658e  wp-includes/html-api/class-wp-html-unsupported-exception.php
 e2d3c1511d02a60637ad94b9a2d6a76da234d55f4f86c9d1a6bf016a26c69bd6  wp-includes/html-api/class-wp-html-tag-processor.php
+1cd94583390885b9324bd5fde38da21af60603c85b64d4b0b6a878fcb1615bba  wp-admin/includes/export.php
+6115a3ffac15321e08fcb3ebe39ba0bd83121e0fecc226911f4a801fd896ec77  wp-includes/utf8.php
+7a922c1d15f8d1464c18d005d6e094126c4c82a85f672b1b9d8616db67f700ea  wp-includes/compat-utf8.php
+3fa163fdd315e122ec721a66cfffbb64863d479d4edbabfac8f1dc4bdda1f845  wp-includes/general-template.php

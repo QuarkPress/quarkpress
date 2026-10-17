@@ -21,8 +21,10 @@ class WordPressReleaseTest {
                 .containsEntry(
                         "wp-includes/blocks.php", "99de93fa9afbf4576d5a34d1e46365980d510de59f565bece9f4db178625a460")
                 .containsEntry(
-                        "wp-includes/functions.php",
-                        "cac8a17e293df99f0683a88debd3ba5e5cce274183a4e9fd3c9f18375747f41c");
+                        "wp-includes/functions.php", "cac8a17e293df99f0683a88debd3ba5e5cce274183a4e9fd3c9f18375747f41c")
+                .containsEntry(
+                        "wp-admin/includes/export.php",
+                        "1cd94583390885b9324bd5fde38da21af60603c85b64d4b0b6a878fcb1615bba");
     }
 
     @Test

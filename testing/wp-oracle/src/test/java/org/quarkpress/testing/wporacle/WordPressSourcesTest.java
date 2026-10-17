@@ -152,4 +152,25 @@ class WordPressSourcesTest {
             }
         }
     }
+
+    @Test
+    void pinnedRepositoryFilesAreDownloadedAndVerified() throws Exception {
+        String ref = "c".repeat(40);
+        byte[] body = "<?php // parser\n".getBytes(StandardCharsets.UTF_8);
+        served.put("/" + ref + "/src/parser.php", body);
+        PinnedRepository repository =
+                new PinnedRepository("importer-test", base(), ref, Map.of("src/parser.php", sha256(body)));
+        Path dir = tmp.resolve("importer");
+
+        Path result = WordPressSources.ensure(repository, dir, List.of("src/parser.php"));
+
+        assertThat(result).isEqualTo(dir);
+        assertThat(Files.readString(dir.resolve("src/parser.php"))).isEqualTo("<?php // parser\n");
+        assertThat(requests.get()).isEqualTo(1);
+        WordPressSources.ensure(repository, dir, List.of("src/parser.php"));
+        assertThat(requests.get()).isEqualTo(1);
+        assertThatThrownBy(() -> WordPressSources.ensure(repository, dir, List.of("src/other.php")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no SHA-256 pin for src/other.php in importer-test");
+    }
 }
