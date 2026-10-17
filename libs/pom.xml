@@ -18,6 +18,7 @@
   <modules>
     <module>php-serialize</module>
     <module>wp-blocks</module>
+    <module>wp-shortcode</module>
   </modules>
 
   <dependencies>
