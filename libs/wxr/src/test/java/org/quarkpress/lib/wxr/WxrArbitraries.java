@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.random.RandomGenerator;
@@ -294,6 +295,37 @@ final class WxrArbitraries {
             rows.add(new WxrMeta(text.next(random), text.next(random)));
         }
         return rows;
+    }
+
+    /** Serialized-looking meta values: right and wrong lengths, objects (also inside strings), wrapping, cuts. */
+    static Gen<String> metaValues() {
+        Gen<String> word = Gens.strings("abcxyz \"", 0, 6);
+        Gen<String> string = word.map(w -> "s:" + w.getBytes(StandardCharsets.UTF_8).length + ":\"" + w + "\";");
+        Gen<String> wrongLength = word.map(w -> "s:" + (w.length() + 1) + ":\"" + w + "\";");
+        Gen<String> className = Gens.strings("ABCxyz_", 1, 8);
+        Gen<String> object = className.map(c -> "O:" + c.length() + ":\"" + c + "\":1:{s:1:\"a\";i:1;}");
+        Gen<String> headerInString = className.map(c -> {
+            String inner = "O:" + c.length() + ":\"" + c + "\":0:{";
+            return "a:1:{i:0;s:" + inner.length() + ":\"" + inner + "\";}";
+        });
+        Gen<String> scalar = Gens.elements("N;", "b:0;", "b:1;", "i:-5;", "i:42;", "d:0.25;", "d:-1.5E+25;", "a:0:{}");
+        Gen<String> array = Gens.lists(Gens.oneOf(string, scalar), 0, 3).map(values -> {
+            StringBuilder b = new StringBuilder("a:" + values.size() + ":{");
+            for (int i = 0; i < values.size(); i++) {
+                b.append("i:").append(i).append(';').append(values.get(i));
+            }
+            return b.append('}').toString();
+        });
+        Gen<String> plain = Gens.strings("abc 123:;{}\"", 0, 10);
+        Gen<String> base = Gens.oneOf(string, wrongLength, object, headerInString, scalar, array, plain);
+        return random -> {
+            String v = base.next(random);
+            return switch (random.nextInt(6)) {
+                case 0 -> " " + v + "\n";
+                case 1 -> v.substring(0, v.length() / 2);
+                default -> v;
+            };
+        };
     }
 
     // ---- export datasets ----

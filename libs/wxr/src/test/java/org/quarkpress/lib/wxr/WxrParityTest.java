@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ import org.quarkpress.testing.wporacle.GeneratedCases;
 import org.quarkpress.testing.wporacle.OracleJson;
 import org.quarkpress.testing.wporacle.ParityRun;
 import org.quarkpress.testing.wporacle.PhpOracle;
+import org.quarkpress.testing.wporacle.PhpTree;
 
 /**
  * Compares lib-wxr with the WordPress Importer 0.9.6 (commit 3ca8839) and WordPress 7.1.3's export_wp()
@@ -34,11 +37,13 @@ class WxrParityTest {
 
     static final Path FAILURES = Path.of("target/wp-parity-failures.json");
     static final int GENERATED_DOCUMENTS = 300;
-    static final int MIN_COMPARISONS = 15_000;
+    static final int MIN_COMPARISONS = 20_000;
     /** Floors per section, so that neither the reader nor the writer comparisons can vanish behind the other. */
     static final int MIN_READER_COMPARISONS = 10_000;
 
     static final int MIN_WRITER_COMPARISONS = 5_000;
+    static final int MIN_ROUND_TRIP_COMPARISONS = 1_000;
+    static final int MIN_META_COMPARISONS = 200;
     static final int MIN_DATASETS = 65;
     /** The aspect prefix of a value that differs only as {@link WxrParity#undecodedTailReference} explains. */
     static final String UNDECODED_TAIL_REFERENCE = "reader-undecoded-tail-reference:";
@@ -75,15 +80,26 @@ class WxrParityTest {
         List<Dataset> datasets = datasets();
         Map<String, byte[]> exports = compareWriter(run, oracle, datasets);
         int writerComparisons = run.comparisons() - readerComparisons;
+        int beforeRoundTrip = run.comparisons();
+        compareRoundTrip(run, oracle, exports, datasets);
+        int roundTripComparisons = run.comparisons() - beforeRoundTrip;
+        int beforeMeta = run.comparisons();
+        compareMeta(run, oracle, WxrParity.corpus());
+        int metaComparisons = run.comparisons() - beforeMeta;
 
         System.out.println("lib-wxr parity (" + parser + "): " + readerCases.size() + " files read ("
                 + readerComparisons + " comparisons), " + datasets.size() + " datasets exported ("
-                + writerComparisons + " comparisons), " + run.comparisons() + " comparisons, "
+                + writerComparisons + " comparisons), " + roundTripComparisons + " round-trip comparisons, "
+                + metaComparisons + " meta comparisons, " + run.comparisons() + " comparisons, "
                 + run.mismatches().size() + " differences");
         assertThat(datasets).hasSizeGreaterThanOrEqualTo(MIN_DATASETS);
         assertThat(exports).hasSize(datasets.size());
         assertThat(readerComparisons).as("reader comparisons").isGreaterThanOrEqualTo(MIN_READER_COMPARISONS);
         assertThat(writerComparisons).as("writer comparisons").isGreaterThanOrEqualTo(MIN_WRITER_COMPARISONS);
+        assertThat(roundTripComparisons)
+                .as("round-trip comparisons")
+                .isGreaterThanOrEqualTo(MIN_ROUND_TRIP_COMPARISONS);
+        assertThat(metaComparisons).as("meta comparisons").isGreaterThanOrEqualTo(MIN_META_COMPARISONS);
         run.assertParity(MIN_COMPARISONS);
     }
 
@@ -178,6 +194,136 @@ class WxrParityTest {
                     xmlProcessor ? (wp, qp) -> WxrParity.undecodedTailReference(wp, qp, source) : (wp, qp) -> false,
                     UNDECODED_TAIL_REFERENCE);
         }
+    }
+
+    static final int GENERATED_META = 200;
+    /** Values from the harness's is_serialized check and the meta checks of Task 2 (reference R60). */
+    static final List<String> FIXED_META = List.of(
+            "N;",
+            "b:0;",
+            "b:2;",
+            "i:5;",
+            "d:0.5;",
+            "s:3:\"abc\";",
+            "s:5:\"abc\";",
+            "a:0:{}",
+            "O:8:\"stdClass\":0:{}",
+            "C:3:\"Foo\":0:{}",
+            " a:0:{}\n",
+            "a:0:{",
+            "12",
+            "x",
+            "N",
+            "a:1:{i:0;s:3:\"red\";}",
+            "O:3:\"Foo\":1:{s:1:\"a\";i:1;}",
+            "a:1:{i:0;s:13:\"O:3:\"Foo\":0:{\";}",
+            " b:1; ");
+
+    /** The library's rewrite of a WordPress file: read leniently, write everything back in order. */
+    static byte[] rewrite(byte[] original) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (WxrReader reader = WxrReader.open(new ByteArrayInputStream(original), WxrReadOptions.LENIENT)) {
+            List<WxrEntry> entries = new ArrayList<>();
+            while (reader.hasNext()) {
+                entries.add(reader.next());
+            }
+            try (WxrWriter writer = WxrWriter.open(out, reader.site())) {
+                for (WxrEntry entry : entries) {
+                    switch (entry) {
+                        case WxrAuthor a -> writer.author(a);
+                        case WxrCategory c -> writer.category(c);
+                        case WxrTag t -> writer.tag(t);
+                        case WxrTerm t -> writer.term(t);
+                        case WxrItem i -> writer.item(i);
+                    }
+                }
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Parity 3: the importer's view of each WordPress file against its view of the library's rewrite. Inputs:
+     * Examples A to C and the WordPress exports of Parity 2 except crlf (the CR difference is D10, shown there).
+     */
+    static void compareRoundTrip(ParityRun run, PhpOracle oracle, Map<String, byte[]> exports, List<Dataset> datasets)
+            throws Exception {
+        Map<String, byte[]> originals = new LinkedHashMap<>();
+        for (String name : List.of("example-a.xml", "example-b.xml", "example-c.xml")) {
+            originals.put("corpus/" + name, TestWxr.resource(name));
+        }
+        for (Dataset ds : datasets) {
+            if (!ds.id().equals("crlf")) {
+                originals.put("export/" + ds.id(), exports.get(ds.id()));
+            }
+        }
+        List<WxrParity.FileCase> files = new ArrayList<>();
+        originals.forEach((id, bytes) -> {
+            files.add(new WxrParity.FileCase(id + "#original", bytes, false));
+            files.add(new WxrParity.FileCase(id + "#rewritten", rewrite(bytes), false));
+        });
+        Map<String, JsonNode> parsed = WxrParity.parse(oracle, files, "roundtrip");
+        for (String id : originals.keySet()) {
+            JsonNode original = parsed.get(id + "#original");
+            JsonNode rewritten = parsed.get(id + "#rewritten");
+            boolean modified = original.get("parser").asText().equals("xmlprocessor")
+                    && rewritten.get("parser").asText().equals("xmlprocessor");
+            WxrParity.compare(
+                    run,
+                    id,
+                    "roundtrip:",
+                    ImporterView.fromImporter(original, modified),
+                    ImporterView.fromImporter(rewritten, modified));
+        }
+    }
+
+    /** Parity 4: WxrMeta.unserialized() against the importer's maybe_unserialize. */
+    static void compareMeta(ParityRun run, PhpOracle oracle, List<WxrParity.FileCase> corpus) throws Exception {
+        Map<String, String> values = new LinkedHashMap<>();
+        for (int i = 0; i < FIXED_META.size(); i++) {
+            values.put("meta/fixed-" + i, FIXED_META.get(i));
+        }
+        values.put("meta/enum-unknown", "E:7:\"Foo:Bar\";");
+        int n = 0;
+        for (WxrParity.FileCase c : corpus) {
+            for (WxrItem item : TestWxr.read(c.bytes(), WxrReadOptions.LENIENT).items()) {
+                for (WxrMeta m : item.postMeta()) {
+                    values.put("meta/corpus-" + n++, m.value() == null ? "" : m.value());
+                }
+            }
+        }
+        List<String> generated = GeneratedCases.sample(WxrArbitraries.metaValues(), "20261017-meta", GENERATED_META);
+        for (int i = 0; i < generated.size(); i++) {
+            values.put("meta/gen-" + i, generated.get(i));
+            run.generated("meta/gen-" + i, generated.get(i));
+        }
+        List<PhpOracle.Case> batch = new ArrayList<>();
+        values.forEach((id, value) -> batch.add(new PhpOracle.Case(
+                id,
+                OracleJson.MAPPER
+                        .createObjectNode()
+                        .put("kind", "meta")
+                        .put("b64", Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8))))));
+        Map<String, JsonNode> out = oracle.run(WxrParity.IMPORTER_DRIVER, batch);
+        values.forEach((id, value) -> {
+            JsonNode wordpress = out.get(id).get("tree");
+            JsonNode library = MetaTrees.of(new WxrMeta("k", value).unserialized());
+            run.compare(id, keptEnumDifference(value, wordpress, library) ? KEPT_ENUM : "meta", wordpress, library);
+        });
+    }
+
+    /** The aspect of a meta value that differs only as D13's unknown enum does (see {@link #keptEnumDifference}). */
+    static final String KEPT_ENUM = "meta-kept-enum";
+
+    /**
+     * True when the only difference is D13's enum rule: the value contains an {@code E:} enum, WordPress returns
+     * {@code false} for it (an unknown class or case) and the library parsed it to an enum.
+     */
+    static boolean keptEnumDifference(String value, JsonNode wordpress, JsonNode library) {
+        return value.matches("(?s).*E:\\d+:\".*")
+                && wordpress.equals(PhpTree.bool(false))
+                && !library.equals(wordpress)
+                && library.findValues("t").stream().anyMatch(t -> t.asText().equals("enum"));
     }
 
     /**

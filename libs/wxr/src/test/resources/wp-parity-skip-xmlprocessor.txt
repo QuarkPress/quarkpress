@@ -28,6 +28,12 @@ corpus/cases/no-wp-ns-decl.xml reader:* D4 lenient mode reads a wp: prefix used 
 corpus/cases/wp-author-variant.xml reader:/authors* D5 wp:wp_author is not read; the parser reads it and keys authors by email
 corpus/cases/ctrl-char.xml reader:/posts/0/post_content D8 XML-illegal characters become U+FFFD; the parser keeps them
 corpus/export-quirks.xml reader:/posts/0/post_content D8 same as above
+corpus/example-c.xml roundtrip:/version D14 the writer always writes version 1.2; the original says 1.0
+corpus/example-c.xml roundtrip:/posts/0/post_title D1 the original's numeric references lose text in the parser; the rewrite writes the decoded title
+export/full roundtrip:/posts/0/guid D1 the original's &#038; loses text in the parser; the rewrite writes &amp;
+export/quirks roundtrip:/posts/0/guid D1 the original's &#038; loses text in the parser; the rewrite writes &amp;
+export/quirks roundtrip:/posts/0/post_content D8 the original's control characters reach the importer raw; the rewrite has U+FFFD
+meta/enum-unknown meta-kept-enum D13 an unknown enum parses to an enum; WordPress returns false (inherited from lib-php-serialize; checked by WxrParityTest.keptEnumDifference)
 none - D6 the parser uses an item's description as excerpt when excerpt:encoded is missing; no case has that shape
 crlf writer:/rss/channel[1]/item[1]/content:encoded[1] D10 the writer keeps carriage returns as &#13;; WordPress writes them raw and every parser turns them into line feeds
 zero-name writer:/rss/channel[1]/wp:category[1]* D12 a category named 0 keeps its name; WordPress omits it (PHP empty)

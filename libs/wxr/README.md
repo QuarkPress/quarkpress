@@ -148,7 +148,7 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
 - **Error columns on the root line shift** in lenient mode when the reader injects missing prefix declarations
   into the root start tag; positions on other lines are exact up to earlier repairs on the same line.
 - **D8 XML-illegal characters** become U+FFFD in lenient mode; the importer's parsers pass them through or fail.
-- **Meta values.** `WxrMeta.parsed()` inherits the kept differences of `quarkpress-lib-php-serialize`: an `E:`
+- **D13 Meta values.** `WxrMeta.parsed()` inherits the kept differences of `quarkpress-lib-php-serialize`: an `E:`
   enum value parses to an enum for any class and case (WordPress returns `false` for an unknown one), `C:`
   payloads are kept as opaque bytes (WordPress builds an incomplete class and drops them), and a few
   malformed object headers that PHP refuses can still parse. Classes are never looked up, and every object is
@@ -173,7 +173,7 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
   (`esc_html`, `convert_chars`, `wptexturize`); a library writes data, not display text.
 - **D12 A term or category named `0` keeps its name**; WordPress drops it (PHP treats `"0"` as empty). Other empty
   names and descriptions are omitted, as in WordPress.
-- **Always version 1.2.** A site read from a 1.0 or 1.1 file is written as 1.2.
+- **D14 Always version 1.2.** A site read from a 1.0 or 1.1 file is written as 1.2.
 - **No prolog comments.** WordPress writes a generator comment and a how-to-import comment before `<rss>`; they
   carry no data and are omitted.
 - **Tidy indentation.** Layout is close to WordPress's but whitespace between elements is not a goal and not
@@ -184,7 +184,7 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files and the
 WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-source/`, and runs the importer
 (`src/test/php/importer-driver.php`) and WordPress's own `export_wp()` (`src/test/php/export-driver.php`) through
-`testing/wp-oracle` on the same inputs as this library. Both the reader and the writer are compared.
+`testing/wp-oracle` on the same inputs as this library. The reader, the writer, a round trip and the meta values are compared.
 
 - **Reader against the importer's parsers** (`WxrParityTest`): the reference examples, two real WordPress
   exports, the edge cases in `src/test/resources/wxr/cases/` and 300 generated documents. The importer parses each
@@ -207,10 +207,20 @@ WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-sou
   ignored, and references are compared as the values they decode to, so the omitted prolog comments and the choice
   of named or numeric references never show. The library's file must also parse with the JDK's plain XML parser,
   without repair.
+- **Round trip** (`WxrParityTest`): the importer's view of a WordPress file against its view of the library's
+  rewrite of it (read in lenient mode, every entry written back in order). The files are the three reference
+  examples and the 65 files `export_wp()` wrote above, except the Windows line endings one (D10 is shown there).
+  Both views go through the importer's parser and the normal form of the reader comparison.
+- **Meta values** (`WxrParityTest`): each meta value of the corpus, 19 fixed shapes (wrong lengths, objects, object
+  headers inside strings, surrounding whitespace, cuts) and 200 generated values go through `WxrMeta.unserialized()`
+  and through the importer's own object-header rewrite and `maybe_unserialize`; the typed trees (types, array
+  order, byte strings, floats, objects with their class names) are compared.
 - **Differences.** `src/test/resources/wp-parity-skip-simplexml.txt` and `wp-parity-skip-xmlprocessor.txt` list
   each expected difference with its item above: numeric references and short trailing named references (D1),
   fields after meta (D2), a BOM, a Latin-1 declaration and `standalone` (D3), foreign or undeclared namespaces
-  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8); for the writer, carriage returns (D10) and a category
+  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8); for the round trip, the version the writer always sets (D14),
+  D1 and D8 where the original's own parse shows them; for the meta values, an unknown enum (D13: the `C:` payload
+  and malformed-header differences of that row are shown by no value); for the writer, carriage returns (D10) and a category
   named `0` (D12), with escaped attributes (D7), XML-illegal characters (D8), valid UTF-8 (D9) and channel text
   (D11) listed as differences no dataset shows once both files are parsed. An entry that no longer differs fails
   the build.
