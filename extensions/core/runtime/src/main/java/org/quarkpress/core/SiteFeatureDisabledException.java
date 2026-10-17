@@ -8,7 +8,11 @@ public class SiteFeatureDisabledException extends RuntimeException {
     private final String key;
 
     public SiteFeatureDisabledException(String key) {
-        super("QuarkPress feature '" + key + "' is disabled for the current site");
+        this(key, "QuarkPress feature '" + key + "' is disabled for the current site");
+    }
+
+    protected SiteFeatureDisabledException(String key, String message) {
+        super(message);
         this.key = key;
     }
 

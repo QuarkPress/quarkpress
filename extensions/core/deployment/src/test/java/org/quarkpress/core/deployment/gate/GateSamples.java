@@ -111,6 +111,31 @@ final class GateSamples {
         }
     }
 
+    static class ResourceBase {
+        @jakarta.ws.rs.GET
+        public String inheritedEndpoint() {
+            return "inherited";
+        }
+    }
+
+    @jakarta.ws.rs.Path("/samples")
+    @SiteFeature("demo")
+    static class Resource extends ResourceBase {
+        @jakarta.ws.rs.GET
+        public String get() {
+            return "open";
+        }
+    }
+
+    @jakarta.ws.rs.Path("/mixed")
+    static class MixedResource {
+        @SiteFeature("demo")
+        @jakarta.ws.rs.GET
+        public String gated() {
+            return "gated";
+        }
+    }
+
     static class Signatures {
         void mixed(String text, int count, String[] names, long[][] grid) {}
     }

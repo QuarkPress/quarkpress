@@ -44,6 +44,7 @@ public class SiteFeatureInterceptor {
         return switch (kind) {
             case OBSERVER -> null;
             case FILTER -> ctx.getParameters()[0];
+            case RESOURCE -> throw new SiteFeatureNotFoundException(gate.key());
             case OTHER -> throw new SiteFeatureDisabledException(gate.key());
         };
     }

@@ -6,6 +6,8 @@ public enum GateKind {
     OBSERVER,
     /** Filter method: return the first argument. */
     FILTER,
+    /** REST resource method: answer 404. */
+    RESOURCE,
     /** Anything else: throw SiteFeatureDisabledException. */
     OTHER
 }

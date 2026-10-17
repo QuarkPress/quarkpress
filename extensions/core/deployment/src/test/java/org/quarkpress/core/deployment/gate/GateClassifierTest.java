@@ -30,7 +30,10 @@ class GateClassifierTest {
                 GateSamples.Filter.class,
                 GateSamples.Base.class,
                 GateSamples.Defaults.class,
-                GateSamples.Service.class);
+                GateSamples.Service.class,
+                GateSamples.ResourceBase.class,
+                GateSamples.Resource.class,
+                GateSamples.MixedResource.class);
         Map<String, Gate> byName = new HashMap<>();
         Classification classification = GateClassifier.classify(index);
         assertThat(classification.problems()).isEmpty();
@@ -50,6 +53,20 @@ class GateClassifierTest {
         assertThat(gates.get("Filter.apply").kind()).isEqualTo(GateKind.FILTER);
         assertThat(gates.get("Service.hello").kind()).isEqualTo(GateKind.OTHER);
         assertThat(gates.get("Service.hello").key()).isEqualTo("demo");
+    }
+
+    @Test
+    void classifiesRestResourceMethods() throws IOException {
+        Map<String, Gate> gates = gates();
+        assertThat(gates.get("Resource.get").kind()).isEqualTo(GateKind.RESOURCE);
+        assertThat(gates.get("MixedResource.gated").kind()).isEqualTo(GateKind.RESOURCE);
+    }
+
+    @Test
+    void aClassLevelGateOnAResourceCoversInheritedResourceMethods() throws IOException {
+        Gate inherited = gates().get("ResourceBase.inheritedEndpoint");
+        assertThat(inherited.kind()).isEqualTo(GateKind.RESOURCE);
+        assertThat(inherited.coveredBy().simpleName()).isEqualTo("Resource");
     }
 
     @Test

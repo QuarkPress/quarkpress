@@ -2,8 +2,12 @@ package org.quarkpress.core.deployment;
 
 import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
+import io.quarkus.deployment.Capabilities;
+import io.quarkus.deployment.Capability;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.builditem.AdditionalIndexedClassesBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -18,6 +22,7 @@ import org.quarkpress.core.deployment.GateClassifier.Classification;
 import org.quarkpress.core.deployment.GateClassifier.Gate;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.core.runtime.GateKind;
+import org.quarkpress.core.runtime.SiteFeatureNotFoundMapper;
 
 class SiteFeatureProcessor {
 
@@ -74,5 +79,19 @@ class SiteFeatureProcessor {
                             .add("kinds", kinds)
                             .build());
                 })));
+    }
+
+    @BuildStep
+    void notFoundMapper(
+            Capabilities capabilities,
+            BuildProducer<AdditionalIndexedClassesBuildItem> indexed,
+            BuildProducer<ReflectiveClassBuildItem> reflective) {
+        if (capabilities.isPresent(Capability.REST)) {
+            indexed.produce(new AdditionalIndexedClassesBuildItem(SiteFeatureNotFoundMapper.class.getName()));
+            reflective.produce(ReflectiveClassBuildItem.builder(SiteFeatureNotFoundMapper.class)
+                    .constructors()
+                    .reason(SiteFeatureProcessor.class.getName())
+                    .build());
+        }
     }
 }

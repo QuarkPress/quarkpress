@@ -34,6 +34,16 @@ public final class GateClassifier {
     public static final DotName GATE = DotName.createSimple(SiteFeatureGate.class);
     static final DotName FILTER_SPI = DotName.createSimple(FilterSpi.class);
     static final DotName OBJECT = DotName.createSimple(Object.class);
+    static final DotName PATH = DotName.createSimple("jakarta.ws.rs.Path");
+    static final List<DotName> RESOURCE_METHOD_ANNOTATIONS = List.of(
+            PATH,
+            DotName.createSimple("jakarta.ws.rs.GET"),
+            DotName.createSimple("jakarta.ws.rs.POST"),
+            DotName.createSimple("jakarta.ws.rs.PUT"),
+            DotName.createSimple("jakarta.ws.rs.DELETE"),
+            DotName.createSimple("jakarta.ws.rs.PATCH"),
+            DotName.createSimple("jakarta.ws.rs.HEAD"),
+            DotName.createSimple("jakarta.ws.rs.OPTIONS"));
     static final DotName OBSERVES = DotName.createSimple("jakarta.enterprise.event.Observes");
     static final DotName OBSERVES_ASYNC = DotName.createSimple("jakarta.enterprise.event.ObservesAsync");
     static final DotName PRODUCES = DotName.createSimple("jakarta.enterprise.inject.Produces");
@@ -340,7 +350,46 @@ public final class GateClassifier {
             }
             return GateKind.FILTER;
         }
+        if (isResource(method, beanClass, index)) {
+            return GateKind.RESOURCE;
+        }
         return GateKind.OTHER;
+    }
+
+    /**
+     * Whether a gated method answers HTTP requests: it carries a JAX-RS path or verb annotation, or the bean class
+     * (or a superclass or interface of it) is a {@code @Path} resource. Methods inherited under a class-level gate
+     * are judged by the covering class.
+     */
+    private static boolean isResource(MethodInfo method, ClassInfo beanClass, IndexView index) {
+        for (DotName name : RESOURCE_METHOD_ANNOTATIONS) {
+            if (method.hasDeclaredAnnotation(name)) {
+                return true;
+            }
+        }
+        Deque<ClassInfo> pending = new ArrayDeque<>();
+        Set<DotName> seen = new HashSet<>();
+        pending.push(beanClass);
+        while (!pending.isEmpty()) {
+            ClassInfo current = pending.pop();
+            if (!seen.add(current.name())) {
+                continue;
+            }
+            if (current.hasDeclaredAnnotation(PATH)) {
+                return true;
+            }
+            List<DotName> parents = new ArrayList<>(current.interfaceNames());
+            if (current.superName() != null) {
+                parents.add(current.superName());
+            }
+            for (DotName name : parents) {
+                ClassInfo parent = index.getClassByName(name);
+                if (parent != null) {
+                    pending.push(parent);
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean objectMethod(MethodInfo method) {
