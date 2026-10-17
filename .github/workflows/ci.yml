@@ -26,7 +26,7 @@ jobs:
       - uses: shivammathur/setup-php@2.37.2
         with:
           php-version: '8.4'
-          extensions: mbstring, json, pcntl, iconv, xml, dom, simplexml, xmlreader
+          extensions: mbstring, json, pcntl, iconv, xml, dom, simplexml, xmlreader, hash, sodium
           coverage: none
       - name: Build and test (Gutenberg conformance and WordPress parity)
         run: mvn -B -ntp verify -Pconformance,wp-parity

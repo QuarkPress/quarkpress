@@ -24,7 +24,15 @@ class WordPressReleaseTest {
                         "wp-includes/functions.php", "cac8a17e293df99f0683a88debd3ba5e5cce274183a4e9fd3c9f18375747f41c")
                 .containsEntry(
                         "wp-admin/includes/export.php",
-                        "1cd94583390885b9324bd5fde38da21af60603c85b64d4b0b6a878fcb1615bba");
+                        "1cd94583390885b9324bd5fde38da21af60603c85b64d4b0b6a878fcb1615bba")
+                .containsEntry(
+                        "wp-includes/pluggable.php", "3a2482a65b50d62ebae75a728be98b78985d3a3f5a3e007cb2d0c1338bf05777")
+                .containsEntry(
+                        "wp-includes/class-phpass.php",
+                        "eac68d6268d6704c8ca3195a731a6cc476e6dbfc6a604adb784886e3a0b10221")
+                .containsEntry(
+                        "wp-includes/class-wp-application-passwords.php",
+                        "266e15ec38652acaee5e3fd6103fc1275d2d6ea5c54f8926c1c4ddf688559658");
     }
 
     @Test

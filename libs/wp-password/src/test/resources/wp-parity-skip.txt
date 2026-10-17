@@ -1,0 +1,28 @@
+# Deliberate differences between lib-wp-password and WordPress 7.1.3.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the "Differences from WordPress" table in
+# README.md. Entries name exact cases and aspects, no globs. "none" documents a difference that no oracle case can
+# show. An entry whose comparisons all match WordPress fails the build: delete it.
+d1-2x check D1 $2x$ hashes are not verified; WordPress verifies them through password_verify
+d1-2x app_check D1 same as above, through WP_Application_Passwords::check_password
+d1-2x verify D1 same as above
+d1-wp-2x check D1 $wp$2x$ hashes are not verified; WordPress verifies them through password_verify
+d1-wp-2x app_check D1 same as above, through WP_Application_Passwords::check_password
+d1-wp-2x verify D1 same as above
+d2-md5-crypt check D2 crypt(3) MD5 hashes are not verified; WordPress verifies them through password_verify
+d2-md5-crypt app_check D2 same as above, through WP_Application_Passwords::check_password
+d2-md5-crypt verify D2 same as above
+d2-sha256-crypt check D2 crypt(3) SHA-256 hashes are not verified; WordPress verifies them through password_verify
+d2-sha256-crypt app_check D2 same as above, through WP_Application_Passwords::check_password
+d2-sha256-crypt verify D2 same as above
+d2-sha512-crypt check D2 crypt(3) SHA-512 hashes are not verified; WordPress verifies them through password_verify
+d2-sha512-crypt app_check D2 same as above, through WP_Application_Passwords::check_password
+d2-sha512-crypt verify D2 same as above
+d8-phpass-count-21 check D8 a $P$ count character above I (here J, 2^21 rounds) fails without computing; WordPress computes it
+d8-phpass-count-21 app_check D8 same as above, through WP_Application_Passwords::check_password
+d8-phpass-count-21 verify D8 same as above
+none - D3 bcrypt costs 17 to 31 are refused without computing; WordPress computes them (a cost-17 case would take seconds)
+none - D4 the $wp_hasher global and the password filters are not modeled; needsRehash assumes PHP 8.4's default cost 12
+none - D5 verify() also tries the addslashes() form; WordPress has no such function (the test compares it with check of both forms)
+none - D6 checkFastHash follows WP_Application_Passwords::check_password; wp_verify_fast_hash checks non-$generic$ hashes with phpass
+none - D7 String arguments are encoded with Java's UTF-8 encoder; unpaired surrogates become '?'
+none - D9 hashing in WordPress's formats is not public; the test compares the package-private hash code with wp_fast_hash and crypt_private

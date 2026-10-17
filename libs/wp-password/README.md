@@ -101,6 +101,32 @@ Each difference is exercised by the tests, and the `wp-parity` profile compares 
 | D8 | `$P$` hashes with a count character above `I` (more than 2^20 rounds) fail without computing | computed, up to 2^30 rounds | bounded work on hostile input; WordPress writes `B` (2^13) |
 | D9 | hashing in WordPress's formats is not public | `wp_hash_password` and `wp_fast_hash` write them | the library only verifies; new hashes belong to the identity provider |
 
+## Parity testing
+
+`mvn verify -Pwp-parity` (needs `php` 8.4 with `hash` and `sodium`, and network for the first download) fetches the
+pinned WordPress 7.1.3 files (`pluggable.php`, `class-phpass.php`, `class-wp-application-passwords.php`, and
+`wp_fast_hash` from `functions.php`) into `target/wp-source/` and runs `WpPasswordsParityTest` in two oracle runs.
+
+The first run lets WordPress make hashes: `wp_hash_password` at cost 4 through the real `wp_hash_password_options`
+filter (for two generated passwords and for passwords of 4096 and 4097 bytes), `PasswordHash::crypt_private` for
+200 generated passwords and settings, and `wp_fast_hash` for 300 generated secrets. The phpass and fast hashes are
+deterministic, so they are compared byte for byte with this library's own computation.
+
+The second run checks the same (password, stored hash) pairs on both sides: hand-written cases
+(`src/test/resources/wp-parity-cases.json`) for every format and its edge cases, overlong passwords and hashes,
+every hash of the first run as made and with three mutations (one character changed, the last character cut, the
+prefix upper-cased), and 500 generated look-alike hashes. For each pair, `check` is compared with
+`wp_check_password`, `needsRehash` with `wp_password_needs_rehash`, and, when the password is valid UTF-8, `verify`
+with `wp_check_password` of the password or of its `addslashes()` form, and `checkFastHash` with
+`WP_Application_Passwords::check_password`. Each of these comparisons has its own minimum count, so no part can
+silently vanish. The test also compares `detect` with the driver's restatement of the order in which
+`wp_check_password` picks a verifier; both come from the same behaviour description, so this is a self-check of
+the harness, not a comparison with WordPress, and it does not count toward the minimums.
+
+Only the differences D1, D2 and D8 show in these comparisons; they are listed case by case in
+`src/test/resources/wp-parity-skip.txt`, and an entry that stops differing fails the build. A run stays under 50
+bcrypt computations, all at cost 4 or 5 except one case at cost 12. CI runs the profile. See `testing/wp-oracle`.
+
 ## Source policy
 
 Written from a prose description of WordPress's observed behaviour, RFC 7693, the Blowfish and bcrypt papers and
