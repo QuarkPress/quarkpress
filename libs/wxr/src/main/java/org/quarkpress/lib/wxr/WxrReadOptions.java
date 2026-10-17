@@ -1,0 +1,87 @@
+package org.quarkpress.lib.wxr;
+
+/**
+ * How {@code WxrReader} reads. {@link #LENIENT} (the default) repairs what it can and records each repair as a
+ * {@link WxrProblem}; {@link #STRICT} throws {@link WxrException} instead. Both bound every value to {@link
+ * #maxCharsPerValue()} characters and refuse DTDs.
+ */
+public final class WxrReadOptions {
+
+    /** 512 Mi characters. */
+    public static final int DEFAULT_MAX_CHARS_PER_VALUE = 512 * 1024 * 1024;
+
+    public static final WxrReadOptions LENIENT =
+            new WxrReadOptions(true, DEFAULT_MAX_CHARS_PER_VALUE, Long.MAX_VALUE, true, true);
+    public static final WxrReadOptions STRICT =
+            new WxrReadOptions(false, DEFAULT_MAX_CHARS_PER_VALUE, Long.MAX_VALUE, false, true);
+
+    private final boolean lenient;
+    private final int maxCharsPerValue;
+    private final long maxItems;
+    private final boolean acceptAnyWpNamespace;
+    private final boolean gzipAutoDetect;
+
+    private WxrReadOptions(
+            boolean lenient,
+            int maxCharsPerValue,
+            long maxItems,
+            boolean acceptAnyWpNamespace,
+            boolean gzipAutoDetect) {
+        this.lenient = lenient;
+        this.maxCharsPerValue = maxCharsPerValue;
+        this.maxItems = maxItems;
+        this.acceptAnyWpNamespace = acceptAnyWpNamespace;
+        this.gzipAutoDetect = gzipAutoDetect;
+    }
+
+    public boolean lenient() {
+        return lenient;
+    }
+
+    public int maxCharsPerValue() {
+        return maxCharsPerValue;
+    }
+
+    public long maxItems() {
+        return maxItems;
+    }
+
+    /** Whether any URI bound to the {@code wp} or {@code excerpt} prefix counts as WordPress's. */
+    public boolean acceptAnyWpNamespace() {
+        return acceptAnyWpNamespace;
+    }
+
+    /** Whether a stream starting with the gzip magic bytes is decompressed. */
+    public boolean gzipAutoDetect() {
+        return gzipAutoDetect;
+    }
+
+    public WxrReadOptions withMaxCharsPerValue(int maxCharsPerValue) {
+        if (maxCharsPerValue <= 0) {
+            throw new IllegalArgumentException("maxCharsPerValue must be positive: " + maxCharsPerValue);
+        }
+        return new WxrReadOptions(lenient, maxCharsPerValue, maxItems, acceptAnyWpNamespace, gzipAutoDetect);
+    }
+
+    public WxrReadOptions withMaxItems(long maxItems) {
+        if (maxItems < 0) {
+            throw new IllegalArgumentException("maxItems must not be negative: " + maxItems);
+        }
+        return new WxrReadOptions(lenient, maxCharsPerValue, maxItems, acceptAnyWpNamespace, gzipAutoDetect);
+    }
+
+    public WxrReadOptions withAcceptAnyWpNamespace(boolean acceptAnyWpNamespace) {
+        return new WxrReadOptions(lenient, maxCharsPerValue, maxItems, acceptAnyWpNamespace, gzipAutoDetect);
+    }
+
+    public WxrReadOptions withGzipAutoDetect(boolean gzipAutoDetect) {
+        return new WxrReadOptions(lenient, maxCharsPerValue, maxItems, acceptAnyWpNamespace, gzipAutoDetect);
+    }
+
+    @Override
+    public String toString() {
+        return "WxrReadOptions[lenient=" + lenient + ", maxCharsPerValue=" + maxCharsPerValue + ", maxItems="
+                + maxItems + ", acceptAnyWpNamespace=" + acceptAnyWpNamespace + ", gzipAutoDetect=" + gzipAutoDetect
+                + "]";
+    }
+}
