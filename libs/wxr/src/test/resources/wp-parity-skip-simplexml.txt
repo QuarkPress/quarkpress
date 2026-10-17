@@ -1,0 +1,22 @@
+# Deliberate differences between lib-wxr and the WordPress Importer 0.9.6 when ext/simplexml is present
+# (CI). Files SimpleXML rejects fall back to the XML-processor parser, so its differences show there.
+# Format: <case-id-or-glob> <aspect-or-glob> <item> <reason>. Items are those of libs/wxr/README.md,
+# "Differences from WordPress". "none" documents a difference no case shows. An entry whose comparisons
+# all match fails the build: delete it.
+corpus/export-full.xml reader:/posts/0/guid D1 SimpleXML rejects the raw & (R48); the fallback parser drops the text before &#038;
+corpus/export-quirks.xml reader:/posts/0/guid D1 SimpleXML rejects the control characters; the fallback parser drops the text before &#038;
+corpus/cases/raw-amp.xml reader:/posts/0/guid D1 SimpleXML rejects the raw &; the fallback parser drops the text before each numeric reference
+corpus/cases/raw-amp.xml reader:/posts/0/post_name D1 SimpleXML rejects the raw &; the fallback parser drops the text before each numeric reference
+corpus/cases/raw-lt.xml reader:/posts/0/guid D1 SimpleXML rejects the raw <; the fallback parser drops the text before each numeric reference
+corpus/cases/raw-lt.xml reader:/posts/0/post_name D1 SimpleXML rejects the raw <; the fallback parser drops the text before each numeric reference
+corpus/cases/invalid-utf8.xml reader:/posts/0/guid D1 SimpleXML rejects the invalid UTF-8; the fallback parser drops the text before each numeric reference
+corpus/cases/invalid-utf8.xml reader:/posts/0/post_name D1 SimpleXML rejects the invalid UTF-8; the fallback parser drops the text before each numeric reference
+corpus/cases/named-entity.xml reader:/posts/0/guid D1 SimpleXML rejects the undefined &nbsp;; the fallback parser drops the text before each numeric reference
+corpus/cases/named-entity.xml reader:/posts/0/post_name D1 SimpleXML rejects the undefined &nbsp;; the fallback parser drops the text before each numeric reference
+corpus/cases/no-wp-ns-decl.xml reader:* D4 lenient mode reads a wp: prefix used without a declaration; SimpleXML cannot resolve it and finds no version
+corpus/cases/ctrl-char.xml reader:/posts/0/post_content D8 SimpleXML rejects the control characters; the fallback parser keeps them, we write U+FFFD
+corpus/export-quirks.xml reader:/posts/0/post_content D8 same as above
+none - D2 only the XML-processor parser drops fields after nested entities; well-formed files go to SimpleXML
+none - D3 SimpleXML accepts a BOM, other declared encodings and standalone
+none - D5 SimpleXML reads only wp:author and keys authors by login
+none - D6 only the XML-processor parser uses the description as excerpt

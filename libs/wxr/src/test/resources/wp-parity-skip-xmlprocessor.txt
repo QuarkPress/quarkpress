@@ -1,0 +1,31 @@
+# Deliberate differences between lib-wxr and the WordPress Importer 0.9.6 when its XML-processor parser
+# runs (PHP without ext/simplexml and ext/xml, as on the maintainers' host).
+# Format: <case-id-or-glob> <aspect-or-glob> <item> <reason>. Items are those of libs/wxr/README.md,
+# "Differences from WordPress". "none" documents a difference no case shows. An entry whose comparisons
+# all match fails the build: delete it.
+corpus/example-c.xml reader:/posts/0/post_title D1 numeric references decode completely; the parser drops the text before each one
+corpus/export-full.xml reader:/posts/0/guid D1 same as above (&#038; in the guid)
+corpus/export-quirks.xml reader:/posts/0/guid D1 same as above (&#038; in the guid)
+corpus/cases/min-entity.xml reader:/posts/0/guid D1 same as above
+corpus/cases/min-entity.xml reader:/posts/0/post_name D1 same as above
+corpus/cases/item-before-meta-ok-and-2-items.xml reader:/posts/0/guid D1 same as above
+corpus/cases/item-before-meta-ok-and-2-items.xml reader:/posts/0/post_name D1 same as above
+corpus/cases/invalid-utf8.xml reader:/posts/0/guid D1 same as above
+corpus/cases/invalid-utf8.xml reader:/posts/0/post_name D1 same as above
+corpus/cases/named-entity.xml reader:/posts/0/guid D1 same as above
+corpus/cases/named-entity.xml reader:/posts/0/post_name D1 same as above
+corpus/cases/raw-amp.xml reader:/posts/0/guid D1 same as above
+corpus/cases/raw-amp.xml reader:/posts/0/post_name D1 same as above
+corpus/cases/raw-lt.xml reader:/posts/0/guid D1 same as above
+corpus/cases/raw-lt.xml reader:/posts/0/post_name D1 same as above
+* reader-undecoded-tail-reference:/* D1 a named reference (&amp;, &lt;, &gt;) whose & starts fewer than 6 bytes before the end of the text stays undecoded in the parser; the library decodes it (checked by WxrParity.undecodedTailReference)
+corpus/cases/field-after-meta.xml reader:/posts/0/status D2 a field after wp:postmeta is kept; the parser drops it
+corpus/cases/bom.xml reader:* D3 a BOM is legal XML; the parser rejects the file
+corpus/cases/latin1-decl.xml reader:* D3 an ISO-8859-1 declaration is legal XML; the parser rejects the file
+corpus/cases/standalone-no.xml reader:* D3 standalone="no" is legal XML; the parser rejects the file
+corpus/cases/ns-unknown-1.3.xml reader:* D4 lenient mode accepts another URI bound to wp; the parser finds no version
+corpus/cases/no-wp-ns-decl.xml reader:* D4 lenient mode reads a wp: prefix used without a declaration; the parser finds no version
+corpus/cases/wp-author-variant.xml reader:/authors* D5 wp:wp_author is not read; the parser reads it and keys authors by email
+corpus/cases/ctrl-char.xml reader:/posts/0/post_content D8 XML-illegal characters become U+FFFD; the parser keeps them
+corpus/export-quirks.xml reader:/posts/0/post_content D8 same as above
+none - D6 the parser uses an item's description as excerpt when excerpt:encoded is missing; no case has that shape

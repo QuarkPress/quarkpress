@@ -116,20 +116,29 @@ writes what it is given and only checks that each parent was written earlier. Me
 ## Differences from WordPress
 
 The reader and writer follow WordPress's export and the WordPress Importer (0.9.6) closely. These are the
-deliberate or unavoidable differences.
+deliberate or unavoidable differences. The parity tests' skip lists cite the items they need by their label
+(D1 to D12).
 
 ### Reading
 
-- **No parser quirks.** The importer has two parsers whose results differ from each other. This reader decodes
-  numeric references completely (the importer's XML-processor parser drops the text before each one), reads an
-  item's fields in any order (that parser loses fields after the first meta row or comment), and accepts a
-  byte-order mark, a non-UTF-8 declaration and `standalone` (that parser rejects the file).
-- **Foreign namespaces.** Lenient mode accepts any URI bound to `wp` or `excerpt`, and a WordPress prefix used
-  without a declaration; the importer's XML parsers find nothing in such files. `UNKNOWN_NAMESPACE` has these two
-  meanings; the problem detail says which.
-- **`wp:wp_author` is skipped**, and authors are not re-keyed by login, email, id or position as the importer does.
-- **An item's `description` stays `description()`**; the importer's XML-processor parser reuses it as the excerpt
-  when `excerpt:encoded` is missing.
+The importer has several parsers whose results differ from each other: SimpleXML where PHP has it, otherwise
+an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 are quirks of that second parser.
+
+- **D1 References decode completely.** The XML-processor parser drops the text before each numeric reference
+  (`&#038;`, `&#8217;`), and leaves `&amp;`, `&lt;` or `&gt;` undecoded when the reference and the text after it
+  fit in five bytes, as `&gt;` at the end of a value does.
+- **D2 An item's fields are read in any order.** The XML-processor parser loses the fields after the first meta
+  row or comment.
+- **D3 A byte-order mark, a non-UTF-8 declaration and `standalone` are accepted.** The XML-processor parser
+  rejects such a file.
+- **D4 Foreign namespaces.** Lenient mode accepts any URI bound to `wp` or `excerpt`, and a WordPress prefix used
+  without a declaration. The importer's XML-processor parser finds no version in such files, and SimpleXML none
+  when the prefix is undeclared, so the importer rejects them.
+  `UNKNOWN_NAMESPACE` has these two meanings; the problem detail says which.
+- **D5 `wp:wp_author` is skipped**, and authors are not re-keyed by login, email, id or position as the importer
+  does.
+- **D6 An item's `description` stays `description()`**; the importer's XML-processor parser reuses it as the
+  excerpt when `excerpt:encoded` is missing.
 - **Item terms.** A `category` element without a `domain` attribute keeps a null domain, and `taxonomy()` returns
   `"category"` (SimpleXML reads the missing attribute as an empty string). Bare categories of WXR 1.0 files are
   kept, not dropped.
@@ -138,7 +147,7 @@ deliberate or unavoidable differences.
 - **`NOT_WXR` also covers input with no element at all**, such as an empty file.
 - **Error columns on the root line shift** in lenient mode when the reader injects missing prefix declarations
   into the root start tag; positions on other lines are exact up to earlier repairs on the same line.
-- **XML-illegal characters** become U+FFFD in lenient mode; the importer's parsers pass them through or fail.
+- **D8 XML-illegal characters** become U+FFFD in lenient mode; the importer's parsers pass them through or fail.
 - **Meta values.** `WxrMeta.parsed()` inherits the kept differences of `quarkpress-lib-php-serialize`: an `E:`
   enum value parses to an enum for any class and case (WordPress returns `false` for an unknown one), `C:`
   payloads are kept as opaque bytes (WordPress builds an incomplete class and drops them), and a few
@@ -149,26 +158,45 @@ deliberate or unavoidable differences.
 
 - **Null fields are omitted** instead of written as empty elements, so null round-trips as null. WordPress always
   has every field, so data shaped like WordPress's yields WordPress's exact element tree.
-- **Attributes are escaped.** The comment author URL and the `category` attributes are escaped; WordPress writes
+- **D7 Attributes are escaped.** The comment author URL and the `category` attributes are escaped; WordPress writes
   them raw, so a `&` makes its file malformed. Inside attributes a tab, a line feed and a carriage return are
   written as numeric references, and `"` as `&quot;`.
-- **XML-illegal characters** become U+FFFD; WordPress writes them raw and produces a file no parser accepts.
-- **Values are valid UTF-8**, written as given. WordPress re-encodes a value that is not valid UTF-8 as
+- **D8 XML-illegal characters** become U+FFFD; WordPress writes them raw and produces a file no parser accepts.
+- **D9 Values are valid UTF-8**, written as given. WordPress re-encodes a value that is not valid UTF-8 as
   Latin-1, double-encoding its valid characters. No byte-order mark; the declaration says UTF-8.
-- **A carriage return survives.** In CDATA it is written as `]]>&#13;<![CDATA[` and in plain text as `&#13;`;
+- **D10 A carriage return survives.** In CDATA it is written as `]]>&#13;<![CDATA[` and in plain text as `&#13;`;
   WordPress writes it raw, so every XML parser turns it into a line feed. A parser that does not decode
   references inside the file, such as a regular-expression reader, shows the reference literally.
 - **Named and numeric references.** Plain text uses `&amp;`, `&lt;` and `&gt;`; numeric references appear only
   for carriage returns and for tab and line feed in attributes.
-- **A term or category named `0` keeps its name**; WordPress drops it (PHP treats `"0"` as empty). Other empty
-  names and descriptions are omitted, as in WordPress.
-- **Channel title and description are written as given.** WordPress passes them through its display filters
+- **D11 Channel title and description are written as given.** WordPress passes them through its display filters
   (`esc_html`, `convert_chars`, `wptexturize`); a library writes data, not display text.
+- **D12 A term or category named `0` keeps its name**; WordPress drops it (PHP treats `"0"` as empty). Other empty
+  names and descriptions are omitted, as in WordPress.
 - **Always version 1.2.** A site read from a 1.0 or 1.1 file is written as 1.2.
 - **No prolog comments.** WordPress writes a generator comment and a how-to-import comment before `<rss>`; they
   carry no data and are omitted.
 - **Tidy indentation.** Layout is close to WordPress's but whitespace between elements is not a goal and not
   significant.
+
+## Parity testing
+
+`mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files and the
+WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-source/`, and runs the importer
+through `testing/wp-oracle` (`src/test/php/importer-driver.php`) on the same files as this library.
+
+- **Reader against the importer's parsers** (`WxrParityTest`): the reference examples, two real WordPress
+  exports, the edge cases in `src/test/resources/wxr/cases/` and 300 generated documents. The importer parses each
+  file with the parser it would choose; both results are mapped to one normal form (lists in order, every field as
+  a string, the importer's integer casts applied) and compared field by field.
+- **Which parser.** With PHP's `simplexml`, `dom` and `xml` extensions (as in CI) that is SimpleXML, with the
+  XML-processor parser for the files SimpleXML rejects. Without any of them it is the XML-processor parser alone,
+  and the test that checks SimpleXML really runs is skipped with a message saying so. With `xml` but without
+  `simplexml` or `dom` the importer would use its expat parser, which is not compared: the parity test is skipped.
+- **Differences.** `src/test/resources/wp-parity-skip-simplexml.txt` and `wp-parity-skip-xmlprocessor.txt` list
+  each expected difference with its item above: numeric references and short trailing named references (D1),
+  fields after meta (D2), a BOM, a Latin-1 declaration and `standalone` (D3), foreign or undeclared namespaces
+  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8). An entry that no longer differs fails the build.
 
 ## Source policy
 
