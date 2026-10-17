@@ -26,7 +26,6 @@ class HtmlProtectorTest {
         assertProtected(false, "a [x] <b>[x]</b>", "a [x] <b>[x]</b>");
         assertProtected(false, "<p title=\"[x]\">", "<p title=\"X&quot;&lt;\">");
         assertProtected(false, "<p title=[x]>", "<p title=X\"<>");
-        assertProtected(false, "<p onclick=\"[x]\">", "<p onclick=\"&#91;x&#93;\">");
         assertProtected(false, "<p title=\"[y]\">", "<p title=\"&#91;y&#93;\">");
         assertProtected(false, "<!-- [x] -->", "<!-- &#91;x&#93; -->");
         assertProtected(false, "<p title=\"[\">", "<p title=\"&#91;\">");
@@ -54,7 +53,7 @@ class HtmlProtectorTest {
     }
 
     @Test
-    void anAttributeTheSanitizerRejectsStaysAsWrittenWithEncodedBrackets() { // R12.6b: inert, not expanded
+    void anAttributeTheSanitizerRejectsStaysAsWrittenWithEncodedBrackets() {
         assertProtected(false, "<p onclick=\"[x]\">", "<p onclick=\"&#91;x&#93;\">");
         assertProtected(false, "<a title=\"[x]\" y=\"[x]\">", "<a title=\"X&quot;&lt;\" y=\"&#91;x&#93;\">");
     }
