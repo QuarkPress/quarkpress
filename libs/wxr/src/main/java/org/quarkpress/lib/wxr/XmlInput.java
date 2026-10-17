@@ -244,6 +244,24 @@ final class XmlInput {
     }
 
     /**
+     * A strict-mode refusal of the content found while decoding, passed through the reader chain as a read error so
+     * that the chars before it are processed first (as with a damaged gzip stream). {@link #refusal()} is what the
+     * caller sees.
+     */
+    static final class Refusal extends IOException {
+
+        private static final long serialVersionUID = 1L;
+
+        Refusal(WxrException refusal) {
+            super(refusal.getMessage(), refusal);
+        }
+
+        WxrException refusal() {
+            return (WxrException) getCause();
+        }
+    }
+
+    /**
      * A read error of the caller's own stream, as opposed to damage found while decompressing it: the I/O failed,
      * the content is not to blame. The original exception is the cause.
      */

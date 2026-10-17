@@ -78,13 +78,22 @@ class XmlInputTest {
     }
 
     @Test
-    void invalidUtf8IsRefusedInStrictMode() {
+    void invalidUtf8IsRefusedInStrictModeAfterTheCharsBeforeIt() throws IOException {
         byte[] bytes = {'<', 'r', '>', (byte) 0xE9, '<', '/', 'r', '>'};
         ProblemLog log = new ProblemLog(false);
-        assertThatThrownBy(() -> decode(bytes, WxrReadOptions.STRICT, log))
-                .isInstanceOfSatisfying(
-                        WxrException.class, e -> assertThat(e.kind()).isEqualTo(WxrProblem.Kind.INVALID_ENCODING));
-        assertThat(log.failure()).isNotNull();
+        try (Reader reader = XmlInput.decode(new ByteArrayInputStream(bytes), WxrReadOptions.STRICT, log)) {
+            char[] buffer = new char[16];
+            assertThat(new String(buffer, 0, reader.read(buffer, 0, buffer.length)))
+                    .isEqualTo("<r>");
+            assertThatThrownBy(() -> reader.read(buffer, 0, buffer.length))
+                    .isInstanceOfSatisfying(XmlInput.Refusal.class, e -> {
+                        assertThat(e.refusal().kind()).isEqualTo(WxrProblem.Kind.INVALID_ENCODING);
+                        assertThat(e.refusal().column()).isEqualTo(4);
+                    });
+            assertThatThrownBy(() -> reader.read(buffer, 0, buffer.length)).isInstanceOf(XmlInput.Refusal.class);
+        }
+        assertThatThrownBy(() -> decode(new byte[] {(byte) 0xE9, 'a'}, WxrReadOptions.STRICT, log))
+                .isInstanceOf(XmlInput.Refusal.class);
     }
 
     @Test

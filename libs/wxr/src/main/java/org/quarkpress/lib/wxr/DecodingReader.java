@@ -11,7 +11,9 @@ import java.util.Objects;
 
 /**
  * Decodes bytes with a reporting decoder: each malformed or unmappable sequence becomes one U+FFFD and an
- * INVALID_ENCODING repair (refused in strict mode) at the line and column where it occurs.
+ * INVALID_ENCODING repair at the line and column where it occurs. In strict mode the sequence is refused instead:
+ * the chars decoded before it are returned first, and the next read throws an {@link XmlInput.Refusal} carrying the
+ * {@link WxrException}, so that a reader reading ahead still gets everything before the bad bytes.
  */
 final class DecodingReader extends Reader {
 
@@ -26,6 +28,8 @@ final class DecodingReader extends Reader {
     private boolean flushed;
     private long line = 1;
     private long column = 1;
+    /** A strict refusal of bytes met while decoded chars were still to be returned; thrown by the next fill. */
+    private XmlInput.Refusal refusal;
 
     DecodingReader(InputStream in, CharsetDecoder decoder, ProblemLog log) {
         this.in = in;
@@ -59,6 +63,9 @@ final class DecodingReader extends Reader {
 
     /** Decodes at least one char into {@code chars}; false at the end of input. */
     private boolean fill() throws IOException {
+        if (refusal != null) {
+            throw refusal;
+        }
         if (flushed) {
             return false;
         }
@@ -73,6 +80,18 @@ final class DecodingReader extends Reader {
                     break;
                 }
                 long[] at = positionOfNextChar();
+                if (!log.lenient()) {
+                    refusal = new XmlInput.Refusal(new WxrException(
+                            WxrProblem.Kind.INVALID_ENCODING,
+                            at[0],
+                            at[1],
+                            result.length() + " byte(s) are not valid "
+                                    + decoder.charset().name()));
+                    if (chars.position() == 0) {
+                        throw refusal;
+                    }
+                    break;
+                }
                 bytes.position(bytes.position() + result.length());
                 chars.put(REPLACEMENT);
                 log.repair(

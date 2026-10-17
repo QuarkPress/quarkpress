@@ -179,6 +179,58 @@ class RepairingReaderTest {
         assertThat(repair("<!-- open", new ProblemLog(true))).isEqualTo("<!-- open");
     }
 
+    // ---- undeclared WordPress prefixes ----
+
+    private static String bindingPrefixes(String xml) throws IOException {
+        try (RepairingReader reader = new RepairingReader(
+                new StringReader(xml), new ProblemLog(true), WxrReadOptions.DEFAULT_MAX_CHARS_PER_VALUE, true)) {
+            StringBuilder out = new StringBuilder();
+            char[] buffer = new char[3];
+            int n;
+            while ((n = reader.read(buffer, 0, buffer.length)) >= 0) {
+                out.append(buffer, 0, n);
+            }
+            assertThat(reader.startTagSeen()).isTrue();
+            return out.toString();
+        }
+    }
+
+    @Test
+    void undeclaredWordPressPrefixesAreBoundOnTheRootOnly() throws IOException {
+        String u = WxrNames.UNDECLARED;
+        assertThat(bindingPrefixes("<?xml version=\"1.0\"?><!-- c --><rss version=\"2.0\"\n"
+                        + " xmlns:content = 'x' xmlns:wp=\"y\"><channel a=\"1\"><wp:x/></channel></rss>"))
+                .isEqualTo("<?xml version=\"1.0\"?><!-- c --><rss version=\"2.0\"\n xmlns:content = 'x' xmlns:wp=\"y\""
+                        + " xmlns:excerpt=\"" + u + "excerpt\" xmlns:dc=\"" + u + "dc\" xmlns:wfw=\"" + u + "wfw\">"
+                        + "<channel a=\"1\"><wp:x/></channel></rss>");
+        // names that only start like a declaration, and a root that closes itself
+        assertThat(bindingPrefixes("<r xmlns:wpx=\"a\" xmlns:dcx=\"b\">"))
+                .isEqualTo("<r xmlns:wpx=\"a\" xmlns:dcx=\"b\" xmlns:wp=\"" + u + "wp\" xmlns:excerpt=\"" + u
+                        + "excerpt\" xmlns:content=\"" + u + "content\" xmlns:dc=\"" + u + "dc\" xmlns:wfw=\"" + u
+                        + "wfw\">");
+        assertThat(bindingPrefixes("<r a=\"1\"/>")).isEqualTo("<r a=\"1\"/>");
+    }
+
+    @Test
+    void aRootAttributeNameCutAtTheLimitDeclaresWhatIsLeftOfIt() throws IOException {
+        ProblemLog log = new ProblemLog(true);
+        try (RepairingReader reader =
+                new RepairingReader(new StringReader("<r xmlns:wpzzzz=\"a\"><x/></r>"), log, 8, true)) {
+            StringBuilder out = new StringBuilder();
+            char[] buffer = new char[3];
+            int n;
+            while ((n = reader.read(buffer, 0, buffer.length)) >= 0) {
+                out.append(buffer, 0, n);
+            }
+            String u = WxrNames.UNDECLARED;
+            assertThat(out.toString())
+                    .isEqualTo("<r xmlns:wp=\"a\" xmlns:excerpt=\"" + u + "excerpt\" xmlns:content=\"" + u
+                            + "content\" xmlns:dc=\"" + u + "dc\" xmlns:wfw=\"" + u + "wfw\"><x/></r>");
+            assertThat(reader.boundPrefixes()).isEqualTo(0b11110);
+        }
+        assertThat(log.problems()).extracting(WxrProblem::kind).containsExactly(WxrProblem.Kind.VALUE_TOO_LARGE);
+    }
+
     // ---- per-value limits on comments, instructions and attributes ----
 
     private static String repairLimited(String xml, ProblemLog log, int max) throws IOException {

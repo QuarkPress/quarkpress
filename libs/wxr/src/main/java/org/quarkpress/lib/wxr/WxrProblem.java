@@ -23,9 +23,12 @@ public record WxrProblem(Kind kind, long line, long column, String detail) {
         BARE_LESS_THAN,
         /** A DOCTYPE was skipped (lenient) or refused (strict); DTDs are never processed. */
         DOCTYPE,
-        /** The {@code wp} or {@code excerpt} prefix is bound to a URI WordPress never used; read anyway. */
+        /**
+         * The {@code wp} or {@code excerpt} prefix is bound to a URI WordPress never used, or a prefix WordPress
+         * writes is used without being declared (lenient mode only); read anyway.
+         */
         UNKNOWN_NAMESPACE,
-        /** The root is not {@code rss} or there is no {@code channel}. */
+        /** The root is not {@code rss}, there is no {@code channel}, or the input has no element at all. */
         NOT_WXR,
         /** No {@code wp:wxr_version} before the first entry; the WordPress Importer rejects such files. */
         VERSION_MISSING,

@@ -14,6 +14,13 @@ import java.util.Objects;
  * this filter also holds each of them to the per-value limit: longer ones are refused (strict) or cut off with a
  * {@link WxrProblem.Kind#VALUE_TOO_LARGE} problem (lenient). Text and CDATA content are not cut here; the reader
  * that consumes the parser's events bounds those.
+ *
+ * <p>When asked to (the lenient reader does), it also binds the prefixes WordPress writes ({@code wp},
+ * {@code excerpt}, {@code content}, {@code dc}, {@code wfw}) on the root element when the root does not declare
+ * them: some exporters write {@code wp:} elements without the declaration, which a namespace-aware parser refuses.
+ * Each is bound to a URI of its own ({@link WxrNames#UNDECLARED} plus the prefix), so that the reader reports only
+ * those actually used. All five are bound when undeclared, used or not: whether a prefix is used is known only
+ * after the root, and the added declarations shift the parser's columns on the root's line.
  */
 final class RepairingReader extends Reader {
 
@@ -24,6 +31,8 @@ final class RepairingReader extends Reader {
     private static final int MIN_DECLARATION_LIMIT = 1024;
     /** Leading zeros of a numeric reference that still count as one; keeps the lookahead under 48. */
     private static final int MAX_ZEROS = 24;
+    /** Longer than any "xmlns:" declaration of a WordPress prefix. */
+    private static final int MAX_ROOT_NAME = 16;
 
     private static final String TAG_STOPS = "<&>\"'";
 
@@ -72,11 +81,33 @@ final class RepairingReader extends Reader {
 
     private long cutColumn = Long.MAX_VALUE;
 
+    /** Whether the root start tag is still to come and undeclared prefixes are to be bound on it. */
+    private boolean rootPending;
+    /** Inside the root start tag. */
+    private boolean inRoot;
+    /** Whether any start tag has begun. */
+    private boolean startTagSeen;
+    /** The attribute name being read in the root start tag, up to {@link #MAX_ROOT_NAME} chars. */
+    private final StringBuilder rootName = new StringBuilder();
+    /** Whether that name is longer than {@link #MAX_ROOT_NAME}, so no declaration of interest. */
+    private boolean rootNameLong;
+    /** Bit i set when the root declares {@code WxrNames.PREFIXES.get(i)}. */
+    private int declaredPrefixes;
+    /** Bit i set when this filter bound {@code WxrNames.PREFIXES.get(i)} on the root. */
+    private int boundPrefixes;
+    /** The last char of the root start tag outside whitespace, so far ('/' when it closes itself). */
+    private char rootLast;
+
     RepairingReader(Reader in, ProblemLog log) {
         this(in, log, WxrReadOptions.DEFAULT_MAX_CHARS_PER_VALUE);
     }
 
     RepairingReader(Reader in, ProblemLog log, int maxCharsPerValue) {
+        this(in, log, maxCharsPerValue, false);
+    }
+
+    /** {@code bindPrefixes}: bind the WordPress prefixes the root element does not declare (see above). */
+    RepairingReader(Reader in, ProblemLog log, int maxCharsPerValue, boolean bindPrefixes) {
         if (maxCharsPerValue <= 0) {
             throw new IllegalArgumentException("maxCharsPerValue must be positive: " + maxCharsPerValue);
         }
@@ -84,6 +115,7 @@ final class RepairingReader extends Reader {
         this.log = Objects.requireNonNull(log);
         this.maxValue = maxCharsPerValue;
         this.valueCap = maxCharsPerValue;
+        this.rootPending = bindPrefixes;
     }
 
     /** True when the underlying input ended without a read error and every char of it has been consumed. */
@@ -97,6 +129,19 @@ final class RepairingReader extends Reader {
      */
     boolean beforeCut(long problemLine, long problemColumn) {
         return problemLine < cutLine || (problemLine == cutLine && problemColumn < cutColumn);
+    }
+
+    /**
+     * The WordPress prefixes this filter bound on the root element, as bits over {@code WxrNames.PREFIXES}: only
+     * these bindings are its own, a document may spell the same URI itself.
+     */
+    int boundPrefixes() {
+        return boundPrefixes;
+    }
+
+    /** Whether a start tag has begun in the input processed so far: the document has an element. */
+    boolean startTagSeen() {
+        return startTagSeen;
     }
 
     /** The number of chars returned by {@link #read} so far. */
@@ -375,6 +420,14 @@ final class RepairingReader extends Reader {
                 state = State.PI;
             }
         } else if (peek(1) == '/' ? startsName(2) : peek(1) != '!' && startsName(1)) {
+            if (peek(1) != '/') {
+                startTagSeen = true;
+                inRoot = rootPending;
+                rootPending = false;
+                rootName.setLength(0);
+                rootNameLong = false;
+                rootLast = 0;
+            }
             emit(1);
             quote = 0;
             valueLength = 0;
@@ -465,9 +518,15 @@ final class RepairingReader extends Reader {
             }
             char c = window[pos];
             if (c == '>') {
+                if (inRoot) {
+                    endRootTag();
+                }
                 emit(1);
                 state = State.TEXT;
             } else if (c == '"' || c == '\'') {
+                if (inRoot) {
+                    rootNameEnds();
+                }
                 quote = c;
                 valueLength = 0;
                 emit(1);
@@ -497,6 +556,9 @@ final class RepairingReader extends Reader {
         }
         char c = window[pos];
         if (c == quote) {
+            if (inRoot) {
+                rootLast = quote;
+            }
             quote = 0;
             valueLength = 0;
             emit(1);
@@ -521,14 +583,76 @@ final class RepairingReader extends Reader {
     private void copyNames(int n) {
         for (int i = pos; i < pos + n; i++) {
             char c = window[i];
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '=' || c == '/') {
+            boolean space = c == ' ' || c == '\t' || c == '\n' || c == '\r';
+            if (space || c == '=' || c == '/') {
                 valueLength = 0;
                 out.append(c);
-            } else if (admit(1) == 1) {
-                out.append(c);
+                if (inRoot) {
+                    rootChar(c, space, true);
+                }
+            } else {
+                boolean kept = admit(1) == 1;
+                if (kept) {
+                    out.append(c);
+                }
+                if (inRoot) {
+                    // the name as the parser will see it: a name cut at the limit declares what is left of it
+                    rootChar(c, false, kept);
+                }
             }
         }
         consume(n);
+    }
+
+    // ---- undeclared prefixes on the root element ----
+
+    /** Follows one char of the root start tag outside quotes; {@code kept}: it reaches the parser. */
+    private void rootChar(char c, boolean space, boolean kept) {
+        if (!space) {
+            rootLast = c;
+        }
+        if (space || c == '=' || c == '/') {
+            rootNameEnds();
+        } else if (!kept) {
+            return;
+        } else if (rootName.length() < MAX_ROOT_NAME) {
+            rootName.append(c);
+        } else {
+            rootNameLong = true;
+        }
+    }
+
+    /** An attribute name (or the element name) of the root start tag ends: note a WordPress prefix declaration. */
+    private void rootNameEnds() {
+        if (!rootNameLong && rootName.length() > 6 && rootName.indexOf("xmlns:") == 0) {
+            int i = WxrNames.PREFIXES.indexOf(rootName.substring(6));
+            if (i >= 0) {
+                declaredPrefixes |= 1 << i;
+            }
+        }
+        rootName.setLength(0);
+        rootNameLong = false;
+    }
+
+    /** At the '>' of the root start tag: binds the WordPress prefixes it does not declare, unless it closes itself. */
+    private void endRootTag() {
+        rootNameEnds();
+        inRoot = false;
+        if (rootLast == '/') {
+            return;
+        }
+        for (int i = 0; i < WxrNames.PREFIXES.size(); i++) {
+            if ((declaredPrefixes & (1 << i)) == 0) {
+                boundPrefixes |= 1 << i;
+                String prefix = WxrNames.PREFIXES.get(i);
+                out.append(" xmlns:")
+                        .append(prefix)
+                        .append("=\"")
+                        .append(WxrNames.UNDECLARED)
+                        .append(prefix)
+                        .append('"');
+            }
+        }
     }
 
     /**

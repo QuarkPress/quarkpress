@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+<wp:wxr_version>1.2</wp:wxr_version>
+<item>
+<title>a &nbsp; b</title>
+<guid isPermaLink="false">https://example.test/?p=10&#038;x=1</guid>
+<wp:post_name>x&lt;y&#x41;z</wp:post_name>
+<wp:post_type>pre<![CDATA[mid]]>post</wp:post_type>
+</item>
+</channel>
+</rss>

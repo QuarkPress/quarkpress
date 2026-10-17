@@ -30,7 +30,21 @@ import javax.xml.stream.XMLStreamReader;
  * }
  * }</pre>
  *
- * Not thread-safe. I/O errors of the given stream surface as {@link UncheckedIOException} in both modes. A gzip
+ * <p>A file that ends inside the document (an export cut off by a server timeout) or whose XML breaks somewhere
+ * is read up to the break. Lenient mode delivers every complete entry, then the entry being read with the fields
+ * completed before the break (a field, item term or meta row cut in the middle is dropped; a comment cut in the
+ * middle is kept with its completed fields), records {@link WxrProblem.Kind#TRUNCATED} (the input ended) or
+ * {@link WxrProblem.Kind#MALFORMED} (it broke earlier), and ends. Strict mode delivers the complete entries and
+ * throws {@link WxrException} of that kind at the break. Input without any element is
+ * {@link WxrProblem.Kind#NOT_WXR}. Lenient mode also reads {@code wp:} and the other WordPress prefixes when the
+ * document never declares them, as the WordPress Importer's regular-expression parser does, recording
+ * {@link WxrProblem.Kind#UNKNOWN_NAMESPACE}; strict mode refuses such a document as malformed.
+ *
+ * <p>Problem positions come from the parser and the pre-filter. On the root element's line, columns after the
+ * root start tag are shifted by the prefix declarations lenient mode adds there. The parser counts lines, columns
+ * and offsets in {@code int}s, so on inputs beyond 2<sup>31</sup> chars its positions can wrap.
+ *
+ * <p>Not thread-safe. I/O errors of the given stream surface as {@link UncheckedIOException} in both modes. A gzip
  * stream that is cut off or damaged is a content problem: strict mode throws {@link WxrException} of kind
  * {@link WxrProblem.Kind#TRUNCATED} (the compressed data ends early) or {@link WxrProblem.Kind#MALFORMED} (it is
  * corrupt), with the decompressor's exception as cause; lenient mode records that problem and ends after the
@@ -53,6 +67,10 @@ public final class WxrReader implements AutoCloseable {
     private boolean finished;
     private boolean versionChecked;
     private boolean unknownNamespaceNoted;
+    /** The undeclared WordPress prefixes already reported, as bits over {@code WxrNames.PREFIXES}. */
+    private int undeclaredNoted;
+
+    private boolean rootSeen;
     private boolean inChannel;
     private long items;
     private Fields current;
@@ -141,7 +159,7 @@ public final class WxrReader implements AutoCloseable {
             if (!started) {
                 started = true;
                 decoded = new WatchedReader(XmlInput.decode(source, options, log));
-                repairing = new RepairingReader(decoded, log, options.maxCharsPerValue());
+                repairing = new RepairingReader(decoded, log, options.maxCharsPerValue(), options.lenient());
                 xml = StaxFactory.create().createXMLStreamReader(repairing);
                 openChannel();
             }
@@ -240,6 +258,12 @@ public final class WxrReader implements AutoCloseable {
         return version.substring(dot + 1, end).compareTo("2") > 0;
     }
 
+    /**
+     * After an XML error. A strict refusal recorded before it, or a read error behind it, decides first. Input without
+     * any element is not WXR. Otherwise the error is TRUNCATED when the parser met it at the end of the input, else
+     * MALFORMED: thrown in strict mode; in lenient mode recorded, the version checked, and the entry being read
+     * returned with its completed fields.
+     */
     private WxrEntry recover(XMLStreamException e) {
         finished = true;
         WxrException refused = log.failure();
@@ -254,7 +278,40 @@ public final class WxrReader implements AutoCloseable {
             return readFailure(io);
         }
         Location at = e.getLocation();
-        throw new WxrException(WxrProblem.Kind.MALFORMED, lineOf(at), columnOf(at), String.valueOf(e.getMessage()), e);
+        if (!rootSeen && (repairing == null || !repairing.startTagSeen())) {
+            versionChecked = true;
+            log.repair(WxrProblem.Kind.NOT_WXR, lineOf(at), columnOf(at), "the input has no XML element");
+            return null;
+        }
+        boolean truncated =
+                repairing.atEof() && (at == null || atEndOfInput(at.getCharacterOffset(), repairing.delivered()));
+        WxrProblem.Kind kind = truncated ? WxrProblem.Kind.TRUNCATED : WxrProblem.Kind.MALFORMED;
+        String message = truncated ? "the file ends before the document does" : "malformed XML: " + e.getMessage();
+        if (!log.lenient()) {
+            throw new WxrException(kind, lineOf(at), columnOf(at), message, e);
+        }
+        log.note(kind, lineOf(at), columnOf(at), message);
+        checkVersion();
+        WxrEntry partial = current == null ? null : EntityBuilders.build(currentName, current);
+        current = null;
+        currentName = null;
+        return partial;
+    }
+
+    /**
+     * Whether a parse error at char {@code offset} (as the parser reports it) lies at the end of the {@code delivered}
+     * chars it was given. The parser reads ahead, so the whole of a small input is consumed long before an error in
+     * its middle is reported: the input ended at the error only when the parser was at the end of what it had (at
+     * an unfinished document the JDK parser reports an offset past the end). The parser's offset is an {@code int}
+     * that wraps past 2<sup>32</sup> chars, so the two are compared by their difference modulo 2<sup>32</sup>, read
+     * as signed: the parser is never 2<sup>31</sup> chars away from what it was given. -1 means it does not know.
+     */
+    static boolean atEndOfInput(int offset, long delivered) {
+        if (offset == -1) {
+            return true;
+        }
+        int ahead = (int) ((offset & 0xFFFF_FFFFL) - delivered);
+        return ahead >= -2;
     }
 
     private boolean beforeCut(WxrException refused) {
@@ -276,6 +333,9 @@ public final class WxrReader implements AutoCloseable {
         if (e instanceof XmlInput.SourceException source) {
             throw new UncheckedIOException(source.original());
         }
+        if (e instanceof XmlInput.Refusal refusal) {
+            throw refusal.refusal();
+        }
         boolean early = e instanceof EOFException;
         WxrProblem.Kind kind = early ? WxrProblem.Kind.TRUNCATED : WxrProblem.Kind.MALFORMED;
         String detail = (early ? "the compressed input ends early: " : "the compressed input is damaged: ") + e;
@@ -288,8 +348,11 @@ public final class WxrReader implements AutoCloseable {
 
     private void openChannel() throws XMLStreamException {
         if (!nextStartElement()) {
+            versionChecked = true;
+            log.repair(WxrProblem.Kind.NOT_WXR, line(), column(), "the input has no XML element");
             return;
         }
+        rootSeen = true;
         if (!"rss".equals(xml.getLocalName())) {
             log.repair(WxrProblem.Kind.NOT_WXR, line(), column(), "the root element is <" + xml.getLocalName() + ">");
         }
@@ -501,6 +564,19 @@ public final class WxrReader implements AutoCloseable {
         String local = xml.getLocalName();
         if (uri == null || uri.isEmpty()) {
             return local;
+        }
+        String undeclared = WxrNames.undeclaredPrefix(uri);
+        int bit = undeclared == null ? 0 : 1 << WxrNames.PREFIXES.indexOf(undeclared);
+        if ((repairing.boundPrefixes() & bit) != 0) {
+            uri = WxrNames.uriOf(undeclared);
+            if ((undeclaredNoted & bit) == 0) {
+                undeclaredNoted |= bit;
+                log.note(
+                        WxrProblem.Kind.UNKNOWN_NAMESPACE,
+                        line(),
+                        column(),
+                        "the prefix '" + undeclared + "' is not declared; read as " + uri);
+            }
         }
         String prefix = WxrNames.knownPrefix(uri);
         if (prefix == null && options.acceptAnyWpNamespace()) {
