@@ -3,6 +3,7 @@ package org.quarkpress.core.runtime;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +44,11 @@ public class SiteBinding {
             resolvingThreads.remove(self);
         }
         return binding.get();
+    }
+
+    /** The binding if the request is already bound; never asks the resolvers and never binds the request. */
+    public Optional<Binding> bound() {
+        return Optional.ofNullable(binding.get());
     }
 
     public void bind(Binding next) {

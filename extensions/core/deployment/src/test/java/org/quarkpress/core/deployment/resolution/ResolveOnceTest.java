@@ -13,6 +13,7 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteRequest;
 import org.quarkpress.core.SiteResolver;
 import org.quarkpress.core.deployment.Requests;
+import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.core.runtime.SiteBinding;
 
 class ResolveOnceTest {
@@ -43,5 +44,17 @@ class ResolveOnceTest {
             assertThat(binding.current().site()).isEqualTo(SiteId.of(5));
         });
         assertThat(CALLS.get()).isEqualTo(1);
+    }
+
+    @Test
+    void readingTheBoundBindingNeverResolvesIt() {
+        CALLS.set(0);
+        Requests.fresh(() -> {
+            assertThat(binding.bound()).isEmpty();
+            assertThat(binding.bound()).isEmpty();
+            binding.bind(Binding.site(SiteId.of(9)));
+            assertThat(binding.bound()).contains(Binding.site(SiteId.of(9)));
+        });
+        assertThat(CALLS.get()).isZero();
     }
 }
