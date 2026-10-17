@@ -23,6 +23,7 @@
 
   <modules>
     <module>core</module>
+    <module>persistence</module>
   </modules>
 
   <dependencyManagement>
@@ -89,8 +90,13 @@
             <systemPropertyVariables>
               <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
               <maven.home>${maven.home}</maven.home>
-              <quarkpress.test.db>${quarkpress.test.db}</quarkpress.test.db>
             </systemPropertyVariables>
+            <!-- The test database reaches the tests as an environment variable, not a system property: the
+                 QuarkPress configuration roots own the quarkpress.* keys and reject unknown ones from system
+                 properties, while environment variables are only matched against known keys. -->
+            <environmentVariables>
+              <QUARKPRESS_TEST_DB>${quarkpress.test.db}</QUARKPRESS_TEST_DB>
+            </environmentVariables>
           </configuration>
         </plugin>
       </plugins>

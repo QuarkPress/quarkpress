@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Persistence"
+description: "QuarkPress's own datasource and persistence unit, sites, options and site isolation on PostgreSQL and MySQL"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "hibernate"
+    - "flyway"
+  categories:
+    - "data"
+  status: "experimental"
