@@ -17,7 +17,8 @@ public final class DbApp {
                                 TestSites.class,
                                 Jdbc.class,
                                 Json.class,
-                                Failures.class))
+                                Failures.class,
+                                TestFeatures.class))
                 .overrideConfigKey("quarkus.datasource.\"quarkpress\".db-kind", TestDb.kind())
                 .overrideConfigKey("quarkus.datasource.devservices.enabled", "false")
                 .overrideConfigKey("quarkus.http.test-port", "0")
