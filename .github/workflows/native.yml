@@ -25,7 +25,7 @@ jobs:
       matrix:
         db: [postgresql, mysql]
     env:
-      IT_MODULES: integration-tests/tenancy-spike,integration-tests/content
+      IT_MODULES: integration-tests/tenancy-spike,integration-tests/content,integration-tests/host-coexistence
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
