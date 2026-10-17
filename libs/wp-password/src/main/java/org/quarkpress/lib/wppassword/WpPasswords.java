@@ -28,7 +28,6 @@ public final class WpPasswords {
     /** The bcrypt cost PHP 8.4 uses when WordPress's filters set none; any other cost asks for a rehash. */
     static final int TARGET_COST = 12;
 
-    private static final int BCRYPT_LENGTH = 60;
     private static final String WP_PREFIX = "$wp";
     private static final String FAST_HASH_PREFIX = "$generic$";
     private static final String PREHASH_MAC = "HmacSHA384";
@@ -130,7 +129,7 @@ public final class WpPasswords {
         if (PhpBytes.startsWith(hash, "$H$")) {
             return HashType.PHPASS_PHPBB;
         }
-        if (hash.length == BCRYPT_LENGTH && isBcryptId(hash)) {
+        if (hash.length == Bcrypt.HASH_LENGTH && isBcryptId(hash)) {
             return HashType.BCRYPT;
         }
         if (PhpBytes.startsWith(hash, FAST_HASH_PREFIX)) {
@@ -155,7 +154,7 @@ public final class WpPasswords {
             return true;
         }
         int rest = WP_PREFIX.length();
-        if (hash.length - rest != BCRYPT_LENGTH || !PhpBytes.startsWith(hash, rest, "$2y$")) {
+        if (hash.length - rest != Bcrypt.HASH_LENGTH || !PhpBytes.startsWith(hash, rest, "$2y$")) {
             return true;
         }
         return scannedCost(hash, rest + 4) != TARGET_COST;

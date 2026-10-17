@@ -54,7 +54,8 @@ class WpPasswordsParityTest {
      */
     static final String SELF_CHECK = "self-check:branch";
 
-    static final int MIN_COMPARISONS = 5_800;
+    /** Floor for the WordPress comparisons in all (self-checks excluded), about half of what a run makes. */
+    static final int MIN_COMPARISONS = 4_200;
 
     /**
      * Floors per WordPress-oracle aspect (comparisons that are not skip-listed), about half of what a run makes, so
@@ -203,7 +204,12 @@ class WpPasswordsParityTest {
                 .as("comparisons of " + aspect)
                 .isGreaterThanOrEqualTo(minimum));
         assertThat(wordpressAspects.keySet()).as("aspects with a floor").isEqualTo(MIN_PER_ASPECT.keySet());
-        run.assertParity(MIN_COMPARISONS);
+        assertThat(wordpressAspects.values().stream()
+                        .mapToInt(Integer::intValue)
+                        .sum())
+                .as("WordPress comparisons in all")
+                .isGreaterThanOrEqualTo(MIN_COMPARISONS);
+        run.assertParity(0);
     }
 
     static void compare(Aspects aspects, CheckCase c, JsonNode wp) {
@@ -294,7 +300,7 @@ class WpPasswordsParityTest {
         return chosen;
     }
 
-    /** The pair, one character of the hash changed within its alphabet, the hash cut by one, the prefix upper-cased. */
+    /** The pair, one character of the hash changed within its alphabet, the hash cut by one, the prefix's letters case-flipped. */
     private static void addWithMutations(
             List<CheckCase> checks, String id, byte[] password, String hash, String alphabet) {
         checks.add(new CheckCase(id, password, hash, true));
@@ -304,8 +310,14 @@ class WpPasswordsParityTest {
         int at = hash.length() - 5;
         checks.add(new CheckCase(id + "-flip", password, PasswordGens.replaceChar(hash, at, alphabet, at), true));
         checks.add(new CheckCase(id + "-cut", password, hash.substring(0, hash.length() - 1), true));
-        checks.add(new CheckCase(
-                id + "-upper", password, hash.substring(0, 3).toUpperCase(Locale.ROOT) + hash.substring(3), true));
+        String prefix = hash.substring(0, 3);
+        String flipped = prefix.toUpperCase(Locale.ROOT);
+        if (flipped.equals(prefix)) {
+            flipped = prefix.toLowerCase(Locale.ROOT);
+        }
+        if (!flipped.equals(prefix)) {
+            checks.add(new CheckCase(id + "-upper", password, flipped + hash.substring(3), true));
+        }
     }
 
     private static ObjectNode input(String op, byte[] password) {
