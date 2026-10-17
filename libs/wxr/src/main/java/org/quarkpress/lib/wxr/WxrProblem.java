@@ -17,6 +17,8 @@ public record WxrProblem(Kind kind, long line, long column, String detail) {
         BARE_AMPERSAND,
         /** A named reference other than the five XML entities was kept as text. */
         UNDEFINED_ENTITY,
+        /** Markup XML forbids in that place ({@code ]]>} in text, {@code --} in a comment) was escaped or split. */
+        INVALID_MARKUP,
         /** A {@code <} that starts no markup was read as text. */
         BARE_LESS_THAN,
         /** A DOCTYPE was skipped (lenient) or refused (strict); DTDs are never processed. */
@@ -37,7 +39,10 @@ public record WxrProblem(Kind kind, long line, long column, String detail) {
         TRUNCATED,
         /** More than {@value ProblemLog#MAX_STORED} problems; the rest are only counted. */
         TOO_MANY_PROBLEMS,
-        /** A value is longer than {@link WxrReadOptions#maxCharsPerValue()}; always thrown. */
+        /**
+         * A value is longer than {@link WxrReadOptions#maxCharsPerValue()}; thrown, except that a lenient read cuts off
+         * an overlong comment, processing instruction, attribute name or attribute value and records this instead.
+         */
         VALUE_TOO_LARGE,
         /** More items than {@link WxrReadOptions#maxItems()}; always thrown. */
         TOO_MANY_ITEMS
