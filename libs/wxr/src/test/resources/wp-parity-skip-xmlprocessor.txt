@@ -29,3 +29,9 @@ corpus/cases/wp-author-variant.xml reader:/authors* D5 wp:wp_author is not read;
 corpus/cases/ctrl-char.xml reader:/posts/0/post_content D8 XML-illegal characters become U+FFFD; the parser keeps them
 corpus/export-quirks.xml reader:/posts/0/post_content D8 same as above
 none - D6 the parser uses an item's description as excerpt when excerpt:encoded is missing; no case has that shape
+crlf writer:/rss/channel[1]/item[1]/content:encoded[1] D10 the writer keeps carriage returns as &#13;; WordPress writes them raw and every parser turns them into line feeds
+zero-name writer:/rss/channel[1]/wp:category[1]* D12 a category named 0 keeps its name; WordPress omits it (PHP empty)
+none - D7 WordPress's raw & in comment URLs and category attributes reads back the same after repair; only well-formedness differs
+none - D8 WordPress's raw control characters read back as U+FFFD after repair, as the writer writes them
+none - D9 JSON datasets cannot carry invalid UTF-8, so utf8_encode never runs here
+none - D11 only wptexturize would change channel text, and the harness does not register it; the escaping filters it does register (esc_html, convert_chars, ent2ncr) only re-encode, so the hand-written site name Ex & Co <b>Blog</b> parses equal on both sides and generated names are plain

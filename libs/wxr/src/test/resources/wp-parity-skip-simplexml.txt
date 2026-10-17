@@ -20,3 +20,9 @@ none - D2 only the XML-processor parser drops fields after nested entities; well
 none - D3 SimpleXML accepts a BOM, other declared encodings and standalone
 none - D5 SimpleXML reads only wp:author and keys authors by login
 none - D6 only the XML-processor parser uses the description as excerpt
+crlf writer:/rss/channel[1]/item[1]/content:encoded[1] D10 the writer keeps carriage returns as &#13;; WordPress writes them raw and every parser turns them into line feeds
+zero-name writer:/rss/channel[1]/wp:category[1]* D12 a category named 0 keeps its name; WordPress omits it (PHP empty)
+none - D7 WordPress's raw & in comment URLs and category attributes reads back the same after repair; only well-formedness differs
+none - D8 WordPress's raw control characters read back as U+FFFD after repair, as the writer writes them
+none - D9 JSON datasets cannot carry invalid UTF-8, so utf8_encode never runs here
+none - D11 only wptexturize would change channel text, and the harness does not register it; the escaping filters it does register (esc_html, convert_chars, ent2ncr) only re-encode, so the hand-written site name Ex & Co <b>Blog</b> parses equal on both sides and generated names are plain

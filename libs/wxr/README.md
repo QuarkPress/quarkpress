@@ -183,7 +183,8 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files and the
 WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-source/`, and runs the importer
-through `testing/wp-oracle` (`src/test/php/importer-driver.php`) on the same files as this library.
+(`src/test/php/importer-driver.php`) and WordPress's own `export_wp()` (`src/test/php/export-driver.php`) through
+`testing/wp-oracle` on the same inputs as this library. Both the reader and the writer are compared.
 
 - **Reader against the importer's parsers** (`WxrParityTest`): the reference examples, two real WordPress
   exports, the edge cases in `src/test/resources/wxr/cases/` and 300 generated documents. The importer parses each
@@ -193,10 +194,26 @@ through `testing/wp-oracle` (`src/test/php/importer-driver.php`) on the same fil
   XML-processor parser for the files SimpleXML rejects. Without any of them it is the XML-processor parser alone,
   and the test that checks SimpleXML really runs is skipped with a message saying so. With `xml` but without
   `simplexml` or `dom` the importer would use its expat parser, which is not compared: the parity test is skipped.
+- **Writer against `export_wp()`** (`WxrParityTest`): 60 generated datasets and five hand-written ones in
+  `src/test/resources/wp-parity-cases.json` (the reference example, a full site, quirks, Windows line endings, a
+  category named `0`). WordPress 7.1.3's `export_wp()` runs once per dataset in its own PHP process, with the real
+  export, formatting, kses and UTF-8 files and its database queries answered from the dataset; the same dataset goes
+  through `WxrWriter`, with the selection and ordering a full export does (exportable post types without
+  auto-drafts, the authors of exported posts, parents before children, no edit locks, no spam comments) applied by
+  the test as a caller would. Every field WordPress always writes is set, so each element is present on both sides.
+  Both files are parsed by the same reader (this library's lenient input, so WordPress's raw `&` and control
+  characters parse) and the element trees are compared in order: names, attributes, leaf text and whether it came
+  from CDATA. Whitespace between elements, comments and the channel's run-time `pubDate` and `generator` are
+  ignored, and references are compared as the values they decode to, so the omitted prolog comments and the choice
+  of named or numeric references never show. The library's file must also parse with the JDK's plain XML parser,
+  without repair.
 - **Differences.** `src/test/resources/wp-parity-skip-simplexml.txt` and `wp-parity-skip-xmlprocessor.txt` list
   each expected difference with its item above: numeric references and short trailing named references (D1),
   fields after meta (D2), a BOM, a Latin-1 declaration and `standalone` (D3), foreign or undeclared namespaces
-  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8). An entry that no longer differs fails the build.
+  (D4), `wp:wp_author` (D5) and XML-illegal characters (D8); for the writer, carriage returns (D10) and a category
+  named `0` (D12), with escaped attributes (D7), XML-illegal characters (D8), valid UTF-8 (D9) and channel text
+  (D11) listed as differences no dataset shows once both files are parsed. An entry that no longer differs fails
+  the build.
 
 ## Source policy
 
