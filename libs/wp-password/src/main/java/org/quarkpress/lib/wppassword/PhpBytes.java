@@ -1,9 +1,15 @@
 package org.quarkpress.lib.wppassword;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.charset.StandardCharsets.UTF_8;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /** Byte-level helpers that look at strings the way PHP does: as bytes, measured and compared byte by byte. */
 final class PhpBytes {
+
+    private static final byte[] HEX_DIGITS = "0123456789abcdef".getBytes(US_ASCII);
 
     private PhpBytes() {}
 
@@ -43,5 +49,55 @@ final class PhpBytes {
             }
         }
         return true;
+    }
+
+    /** A fresh MD5 digest. */
+    static MessageDigest md5() {
+        try {
+            return MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("every Java platform provides MD5", e);
+        }
+    }
+
+    /** The MD5 of {@code data} as 32 lowercase hexadecimal ASCII bytes. */
+    static byte[] md5Hex(byte[] data) {
+        byte[] digest = md5().digest(data);
+        byte[] hex = new byte[2 * digest.length];
+        for (int i = 0; i < digest.length; i++) {
+            hex[2 * i] = HEX_DIGITS[(digest[i] >>> 4) & 0x0f];
+            hex[2 * i + 1] = HEX_DIGITS[digest[i] & 0x0f];
+        }
+        return hex;
+    }
+
+    /**
+     * PHP's addslashes(): a backslash before every {@code '}, {@code "} and {@code \}, and a NUL byte written as
+     * backslash and {@code 0}. Returns {@code data} itself when nothing needs escaping.
+     */
+    static byte[] addSlashes(byte[] data) {
+        int extra = 0;
+        for (byte b : data) {
+            if (b == '\'' || b == '"' || b == '\\' || b == 0) {
+                extra++;
+            }
+        }
+        if (extra == 0) {
+            return data;
+        }
+        byte[] out = new byte[data.length + extra];
+        int j = 0;
+        for (byte b : data) {
+            if (b == 0) {
+                out[j++] = '\\';
+                out[j++] = '0';
+            } else {
+                if (b == '\'' || b == '"' || b == '\\') {
+                    out[j++] = '\\';
+                }
+                out[j++] = b;
+            }
+        }
+        return out;
     }
 }
