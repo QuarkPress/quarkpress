@@ -118,6 +118,9 @@ final class Examples {
             case "one_attr" -> {
                 return str(kses(e).oneAttrText(e.get("element").asText(), text));
             }
+            case "strip_all_tags" -> {
+                return str(Kses.stripAllTags(text, e.get("remove_breaks").asBoolean()));
+            }
             // WIRED-CASES
             default -> throw new UnsupportedOperationException("no QuarkPress function is wired for " + fn);
         }

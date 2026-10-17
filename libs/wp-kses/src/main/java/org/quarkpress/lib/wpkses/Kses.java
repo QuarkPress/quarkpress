@@ -152,6 +152,12 @@ public final class Kses {
         return config.safeCss().properties();
     }
 
+    /** wp_strip_all_tags: all tags removed, script and style elements with their content; then PHP-trimmed. */
+    public static String stripAllTags(String text, boolean removeBreaks) {
+        Objects.requireNonNull(text, "text");
+        return StripTags.stripAllTags(TextUtils.wellFormed(text), removeBreaks);
+    }
+
     /** wp_kses_normalize_entities in the "html" context. */
     public static String normalizeEntities(String text) {
         Objects.requireNonNull(text, "text");

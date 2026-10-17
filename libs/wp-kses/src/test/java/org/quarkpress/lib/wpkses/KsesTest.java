@@ -135,7 +135,7 @@ class KsesTest {
 
     @Test
     void filtersThatReturnNullAreReported() {
-        // Review focus 5: a broken host filter fails loudly where it is configured or used.
+        // A broken host filter fails loudly where it is configured or used.
         assertThatThrownBy(() -> Kses.builder()
                         .allowedHtmlFilter((tags, context) -> null)
                         .build())
@@ -160,7 +160,7 @@ class KsesTest {
 
     @Test
     void oneInstanceIsSafeToShareBetweenThreads() throws Exception {
-        // Review focus 3
+        // One shared instance must give the same answers from several threads.
         Kses kses = Kses.wordPress();
         List<String> inputs = List.of(
                 "<p style=\"color:red;foo:bar\" onclick=\"x\">a</p>",
