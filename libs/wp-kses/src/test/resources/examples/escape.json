@@ -1,0 +1,8 @@
+[
+  {"id":"esc-1","fn":"esc_attr","text":"&apos; &amp; &copy; &#039; &#39; &#x27; &#1114111; &foo; &#0; a<b>\"c\" &hellip; &AMP; &amp","expected":"&amp;apos; &amp; &copy; &#039; &#039; &#x27; &#1114111; &amp;foo; &amp;#0; a&lt;b&gt;&quot;c&quot; &hellip; &amp;AMP; &amp;amp"},
+  {"id":"esc-2","fn":"esc_attr","text":"&#x10FFFF; &#xD800; &#65 &#128; &sup2; &Rarr;","expected":"&#x10FFFF; &amp;#xD800; &amp;#65 &#128; &sup2; &amp;Rarr;"},
+  {"id":"esc-3","fn":"esc_attr","text":"it's \"q\"","expected":"it&#039;s &quot;q&quot;"},
+  {"id":"esc-4","fn":"esc_attr","text":"plain","expected":"plain"},
+  {"id":"esc-5","fn":"esc_attr","text":"","expected":""},
+  {"id":"esc-6","fn":"esc_attr","text":"<a href=\"x\">","expected":"&lt;a href=&quot;x&quot;&gt;"}
+]

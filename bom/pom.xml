@@ -37,6 +37,11 @@
       </dependency>
       <dependency>
         <groupId>org.quarkpress.lib</groupId>
+        <artifactId>quarkpress-lib-wp-kses</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress.lib</groupId>
         <artifactId>quarkpress-lib-wp-shortcode</artifactId>
         <version>${project.version}</version>
       </dependency>

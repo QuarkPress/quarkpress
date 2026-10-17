@@ -1,0 +1,14 @@
+[
+  {"id":"R13.4-1","fn":"stripslashes","text":"a\\\"b","expected":"a\"b"},
+  {"id":"R13.4-2","fn":"stripslashes","text":"a\\'b","expected":"a\\'b"},
+  {"id":"R13.4-3","fn":"stripslashes","text":"a\\\\\"b","expected":"a\\\"b"},
+  {"id":"R13.4-4","fn":"stripslashes","text":"<a title=\\\"x\\\">q","expected":"<a title=\"x\">q"},
+  {"id":"R15.2-1","fn":"html_error","text":"abc def","expected":"def"},
+  {"id":"R15.2-2","fn":"html_error","text":"\"a b\" c","expected":"c"},
+  {"id":"R15.2-3","fn":"html_error","text":"'a b' c","expected":"c"},
+  {"id":"R15.2-4","fn":"html_error","text":"a\"b c\"d e","expected":"e"},
+  {"id":"R15.2-5","fn":"html_error","text":"\"unterminated x","expected":""},
+  {"id":"R15.2-6","fn":"html_error","text":"   lead","expected":"lead"},
+  {"id":"R15.2-7","fn":"html_error","text":"","expected":""},
+  {"id":"R15.2-8","fn":"html_error","text":"x\ny","expected":"y"}
+]

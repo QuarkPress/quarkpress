@@ -1,0 +1,9 @@
+[
+  {"id":"R2.1-1","fn":"no_null","text":"a\u0000b\u0001c\bd\te\u000bf\fg\rh\u000ei\u001fj\u007fk","keep":false,"expected":"abcd\tefg\rhij\u007fk"},
+  {"id":"R2.2-1","fn":"no_null","text":"a\\0b\\00c\\\\0d\\0x","keep":false,"expected":"abcdx"},
+  {"id":"R2.2-2","fn":"no_null","text":"\\\\a\\0","keep":false,"expected":"\\\\a"},
+  {"id":"R2.2-3","fn":"no_null","text":"a\\b\\","keep":false,"expected":"a\\b\\"},
+  {"id":"R2.2-4","fn":"no_null","text":"0\\0","keep":false,"expected":"0"},
+  {"id":"R2.3-1","fn":"no_null","text":"x\\0y \\0 <b title=\"a\\0b\">z</b>","keep":true,"expected":"x\\0y \\0 <b title=\"a\\0b\">z</b>"},
+  {"id":"R2.3-2","fn":"no_null","text":"x\u0000y\u0001z","keep":true,"expected":"xyz"}
+]

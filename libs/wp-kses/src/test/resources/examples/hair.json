@@ -1,0 +1,16 @@
+[
+  {"id":"R8.1-1","fn":"hair","text":"class=\"is-wide\" inert data-lazy='&lt;img&#00062' =/🐮=/","expected":{"class":{"name":"class","value":"is-wide","whole":"class=\"is-wide\"","vless":"n"},"inert":{"name":"inert","value":"","whole":"inert","vless":"y"},"data-lazy":{"name":"data-lazy","value":"&lt;img&gt;","whole":"data-lazy=\"&lt;img&gt;\"","vless":"n"},"=":{"name":"=","value":"","whole":"=","vless":"y"},"🐮":{"name":"🐮","value":"/","whole":"🐮=\"/\"","vless":"n"}}},
+  {"id":"R8.1-2","fn":"hair","text":"A=1 a=2 B","expected":{"a":{"name":"a","value":"1","whole":"a=\"1\"","vless":"n"},"b":{"name":"b","value":"","whole":"b","vless":"y"}}},
+  {"id":"R8.1-3","fn":"hair","text":"\"q\"=1","expected":{"\"q\"":{"name":"\"q\"","value":"1","whole":"\"q\"=\"1\"","vless":"n"}}},
+  {"id":"R8.1-4","fn":"hair","text":"","expected":[]},
+  {"id":"R8.1-5","fn":"hair","text":"   ","expected":[]},
+  {"id":"R8.1-6","fn":"hair","text":"/ /","expected":[]},
+  {"id":"R8.1-7","fn":"hair","text":"x=\">","expected":[]},
+  {"id":"R8.1-8","fn":"hair","text":"a=\"1\" b='2","expected":[]},
+  {"id":"R8.1-9","fn":"hair","text":"==x","expected":{"=":{"name":"=","value":"x","whole":"==\"x\"","vless":"n"}}},
+  {"id":"R8.1-10","fn":"hair","text":"t=\"a\r\nb\"","expected":{"t":{"name":"t","value":"a\nb","whole":"t=\"a\nb\"","vless":"n"}}},
+  {"id":"R8.1-11","fn":"hair","text":"x=a=b y=`c` z='d\"e'","expected":{"x":{"name":"x","value":"a=b","whole":"x=\"a=b\"","vless":"n"},"y":{"name":"y","value":"`c`","whole":"y=\"`c`\"","vless":"n"},"z":{"name":"z","value":"d&quot;e","whole":"z=\"d&quot;e\"","vless":"n"}}},
+  {"id":"R8.1-12","fn":"hair","text":" / title=\"x\"/ ","expected":{"title":{"name":"title","value":"x","whole":"title=\"x\"","vless":"n"}}},
+  {"id":"R8.5-1","fn":"hair","text":"href=\"javascript:x\" src=javascript:y title=\"javascript:z\" cite=\" vbscript:q\"","expected":{"href":{"name":"href","value":"x","whole":"href=\"x\"","vless":"n"},"src":{"name":"src","value":"y","whole":"src=\"y\"","vless":"n"},"title":{"name":"title","value":"javascript:z","whole":"title=\"javascript:z\"","vless":"n"},"cite":{"name":"cite","value":"q","whole":"cite=\"q\"","vless":"n"}}},
+  {"id":"R8.5-2","fn":"hair","text":"title=\"&lt;&amp;&#39;&quot;\"","expected":{"title":{"name":"title","value":"&lt;&amp;&apos;&quot;","whole":"title=\"&lt;&amp;&apos;&quot;\"","vless":"n"}}}
+]
