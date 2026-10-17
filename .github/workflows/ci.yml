@@ -32,10 +32,10 @@ jobs:
           coverage: none
       - name: Build and test (Gutenberg conformance and WordPress parity)
         if: matrix.java == 21 && matrix.db == 'postgresql'
-        run: mvn -B -ntp verify -Pconformance,wp-parity -Dquarkpress.test.db=${{ matrix.db }}
+        run: mvn -B -ntp verify -Pconformance,wp-parity -DtestDb=${{ matrix.db }}
       - name: Build and test
         if: matrix.java != 21 || matrix.db != 'postgresql'
-        run: mvn -B -ntp verify -Dquarkpress.test.db=${{ matrix.db }}
+        run: mvn -B -ntp verify -DtestDb=${{ matrix.db }}
       - name: Check formatting
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check

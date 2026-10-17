@@ -31,7 +31,7 @@ class TenancySpikeDbTest {
                 .statusCode(200)
                 .extract()
                 .asString();
-        System.out.println("tenancy-spike observation [" + System.getProperty("quarkpress.test.db")
+        System.out.println("tenancy-spike observation [" + System.getenv("QUARKPRESS_TEST_DB")
                 + "]: an unguarded bulk update under site 1: " + outcome);
         assertThat(outcome).isEqualTo("rows=1 site1=changed site2=unchanged");
     }

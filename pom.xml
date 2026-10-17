@@ -63,7 +63,7 @@
          for correctness. Override with -Dsurefire.argLine.additional=... -->
     <surefire.argLine.additional>-XX:TieredStopAtLevel=1 -XX:ActiveProcessorCount=8</surefire.argLine.additional>
     <!-- Database used by container-backed tests: postgresql or mysql. CI runs both. -->
-    <quarkpress.test.db>postgresql</quarkpress.test.db>
+    <testDb>postgresql</testDb>
   </properties>
 
   <dependencyManagement>

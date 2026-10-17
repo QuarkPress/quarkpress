@@ -68,8 +68,12 @@
             <systemPropertyVariables>
               <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
               <maven.home>${maven.home}</maven.home>
-              <quarkpress.test.db>${quarkpress.test.db}</quarkpress.test.db>
             </systemPropertyVariables>
+            <!-- The test database reaches tests and the application under test as an environment variable: a
+                 quarkpress.* system property would be rejected by the QuarkPress configuration root. -->
+            <environmentVariables>
+              <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
+            </environmentVariables>
           </configuration>
         </plugin>
         <plugin>
@@ -90,9 +94,13 @@
               <native.image.path>${project.build.directory}/${project.build.finalName}-runner</native.image.path>
               <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
               <maven.home>${maven.home}</maven.home>
-              <quarkpress.test.db>${quarkpress.test.db}</quarkpress.test.db>
               <quarkus.test.arg-line>${it.app.argLine}</quarkus.test.arg-line>
             </systemPropertyVariables>
+            <!-- The test database reaches tests and the application under test as an environment variable: a
+                 quarkpress.* system property would be rejected by the QuarkPress configuration root. -->
+            <environmentVariables>
+              <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
+            </environmentVariables>
           </configuration>
         </plugin>
       </plugins>

@@ -5,8 +5,8 @@ isolate sites from each other, on PostgreSQL and MySQL, in JVM mode and as a nat
 HTTP endpoint (`GET /spike/{criterion}` answers `ok`), so the same tests run against the native executable.
 
 ```bash
-.superpowers/m1a/mvn -pl integration-tests/tenancy-spike -am verify -Dquarkpress.test.db=postgresql
-.superpowers/m1a/mvn -pl integration-tests/tenancy-spike -am verify -Dquarkpress.test.db=mysql
+.superpowers/m1a/mvn -pl integration-tests/tenancy-spike -am verify -DtestDb=postgresql
+.superpowers/m1a/mvn -pl integration-tests/tenancy-spike -am verify -DtestDb=mysql
 ```
 
 A Hibernate `@TenantId` `String` field on the `BIGINT` `site_id` column was tried first. It failed on PostgreSQL

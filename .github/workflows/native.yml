@@ -39,4 +39,4 @@ jobs:
         run: >-
           mvn -B -ntp verify -Dnative -Dquarkus.native.container-build=true
           -Dquarkus.native.builder-image=mandrel -DskipUnitTests=true
-          -Dquarkpress.test.db=${{ matrix.db }} -pl "$IT_MODULES"
+          -DtestDb=${{ matrix.db }} -pl "$IT_MODULES"

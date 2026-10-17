@@ -95,7 +95,7 @@
                  QuarkPress configuration roots own the quarkpress.* keys and reject unknown ones from system
                  properties, while environment variables are only matched against known keys. -->
             <environmentVariables>
-              <QUARKPRESS_TEST_DB>${quarkpress.test.db}</QUARKPRESS_TEST_DB>
+              <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
             </environmentVariables>
           </configuration>
         </plugin>
