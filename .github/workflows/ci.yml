@@ -10,12 +10,13 @@ permissions:
 
 jobs:
   build:
-    name: JDK ${{ matrix.java }}
+    name: JDK ${{ matrix.java }} / ${{ matrix.db }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         java: [21, 25]
+        db: [postgresql, mysql]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -24,11 +25,17 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
       - uses: shivammathur/setup-php@2.37.2
+        if: matrix.java == 21 && matrix.db == 'postgresql'
         with:
           php-version: '8.4'
           extensions: mbstring, json, pcntl, iconv, xml, dom, simplexml, xmlreader, hash, sodium
           coverage: none
       - name: Build and test (Gutenberg conformance and WordPress parity)
-        run: mvn -B -ntp verify -Pconformance,wp-parity
+        if: matrix.java == 21 && matrix.db == 'postgresql'
+        run: mvn -B -ntp verify -Pconformance,wp-parity -Dquarkpress.test.db=${{ matrix.db }}
+      - name: Build and test
+        if: matrix.java != 21 || matrix.db != 'postgresql'
+        run: mvn -B -ntp verify -Dquarkpress.test.db=${{ matrix.db }}
       - name: Check formatting
+        if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check
