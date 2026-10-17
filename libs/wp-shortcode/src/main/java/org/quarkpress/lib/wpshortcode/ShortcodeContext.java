@@ -7,7 +7,7 @@ public interface ShortcodeContext {
      * Runs the same processor on {@code content} (WordPress handlers call do_shortcode on their content to expand
      * nested shortcodes; output is never rescanned otherwise).
      *
-     * @throws ShortcodeException when the expansion would nest deeper than {@code ShortcodeOptions.maxDepth()}
+     * @throws ShortcodeException when the expansion would nest deeper than {@link ShortcodeOptions#maxDepth()}
      */
     String expand(String content);
 

@@ -6,6 +6,9 @@ import java.util.List;
 @FunctionalInterface
 public interface StripTagsHook {
 
-    /** Returns the names {@code Shortcodes.strip} removes; they need not be registered. Must not return null. */
+    /**
+     * Returns the names {@code strip} of {@link Shortcodes} removes; they need not be registered. Must not return
+     * null.
+     */
     List<String> filter(List<String> tags, String content);
 }
