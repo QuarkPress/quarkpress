@@ -3,10 +3,10 @@ package org.quarkpress.lib.wpshortcode;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -37,6 +37,9 @@ public final class Shortcodes {
     private final HtmlAttributeSanitizer sanitizer;
     private final ShortcodeOptions options;
     private final ShortcodeScanner allNames;
+    private final Set<String> nameSet;
+    private final int longestName;
+    private final Unautop.Names unautopNames;
 
     private Shortcodes(Builder b) {
         this.registry = b.registry;
@@ -44,6 +47,9 @@ public final class Shortcodes {
         this.sanitizer = b.sanitizer;
         this.options = b.options;
         this.allNames = new ShortcodeScanner(registry.names());
+        this.nameSet = Set.copyOf(registry.names());
+        this.longestName = TagPrefilter.longestOf(registry.names());
+        this.unautopNames = Unautop.Names.of(registry.names());
     }
 
     public static Builder builder(ShortcodeRegistry registry) {
@@ -72,7 +78,10 @@ public final class Shortcodes {
         if (content.indexOf('[') < 0 || registry.isEmpty()) {
             return content;
         }
-        List<String> active = TagPrefilter.active(content, hooks.stripTags(registry.names(), content));
+        List<String> tags = hooks.stripTags(registry.names(), content);
+        List<String> active = tags == registry.names()
+                ? TagPrefilter.active(content, tags, nameSet, longestName)
+                : TagPrefilter.active(content, tags);
         if (active.isEmpty()) {
             return content;
         }
@@ -120,18 +129,20 @@ public final class Shortcodes {
             return List.of();
         }
         List<String> tags = new ArrayList<>();
-        Deque<Iterator<ShortcodeScanner.Hit>> stack = new ArrayDeque<>();
-        stack.push(allNames.scan(content).iterator());
+        // one queue per level, polled, so a consumed hit (and its content copy) is unreachable once its child scan
+        // is pushed; depth-first document order is kept
+        Deque<Deque<ShortcodeScanner.Hit>> stack = new ArrayDeque<>();
+        stack.push(new ArrayDeque<>(allNames.scan(content)));
         while (!stack.isEmpty()) {
-            Iterator<ShortcodeScanner.Hit> hits = stack.peek();
-            if (!hits.hasNext()) {
+            ShortcodeScanner.Hit hit = stack.peek().poll();
+            if (hit == null) {
                 stack.pop();
                 continue;
             }
-            ShortcodeMatch m = hits.next().match();
+            ShortcodeMatch m = hit.match();
             tags.add(m.name());
             if (m.content().indexOf('[') >= 0) {
-                stack.push(allNames.scan(m.content()).iterator());
+                stack.push(new ArrayDeque<>(allNames.scan(m.content())));
             }
         }
         return List.copyOf(tags);
@@ -169,7 +180,7 @@ public final class Shortcodes {
     /** WordPress's shortcode_unautop: unwraps paragraphs that hold only a registered shortcode. */
     public String unautop(String content) {
         Objects.requireNonNull(content, "content");
-        return Unautop.apply(content, registry.names());
+        return Unautop.apply(content, unautopNames);
     }
 
     /** The text {@link #parse(String)} splits. */
@@ -194,12 +205,12 @@ public final class Shortcodes {
         return options.maxDepth();
     }
 
-    /** The early exits and prefilter shared by apply and parse: R2.1, R2.2, R2.3. */
+    /** The early exits and prefilter shared by apply and parse: nothing to do without a bracket or a registered name, then only the names present. */
     private List<String> activeNames(String content) {
         if (content.indexOf('[') < 0 || registry.isEmpty()) {
             return List.of();
         }
-        return TagPrefilter.active(content, registry.names());
+        return TagPrefilter.active(content, registry.names(), nameSet, longestName);
     }
 
     private String protectIgnoringHtml(String content) {

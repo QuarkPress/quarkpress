@@ -77,8 +77,12 @@ public final class ShortcodeHooks {
     List<String> stripTags(List<String> tags, String content) {
         List<String> current = tags;
         for (StripTagsHook hook : strip) {
-            current =
-                    List.copyOf(Objects.requireNonNull(hook.filter(current, content), "a StripTagsHook returned null"));
+            List<String> result =
+                    Objects.requireNonNull(hook.filter(current, content), "a StripTagsHook returned null");
+            for (String tag : result) {
+                Objects.requireNonNull(tag, "a StripTagsHook returned a list containing null");
+            }
+            current = List.copyOf(result);
         }
         return current;
     }

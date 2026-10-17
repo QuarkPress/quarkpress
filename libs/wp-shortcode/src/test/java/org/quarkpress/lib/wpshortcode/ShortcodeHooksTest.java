@@ -77,6 +77,16 @@ class ShortcodeHooksTest {
     }
 
     @Test
+    void aStripHookReturningAListWithNullNamesTheHookResult() {
+        ShortcodeHooks hooks = ShortcodeHooks.builder()
+                .stripTags((tags, content) -> java.util.Arrays.asList("a", null))
+                .build();
+        assertThatNullPointerException()
+                .isThrownBy(() -> hooks.stripTags(List.of("a"), "x"))
+                .withMessageContaining("StripTagsHook returned a list containing null");
+    }
+
+    @Test
     void nullResults() {
         ShortcodeHooks nullPost =
                 ShortcodeHooks.builder().postRender((out, s) -> null).build();

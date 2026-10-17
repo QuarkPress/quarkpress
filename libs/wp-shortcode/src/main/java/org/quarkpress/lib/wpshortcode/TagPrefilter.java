@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Picks the names worth scanning for (R2.3): those equal to some candidate, where a candidate is the longest
+ * Picks the names worth scanning for (see {@link #active}): those equal to some candidate, where a candidate is the longest
  * non-empty run of name chars right after a {@code [}. A name followed by a char such as {@code .} or {@code :}
  * therefore counts only if the same name also appears followed by a terminator elsewhere.
  */
@@ -16,11 +16,20 @@ final class TagPrefilter {
 
     /** The names, in the given order, that equal some candidate in {@code content}. */
     static List<String> active(String content, List<String> names) {
-        Set<String> wanted = new HashSet<>(names);
+        return active(content, names, new HashSet<>(names), longestOf(names));
+    }
+
+    /** The longest name's length, or 0. */
+    static int longestOf(List<String> names) {
         int longest = 0;
         for (String name : names) {
             longest = Math.max(longest, name.length());
         }
+        return longest;
+    }
+
+    /** As {@link #active(String, List)}, with {@code wanted} (the set of names) and {@code longest} precomputed. */
+    static List<String> active(String content, List<String> names, Set<String> wanted, int longest) {
         Set<String> seen = new HashSet<>();
         int n = content.length();
         for (int i = content.indexOf('['); i >= 0; i = content.indexOf('[', i + 1)) {

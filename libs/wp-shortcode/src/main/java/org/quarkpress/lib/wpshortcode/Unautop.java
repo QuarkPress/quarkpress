@@ -17,8 +17,16 @@ final class Unautop {
 
     private Unautop() {}
 
-    static String apply(String text, List<String> names) {
-        if (names.isEmpty() || !text.contains("<p>")) {
+    /** {@code names} deduplicated in order, and the trie over them: build once, reuse for every call. */
+    record Names(Set<String> unique, NameTrie trie) {
+        static Names of(List<String> names) {
+            Set<String> unique = new LinkedHashSet<>(names);
+            return new Names(unique, new NameTrie(unique));
+        }
+    }
+
+    static String apply(String text, Names names) {
+        if (names.unique().isEmpty() || !text.contains("<p>")) {
             return text;
         }
         return new Run(text, names).apply();
@@ -31,12 +39,11 @@ final class Unautop {
         private final ClosingTags closers;
         private final Map<Integer, Integer> paragraphEnds = new HashMap<>();
 
-        Run(String text, List<String> names) {
+        Run(String text, Names names) {
             this.text = text;
-            Set<String> unique = new LinkedHashSet<>(names);
-            this.trie = new NameTrie(unique);
+            this.trie = names.trie();
             this.closeBrackets = new ForwardIndex(text, ']');
-            this.closers = new ClosingTags(text, unique, trie.longest());
+            this.closers = new ClosingTags(text, names.unique(), trie.longest());
         }
 
         String apply() {
