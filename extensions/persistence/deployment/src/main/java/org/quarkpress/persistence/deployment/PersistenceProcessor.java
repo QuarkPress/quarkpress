@@ -5,6 +5,7 @@ import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.AdditionalIndexedClassesBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.runtime.configuration.ConfigurationException;
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +13,10 @@ import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.persistence.QuarkPressPersistence;
+import org.quarkpress.persistence.runtime.CurrentSiteIdSupplier;
 import org.quarkpress.persistence.runtime.QuarkPressBuildTimeConfig;
+import org.quarkpress.persistence.runtime.QuarkPressJsonJdbcType;
+import org.quarkpress.persistence.runtime.SiteStampListener;
 
 class PersistenceProcessor {
 
@@ -26,6 +30,20 @@ class PersistenceProcessor {
     @BuildStep
     MigrationLocationBuildItem migrations() {
         return new MigrationLocationBuildItem("persistence", 1);
+    }
+
+    /**
+     * Hibernate creates the site filter's parameter supplier, the entity listener and the JSON column type
+     * reflectively, also natively.
+     */
+    @BuildStep
+    ReflectiveClassBuildItem isolationClasses() {
+        return ReflectiveClassBuildItem.builder(
+                        CurrentSiteIdSupplier.class, SiteStampListener.class, QuarkPressJsonJdbcType.class)
+                .constructors()
+                .methods()
+                .reason(PersistenceProcessor.class.getName())
+                .build();
     }
 
     /**
