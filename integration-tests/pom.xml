@@ -27,6 +27,7 @@
 
   <modules>
     <module>tenancy-spike</module>
+    <module>content</module>
   </modules>
 
   <dependencyManagement>
