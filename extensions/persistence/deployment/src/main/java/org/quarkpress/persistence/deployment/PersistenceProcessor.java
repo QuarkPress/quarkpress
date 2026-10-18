@@ -30,6 +30,7 @@ import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
 import org.jboss.jandex.Type;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
+import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.persistence.FeatureToggles;
 import org.quarkpress.persistence.NetworkOptions;
@@ -41,6 +42,7 @@ import org.quarkpress.persistence.runtime.CurrentSiteIdSupplier;
 import org.quarkpress.persistence.runtime.PersistenceRecorder;
 import org.quarkpress.persistence.runtime.QuarkPressBuildTimeConfig;
 import org.quarkpress.persistence.runtime.QuarkPressJsonJdbcType;
+import org.quarkpress.persistence.runtime.QuarkPressRuntimeConfig;
 import org.quarkpress.persistence.runtime.SiteStampListener;
 
 class PersistenceProcessor {
@@ -59,6 +61,14 @@ class PersistenceProcessor {
     UnremovableBeanBuildItem unremovable() {
         return UnremovableBeanBuildItem.beanTypes(
                 SiteScope.class, NetworkScope.class, Options.class, NetworkOptions.class, FeatureToggles.class);
+    }
+
+    /** The persistence module's {@code quarkpress.*} settings (including the multisite switch it owns). */
+    @BuildStep
+    List<QuarkPressConfigKeysBuildItem> configKeys() {
+        return List.of(
+                QuarkPressConfigKeysBuildItem.of("quarkpress", QuarkPressBuildTimeConfig.class),
+                QuarkPressConfigKeysBuildItem.of("quarkpress", QuarkPressRuntimeConfig.class));
     }
 
     @BuildStep

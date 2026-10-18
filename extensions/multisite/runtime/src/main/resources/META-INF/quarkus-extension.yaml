@@ -1,0 +1,11 @@
+---
+name: "QuarkPress Multisite"
+description: "Several sites on one QuarkPress network: site resolution by domain, subdomain and path, domain aliases and network administration"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "multisite"
+  categories:
+    - "web"
+  status: "experimental"

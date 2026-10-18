@@ -24,6 +24,7 @@
   <modules>
     <module>core</module>
     <module>persistence</module>
+    <module>multisite</module>
   </modules>
 
   <dependencyManagement>

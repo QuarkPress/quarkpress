@@ -57,7 +57,7 @@ it uses the MySQL migrations, so set `quarkpress.persistence.migration-vendor=my
 | `quarkpress.main-site-id` | `1` | the site every request belongs to without the multisite module (run time) |
 | `quarkpress.multisite.enabled` | `false` | set by the multisite module; turns off the single-site resolver (build time) |
 
-The `quarkpress.*` namespace is reserved: an undeclared key under it fails the build or the start. Application settings
+The `quarkpress.*` namespace is reserved: a key under it that no module declares fails the start (environment variables are not checked). Application settings
 use their own prefix.
 
 Without the multisite module the application does not start unless the main site's row exists in `qp_site`; the

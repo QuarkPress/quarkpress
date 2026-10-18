@@ -82,6 +82,16 @@
         <artifactId>quarkpress-persistence-deployment</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-multisite</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-multisite-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

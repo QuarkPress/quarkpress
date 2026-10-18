@@ -15,8 +15,10 @@ Public API lives in `org.quarkpress.core`; `org.quarkpress.core.runtime` is impl
 
 ## Configuration namespace
 
-The `quarkpress.*` configuration keys are reserved for QuarkPress. QuarkPress validates them: a key under that prefix
-that no installed module declares fails the build or the start. Application settings use their own prefix. For the
+The `quarkpress.*` configuration keys are reserved for QuarkPress. At startup QuarkPress fails on any key under that prefix
+that no installed module declares (each module declares its keys; indexed lists such as `resolvers[0]` are accepted,
+sub-keys of plain settings are not), so a typo cannot silently leave a setting at its default. Every config source is
+checked except environment variables, whose names are ambiguous (`QUARKPRESS_A_B` could be `a.b` or `a-b`). Application settings use their own prefix. For the
 same reason the repository's own build passes the test database as `-DtestDb`, not as a `quarkpress.*` property.
 
 ## The current site

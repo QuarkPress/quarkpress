@@ -23,6 +23,7 @@ import org.quarkpress.core.FeatureDescriptor;
 import org.quarkpress.core.FeatureRegistry;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.core.runtime.CoreRecorder;
 import org.quarkpress.core.runtime.FeatureResolver;
@@ -40,6 +41,17 @@ class CoreProcessor {
     @BuildStep
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
+    }
+
+    /** Fails the start on a {@code quarkpress.*} setting no module declared. */
+    @BuildStep
+    @Record(ExecutionTime.RUNTIME_INIT)
+    void checkConfigKeys(CoreRecorder recorder, List<QuarkPressConfigKeysBuildItem> declarations) {
+        Set<String> keys = new java.util.TreeSet<>();
+        for (QuarkPressConfigKeysBuildItem declaration : declarations) {
+            keys.addAll(declaration.keys());
+        }
+        recorder.checkConfigKeys(new ArrayList<>(keys));
     }
 
     @BuildStep

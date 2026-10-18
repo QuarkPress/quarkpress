@@ -3,7 +3,8 @@ package org.quarkpress.persistence.deployment;
 /**
  * The database the container-backed tests use: {@code -DtestDb=postgresql} (default) or {@code mysql}.
  * Maven passes the choice as the environment variable {@code QUARKPRESS_TEST_DB}, because the QuarkPress
- * configuration root rejects undeclared {@code quarkpress.*} system properties.
+ * namespace check fails the start on undeclared {@code quarkpress.*} system properties (environment variables are
+ * not checked).
  */
 public final class TestDb {
 
