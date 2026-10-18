@@ -47,6 +47,50 @@ public final class SiteAddresses {
                 || PATH_PUNCTUATION.indexOf(c) >= 0;
     }
 
+    /**
+     * The host of a request as it is compared with site domains: every backslash removed (WordPress unescapes with
+     * stripslashes, which keeps the character after a backslash; such hosts match no site either way), everything from
+     * the first {@code :} on (a port) dropped, ASCII letters lower-cased. QuarkPress ignores ports, so a site is found
+     * the same way whatever port the request used.
+     */
+    public static String requestHost(String host) {
+        StringBuilder kept = new StringBuilder(host.length());
+        for (int i = 0; i < host.length(); i++) {
+            char c = host.charAt(i);
+            if (c == ':') {
+                break;
+            }
+            if (c != '\\') {
+                kept.append(c);
+            }
+        }
+        return normalizeHost(kept.toString());
+    }
+
+    /** Whether a domain holds only characters a stored site domain can hold; no other domain can match a site. */
+    static boolean storableDomain(String domain) {
+        if (domain.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < domain.length(); i++) {
+            char c = domain.charAt(i);
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether a path holds only characters a stored site path can hold; no other path can match a site. */
+    static boolean storablePath(String path) {
+        for (int i = 0; i < path.length(); i++) {
+            if (!pathCharacter(path.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** A request host as it is compared with site domains. */
     public static String normalizeHost(String host) {
         return lowerAscii(host);
@@ -64,13 +108,20 @@ public final class SiteAddresses {
     }
 
     /**
-     * A raw request path as WordPress's multisite bootstrap prepares it for the lookup, in its order: a
-     * backslash is removed and the character after it kept, as PHP's {@code stripslashes} does (so a doubled
-     * backslash leaves one, and a backslash before {@code 0} leaves a NUL character); then, as WordPress does for admin requests (QuarkPress has no such flag and does it for every request),
-     * everything from the last {@code /wp-admin/} on (even when it lies in the query) becomes {@code /}; then the query is cut off. The path is not decoded and not
-     * lower-cased.
+     * A raw request path as WordPress's multisite bootstrap prepares it for the lookup, in its order: a backslash is
+     * removed and the character after it kept, as PHP's {@code stripslashes} does (so a doubled backslash leaves one,
+     * and a backslash before {@code 0} leaves a NUL character); then, as WordPress does for admin requests (QuarkPress
+     * has no such flag and does it for every request), everything from the last {@code /wp-admin/} on (even when it
+     * lies in the query) becomes {@code /}; then the query is cut off. The path is not decoded and not lower-cased.
      */
     public static String lookupPath(String rawPath) {
+        String plain = cutAdmin(unescape(rawPath));
+        int query = plain.indexOf('?');
+        return query < 0 ? plain : plain.substring(0, query);
+    }
+
+    /** Backslashes removed with the character after them kept ({@code \0} becomes NUL), as PHP's stripslashes does. */
+    private static String unescape(String rawPath) {
         StringBuilder unescaped = null;
         for (int i = 0; i < rawPath.length(); i++) {
             char c = rawPath.charAt(i);
@@ -86,10 +137,7 @@ public final class SiteAddresses {
                 unescaped.append(c);
             }
         }
-        String plain = unescaped == null ? rawPath : unescaped.toString();
-        plain = cutAdmin(plain);
-        int query = plain.indexOf('?');
-        return query < 0 ? plain : plain.substring(0, query);
+        return unescaped == null ? rawPath : unescaped.toString();
     }
 
     /**
@@ -305,12 +353,17 @@ public final class SiteAddresses {
     }
 
     /**
-     * Whether the prepared form of a raw request path has a segment that is {@code .} or {@code ..}, also when its dots
-     * are written {@code %2e}. HTTP routers remove such segments before dispatching, so the path WordPress would look
-     * up is not the path that is served.
+     * Whether a raw request path (backslashes removed, query cut off, but not cut at {@code /wp-admin/}) has a segment
+     * that is {@code .} or {@code ..}, also when its dots are written {@code %2e}. HTTP routers remove such segments
+     * before dispatching, so the path that is served is not the path a site would be looked up for, whatever follows
+     * a {@code /wp-admin/}.
      */
     public static boolean hasDotSegment(String rawPath) {
-        String path = lookupPath(rawPath);
+        String path = unescape(rawPath);
+        int query = path.indexOf('?');
+        if (query >= 0) {
+            path = path.substring(0, query);
+        }
         int i = 0;
         while (i < path.length()) {
             int start = i;

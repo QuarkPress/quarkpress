@@ -97,6 +97,9 @@ class SiteAddressesTest {
         assertThat(SiteAddresses.hasDotSegment("/x/.hidden/")).isFalse();
         assertThat(SiteAddresses.hasDotSegment("/x/a..b/")).isFalse();
         assertThat(SiteAddresses.hasDotSegment("/")).isFalse();
+        assertThat(SiteAddresses.hasDotSegment("/a/wp-admin/../../b/x")).isTrue();
+        assertThat(SiteAddresses.hasDotSegment("/a/wp-admin/%2e%2E/b")).isTrue();
+        assertThat(SiteAddresses.hasDotSegment("/a/wp-admin/x?/../")).isFalse();
     }
 
     @Test
@@ -295,6 +298,9 @@ class SiteAddressesTest {
                 new DotToken("%2e%2e%2e", false),
                 new DotToken("%2f", false),
                 new DotToken("\\\\.", false),
+                new DotToken("wp-admin", false),
+                new DotToken("wp-admin/..", true),
+                new DotToken("wp-admin/%2e%2E/x", true),
                 new DotToken("a", false),
                 new DotToken(".a", false),
                 new DotToken("a.", false),
@@ -395,5 +401,28 @@ class SiteAddressesTest {
         assertThatThrownBy(() -> normalizeDomain("a:".repeat(101)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("a site domain has at most 200 characters");
+    }
+
+    @Test
+    void aRequestHostLosesItsPortAndBackslashes() {
+        assertThat(SiteAddresses.requestHost("LocalHost:8080")).isEqualTo("localhost");
+        assertThat(SiteAddresses.requestHost("a" + (char) 0x5C + ".example:80:81"))
+                .isEqualTo("a.example");
+        assertThat(SiteAddresses.requestHost(":80")).isEmpty();
+        assertThat(SiteAddresses.requestHost("loc" + (char) 0x5C + (char) 0x5C + "alhost"))
+                .isEqualTo("localhost");
+        assertThat(SiteAddresses.requestHost("")).isEmpty();
+    }
+
+    @Test
+    void onlyStorableValuesCanMatchASite() {
+        assertThat(SiteAddresses.storableDomain("a-b.example")).isTrue();
+        assertThat(SiteAddresses.storableDomain("")).isFalse();
+        assertThat(SiteAddresses.storableDomain("a" + (char) 0 + "b")).isFalse();
+        assertThat(SiteAddresses.storableDomain("A.example")).isFalse();
+        assertThat(SiteAddresses.storablePath("/a/%e9/")).isTrue();
+        assertThat(SiteAddresses.storablePath("/a" + (char) 0 + "/")).isFalse();
+        assertThat(SiteAddresses.storablePath("/" + new String(Character.toChars(0xE9)) + "/"))
+                .isFalse();
     }
 }
