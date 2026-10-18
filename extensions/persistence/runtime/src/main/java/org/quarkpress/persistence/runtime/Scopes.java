@@ -30,7 +30,18 @@ public final class Scopes {
 
     private static final boolean VERTX_PRESENT = present("io.vertx.core.Context");
 
+    /** Set on a scope's own thread when the transaction of the thread that spawned it holds the network lock. */
+    private static final ThreadLocal<Boolean> SPAWNER_HOLDS_LOCK = new ThreadLocal<>();
+
     private Scopes() {}
+
+    /**
+     * Whether this thread is a scope thread whose spawning thread's transaction holds the network lock: taking the
+     * lock here would wait for the spawner, which waits for this thread, without any database seeing a deadlock.
+     */
+    static boolean spawnerHoldsNetworkLock() {
+        return SPAWNER_HOLDS_LOCK.get() != null;
+    }
 
     /** Runs the work for one site; {@code target} must be a site binding (the network opens through NetworkScope). */
     public static <T> T within(Binding target, Callable<T> work) throws Exception {
@@ -70,15 +81,21 @@ public final class Scopes {
     private static <T> T onOwnThread(Binding target, Callable<T> work) throws Exception {
         Object[] result = new Object[1];
         Throwable[] failure = new Throwable[1];
+        boolean spawnerHolds =
+                Arc.container().instance(NetworkLockRepository.class).get().heldByCurrentTransaction();
         Thread worker = Thread.ofVirtual().name("quarkpress-scope").unstarted(() -> {
             ManagedContext requestContext = Arc.container().requestContext();
             requestContext.activate();
+            if (spawnerHolds) {
+                SPAWNER_HOLDS_LOCK.set(Boolean.TRUE);
+            }
             try {
                 Arc.container().instance(SiteBinding.class).get().bindScope(target);
                 result[0] = inNewTransaction(work);
             } catch (Throwable thrown) {
                 failure[0] = thrown;
             } finally {
+                SPAWNER_HOLDS_LOCK.remove();
                 try {
                     requestContext.terminate();
                 } catch (Throwable thrown) {

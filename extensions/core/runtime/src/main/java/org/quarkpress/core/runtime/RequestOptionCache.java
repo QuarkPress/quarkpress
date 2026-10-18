@@ -48,6 +48,13 @@ public class RequestOptionCache {
         return Map.copyOf(copies);
     }
 
+    /** Forgets everything read for {@code site}: its autoloaded set and every single option. */
+    public void invalidateSite(SiteId site) {
+        Objects.requireNonNull(site, "site");
+        autoloaded.remove(site);
+        single.remove(site);
+    }
+
     /** Forgets {@code name} for {@code site}, and the site's autoloaded set, which may hold or gain it. */
     public void invalidate(SiteId site, String name) {
         Objects.requireNonNull(site, "site");

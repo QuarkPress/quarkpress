@@ -1,5 +1,6 @@
 package org.quarkpress.multisite.deployment;
 
+import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
@@ -7,6 +8,7 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.vertx.http.deployment.NonApplicationRootPathBuildItem;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
+import org.quarkpress.multisite.Sites;
 import org.quarkpress.multisite.runtime.MultisiteConfig;
 import org.quarkpress.multisite.runtime.MultisiteRecorder;
 
@@ -27,6 +29,11 @@ class MultisiteProcessor {
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
         return QuarkPressConfigKeysBuildItem.of("quarkpress.multisite", MultisiteConfig.class);
+    }
+
+    @BuildStep
+    UnremovableBeanBuildItem unremovable() {
+        return UnremovableBeanBuildItem.beanTypes(Sites.class);
     }
 
     @BuildStep

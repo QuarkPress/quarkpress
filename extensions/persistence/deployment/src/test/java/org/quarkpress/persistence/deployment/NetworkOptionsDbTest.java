@@ -1,6 +1,8 @@
 package org.quarkpress.persistence.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.fasterxml.jackson.databind.node.IntNode;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -8,6 +10,7 @@ import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -21,10 +24,13 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.NetworkOptionChanged;
+import org.quarkpress.core.SiteId;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.persistence.FeatureToggles;
 import org.quarkpress.persistence.NetworkOptions;
+import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.FeatureOptions;
+import org.quarkpress.persistence.runtime.NetworkLockRepository;
 
 class NetworkOptionsDbTest {
 
@@ -59,6 +65,71 @@ class NetworkOptionsDbTest {
 
     @Inject
     Changes changes;
+
+    @Inject
+    SiteScope scope;
+
+    @Inject
+    TestSites testSites;
+
+    @Test
+    void aNestedScopeOfATransactionHoldingTheNetworkLockRefusesToo() {
+        SiteId first = testSites.create("nest-a");
+        SiteId second = testSites.create("nest-b");
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(20),
+                () -> Requests.run(() -> assertThatThrownBy(() -> QuarkusTransaction.requiringNew()
+                                .run(() -> {
+                                    options.set("held-" + UUID.randomUUID(), IntNode.valueOf(1));
+                                    try {
+                                        scope.call(
+                                                first,
+                                                () -> scope.call(
+                                                        second,
+                                                        () -> options.set(
+                                                                "deep-" + UUID.randomUUID(), IntNode.valueOf(2))));
+                                    } catch (RuntimeException e) {
+                                        throw e;
+                                    } catch (Exception e) {
+                                        throw new IllegalStateException(e);
+                                    }
+                                }))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage(NetworkLockRepository.HELD_MESSAGE)));
+    }
+
+    @Test
+    void aScopeSpawnedByATransactionHoldingTheNetworkLockRefusesInsteadOfWaiting() {
+        String held = "held-" + UUID.randomUUID();
+        String nested = "nested-" + UUID.randomUUID();
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(20),
+                () -> Requests.run(() -> assertThatThrownBy(() -> QuarkusTransaction.requiringNew()
+                                .run(() -> {
+                                    options.set(held, IntNode.valueOf(1));
+                                    try {
+                                        scope.call(SiteId.of(1), () -> options.set(nested, IntNode.valueOf(2)));
+                                    } catch (RuntimeException e) {
+                                        throw e;
+                                    } catch (Exception e) {
+                                        throw new IllegalStateException(e);
+                                    }
+                                }))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage(NetworkLockRepository.HELD_MESSAGE)));
+        // the refused transaction rolled back and released the lock; a scope without a lock holder still writes
+        assertThat(Requests.call(() -> options.find(held))).isEmpty();
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(20),
+                () -> Requests.run(() -> {
+                    try {
+                        scope.call(SiteId.of(1), () -> options.set(nested, IntNode.valueOf(2)));
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }));
+        assertThat(Requests.call(() -> options.find(nested))).isPresent();
+    }
 
     @Test
     void concurrentFirstSetsOfOneNameAllSucceed() throws Exception {
