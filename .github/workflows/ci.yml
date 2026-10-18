@@ -28,7 +28,7 @@ jobs:
         if: matrix.java == 21 && matrix.db == 'postgresql'
         with:
           php-version: '8.4'
-          extensions: mbstring, json, pcntl, iconv, xml, dom, simplexml, xmlreader, hash, sodium
+          extensions: mbstring, json, pcntl, iconv, xml, dom, simplexml, xmlreader, hash, sodium, mysqli, pdo_mysql
           coverage: none
       - name: Build and test (Gutenberg conformance and WordPress parity)
         if: matrix.java == 21 && matrix.db == 'postgresql'
