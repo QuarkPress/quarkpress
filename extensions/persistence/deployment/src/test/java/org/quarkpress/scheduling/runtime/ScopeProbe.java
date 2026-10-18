@@ -27,6 +27,11 @@ public class ScopeProbe {
         return network.call(() -> binding.current());
     }
 
+    /** Runs {@code work} in the network scope, as trusted module code would. */
+    public <T> T inNetwork(java.util.concurrent.Callable<T> work) throws Exception {
+        return network.call(work);
+    }
+
     public long countOptionsNamed(String name) throws Exception {
         return network.call(() -> options.count("name", name));
     }

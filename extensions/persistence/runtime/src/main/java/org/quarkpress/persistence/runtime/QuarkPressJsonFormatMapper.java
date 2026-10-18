@@ -1,6 +1,8 @@
 package org.quarkpress.persistence.runtime;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.quarkus.hibernate.orm.JsonFormat;
@@ -25,10 +27,21 @@ import org.hibernate.type.format.jackson.JacksonJsonFormatMapper;
 @ApplicationScoped
 public class QuarkPressJsonFormatMapper implements FormatMapper {
 
-    private final FormatMapper delegate = new JacksonJsonFormatMapper(JsonMapper.builder()
+    private static final JsonMapper MAPPER = JsonMapper.builder()
             .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
             .disable(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES)
-            .build());
+            .build();
+
+    private final FormatMapper delegate = new JacksonJsonFormatMapper(MAPPER);
+
+    /** The text this unit stores for {@code value}: the same mapper writes it, so key order and numbers match. */
+    public static String write(JsonNode value) {
+        try {
+            return requireWellFormed(MAPPER.writeValueAsString(value));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("cannot write a JSON value: " + e.getOriginalMessage(), e);
+        }
+    }
 
     @Override
     public <T> T fromString(CharSequence text, JavaType<T> javaType, WrapperOptions options) {

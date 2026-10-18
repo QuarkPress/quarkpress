@@ -70,7 +70,15 @@ class SchemaDbTest {
                 .containsExactly(
                         "db/quarkpress/" + TestDb.kind() + "/V1_001__persistence_create_tables.sql",
                         "db/quarkpress/common/V1_002__persistence_main_site.sql",
-                        "db/quarkpress/common/V1_003__persistence_network_defaults.sql");
+                        "db/quarkpress/common/V1_003__persistence_network_defaults.sql",
+                        "db/quarkpress/" + TestDb.kind() + "/V1_004__persistence_network_lock.sql");
+    }
+
+    @Test
+    void theNetworkLockHasOneRow() {
+        assertThat(Jdbc.count(dataSource, "select count(*) from qp_network_lock"))
+                .isEqualTo(1);
+        assertThat(Jdbc.count(dataSource, "select id from qp_network_lock")).isEqualTo(1);
     }
 
     @Test

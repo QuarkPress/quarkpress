@@ -17,6 +17,7 @@ import org.quarkpress.core.runtime.OptionNames;
 import org.quarkpress.core.runtime.RequestFeatureCache;
 import org.quarkpress.persistence.runtime.FeatureOptions;
 import org.quarkpress.persistence.runtime.JsonValues;
+import org.quarkpress.persistence.runtime.NetworkLockRepository;
 import org.quarkpress.persistence.runtime.NetworkOptionEntity;
 import org.quarkpress.persistence.runtime.NetworkOptionRepository;
 import org.quarkpress.persistence.runtime.OptionTransactions;
@@ -30,12 +31,18 @@ import org.quarkpress.persistence.runtime.OptionTransactions;
  * again when its transaction completes (commit or rollback). Work running in a scope for another binding has its own
  * request, so such a write does not refresh the feature values the calling request already computed; they are
  * refreshed by its next request.
+ *
+ * <p>Writes lock the {@code qp_network_lock} row first, so concurrent writes of network data apply one after the
+ * other; a first write of a name inserts it, and later writers update it.
  */
 @ApplicationScoped
 public class NetworkOptions {
 
     @Inject
     NetworkOptionRepository repository;
+
+    @Inject
+    NetworkLockRepository lock;
 
     @Inject
     QuarkPressClock clock;
@@ -59,8 +66,9 @@ public class NetworkOptions {
     public boolean set(String name, JsonNode value) {
         String normalized = OptionNames.normalize(name);
         JsonNode stored = JsonValues.requireStorable(value);
-        Optional<NetworkOptionEntity> existing = repository.findOption(normalized);
+        lock.lock();
         Instant now = now();
+        Optional<NetworkOptionEntity> existing = repository.findOptionForUpdate(normalized);
         if (existing.isEmpty()) {
             repository.persist(NetworkOptionEntity.create(normalized, stored, now));
             afterChange(normalized, MissingNode.getInstance(), stored, now);
@@ -81,7 +89,8 @@ public class NetworkOptions {
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public boolean delete(String name) {
         String normalized = OptionNames.normalize(name);
-        Optional<NetworkOptionEntity> existing = repository.findOption(normalized);
+        lock.lock();
+        Optional<NetworkOptionEntity> existing = repository.findOptionForUpdate(normalized);
         if (existing.isEmpty()) {
             return false;
         }

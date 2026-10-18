@@ -15,6 +15,7 @@ public final class DbApp {
                                 DbApp.class,
                                 Requests.class,
                                 TestSites.class,
+                                Races.class,
                                 Jdbc.class,
                                 Json.class,
                                 Failures.class,

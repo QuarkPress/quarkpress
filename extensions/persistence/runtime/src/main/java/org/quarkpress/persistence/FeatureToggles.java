@@ -20,20 +20,23 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.runtime.FeatureValues;
 import org.quarkpress.persistence.runtime.FeatureOptions;
 import org.quarkpress.persistence.runtime.JsonValues;
+import org.quarkpress.persistence.runtime.NetworkLockRepository;
 import org.quarkpress.persistence.runtime.NetworkOptionRepository;
+import org.quarkpress.persistence.runtime.OptionEntity;
 import org.quarkpress.persistence.runtime.OptionRepository;
 import org.quarkpress.persistence.runtime.OptionTransactions;
-import org.quarkpress.persistence.runtime.SiteRepository;
 
 /**
  * Switches per-site features on and off: for the current site, or as network defaults. A site change fires
  * {@link SiteFeatureToggled} when the site's effective value changes; a network default change fires the network
  * option event. An observer that throws rolls the change back, whatever the exception type.
  *
- * <p>Each change reads the stored switches with a lock held until the transaction ends (the site's row and its
- * {@code qp_features} option, or the {@code qp_feature_defaults} network option), so concurrent changes of different
- * keys do not overwrite each other. The effective values before and after a site change are computed from the stored
- * switches, never from the request's cached feature values.
+ * <p>Each change works on the stored switches: an existing {@code qp_features} option (or the
+ * {@code qp_feature_defaults} network option) is locked until the transaction ends, so concurrent changes of different
+ * keys do not overwrite each other; a missing site option is inserted only if it is still missing, and a change that
+ * loses that race applies itself to the winner's switches. Network default changes lock {@code qp_network_lock} first.
+ * The site's {@code qp_site} row is never locked. The effective values before and after a site change are computed from
+ * the stored switches, never from the request's cached feature values.
  */
 @ApplicationScoped
 public class FeatureToggles {
@@ -51,7 +54,7 @@ public class FeatureToggles {
     OptionRepository siteOptions;
 
     @Inject
-    SiteRepository sites;
+    NetworkLockRepository networkLock;
 
     @Inject
     NetworkOptions network;
@@ -91,18 +94,35 @@ public class FeatureToggles {
     private void changeSite(String key, Consumer<ObjectNode> edit) {
         FeatureDescriptor feature = requireKnown(key);
         SiteId siteId = site.siteId();
-        // The site's row serializes its feature changes, also while its qp_features option does not exist yet.
-        sites.lockForUpdate(siteId);
-        ObjectNode values = objectOf(siteOptions
-                .findOptionForUpdate(siteId, FeatureOptions.SITE)
-                .map(option -> JsonValues.copyOfStored(option.value)));
         Map<String, Boolean> defaults = FeatureOptions.switches(network.find(FeatureOptions.NETWORK));
+        Optional<OptionEntity> row = siteOptions.lockOption(siteId, FeatureOptions.SITE);
+        if (row.isEmpty()) {
+            ObjectNode values = JsonNodeFactory.instance.objectNode();
+            boolean before = FeatureValues.resolve(feature, Map.of(), defaults).enabled();
+            edit.accept(values);
+            boolean after = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
+                    .enabled();
+            if (options.add(FeatureOptions.SITE, values, true)) {
+                toggled(siteId, key, before, after);
+                return;
+            }
+            row = siteOptions.findOptionForUpdate(siteId, FeatureOptions.SITE);
+            if (row.isEmpty()) {
+                throw new IllegalStateException("the feature switches of site " + siteId.value()
+                        + " were deleted while they were changed; try again");
+            }
+        }
+        ObjectNode values = objectOf(Optional.of(JsonValues.copyOfStored(row.get().value)));
         boolean before = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
                 .enabled();
         edit.accept(values);
         boolean after = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
                 .enabled();
         options.set(FeatureOptions.SITE, values);
+        toggled(siteId, key, before, after);
+    }
+
+    private void toggled(SiteId siteId, String key, boolean before, boolean after) {
         if (before != after) {
             SiteFeatureToggled event =
                     new SiteFeatureToggled(siteId, clock.now().truncatedTo(ChronoUnit.MICROS), key, after);
@@ -112,6 +132,7 @@ public class FeatureToggles {
 
     private void changeNetwork(String key, Consumer<ObjectNode> edit) {
         requireKnown(key);
+        networkLock.lock();
         ObjectNode values = objectOf(networkOptions
                 .findOptionForUpdate(FeatureOptions.NETWORK)
                 .map(option -> JsonValues.copyOfStored(option.value)));
