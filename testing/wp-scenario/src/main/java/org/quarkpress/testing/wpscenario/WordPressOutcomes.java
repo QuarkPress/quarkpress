@@ -94,8 +94,16 @@ public final class WordPressOutcomes {
         }
         for (JsonNode site : field(out, "sites", where)) {
             String at = where + " site";
+            int index = field(site, "index", at).asInt();
+            long reported = field(site, "id", at).asLong();
+            Long expected = idByIndex.get(index);
+            if (index < 1 || expected == null || expected != reported) {
+                throw new IllegalStateException("the driver reported site #" + index + " of " + where + " with id "
+                        + reported + ", but the create_site results gave "
+                        + (expected == null ? "no such site" : "id " + expected));
+            }
             outcome.site(
-                    field(site, "index", at).asInt(),
+                    index,
                     ScenarioRules.lowerAscii(field(site, "domain", at).asText()),
                     ScenarioRules.lowerAscii(field(site, "path", at).asText()),
                     field(site, "public", at).asInt(),

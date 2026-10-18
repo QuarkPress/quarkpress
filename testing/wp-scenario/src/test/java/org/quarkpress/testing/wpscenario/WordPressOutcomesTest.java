@@ -161,4 +161,20 @@ class WordPressOutcomesTest {
                         java.util.Map.entry("op1:lookup", Outcome.NONE),
                         java.util.Map.entry("op2:lookup", Outcome.NONE));
     }
+
+    @Test
+    void aSiteRecordThatDisagreesWithTheCreationOrderIsRejected() throws Exception {
+        Scenario scenario = ScenarioJson.parse(SCENARIO);
+        String wrongId = DRIVER_OUT.replace("{\"index\": 1, \"id\": 7,", "{\"index\": 1, \"id\": 8,");
+        assertThatThrownBy(() -> WordPressOutcomes.normalize(scenario, OracleJson.MAPPER.readTree(wrongId)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("normalize@subdirectory")
+                .hasMessageContaining("site #1")
+                .hasMessageContaining("id 8")
+                .hasMessageContaining("id 7");
+        String unknownIndex = DRIVER_OUT.replace("{\"index\": 1, \"id\": 7,", "{\"index\": 2, \"id\": 7,");
+        assertThatThrownBy(() -> WordPressOutcomes.normalize(scenario, OracleJson.MAPPER.readTree(unknownIndex)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("site #2");
+    }
 }
