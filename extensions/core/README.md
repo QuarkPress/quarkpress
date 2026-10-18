@@ -18,7 +18,7 @@ Public API lives in `org.quarkpress.core`; `org.quarkpress.core.runtime` is impl
 The `quarkpress.*` configuration keys are reserved for QuarkPress. At startup QuarkPress fails on any key under that prefix
 that no installed module declares (each module declares its keys; indexed lists such as `resolvers[0]` are accepted,
 sub-keys of plain settings are not), so a typo cannot silently leave a setting at its default. Every config source is
-checked except environment variables, whose names are ambiguous (`QUARKPRESS_A_B` could be `a.b` or `a-b`). Application settings use their own prefix. For the
+checked except environment variables and `.env` entries, whose names are ambiguous (`QUARKPRESS_A_B` could be `a.b` or `a-b`). Application settings use their own prefix. For the
 same reason the repository's own build passes the test database as `-DtestDb`, not as a `quarkpress.*` property.
 
 ## The current site
@@ -40,8 +40,8 @@ while other threads can see it: work for another site runs in a fresh request co
 module's `SiteScope` or `NetworkScope`, never by rebinding.
 
 Without the multisite module every request, HTTP or not, belongs to the main site: the persistence module's
-single-site resolver answers `quarkpress.main-site-id` without touching the database. The multisite module (a later
-release) binds HTTP requests from their host and path before any QuarkPress persistence use.
+single-site resolver answers `quarkpress.main-site-id` without touching the database. The multisite module (`quarkpress-multisite`)
+binds HTTP requests from their host and path before any QuarkPress persistence use.
 
 ### Resolvers
 
@@ -52,6 +52,14 @@ so the order never depends on discovery order. The first non-empty answer wins. 
 resolution (no lower resolver answers in its place), and a resolver that returns `null` fails with a message naming
 it. A resolver must not read the current site while it is asked (that throws `SiteNotResolvedException`), and for
 `SiteRequest.none()` it must answer without the QuarkPress persistence unit, whose session depends on the answer.
+
+### HTTP layers
+
+The multisite extension's HTTP layer decides a request's site before any QuarkPress code runs (before authentication)
+and hands the decision to the request's binding through the internal `PresetSite` bean. The binding adopts it the
+first time it is read, and the resolvers are not asked for that request. `SiteContext.redirect()` returns the redirect
+decided with it. A preset is a site or "no site", never the network; a `PresetSite` bean outside the multisite
+extension fails the build.
 
 ## Site options
 
@@ -138,6 +146,10 @@ The build fails, instead of leaving code ungated, when `@SiteFeature`:
 Default methods inherited from JDK interfaces (for example `Iterable.forEach`) are not indexed and stay ungated under
 a class-level annotation; annotate an override if one must be gated.
 
+An observer whose event is a `SiteEvent` checks the feature for the event's site, whatever the request is bound to and
+also without a request context; this is what `@ObservesAsync` observers of QuarkPress events need, since they run
+after the change committed, outside the request that made it.
+
 **Interceptor order.** The gate's interceptor has priority `PLATFORM_BEFORE + 175`: after the security interceptors
 (`PLATFORM_BEFORE + 150`), so a caller without access is refused before the feature is checked, and before the
 transaction interceptors (`PLATFORM_BEFORE + 200`), so a disabled feature never opens a transaction.
@@ -154,10 +166,20 @@ change from their next request. Outside a request context nothing is cached.
 
 ## Events and filters
 
-Events (`OptionChanged`, `NetworkOptionChanged`, `SiteFeatureToggled`) are immutable records fired synchronously
+Events (`OptionChanged`, `NetworkOptionChanged`, `SiteFeatureToggled`, `SiteCreated`, `SiteUpdated`,
+`SiteFlagsChanged` and `SiteDeleted`) are immutable records fired synchronously
 inside the transaction that caused them. A `MissingNode` stands for "no value": the `before` of a new option and the
 `after` of a deleted one. Observers that need committed data use
 `@Observes(during = TransactionPhase.AFTER_SUCCESS)`; `@ObservesAsync` is fire-and-forget.
+
+QuarkPress services fire every event synchronously inside the transaction that caused it, and again to
+`@ObservesAsync` observers once that transaction commits; asynchronous observers never hear of a change that was
+rolled back.
+
+### Network capabilities
+
+Network services ask the `CapabilityCheck` bean before every write (`create_sites`, `delete_sites`, `manage_sites`;
+see `NetworkCapabilities`). The default check allows every caller; the security module replaces it.
 
 Filters are beans implementing a filter interface. `Filters.ordered` sorts an `@All List<InstanceHandle<F>>` by
 `@Priority`, higher first (none counts as 0), then by the fully qualified bean class name, the same rule as for

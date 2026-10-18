@@ -57,7 +57,7 @@ it uses the MySQL migrations, so set `quarkpress.persistence.migration-vendor=my
 | `quarkpress.main-site-id` | `1` | the site every request belongs to without the multisite module (run time) |
 | `quarkpress.multisite.enabled` | `false` | set by the multisite module; turns off the single-site resolver (build time) |
 
-The `quarkpress.*` namespace is reserved: a key under it that no module declares fails the start (environment variables are not checked). Application settings
+The `quarkpress.*` namespace is reserved: a key under it that no module declares fails the start (environment variables and `.env` entries are not checked). Application settings
 use their own prefix.
 
 Without the multisite module the application does not start unless the main site's row exists in `qp_site`; the
@@ -110,6 +110,12 @@ What the filter and the listener cannot see is closed by configuration and by bu
   for the `quarkpress` unit fails the build anywhere in the application.
 - HQL bulk `update` and `delete` statements are not seen by the listener; each one names the site (see "Rules for
   module authors").
+
+Inserts and updates of a site-scoped row are also refused when one of its `@ManyToOne` or `@OneToOne` fields points at
+a loaded row of another site. A reference that was never loaded (from `getReference`) is left to the composite foreign
+key. `@ManyToMany` between site-scoped entities, and associations to site-scoped entities mapped on getters, inside
+embeddables or as unidirectional one-to-many, fail the build. Removals are not checked, so rows that point across sites
+can be cleaned up.
 
 ### Build checks of QuarkPress classes
 
@@ -183,12 +189,21 @@ defaults. Site options and network options live in separate tables (`qp_option`,
   `{"a":1,"b":2}` and `{"b":2,"a":1}` differ, as PHP's comparison of the serialized arrays does. Option arrays in
   WordPress are ordered (roles, sidebars, widgets).
 - **Events.** A write that creates, changes or deletes a value fires `OptionChanged` (or `NetworkOptionChanged`) inside
-  the transaction; an observer that throws rolls the transaction back, whatever the exception type.
+  the transaction; an observer that throws rolls the transaction back, whatever the exception type. Option, network
+  option and feature events are also delivered to `@ObservesAsync` observers after the transaction commits.
 - **Errors.** An invalid name or value throws `IllegalArgumentException` before any SQL and leaves the caller's
   transaction usable.
 - **Request cache.** A write drops the writing request's cached reads of the option (and of the feature switches), and
   drops them again when the transaction commits or rolls back, so a value another thread of the request cached while
-  the transaction was open is not kept.
+  the transaction was open is not kept. Between the commit and that second drop, a reader in the writer's own request
+  context can still see a value that is one commit stale; no other request and no other site is exposed to it.
+- **Concurrent writes.** Concurrent writes of one option never fail on its unique key: of several concurrent `add`
+  calls exactly one returns true, and concurrent `set` calls apply one after the other. Writes lock the option's row,
+  never the site's row; network option writes serialize on the `qp_network_lock` row (migration `V1_004`). An option
+  write for a site other than the one the request is bound to is refused, as for any site-scoped row (the network
+  scope may write any site's options); the internal `OptionWrites` bean that services use applies the same rule.
+- **Default options.** Every site gets WordPress's default options when it is created (and the sites that exist when
+  the `V1_005` migration runs get them then).
 - **Reads** of the store join the caller's transaction or run in a short one of their own. Reading another site's
   options from a site-bound request finds nothing (the filter); use a `SiteScope` for that site.
 - **Typed reads** (`string`, `number`, `flag`) and the **time zone** follow PHP's conversions and WordPress's rules,
@@ -226,9 +241,8 @@ query, so MySQL's trailing-space comparison never matches `"foo "` with `"foo"`.
 `NetworkOptionChanged`. Unknown keys are refused with `IllegalArgumentException`. An observer that throws rolls the
 change back, whatever the exception type.
 
-Each change locks what it reads until its transaction ends (`SELECT ... FOR UPDATE`: the site's `qp_site` row and its
-`qp_features` option, or the `qp_feature_defaults` network option), so two concurrent changes of different keys both
-survive. The effective values before and after a site change are computed from the stored switches, not from the
+A change locks the stored switches (the `qp_features` option, or the `qp_feature_defaults` network option); a first
+change inserts the option only if it is still missing, so concurrent first changes of different keys keep both. The effective values before and after a site change are computed from the stored switches, not from the
 request's cached feature values. Stored members that are not booleans, and a stored value that is not an object, are
 ignored.
 
@@ -288,6 +302,12 @@ string cannot be traced counts every string of its method, so it fails the build
   another site's row, on both databases and whatever the application code does. The entity may keep mapping the
   association by id alone.
 - Inserts in the network scope name their site (`assignSite`).
+- Every `site_id` foreign key to `qp_site` is `on delete cascade`, and so is every composite key between site-scoped
+  tables, so deleting a site removes its rows.
+- Map associations between site-scoped entities on fields, never with `@ManyToMany`.
+- Never lock a site's `qp_site` row: a transaction that inserted rows of that site holds a shared lock on it, so a lock
+  on it waits for, or deadlocks with, such transactions. QuarkPress's own writes never lock it; network writes serialize
+  on the `qp_network_lock` row and change site rows under their version.
 - Reads are `@Transactional`; writes are `@Transactional(dontRollbackOn = IllegalArgumentException.class)`, so a
   validation error leaves the caller's transaction usable.
 - Each module owns one migration version band, declared with `MigrationLocationBuildItem`; two modules claiming the
