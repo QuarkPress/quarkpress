@@ -1,0 +1,11 @@
+{"id": "ms3-candidate-paths", "rule": "MS3", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/news/", "title": "News"},
+  {"op": "create_site", "domain": "localhost", "path": "/news/2026/", "title": "Year"},
+  {"op": "lookup", "host": "localhost", "path": "/news/2026/x"},
+  {"op": "lookup", "host": "localhost", "path": "/news"},
+  {"op": "lookup", "host": "localhost", "path": "//news//x"},
+  {"op": "lookup", "host": "localhost", "path": "/0/news/"},
+  {"op": "lookup", "host": "localhost", "path": "/a/0/b/"},
+  {"op": "lookup", "host": "localhost", "path": "/NEWS/Today"},
+  {"op": "lookup", "host": "localhost", "path": "/"}
+]}

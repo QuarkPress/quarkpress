@@ -1,0 +1,7 @@
+{"id": "ms7-nothing-found", "rule": "MS7", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "m.example", "path": "/shop/", "title": "Shop"},
+  {"op": "lookup", "host": "zz.example", "path": "/"},
+  {"op": "lookup", "host": "localhost", "path": "/nosuch/"},
+  {"op": "lookup", "host": "m.example", "path": "/"},
+  {"op": "lookup", "host": "m.example", "path": "/shop/x"}
+]}

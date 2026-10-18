@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -84,46 +86,109 @@ public final class WordPressScenarioOracle {
         Path log = workDir.resolve(label + ".log");
         OracleJson.MAPPER.writeValue(in.toFile(), input);
         Files.deleteIfExists(out);
-        ProcessBuilder builder = new ProcessBuilder(
-                        php,
-                        "-d",
-                        "memory_limit=512M",
-                        "-d",
-                        "display_errors=stderr",
-                        "-d",
-                        "error_reporting=E_ALL & ~E_DEPRECATED",
-                        driver.toString(),
-                        mode,
-                        wordpress.toAbsolutePath().toString(),
-                        in.toString(),
-                        out.toString())
-                .redirectErrorStream(true)
-                .redirectOutput(log.toFile());
-        builder.environment().putAll(database.environment());
-        Process process;
+        List<String> command = List.of(
+                php,
+                "-d",
+                "memory_limit=512M",
+                "-d",
+                "display_errors=stderr",
+                "-d",
+                "error_reporting=E_ALL & ~E_DEPRECATED",
+                driver.toString(),
+                mode,
+                wordpress.toAbsolutePath().toString(),
+                in.toString(),
+                out.toString());
         try {
-            process = builder.start();
-        } catch (IOException e) {
+            return execute(command, database.environment(), out, log, label, TIMEOUT_MINUTES, TimeUnit.MINUTES);
+        } catch (CannotStart e) {
             throw new AssertionError(
                     "cannot start PHP '" + php + "'; install PHP 8.4 with mysqli or pass -Dwp.php=<path>: "
                             + e.getMessage(),
                     e);
         }
-        if (!process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
-            process.destroyForcibly().waitFor();
-            throw failure(label + " timed out after " + TIMEOUT_MINUTES + " minutes", log);
+    }
+
+    /** Thrown when the process cannot be started at all. */
+    static final class CannotStart extends RuntimeException {
+        CannotStart(IOException cause) {
+            super(cause.getMessage(), cause);
+        }
+    }
+
+    /**
+     * Runs the command and reads the driver's output file. The process and its descendants are destroyed on a timeout
+     * and when the calling thread is interrupted. A failure carries the tail of the log: no, truncated or unparsable
+     * output, a driver error, a non-zero exit. Output with neither {@code out} nor {@code error} is an
+     * {@link IllegalStateException}.
+     */
+    static JsonNode execute(
+            List<String> command,
+            Map<String, String> environment,
+            Path out,
+            Path log,
+            String label,
+            long timeout,
+            TimeUnit unit)
+            throws IOException, InterruptedException {
+        ProcessBuilder builder =
+                new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile());
+        builder.environment().putAll(environment);
+        Process process;
+        try {
+            process = builder.start();
+        } catch (IOException e) {
+            throw new CannotStart(e);
+        }
+        try {
+            if (!process.waitFor(timeout, unit)) {
+                destroyTree(process);
+                throw failure(
+                        label + " timed out after " + timeout + " "
+                                + unit.name().toLowerCase(Locale.ROOT),
+                        log);
+            }
+        } catch (InterruptedException e) {
+            destroyTree(process);
+            throw e;
         }
         if (!Files.exists(out)) {
             throw failure(label + " wrote no output (exit status " + process.exitValue() + ")", log);
         }
-        JsonNode result = OracleJson.MAPPER.readTree(out.toFile());
+        JsonNode result;
+        try {
+            result = OracleJson.MAPPER.readTree(out.toFile());
+        } catch (IOException e) {
+            throw failure(
+                    label + " wrote unparsable output (exit status " + process.exitValue() + "): " + e.getMessage(),
+                    log);
+        }
+        if (result == null || result.isMissingNode() || result.isNull()) {
+            throw failure(
+                    label + " wrote unparsable output: the file is empty (exit status " + process.exitValue() + ")",
+                    log);
+        }
         if (result.has("error")) {
             throw failure(label + " failed: " + result.get("error").asText(), log);
         }
         if (process.exitValue() != 0) {
             throw failure(label + " exited with status " + process.exitValue(), log);
         }
-        return result.get("out");
+        JsonNode value = result.get("out");
+        if (value == null) {
+            throw new IllegalStateException("the driver output of " + label + " has neither 'out' nor 'error': " + out);
+        }
+        return value;
+    }
+
+    private static void destroyTree(Process process) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
+        try {
+            process.waitFor(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private Path installDriver() throws IOException {

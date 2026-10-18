@@ -1,0 +1,5 @@
+# Hand-written multisite scenarios, one file per line, in the order they run. Each cites the rule of
+# docs/superpowers/specs/2026-10-17-wp-multisite-behavior.md it checks in its "rule" field.
+ms3-candidate-paths.json
+ms7-nothing-found.json
+ms6-two-segments.json

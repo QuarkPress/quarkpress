@@ -1,0 +1,9 @@
+{"id": "ms6-two-segments", "rule": "MS6", "variant": "subdirectory-2", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/a/", "title": "A"},
+  {"op": "create_site", "domain": "localhost", "path": "/a/b/", "title": "AB"},
+  {"op": "lookup", "host": "localhost", "path": "/a/b/c"},
+  {"op": "lookup", "host": "localhost", "path": "/a/c"},
+  {"op": "lookup", "host": "localhost", "path": "/a/0/b/"},
+  {"op": "lookup", "host": "localhost", "path": "/a"},
+  {"op": "lookup", "host": "localhost", "path": "/"}
+]}
