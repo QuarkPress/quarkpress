@@ -1,0 +1,8 @@
+# Deliberate differences between the multisite module and WordPress 7.1.3.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the "Differences from WordPress" table in
+# README.md. "none" documents a difference that no oracle case shows: the test maps it before comparing.
+none - D1 domains and paths are stored lower-cased; WordPress keeps their case and compares them case-insensitively through its collation (the test lower-cases WordPress's answers)
+none - D2 a domain that is empty, has a port or is longer than 200 characters is refused; WordPress stores it (the test expects a refusal where WordPress's answer breaks these rules)
+none - D3 a path with characters a URL path cannot carry unescaped, a % that does not start a %XX escape, or longer than 100 characters, is refused; WordPress stores it (same mapping)
+none - D13 the /wp-admin/ cut applies to every request; WordPress cuts only admin requests (the test compares with is_admin() true)
+none - D14 a very long line holding /wp-admin/ is always cut; WordPress's regular expression can hit PCRE's backtrack or stack limit, preg_replace then returns null and the lookup path is empty (no case runs this)

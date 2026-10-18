@@ -57,6 +57,10 @@ class SiteAddressesTest {
         assertThat(lookupPath("/foo" + (char) 0x5C + "bar/")).isEqualTo("/foobar/");
         assertThat(lookupPath("/a" + (char) 0x5C + (char) 0x5C + "b/")).isEqualTo("/a" + (char) 0x5C + "b/");
         assertThat(lookupPath("/a" + (char) 0x5C)).isEqualTo("/a");
+        assertThat(lookupPath("/a/wp-admin/b\nc")).isEqualTo("/a/\nc");
+        assertThat(lookupPath("/x\n/y/wp-admin/z\n/wp-admin/")).isEqualTo("/x\n/y/\n/");
+        assertThat(lookupPath("/wp-admin/" + "\n".repeat(20_000))).isEqualTo("/" + "\n".repeat(20_000));
+        assertThat(lookupPath("/wp-admin/\n".repeat(3))).isEqualTo("/\n/\n/\n");
         assertThat(lookupPath("")).isEmpty();
     }
 

@@ -66,9 +66,8 @@ public final class SiteAddresses {
     /**
      * A raw request path as WordPress's multisite bootstrap prepares it for the lookup, in its order: a
      * backslash is removed and the character after it kept, as PHP's {@code stripslashes} does (so a doubled
-     * backslash leaves one, and a backslash before {@code 0} leaves a NUL character); then, as for WordPress's admin
-     * requests (the only ones whose path holds {@code /wp-admin/}), everything from the last {@code /wp-admin/} on
-     * (even when it lies in the query) becomes {@code /}; then the query is cut off. The path is not decoded and not
+     * backslash leaves one, and a backslash before {@code 0} leaves a NUL character); then, as WordPress does for admin requests (QuarkPress has no such flag and does it for every request),
+     * everything from the last {@code /wp-admin/} on (even when it lies in the query) becomes {@code /}; then the query is cut off. The path is not decoded and not
      * lower-cased.
      */
     public static String lookupPath(String rawPath) {
@@ -88,12 +87,47 @@ public final class SiteAddresses {
             }
         }
         String plain = unescaped == null ? rawPath : unescaped.toString();
-        int admin = plain.lastIndexOf(ADMIN);
-        if (admin >= 0) {
-            plain = plain.substring(0, admin) + "/";
-        }
+        plain = cutAdmin(plain);
         int query = plain.indexOf('?');
         return query < 0 ? plain : plain.substring(0, query);
+    }
+
+    /**
+     * Every line holding {@code /wp-admin/} becomes the text before its last {@code /wp-admin/} plus {@code /}: the
+     * pattern WordPress applies matches within a line, as PCRE's dot does not match a line feed. (A request path never
+     * holds a raw line feed, so in practice this is one cut at the last {@code /wp-admin/}.)
+     */
+    private static String cutAdmin(String path) {
+        if (!path.contains(ADMIN)) {
+            return path;
+        }
+        StringBuilder cut = new StringBuilder(path.length());
+        int start = 0;
+        while (true) {
+            int end = path.indexOf('\n', start);
+            int lineEnd = end < 0 ? path.length() : end;
+            int admin = lastIndexOfIn(path, ADMIN, start, lineEnd);
+            if (admin >= 0) {
+                cut.append(path, start, admin).append('/');
+            } else {
+                cut.append(path, start, lineEnd);
+            }
+            if (end < 0) {
+                return cut.toString();
+            }
+            cut.append('\n');
+            start = end + 1;
+        }
+    }
+
+    /** The last index of {@code needle} that lies wholly in {@code [from, to)}, or -1; reads nothing outside. */
+    private static int lastIndexOfIn(String text, String needle, int from, int to) {
+        for (int i = to - needle.length(); i >= from; i--) {
+            if (text.startsWith(needle, i)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
