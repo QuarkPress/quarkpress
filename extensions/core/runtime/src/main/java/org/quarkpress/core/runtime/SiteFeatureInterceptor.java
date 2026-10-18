@@ -7,11 +7,13 @@ import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
 import java.lang.reflect.Method;
+import org.quarkpress.core.SiteEvent;
 import org.quarkpress.core.SiteFeatureDisabledException;
 
 /**
- * Applies {@code @SiteFeature}: reads the current site on every call and, when the feature is off for it (or no site
- * is resolved, or there is no request context), skips the call the way the build classified the method.
+ * Applies {@code @SiteFeature}: on every call it checks the feature and, when it is off, skips the call the way the
+ * build classified the method. An observer of a {@link SiteEvent} checks the event's site; every other method checks
+ * the current site, and counts as disabled when no site is resolved or there is no request context.
  *
  * <p>Ordering: the priority is {@link #PRIORITY}, after the security interceptors ({@code PLATFORM_BEFORE + 150}),
  * so a caller without access is refused before the feature is checked, and before the transaction interceptors
@@ -37,8 +39,25 @@ public class SiteFeatureInterceptor {
         if (gate == null) {
             throw new IllegalStateException("QuarkPress feature gate without its binding on " + ctx.getMethod());
         }
-        GateKind kind = gate.byClass() ? listed(gate, ctx.getMethod()) : gate.kind();
-        if (kind == null || enabled(gate.key())) {
+        GateKind kind;
+        int eventParameter;
+        if (gate.byClass()) {
+            int index = indexOf(gate, ctx.getMethod());
+            if (index < 0) {
+                return ctx.proceed();
+            }
+            kind = gate.kinds()[index];
+            if (index >= gate.eventParameters().length) {
+                throw new IllegalStateException("QuarkPress feature gate without the observed parameter of "
+                        + ctx.getMethod() + " (the build wrote " + gate.eventParameters().length
+                        + " positions for " + gate.methods().length + " methods)");
+            }
+            eventParameter = gate.eventParameters()[index];
+        } else {
+            kind = gate.kind();
+            eventParameter = gate.eventParameter();
+        }
+        if (enabled(gate.key(), kind, eventParameter, ctx.getParameters())) {
             return ctx.proceed();
         }
         return switch (kind) {
@@ -49,16 +68,16 @@ public class SiteFeatureInterceptor {
         };
     }
 
-    /** The kind the build recorded for a method under a class-level gate, or null when the gate does not cover it. */
-    private static GateKind listed(SiteFeatureGate gate, Method method) {
+    /** The index the build recorded for a method under a class-level gate, or -1 when the gate does not cover it. */
+    private static int indexOf(SiteFeatureGate gate, Method method) {
         String id = methodId(method);
         String[] methods = gate.methods();
         for (int i = 0; i < methods.length; i++) {
             if (methods[i].equals(id)) {
-                return gate.kinds()[i];
+                return i;
             }
         }
-        return null;
+        return -1;
     }
 
     /** {@code name(parameter,types)} with erased parameter type names, as the build writes them. */
@@ -74,7 +93,13 @@ public class SiteFeatureInterceptor {
         return id.append(')').toString();
     }
 
-    private boolean enabled(String key) {
+    private boolean enabled(String key, GateKind kind, int eventParameter, Object[] parameters) {
+        if (kind == GateKind.OBSERVER
+                && eventParameter >= 0
+                && eventParameter < parameters.length
+                && parameters[eventParameter] instanceof SiteEvent event) {
+            return features.forSite(event.site()).isEnabled(key);
+        }
         if (!Arc.container().requestContext().isActive()) {
             return false;
         }

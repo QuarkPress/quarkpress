@@ -102,6 +102,17 @@ public final class GateClassifier {
         return problems;
     }
 
+    /** The position of the parameter annotated {@code @Observes} or {@code @ObservesAsync}, or -1. */
+    public static int observedParameter(MethodInfo method) {
+        for (AnnotationInstance annotation : method.annotations()) {
+            if ((annotation.name().equals(OBSERVES) || annotation.name().equals(OBSERVES_ASYNC))
+                    && annotation.target().kind() == AnnotationTarget.Kind.METHOD_PARAMETER) {
+                return annotation.target().asMethodParameter().position();
+            }
+        }
+        return -1;
+    }
+
     /** A stable text key for a method, used to match methods across index views. */
     public static String methodKey(MethodInfo method) {
         return method.declaringClass().name() + "#" + methodId(method);

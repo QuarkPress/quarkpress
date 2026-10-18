@@ -35,4 +35,12 @@ public @interface SiteFeatureGate {
 
     @Nonbinding
     GateKind[] kinds() default {};
+
+    /** On a method: the position of its observed event parameter, or -1 when it is not an observer. */
+    @Nonbinding
+    int eventParameter() default -1;
+
+    /** On a class: the observed parameter of each method in {@link #methods()}, -1 for methods that do not observe. */
+    @Nonbinding
+    int[] eventParameters() default {};
 }

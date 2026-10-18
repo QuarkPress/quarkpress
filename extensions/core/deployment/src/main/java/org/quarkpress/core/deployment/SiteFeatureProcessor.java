@@ -60,6 +60,7 @@ class SiteFeatureProcessor {
                     ctx.add(AnnotationInstance.builder(GateClassifier.GATE)
                             .add("key", gate.key())
                             .add("kind", gate.kind())
+                            .add("eventParameter", GateClassifier.observedParameter(gate.method()))
                             .build());
                 })));
         transformers.produce(new AnnotationsTransformerBuildItem(AnnotationTransformation.forClasses()
@@ -68,15 +69,19 @@ class SiteFeatureProcessor {
                     List<Gate> gates = byClass.get(ctx.declaration().asClass().name());
                     String[] methods = new String[gates.size()];
                     GateKind[] kinds = new GateKind[gates.size()];
+                    int[] events = new int[gates.size()];
                     for (int i = 0; i < gates.size(); i++) {
                         methods[i] = GateClassifier.methodId(gates.get(i).method());
                         kinds[i] = gates.get(i).kind();
+                        events[i] =
+                                GateClassifier.observedParameter(gates.get(i).method());
                     }
                     ctx.add(AnnotationInstance.builder(GateClassifier.GATE)
                             .add("key", gates.get(0).key())
                             .add("byClass", true)
                             .add("methods", methods)
                             .add("kinds", kinds)
+                            .add("eventParameters", events)
                             .build());
                 })));
     }
