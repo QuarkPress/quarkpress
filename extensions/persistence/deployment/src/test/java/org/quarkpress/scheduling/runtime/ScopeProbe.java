@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Instant;
+import org.quarkpress.core.runtime.Binding;
+import org.quarkpress.core.runtime.SiteBinding;
 import org.quarkpress.persistence.NetworkScope;
 import org.quarkpress.persistence.runtime.OptionEntity;
 import org.quarkpress.persistence.runtime.OptionRepository;
@@ -17,6 +19,13 @@ public class ScopeProbe {
 
     @Inject
     OptionRepository options;
+
+    @Inject
+    SiteBinding binding;
+
+    public Binding bindingInNetworkScope() throws Exception {
+        return network.call(() -> binding.current());
+    }
 
     public long countOptionsNamed(String name) throws Exception {
         return network.call(() -> options.count("name", name));

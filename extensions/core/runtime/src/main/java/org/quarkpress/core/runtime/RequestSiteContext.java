@@ -30,6 +30,9 @@ public class RequestSiteContext implements SiteContext {
     @Inject
     FeatureResolver features;
 
+    @Inject
+    PresetSite preset;
+
     @Override
     public boolean isResolved() {
         return binding.current().kind() == Binding.Kind.SITE;
@@ -72,7 +75,13 @@ public class RequestSiteContext implements SiteContext {
 
     @Override
     public Optional<URI> redirect() {
-        return Optional.empty();
+        Optional<Binding> bound = binding.bound();
+        if (bound.isEmpty()
+                || bound.get().kind() != Binding.Kind.SITE
+                || !preset.binding().filter(bound.get()::equals).isPresent()) {
+            return Optional.empty();
+        }
+        return preset.redirect();
     }
 
     /**

@@ -19,8 +19,10 @@ import org.quarkpress.persistence.NetworkScope;
  * work runs on a new virtual thread of its own, with no context propagated to it: that thread activates a fresh
  * request context bound to the target, runs the work in its own transaction and terminates the context, while the
  * caller waits. The caller's request context is never deactivated or changed, so code sharing it (other threads on
- * the same Vert.x context, tasks that captured it) keeps seeing the caller's site. A scope for another binding
- * cannot be opened on a Vert.x event-loop thread, which must not block.
+ * the same Vert.x context, tasks that captured it) keeps seeing the caller's site. The check whether the caller's
+ * request is bound reads the binding without asking the resolvers; it adopts a site an HTTP layer already decided for
+ * the request, and the new thread's context is bound to the target without consulting that layer. A scope for
+ * another binding cannot be opened on a Vert.x event-loop thread, which must not block.
  *
  * <p>Whatever the work throws (exception or error) is rethrown unchanged on the caller's thread.
  */
@@ -72,7 +74,7 @@ public final class Scopes {
             ManagedContext requestContext = Arc.container().requestContext();
             requestContext.activate();
             try {
-                Arc.container().instance(SiteBinding.class).get().bind(target);
+                Arc.container().instance(SiteBinding.class).get().bindScope(target);
                 result[0] = inNewTransaction(work);
             } catch (Throwable thrown) {
                 failure[0] = thrown;

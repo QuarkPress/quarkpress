@@ -123,7 +123,7 @@ final class SiteIsolationScanner {
             if (FILTER_METHODS.contains(name)) {
                 filterCalls.add(name);
             }
-            if (SITE_BINDING.equals(owner) && "bind".equals(name)) {
+            if (SITE_BINDING.equals(owner) && ("bind".equals(name) || "bindScope".equals(name))) {
                 binds = true;
             }
             if (isPanacheUpdate(name, descriptor)) {

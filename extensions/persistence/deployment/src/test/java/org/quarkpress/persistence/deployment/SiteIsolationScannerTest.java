@@ -96,6 +96,10 @@ class SiteIsolationScannerTest {
                 .singleElement()
                 .satisfies(f -> assertThat(f.problem())
                         .contains("calls SiteBinding.bind outside QuarkPress core and persistence"));
+        assertThat(scan(org.quarkpress.elsewhere.ScopeBinder.class))
+                .singleElement()
+                .satisfies(f -> assertThat(f.problem())
+                        .contains("calls SiteBinding.bind outside QuarkPress core and persistence"));
         assertThat(scan(NetworkReader.class)).isEmpty();
         assertThat(scan(Fixtures.NetworkInside.class)).isEmpty();
     }
