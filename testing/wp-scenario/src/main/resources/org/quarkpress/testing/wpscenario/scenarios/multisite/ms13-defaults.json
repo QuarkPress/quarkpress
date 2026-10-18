@@ -1,0 +1,9 @@
+{"id": "ms13-defaults", "rule": "MS13", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/d/", "title": "Blog"},
+  {"op": "create_site", "domain": "localhost", "path": "/e/", "title": ""},
+  {"op": "read_options", "site": 1, "names": ["blogname", "blogdescription", "timezone_string", "gmt_offset",
+    "date_format", "time_format", "start_of_week", "posts_per_page", "default_category", "show_on_front",
+    "page_on_front", "page_for_posts", "default_comment_status", "default_ping_status"]},
+  {"op": "read_options", "site": 2, "names": ["blogname"]},
+  {"op": "read_options", "site": 0, "names": ["blogname"]}
+]}

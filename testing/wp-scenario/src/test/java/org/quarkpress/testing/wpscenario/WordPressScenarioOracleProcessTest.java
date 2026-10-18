@@ -83,9 +83,11 @@ class WordPressScenarioOracleProcessTest {
     void aTimeoutDestroysTheProcessAndItsDescendants() throws Exception {
         Path pidFile = dir.resolve("child.pid");
         Path script = script("sleep 300 &\necho $! > " + pidFile + "\nwait");
-        assertThatThrownBy(() -> run(script, 1, TimeUnit.SECONDS))
+        // The bound is generous so a slow machine still starts the script (and writes the pid) before the timeout.
+        assertThatThrownBy(() -> run(script, 10, TimeUnit.SECONDS))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("timed out");
+        assertThat(pidFile).exists();
         assertDead(pidFile);
     }
 

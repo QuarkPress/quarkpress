@@ -1,0 +1,16 @@
+{"id": "ms6-two-segments-longest", "rule": "MS6", "variant": "subdirectory-2", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/a/b/", "title": "AB"},
+  {"op": "create_site", "domain": "localhost", "path": "/a/", "title": "A"},
+  {"op": "create_site", "domain": "m.example", "path": "/", "title": "M"},
+  {"op": "create_site", "domain": "m.example", "path": "/a/", "title": "M a"},
+  {"op": "create_site", "domain": "m.example", "path": "/a/b/", "title": "M ab"},
+  {"op": "lookup", "host": "localhost", "path": "/a/b/"},
+  {"op": "lookup", "host": "localhost", "path": "/a/b/c/d"},
+  {"op": "lookup", "host": "localhost", "path": "/A/B"},
+  {"op": "lookup", "host": "localhost", "path": "/a/"},
+  {"op": "lookup", "host": "localhost", "path": "/a/c/b/"},
+  {"op": "lookup", "host": "m.example", "path": "/a/b/c"},
+  {"op": "lookup", "host": "m.example", "path": "/a/x"},
+  {"op": "lookup", "host": "m.example", "path": "/b/a/"},
+  {"op": "lookup", "host": "www.m.example", "path": "/a/b/"}
+]}

@@ -1,0 +1,10 @@
+{"id": "ms6-network-path", "rule": "MS6", "variant": "subdirectory-net", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/net/shop/", "title": "Shop"},
+  {"op": "lookup", "host": "localhost", "path": "/net/shop/x/"},
+  {"op": "lookup", "host": "LOCALHOST", "path": "/NET/"},
+  {"op": "lookup", "host": "localhost", "path": "/net/other"},
+  {"op": "lookup", "host": "localhost", "path": "/net"},
+  {"op": "lookup", "host": "localhost", "path": "/"},
+  {"op": "lookup", "host": "localhost", "path": "/other/x"},
+  {"op": "lookup", "host": "www.localhost", "path": "/net/shop/"}
+]}

@@ -1,5 +1,17 @@
 # Hand-written multisite scenarios, one file per line, in the order they run. Each cites the rule of
 # docs/superpowers/specs/2026-10-17-wp-multisite-behavior.md it checks in its "rule" field.
+ms2-dot-segments.json
 ms3-candidate-paths.json
-ms7-nothing-found.json
+ms3-zero-site.json
+ms4-www.json
+ms6-network-path.json
 ms6-two-segments.json
+ms6-two-segments-longest.json
+ms7-nothing-found.json
+ms7-nothing-found-subdomain.json
+ms8-flags.json
+ms9-normalize.json
+ms10-taken.json
+ms11-reserved.json
+ms11-reserved-subdomain.json
+ms13-defaults.json

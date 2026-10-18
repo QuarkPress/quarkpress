@@ -1,0 +1,13 @@
+{"id": "ms8-flags", "rule": "MS8", "variant": "subdomain", "ops": [
+  {"op": "create_site", "domain": "a.localhost", "path": "/", "title": "A"},
+  {"op": "create_site", "domain": "b.localhost", "path": "/", "title": "B"},
+  {"op": "set_flag", "site": 1, "flag": "archived", "value": true},
+  {"op": "lookup", "host": "a.localhost", "path": "/"},
+  {"op": "set_flag", "site": 1, "flag": "spam", "value": true},
+  {"op": "set_flag", "site": 1, "flag": "deleted", "value": true},
+  {"op": "set_flag", "site": 1, "flag": "mature", "value": true},
+  {"op": "set_flag", "site": 2, "flag": "public", "value": false},
+  {"op": "lookup", "host": "a.localhost", "path": "/"},
+  {"op": "lookup", "host": "b.localhost", "path": "/x"},
+  {"op": "set_flag", "site": 1, "flag": "archived", "value": false}
+]}

@@ -3,6 +3,9 @@ package org.quarkpress.testing.wpscenario;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.InjectableContext.ContextState;
+import io.quarkus.arc.ManagedContext;
 import jakarta.inject.Inject;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -66,13 +69,37 @@ abstract class ScenarioParityBase {
         run.assertParity(minimum);
     }
 
-    /** Runs one scenario on QuarkPress's network moved to the scenario's address, then removes what it created. */
+    /**
+     * Runs one scenario on QuarkPress's network moved to the scenario's address, then removes what it created. Each
+     * scenario gets a fresh request context, so no request option cache spans scenarios.
+     */
     Outcome runOnQuarkPress(Scenario scenario) throws Exception {
+        ManagedContext requests = Arc.container().requestContext();
+        ContextState outer = null;
+        if (requests.isActive()) {
+            outer = requests.getState();
+            requests.deactivate();
+        }
+        requests.activate();
+        try {
+            return runInRequest(scenario);
+        } finally {
+            requests.terminate();
+            if (outer != null) {
+                requests.activate(outer);
+            }
+        }
+    }
+
+    private Outcome runInRequest(Scenario scenario) throws Exception {
         NetworkVariant variant = scenario.variant();
         Outcome outcome = new Outcome();
         List<SiteId> created = new ArrayList<>();
-        sites.update(MAIN, SiteChanges.none().withDomain(variant.domain()).withPath(variant.path()));
+        List<ScenarioOp.CreateSite> leaked = new ArrayList<>();
+        assertMainAddress("before the scenario " + scenario.caseId());
+        Throwable failure = null;
         try {
+            sites.update(MAIN, SiteChanges.none().withDomain(variant.domain()).withPath(variant.path()));
             int op = 0;
             for (ScenarioOp step : scenario.ops()) {
                 op++;
@@ -85,6 +112,10 @@ abstract class ScenarioParityBase {
                         } catch (IllegalArgumentException refused) {
                             created.add(null);
                             outcome.refused(op, Refusals.ofQuarkPress(refused.getMessage()));
+                        } catch (RuntimeException failed) {
+                            // the insert may have happened before the failure: cleanup removes the site by address
+                            leaked.add(create);
+                            throw failed;
                         }
                     }
                     case ScenarioOp.Lookup lookup -> {
@@ -98,12 +129,17 @@ abstract class ScenarioParityBase {
                         if (id == null) {
                             outcome.flagSet(op, "missing");
                         } else {
-                            if (flag.flag() == ScenarioOp.Flag.PUBLIC) {
-                                sites.setPublic(id, flag.value() ? 1 : 0);
-                            } else {
-                                sites.setFlag(id, SiteFlag.valueOf(flag.flag().name()), flag.value());
+                            try {
+                                if (flag.flag() == ScenarioOp.Flag.PUBLIC) {
+                                    sites.setPublic(id, flag.value() ? 1 : 0);
+                                } else {
+                                    sites.setFlag(
+                                            id, SiteFlag.valueOf(flag.flag().name()), flag.value());
+                                }
+                                outcome.flagSet(op, "ok");
+                            } catch (IllegalArgumentException refused) {
+                                outcome.flagSet(op, "failed");
                             }
-                            outcome.flagSet(op, "ok");
                         }
                     }
                     case ScenarioOp.ReadOptions read -> {
@@ -140,15 +176,67 @@ abstract class ScenarioParityBase {
                         site.spam(),
                         site.deleted());
             }
-        } finally {
-            for (int index = created.size() - 1; index >= 0; index--) {
-                if (created.get(index) != null) {
-                    sites.delete(created.get(index));
-                }
+        } catch (Throwable t) {
+            failure = t;
+        }
+        // Every cleanup step runs, whatever failed before: the original error is kept, later ones are suppressed.
+        for (int index = created.size() - 1; index >= 0; index--) {
+            SiteId id = created.get(index);
+            if (id != null) {
+                failure = attempt(failure, () -> sites.delete(id));
             }
-            sites.update(MAIN, SiteChanges.none().withDomain(MAIN_DOMAIN).withPath(MAIN_PATH));
+        }
+        for (ScenarioOp.CreateSite site : leaked) {
+            failure = attempt(failure, () -> removeByAddress(site));
+        }
+        failure = attempt(
+                failure,
+                () -> sites.update(
+                        MAIN, SiteChanges.none().withDomain(MAIN_DOMAIN).withPath(MAIN_PATH)));
+        failure = attempt(failure, () -> assertMainAddress("after the scenario " + scenario.caseId()));
+        if (failure != null) {
+            if (failure instanceof Exception e) {
+                throw e;
+            }
+            throw (Error) failure;
         }
         return outcome;
+    }
+
+    /** Runs {@code step}; returns {@code failure}, or the step's error when nothing failed before (else suppressed). */
+    private static Throwable attempt(Throwable failure, ThrowingStep step) {
+        try {
+            step.run();
+            return failure;
+        } catch (Throwable t) {
+            if (failure == null) {
+                return t;
+            }
+            failure.addSuppressed(t);
+            return failure;
+        }
+    }
+
+    /** Deletes the site at the address a failed create was aiming for, if the failure left one behind. */
+    private void removeByAddress(ScenarioOp.CreateSite site) {
+        String path = site.path().toLowerCase(java.util.Locale.ROOT);
+        path = (path.startsWith("/") ? path : "/" + path) + (path.endsWith("/") ? "" : "/");
+        sites.findByAddress(site.domain().toLowerCase(java.util.Locale.ROOT), path)
+                .filter(found -> !found.id().equals(MAIN))
+                .ifPresent(found -> sites.delete(found.id()));
+    }
+
+    private void assertMainAddress(String when) {
+        SiteInfo main = sites.find(MAIN).orElseThrow();
+        if (!main.domain().equals(MAIN_DOMAIN) || !main.path().equals(MAIN_PATH)) {
+            throw new AssertionError("the main site is at " + main.domain() + main.path() + " " + when
+                    + ", not at its original address " + MAIN_DOMAIN + MAIN_PATH);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingStep {
+        void run() throws Exception;
     }
 
     private static String nameOf(Binding binding, List<SiteId> created) {

@@ -1,0 +1,7 @@
+{"id": "ms7-nothing-found-subdomain", "rule": "MS7", "variant": "subdomain", "ops": [
+  {"op": "create_site", "domain": "a.localhost", "path": "/", "title": "A"},
+  {"op": "lookup", "host": "nosuch.localhost", "path": "/"},
+  {"op": "lookup", "host": "a.localhost", "path": "/x"},
+  {"op": "lookup", "host": "localhost", "path": "/nosuch/"},
+  {"op": "lookup", "host": "other.org", "path": "/"}
+]}

@@ -1,0 +1,12 @@
+{"id": "ms4-www", "rule": "MS4", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "m.example", "path": "/", "title": "M"},
+  {"op": "create_site", "domain": "m.example", "path": "/shop/", "title": "M shop"},
+  {"op": "create_site", "domain": "www.v.example", "path": "/", "title": "WWW V"},
+  {"op": "create_site", "domain": "v.example", "path": "/shop/", "title": "V shop"},
+  {"op": "lookup", "host": "www.m.example", "path": "/shop/x/"},
+  {"op": "lookup", "host": "www.m.example", "path": "/"},
+  {"op": "lookup", "host": "www.v.example", "path": "/shop/"},
+  {"op": "lookup", "host": "v.example", "path": "/shop/"},
+  {"op": "lookup", "host": "wwwm.example", "path": "/"},
+  {"op": "lookup", "host": "WWW.M.EXAMPLE", "path": "/"}
+]}

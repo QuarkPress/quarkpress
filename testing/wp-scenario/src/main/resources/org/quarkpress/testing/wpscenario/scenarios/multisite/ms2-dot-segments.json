@@ -1,0 +1,4 @@
+{"id": "ms2-dot-segments", "rule": "MS2", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/x/", "title": "X"},
+  {"op": "lookup", "host": "localhost", "path": "/x/../y"}
+]}

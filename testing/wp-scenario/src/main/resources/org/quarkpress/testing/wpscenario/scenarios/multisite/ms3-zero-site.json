@@ -1,0 +1,5 @@
+{"id": "ms3-zero-site", "rule": "MS3", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/0/", "title": "Zero"},
+  {"op": "lookup", "host": "localhost", "path": "/0/"},
+  {"op": "lookup", "host": "localhost", "path": "/0/x"}
+]}

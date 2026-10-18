@@ -17,8 +17,8 @@ class TwoSegmentScenarioParityDbTest extends ScenarioParityBase {
 
     static final Path SKIPS = Path.of("src/test/resources/wp-scenario-two-segments-skip.txt");
 
-    /** About half of what the starter scenario compares. */
-    static final int MIN_COMPARISONS = 4;
+    /** About half of what a run compares: 2 hand-written scenarios and 25 generated ones, about 13 aspects each. */
+    static final int MIN_COMPARISONS = 180;
 
     /** QuarkPress compares two path segments, as the scenarios' WordPress filter does. */
     public static class TwoSegments implements QuarkusTestProfile {

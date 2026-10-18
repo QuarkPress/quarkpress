@@ -1,0 +1,9 @@
+{"id": "ms10-taken", "rule": "MS10", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/x/", "title": "X"},
+  {"op": "create_site", "domain": "localhost", "path": "/x/", "title": "X again"},
+  {"op": "create_site", "domain": "localhost", "path": "/X/", "title": "X upper"},
+  {"op": "create_site", "domain": "", "path": "/", "title": "No domain"},
+  {"op": "create_site", "domain": "m.example", "path": "", "title": "M"},
+  {"op": "create_site", "domain": "M.EXAMPLE", "path": "/", "title": "M upper"},
+  {"op": "create_site", "domain": "localhost", "path": "/", "title": "The network address"}
+]}

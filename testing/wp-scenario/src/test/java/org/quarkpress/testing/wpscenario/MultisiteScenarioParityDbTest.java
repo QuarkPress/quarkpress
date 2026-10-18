@@ -13,8 +13,8 @@ class MultisiteScenarioParityDbTest extends ScenarioParityBase {
 
     static final Path SKIPS = Path.of("src/test/resources/wp-scenario-skip.txt");
 
-    /** About half of what the starter scenarios compare. */
-    static final int MIN_COMPARISONS = 8;
+    /** About half of what a run compares: hand-written scenarios and 3 x 20 generated ones, about 12 aspects each. */
+    static final int MIN_COMPARISONS = 430;
 
     @Test
     void matchesWordPress() throws Exception {

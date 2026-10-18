@@ -1,0 +1,6 @@
+{"id": "ms9-normalize", "rule": "MS9", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "Shop.Example", "path": "Shop", "title": "Shop"},
+  {"op": "lookup", "host": "shop.example", "path": "/shop/x"},
+  {"op": "create_site", "domain": "M.Example", "path": "", "title": "M"},
+  {"op": "lookup", "host": "m.example", "path": "/"}
+]}

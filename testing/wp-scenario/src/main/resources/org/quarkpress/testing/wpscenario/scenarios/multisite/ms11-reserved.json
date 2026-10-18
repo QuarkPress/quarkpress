@@ -1,0 +1,10 @@
+{"id": "ms11-reserved", "rule": "MS11", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/blog/", "title": "Blog"},
+  {"op": "create_site", "domain": "localhost", "path": "/wp-json/", "title": "API"},
+  {"op": "create_site", "domain": "localhost", "path": "/Feed/", "title": "Feed"},
+  {"op": "create_site", "domain": "localhost", "path": "/blogs/", "title": "Blogs"},
+  {"op": "create_site", "domain": "m.example", "path": "/blog/", "title": "Elsewhere"},
+  {"op": "lookup", "host": "localhost", "path": "/blog/x"},
+  {"op": "lookup", "host": "localhost", "path": "/blogs/x"},
+  {"op": "lookup", "host": "m.example", "path": "/blog/"}
+]}
