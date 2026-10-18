@@ -368,6 +368,15 @@ class SiteDomainsDbTest {
     }
 
     @Test
+    void removingTextThatIsNotADomainRemovesNothing() {
+        // as find answers: no alias can have such a domain
+        for (String bad : List.of("", "!!", "example.org:8080", "x".repeat(201))) {
+            assertThat(domains.remove(bad)).as(bad).isFalse();
+            assertThat(Requests.call(() -> domains.find(bad))).as(bad).isEmpty();
+        }
+    }
+
+    @Test
     void removeNeedsManageSites() {
         SiteInfo site = site("remove-denied");
         String alias = domain("remove-denied-alias");

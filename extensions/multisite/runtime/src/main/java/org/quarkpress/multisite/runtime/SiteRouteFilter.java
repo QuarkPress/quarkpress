@@ -9,6 +9,8 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quarkpress.core.SiteRequest;
 
 /**
@@ -36,6 +38,10 @@ public class SiteRouteFilter {
     @Inject
     HttpResolution resolution;
 
+    /** Read when the bean is created at run time, never at build time (the native image keeps no build-time value). */
+    @ConfigProperty(name = "quarkus.http.proxy.proxy-address-forwarding", defaultValue = "false")
+    boolean proxyForwarding;
+
     void register(@Observes Filters filters) {
         filters.register(this::route, PRIORITY);
     }
@@ -55,11 +61,12 @@ public class SiteRouteFilter {
             context.fail(400);
             return;
         }
-        if (!SiteRequests.hostsAgree(http)) {
+        Optional<SiteRequest> agreed = SiteRequests.of(http, proxyForwarding);
+        if (agreed.isEmpty()) {
             context.fail(400);
             return;
         }
-        SiteRequest request = SiteRequests.of(http);
+        SiteRequest request = agreed.get();
         context.vertx()
                 .<RoutedSite>executeBlocking(() -> resolution.route(request), false)
                 .onComplete(result -> {

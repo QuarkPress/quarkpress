@@ -108,17 +108,26 @@ class MultisiteDbTest {
     void dataCallsUnderAnUnknownHostSeeNoSiteData() {
         String host = unique("nobody") + ".example";
         // Notes of the main site exist, so a fallback to it would show.
-        given().header("Host", "localhost")
+        long note = given().header("Host", "localhost")
                 .post("/it/data/notes/" + unique("main-note"))
                 .then()
-                .statusCode(200);
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+        given().header("Host", "localhost").get("/it/data/notes/" + note).then().statusCode(200);
         given().header("Host", host)
                 .get("/it/data/notes")
                 .then()
                 .statusCode(200)
                 .body("$", empty());
-        given().header("Host", host).get("/it/data/notes/1").then().statusCode(404);
-        given().header("Host", host).get("/it/data/options/blogname").then().statusCode(404);
+        given().header("Host", host).get("/it/data/notes/" + note).then().statusCode(404);
+        // the library itself refuses the read: the resource does not check for a site first
+        given().header("Host", host)
+                .get("/it/data/options/blogname")
+                .then()
+                .statusCode(404)
+                .body(is("no site"));
     }
 
     @Test
@@ -228,6 +237,17 @@ class MultisiteDbTest {
         }
         assertThat(all).contains(on, off);
         assertThat(created("/it/network/created")).contains(on).doesNotContain(off);
+        // the sites were created from a request on the main site; their asynchronous observers see no site
+        Map<String, String> contexts = given().header("Host", "localhost")
+                .get("/it/network/created/contexts")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getMap("$", String.class, String.class);
+        assertThat(contexts)
+                .containsEntry(String.valueOf(on), "unresolved")
+                .containsEntry(String.valueOf(off), "unresolved");
     }
 
     @Test

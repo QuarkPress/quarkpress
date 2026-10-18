@@ -48,6 +48,9 @@ public record SiteInfo(
     /**
      * The URL of a site address: {@code scheme://domain/path/}, for a stored (normalized) domain and path. The scheme
      * is {@code http} or {@code https}.
+     *
+     * @throws IllegalArgumentException when the scheme is neither, or the domain and path do not form a valid URI
+     *     (stored, normalized addresses always do)
      */
     public static URI url(String scheme, String domain, String path) {
         if (!"http".equals(scheme) && !"https".equals(scheme)) {

@@ -16,6 +16,7 @@ import jakarta.enterprise.event.ObservesAsync;
 import jakarta.inject.Inject;
 import jakarta.transaction.Synchronization;
 import jakarta.transaction.TransactionSynchronizationRegistry;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +58,7 @@ import org.quarkpress.multisite.NewSite;
 import org.quarkpress.multisite.SiteChanges;
 import org.quarkpress.multisite.SiteFlag;
 import org.quarkpress.multisite.Sites;
+import org.quarkpress.multisite.runtime.NetworkCalls;
 import org.quarkpress.multisite.runtime.SiteAddresses;
 import org.quarkpress.multisite.runtime.ThreadPresetSite;
 import org.quarkpress.persistence.FeatureToggles;
@@ -73,6 +75,7 @@ class SitesDbTest {
                     Network.class,
                     Log.class,
                     ThreadPresetSite.class,
+                    NetworkCalls.class,
                     SwitchableCheck.class,
                     TestFeatures.class,
                     Races.class)
@@ -184,6 +187,9 @@ class SitesDbTest {
 
     @Inject
     Network network;
+
+    @Inject
+    NetworkCalls networkCalls;
 
     @Inject
     @DataSource("quarkpress")
@@ -552,6 +558,15 @@ class SitesDbTest {
                 .hasMessage("offset must be at least 0 and limit between 1 and 1000");
     }
 
+    @Test
+    void anOffsetWhoseLastIndexWouldOverflowIsRefused() {
+        assertThatThrownBy(() -> Requests.call(() -> sites.list(Integer.MAX_VALUE, 10)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("offset must be at most 2147483638 for limit 10");
+        // the largest offset whose last index is still an int lists nothing, as there are not that many sites
+        assertThat(Requests.call(() -> sites.list(Integer.MAX_VALUE - 9, 10))).isEmpty();
+    }
+
     private static final String UNREACHABLE = "the site path %s cannot be reached by requests";
     private static final String NON_APPLICATION =
             "the site path %s lies under the non-application root, where requests" + " are not resolved to sites";
@@ -592,6 +607,8 @@ class SitesDbTest {
     void aNetworkWriteTwoScopesDeepFromALockHolderIsRefusedQuickly() {
         SiteInfo a = sites.create(NewSite.of(domain("deep-a"), "/", "A"));
         SiteInfo b = sites.create(NewSite.of(domain("deep-b"), "/", "B"));
+        // a site outside the spawn chain: a change of a or b from there is refused for that reason first
+        SiteInfo c = sites.create(NewSite.of(domain("deep-c"), "/", "C"));
         assertTimeoutPreemptively(
                 Duration.ofSeconds(20),
                 () -> Requests.run(() -> {
@@ -603,7 +620,7 @@ class SitesDbTest {
                                             () -> scope.call(
                                                     b.id(),
                                                     () -> sites.update(
-                                                            a.id(),
+                                                            c.id(),
                                                             SiteChanges.none().withName("deep"))));
                                 } catch (RuntimeException e) {
                                     throw e;
@@ -616,7 +633,148 @@ class SitesDbTest {
                                     "a network write cannot start inside a transaction that already holds the network lock;"
                                             + " call it outside that transaction");
                 }));
+        assertThat(Requests.call(() -> sites.find(c.id()))).contains(c);
+    }
+
+    private static String boundChange(SiteInfo site) {
+        return "change site " + site.id().value()
+                + " outside a transaction bound to it: the caller's rows of that site lock its record";
+    }
+
+    @Test
+    void aScopeOpenedFromATransactionBoundToASiteCannotChangeThatSite() {
+        SiteInfo a = sites.create(NewSite.of(domain("spawner-a"), "/", "A"));
+        SiteInfo b = sites.create(NewSite.of(domain("spawner-b"), "/", "B"));
+        SiteInfo c = sites.create(NewSite.of(domain("spawner-c"), "/", "C"));
+        SiteInfo other = sites.create(NewSite.of(domain("spawner-other"), "/", "Other"));
+        List<Runnable> changes = List.of(
+                () -> sites.delete(a.id()),
+                () -> sites.update(a.id(), SiteChanges.none().withDomain(domain("spawner-moved"))),
+                () -> sites.setFlag(a.id(), SiteFlag.SPAM, true),
+                () -> sites.setPublic(a.id(), 0));
+        // without the refusal the first change waits for the spawner's locks (on PostgreSQL until the lock timeout)
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(8),
+                () -> scope.run(a.id(), () -> {
+                    // the insert's foreign key check locks a's record until this transaction ends
+                    options.add("held-" + UUID.randomUUID(), TextNode.valueOf("x"), true);
+                    for (Runnable change : changes) {
+                        assertThatThrownBy(() -> scope.run(b.id(), change))
+                                .isInstanceOf(IllegalStateException.class)
+                                .hasMessage(boundChange(a));
+                        assertThatThrownBy(() -> scope.run(b.id(), () -> scope.run(c.id(), change)))
+                                .isInstanceOf(IllegalStateException.class)
+                                .hasMessage(boundChange(a));
+                        assertThatThrownBy(() -> networkCalls.call(() -> {
+                                    change.run();
+                                    return null;
+                                }))
+                                .isInstanceOf(IllegalStateException.class)
+                                .hasMessage(boundChange(a));
+                    }
+                    // the scope's own transaction binds b, too
+                    assertThatThrownBy(() -> scope.run(b.id(), () -> scope.run(c.id(), () -> sites.delete(b.id()))))
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasMessage(boundChange(b));
+                    // a site no thread of the chain is bound to can still change
+                    scope.run(
+                            b.id(),
+                            () -> sites.update(other.id(), SiteChanges.none().withName("Changed")));
+                }));
         assertThat(Requests.call(() -> sites.find(a.id()))).contains(a);
+        assertThat(Requests.call(() -> sites.find(b.id()))).contains(b);
+        assertThat(Requests.call(() -> sites.find(other.id())))
+                .map(SiteInfo::name)
+                .contains("Changed");
+    }
+
+    @Test
+    void aScopeOpenedOutsideATransactionMayChangeTheCallersSite() {
+        SiteInfo a = sites.create(NewSite.of(domain("no-tx-a"), "/", "A"));
+        SiteInfo b = sites.create(NewSite.of(domain("no-tx-b"), "/", "B"));
+        ThreadPresetSite.PRESET.set(Binding.site(a.id()));
+        try {
+            // the request is bound to a but has no transaction, so it holds no lock on a's record
+            Requests.run(() -> scope.run(
+                    b.id(), () -> sites.update(a.id(), SiteChanges.none().withName("Free"))));
+        } finally {
+            ThreadPresetSite.PRESET.remove();
+        }
+        assertThat(Requests.call(() -> sites.find(a.id()))).map(SiteInfo::name).contains("Free");
+    }
+
+    @Test
+    void aNetworkBoundCallerThatReadASiteBeforeAnotherWriteChangedItIsToldToRetry() throws Exception {
+        SiteInfo site = sites.create(NewSite.of(domain("stale"), "/", "Before"));
+        assertThatThrownBy(() -> networkCalls.call(() -> {
+                    // loads the record into the network transaction's persistence context
+                    sites.find(site.id());
+                    Requests.outside(
+                            () -> sites.update(site.id(), SiteChanges.none().withName("Elsewhere")));
+                    return sites.update(site.id(), SiteChanges.none().withName("Here"));
+                }))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("site " + site.id().value() + " changed concurrently; try again");
+        assertThat(Requests.call(() -> sites.find(site.id())))
+                .map(SiteInfo::name)
+                .contains("Elsewhere");
+    }
+
+    /** Whether the failure is a database lock timeout: PostgreSQL's SQLSTATE 55P03 or MySQL's error 1205. */
+    static boolean lockTimeout(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && ("55P03".equals(sql.getSQLState()) || sql.getErrorCode() == 1205)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void aNetworkWriteWaitsForAnotherTransactionsLockAtMostTenSeconds() throws Exception {
+        SiteInfo site = sites.create(NewSite.of(domain("lock-timeout"), "/", "Before"));
+        CountDownLatch inserted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicLong failedAfter = new AtomicLong();
+        List<Callable<Object>> tasks = List.of(
+                () -> {
+                    scope.run(site.id(), () -> {
+                        options.add("held-" + UUID.randomUUID(), TextNode.valueOf("x"), true);
+                        inserted.countDown();
+                        try {
+                            // longer than the lock timeout; released early once the write has failed
+                            release.await(20, TimeUnit.SECONDS);
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+                    return "committed";
+                },
+                () -> {
+                    assertThat(inserted.await(30, TimeUnit.SECONDS)).isTrue();
+                    long start = System.nanoTime();
+                    try {
+                        // a change of the domain waits for the open insert on both databases
+                        return sites.update(site.id(), SiteChanges.none().withDomain(domain("lock-timeout-moved")));
+                    } finally {
+                        failedAfter.set(System.nanoTime() - start);
+                        release.countDown();
+                    }
+                });
+        List<Object> results = Races.run(tasks);
+        assertThat(results.get(0)).isEqualTo("committed");
+        assertThat(results.get(1))
+                .isInstanceOfSatisfying(
+                        RuntimeException.class,
+                        failure -> assertThat(lockTimeout(failure))
+                                .as("a lock timeout: %s", failure)
+                                .isTrue());
+        assertThat(Duration.ofNanos(failedAfter.get())).isBetween(Duration.ofSeconds(9), Duration.ofSeconds(19));
+        assertThat(Requests.call(() -> sites.find(site.id()))).contains(site);
+        // the network lock was released with the failed write
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(20),
+                () -> sites.update(site.id(), SiteChanges.none().withName("After")));
     }
 
     @Test

@@ -10,6 +10,7 @@ import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.NetworkOptionChanged;
@@ -229,6 +231,60 @@ class NetworkOptionsDbTest {
             assertThat(options.delete(name)).isTrue();
         }));
         assertThat(Requests.call(() -> options.find(name))).isEmpty();
+    }
+
+    /** Whether the failure is a database lock timeout: PostgreSQL's SQLSTATE 55P03 or MySQL's error 1205. */
+    private static boolean lockTimeout(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && ("55P03".equals(sql.getSQLState()) || sql.getErrorCode() == 1205)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void aNetworkWriteWaitsForTheNetworkLockAtMostTenSeconds() throws Exception {
+        String held = "held-" + UUID.randomUUID();
+        String waiting = "waiting-" + UUID.randomUUID();
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicLong failedAfter = new AtomicLong();
+        List<Callable<Object>> tasks = List.of(
+                () -> {
+                    Requests.run(() -> QuarkusTransaction.requiringNew().run(() -> {
+                        options.set(held, IntNode.valueOf(1));
+                        locked.countDown();
+                        try {
+                            // longer than the lock timeout; released early once the other write has failed
+                            release.await(20, TimeUnit.SECONDS);
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }));
+                    return "committed";
+                },
+                () -> {
+                    await(locked);
+                    long start = System.nanoTime();
+                    try {
+                        return Requests.call(() -> options.set(waiting, IntNode.valueOf(2)));
+                    } finally {
+                        failedAfter.set(System.nanoTime() - start);
+                        release.countDown();
+                    }
+                });
+        List<Object> results = Races.run(tasks);
+        assertThat(results.get(0)).isEqualTo("committed");
+        assertThat(results.get(1))
+                .isInstanceOfSatisfying(
+                        RuntimeException.class,
+                        failure -> assertThat(lockTimeout(failure))
+                                .as("a lock timeout: %s", failure)
+                                .isTrue());
+        assertThat(Duration.ofNanos(failedAfter.get())).isBetween(Duration.ofSeconds(9), Duration.ofSeconds(19));
+        assertThat(Requests.call(() -> options.find(held))).contains(IntNode.valueOf(1));
+        assertThat(Requests.call(() -> options.find(waiting))).isEmpty();
     }
 
     private static void await(CountDownLatch latch) {

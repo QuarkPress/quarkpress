@@ -160,6 +160,11 @@ Both follow the same rules:
   `IllegalStateException`.
 - Nested scopes for different sites each hold their own transaction and database connection until they finish; deep
   nesting can exhaust the connection pool.
+- **The spawn chain is remembered.** A scope's thread knows whether a thread up its spawn chain holds the network lock
+  in its transaction, and which sites the threads up the chain were bound to inside an active transaction. Writes that
+  would wait for those threads, which wait for the scope, are refused with `IllegalStateException` instead: taking the
+  network lock (network option and feature default writes here, every write of the multisite services) and, in the
+  multisite module, changing such a site's record.
 - The work must finish before it returns: a returned `CompletionStage` or `Uni` is not awaited.
 - What the work throws, exception or error, is rethrown unchanged; a failed rollback is added to it as suppressed.
 
@@ -199,9 +204,11 @@ defaults. Site options and network options live in separate tables (`qp_option`,
   context can still see a value that is one commit stale; no other request and no other site is exposed to it.
 - **Concurrent writes.** Concurrent writes of one option never fail on its unique key: of several concurrent `add`
   calls exactly one returns true, and concurrent `set` calls apply one after the other. Writes lock the option's row,
-  never the site's row; network option writes serialize on the `qp_network_lock` row (migration `V1_004`). An option
-  write for a site other than the one the request is bound to is refused, as for any site-scoped row (the network
-  scope may write any site's options); the internal `OptionWrites` bean that services use applies the same rule.
+  never the site's row; network option writes serialize on the `qp_network_lock` row (migration `V1_004`). A
+  transaction that takes that lock waits at most 10 seconds for any lock from then on (PostgreSQL `lock_timeout`,
+  MySQL `innodb_lock_wait_timeout`), then fails with a lock timeout and rolls back. An option write for a site other
+  than the one the request is bound to is refused, as for any site-scoped row (the network scope may write any site's
+  options); the internal `OptionWrites` bean that services use applies the same rule.
 - **Default options.** Every site gets WordPress's default options when it is created (and the sites that exist when
   the `V1_005` migration runs get them then).
 - **Reads** of the store join the caller's transaction or run in a short one of their own. Reading another site's

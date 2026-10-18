@@ -20,7 +20,10 @@ final class RedirectNote {
         NOTE.set(new Note(site, uri));
     }
 
-    /** The noted redirect, when the resolution's answer is the site it was noted for. */
+    /**
+     * The noted redirect, when the resolution's answer is the site it was noted for. Only the site is compared, not the
+     * resolver that gave the answer: another resolver answering the same site keeps the redirect.
+     */
     static Optional<URI> take(Optional<SiteId> answer) {
         Note note = NOTE.get();
         NOTE.remove();

@@ -78,6 +78,12 @@ public class NetworkResource {
     }
 
     @GET
+    @Path("/created/contexts")
+    public Map<String, String> createdContexts() {
+        return created.contexts();
+    }
+
+    @GET
     @Path("/created")
     public List<Long> created() {
         return created.ids();

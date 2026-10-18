@@ -46,7 +46,7 @@ public class JpaSiteDomains implements SiteDomains {
         Objects.requireNonNull(domain, "domain");
         capabilities.requireNetwork(NetworkCapabilities.MANAGE_SITES);
         String normalized = SiteAddresses.normalizeDomain(domain);
-        if (normalized.isEmpty() || normalized.equals("0")) {
+        if (normalized.equals("0")) {
             throw new IllegalArgumentException("a site domain must not be empty");
         }
         return NetworkWork.call(network, () -> {
@@ -73,7 +73,13 @@ public class JpaSiteDomains implements SiteDomains {
     public boolean remove(String domain) {
         Objects.requireNonNull(domain, "domain");
         capabilities.requireNetwork(NetworkCapabilities.MANAGE_SITES);
-        String normalized = SiteAddresses.normalizeDomain(domain);
+        String normalized;
+        try {
+            normalized = SiteAddresses.normalizeDomain(domain);
+        } catch (IllegalArgumentException notADomain) {
+            // no alias can have it, as find answers
+            return false;
+        }
         return NetworkWork.call(network, () -> {
             locks.network();
             Optional<SiteDomainEntity> existing = domains.findByDomain(normalized);

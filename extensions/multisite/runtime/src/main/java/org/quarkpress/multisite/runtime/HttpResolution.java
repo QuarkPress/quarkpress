@@ -15,6 +15,10 @@ import org.quarkpress.core.runtime.SiteResolution;
  * the redirect of a redirecting alias when the domain resolver's answer won. A resolver that throws fails the
  * resolution. A raw path with {@code .} or {@code ..} segments is served without a site and no resolver is asked:
  * the router serves the path without those segments, which is not the path a site would be looked up for.
+ *
+ * <p>The alias redirect is matched to the answer by site only: when an application resolver that runs before the
+ * domain resolver (priority above 300) answers the very site the alias belongs to, the request still carries the
+ * alias's redirect, although the domain resolver's answer did not win.
  */
 @ApplicationScoped
 public class HttpResolution {

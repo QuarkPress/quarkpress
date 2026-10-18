@@ -62,4 +62,22 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Random ports for every test application: with the default 8081, test JVMs of other modules running at
+               the same time (-am, -T4) fail to bind. A system property of the test JVM reaches every test
+               application, whatever it adds to its own archive. -->
+          <systemPropertyVariables>
+            <quarkus.http.test-port>0</quarkus.http.test-port>
+            <quarkus.http.test-ssl-port>0</quarkus.http.test-ssl-port>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

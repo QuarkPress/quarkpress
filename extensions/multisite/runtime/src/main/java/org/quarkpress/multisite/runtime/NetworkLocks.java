@@ -26,7 +26,10 @@ public class NetworkLocks {
     @Inject
     QuarkPressRuntimeConfig config;
 
-    /** Locks the network lock row until the transaction ends; call it as the network write's first statement. */
+    /**
+     * Locks the network lock row until the transaction ends; call it as the network write's first statement. From then
+     * on the transaction waits for each lock at most {@value NetworkLockRepository#LOCK_TIMEOUT_SECONDS} seconds.
+     */
     public void network() {
         lock.lock();
     }

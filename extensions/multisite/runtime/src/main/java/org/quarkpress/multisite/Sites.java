@@ -12,9 +12,15 @@ import org.quarkpress.core.SiteInfo;
  * {@code create_sites}, {@code manage_sites} or {@code delete_sites} (else {@link CapabilityDeniedException}) and run
  * in a network transaction of their own, one after the other: called from a request bound to a site, they commit
  * independently of the caller. A change to the site the calling request is bound to, made inside that request's
- * transaction, is refused with {@link IllegalStateException}; make it outside the transaction. Events are fired inside
- * the network transaction (an observer that throws rolls the change back) and again to asynchronous observers after it
- * commits.
+ * transaction, is refused with {@link IllegalStateException}; make it outside the transaction. The same holds inside a
+ * {@code SiteScope} or {@code NetworkScope} opened (directly or through other scopes) from such a transaction. Events
+ * are fired inside the network transaction (an observer that throws rolls the change back) and again to asynchronous
+ * observers after it commits.
+ *
+ * <p>A caller bound to the network joins its own transaction. If it read a site before another write changed it, a
+ * change of that site fails with {@link IllegalStateException} ("site n changed concurrently; try again"); retry in a
+ * new transaction. A network write waits at most 10 seconds for a lock held by another transaction; then it fails
+ * with the persistence layer's lock-timeout exception and its transaction rolls back.
  *
  * <p>The main site ({@code quarkpress.main-site-id}) is the network's address. Its flags cannot change and it cannot
  * be deleted; its domain and path can change, which moves the network. Reads need no request context.
@@ -37,7 +43,10 @@ public interface Sites {
     /** The site at a domain and path, both normalized first; no prefix matching. */
     Optional<SiteInfo> findByAddress(String domain, String path);
 
-    /** Sites in id order; {@code offset} from 0, {@code limit} 1 to 1000. */
+    /**
+     * Sites in id order; {@code offset} from 0, {@code limit} 1 to 1000, and {@code offset + limit - 1} at most
+     * {@link Integer#MAX_VALUE} (else {@link IllegalArgumentException}).
+     */
     List<SiteInfo> list(int offset, int limit);
 
     /**

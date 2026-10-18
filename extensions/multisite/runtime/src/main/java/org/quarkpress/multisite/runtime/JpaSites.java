@@ -11,6 +11,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import org.hibernate.StaleStateException;
 import org.quarkpress.core.CapabilityCheck;
 import org.quarkpress.core.FeatureRegistry;
 import org.quarkpress.core.NetworkCapabilities;
@@ -46,6 +48,7 @@ import org.quarkpress.persistence.runtime.OptionEntity;
 import org.quarkpress.persistence.runtime.OptionRepository;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.persistence.runtime.OptionWrites;
+import org.quarkpress.persistence.runtime.Scopes;
 import org.quarkpress.persistence.runtime.SiteDefaults;
 import org.quarkpress.persistence.runtime.SiteEntity;
 import org.quarkpress.persistence.runtime.SiteRepository;
@@ -67,7 +70,12 @@ import org.quarkpress.persistence.runtime.SiteRepository;
  * <p>Network writes of this class run in a transaction of their own, on their own thread, unless the caller is bound
  * to the network (then they join the caller's). A caller's transaction that already holds the network lock (it wrote a
  * network option or feature default) is refused with {@link IllegalStateException} before the write starts, since the
- * write would wait for the lock the caller holds.
+ * write would wait for the lock the caller holds. So is a change of a site that the caller, or a thread up the spawn
+ * chain of the caller's scope, is bound to inside an active transaction: that transaction's rows of the site lock
+ * its record, and it waits for the caller.
+ *
+ * <p>Every network transaction waits for a lock for a bounded time ({@link NetworkLocks#network()}), so a wait that no
+ * database sees as a deadlock ends with a lock-timeout failure instead of holding the network lock indefinitely.
  */
 @ApplicationScoped
 public class JpaSites implements Sites {
@@ -196,6 +204,11 @@ public class JpaSites implements Sites {
     public List<SiteInfo> list(int offset, int limit) {
         if (offset < 0 || limit < 1 || limit > MAX_LIMIT) {
             throw new IllegalArgumentException("offset must be at least 0 and limit between 1 and " + MAX_LIMIT);
+        }
+        // the last index, offset + limit - 1, must be an int
+        if (offset > Integer.MAX_VALUE - limit + 1) {
+            throw new IllegalArgumentException(
+                    "offset must be at most " + (Integer.MAX_VALUE - limit + 1) + " for limit " + limit);
         }
         return sites.find("order by id").range(offset, offset + limit - 1).list().stream()
                 .map(SiteEntity::toInfo)
@@ -328,11 +341,16 @@ public class JpaSites implements Sites {
     }
 
     /**
-     * Refuses to change {@code site} from a transaction of a request bound to it: rows of the site written by that
-     * transaction hold locks on the site's record, and the network transaction, which runs separately while the
-     * caller waits, would wait for them without the database seeing a deadlock.
+     * Refuses to change {@code site} from a transaction of a request bound to it, or from a scope thread spawned
+     * (directly or through other scopes) by a thread that was bound to it inside an active transaction: rows of the
+     * site written by such a transaction hold locks on the site's record, and the network transaction, which runs
+     * separately while the caller (and so the spawner) waits, would wait for them without the database seeing a
+     * deadlock.
      */
     private void requireNotFromItsOwnTransaction(SiteId site) {
+        if (Scopes.spawnerBoundTo(site)) {
+            throw boundTransaction(site);
+        }
         if (!Arc.container().requestContext().isActive() || !QuarkusTransaction.isActive()) {
             return;
         }
@@ -340,18 +358,27 @@ public class JpaSites implements Sites {
         if (bound.isPresent()
                 && bound.get().kind() == Binding.Kind.SITE
                 && bound.get().site().equals(site)) {
-            throw new IllegalStateException("change site " + site.value() + " outside a transaction bound to it: the"
-                    + " caller's rows of that site lock its record");
+            throw boundTransaction(site);
         }
+    }
+
+    private static IllegalStateException boundTransaction(SiteId site) {
+        return new IllegalStateException("change site " + site.value() + " outside a transaction bound to it: the"
+                + " caller's rows of that site lock its record");
     }
 
     /**
      * Writes the site's changes now. Every writer of {@code qp_site} holds the network lock and reads the row after
-     * taking it, so a version conflict cannot occur: the only caller that could hold a stale row is one bound to the
-     * network, whose writes join its own transaction rather than run in one of their own.
+     * taking it, so a version conflict cannot occur for a write in a transaction of its own. A caller bound to the
+     * network joins its own transaction: if it read the site before another write changed it, the write works on that
+     * stale row and its version no longer matches, which is reported as a concurrent change.
      */
     private void flush(SiteId site) {
-        sites.flush();
+        try {
+            sites.flush();
+        } catch (OptimisticLockException | StaleStateException concurrent) {
+            throw new IllegalStateException("site " + site.value() + " changed concurrently; try again", concurrent);
+        }
     }
 
     /**

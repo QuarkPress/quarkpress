@@ -84,12 +84,13 @@ Site resolution reads the database on every request; there is no cache yet.
 
 `SiteDomains.add(site, domain, redirectToPrimary)` gives a site a further domain. A request on an alias resolves to
 the site; with `redirectToPrimary`, `SiteContext.redirect()` returns the site's own address
-(`<request scheme>://<site domain><site path>`), which HTTP layers can redirect to. The address carries no port, since
-request ports are ignored: a request on a non-default port is redirected to port 80 or 443. A domain can be the alias of
-one site only. Since every lookup also tries a `www.` host without its prefix, an alias may not be a site's domain with
-or without `www.` (so `www.localhost` cannot become an alias while a site lives at `localhost`), and a site may not
-take a domain whose `www.` form, or bare form, is an alias. A domain that is empty after normalization, or `0`, is
-refused ("a site domain must not be empty").
+(`<request scheme>://<site domain><site path>`), which HTTP layers can redirect to. The redirect is kept whenever the
+resolution's answer is the alias's site, even when an application resolver that runs before the domain resolver
+(priority above 300) gave that answer. The address carries no port, since request ports are ignored: a request on a
+non-default port is redirected to port 80 or 443. A domain can be the alias of one site only. Since every lookup also
+tries a `www.` host without its prefix, an alias may not be a site's domain with or without `www.` (so `www.localhost`
+cannot become an alias while a site lives at `localhost`), and a site may not take a domain whose `www.` form, or bare
+form, is an alias. A domain that is empty after normalization, or `0`, is refused ("a site domain must not be empty").
 
 ## Network administration
 
@@ -105,11 +106,22 @@ refused ("a site domain must not be empty").
   network option or feature default was written in it, is refused with `IllegalStateException` instead of deadlocking:
   call it outside that transaction.
 - Changing, flagging or deleting the site the calling request is bound to from inside that request's transaction is
-  refused (`IllegalStateException`): the caller's rows of that site lock its record.
+  refused (`IllegalStateException`): the caller's rows of that site lock its record. The same holds inside a
+  `SiteScope` or `NetworkScope` opened, directly or through further scopes, from a transaction bound to that site: the
+  spawning transaction keeps its locks while it waits for the scope, so the change could only fail with a lock timeout.
 - A site update, flag change or deletion can wait for a transaction that is inserting rows of that site (the
   foreign-key check holds a shared lock on the site's record), on both databases. On PostgreSQL only a delete or a
   change of the domain or path waits; on MySQL every change does. If that transaction itself needs the network lock, the
   database detects the deadlock and rolls one of them back.
+- Every network write (also network options, feature defaults and the `blogname` renames) waits at most 10 seconds for
+  a lock, from the moment it takes the network lock: PostgreSQL's `lock_timeout` for the transaction, MySQL's
+  `innodb_lock_wait_timeout` for the session, restored to the server default before the transaction commits (after a
+  rollback the pooled connection keeps 10 seconds until its next network write commits). A write that waits longer,
+  for instance for a transaction that keeps rows of the site open, fails with the persistence layer's lock-timeout
+  exception and rolls back, and the network lock is free again.
+- A caller bound to the network joins its own transaction. If it read a site before another write changed it, a
+  change of that site fails with `IllegalStateException` ("site n changed concurrently; try again"); retry it in a new
+  transaction.
 - Domains and paths are normalized as WordPress normalizes them, then lower-cased. A path may hold only URL path
   characters (a `%` only as `%XX`), at most 100; a domain at most 200 characters, no port, not empty and not `0`.
   `(domain, path)` is unique.
@@ -139,7 +151,9 @@ refused ("a site domain must not be empty").
   Renames of one site converge on the last committed `blogname`. A rename that fails is logged and the option stays
   written; the name stays stale until the next write of `blogname`. Renames still pending when the application stops
   are lost. A `blogname` that is deleted or not text leaves the name unchanged.
-- Reads (`find`, `findByAddress`, `list`, `SiteDomains.find`, `forSite`) need no request context.
+- Reads (`find`, `findByAddress`, `list`, `SiteDomains.find`, `forSite`) need no request context. `list` refuses an
+  offset whose last index (`offset + limit - 1`) would exceed `Integer.MAX_VALUE`.
+- `SiteDomains.remove` returns false for text that does not normalize to a domain, as `find` returns empty.
 - The main site's flags cannot change and it cannot be deleted. Its domain and path can change, which moves the
   network.
 
@@ -152,8 +166,9 @@ refused ("a site domain must not be empty").
 - Network writes serialize on the `qp_network_lock` row and change `qp_site` rows under their version, never with a
   row lock. Do not lock `qp_site` rows yourself: a transaction that inserted rows of a site holds a shared lock on
   that site's row, and a lock on it would wait for, or deadlock with, such transactions.
-- Do not change, flag or delete the site a request is bound to from inside that request's transaction; do it outside
-  the transaction (`Sites` refuses it).
+- Do not change, flag or delete the site a request is bound to from inside that request's transaction, nor from a
+  scope opened inside it; do it outside the transaction (`Sites` refuses it).
+- Keep network transactions short: one that waits more than 10 seconds for a lock fails.
 - Do not call `Sites` or `SiteDomains` writes from a transaction that already wrote a network option or feature
   default (`Sites` refuses it).
 
@@ -177,6 +192,7 @@ refused ("a site domain must not be empty").
 | D14 | WordPress's `/wp-admin/` cut can fail on a very long line (PCRE backtrack limit) and then yields an empty path; QuarkPress always cuts, in linear time. |
 | D15 | Every backslash is removed from the request host; WordPress applies `stripslashes`, which keeps one of a doubled backslash. Hosts containing backslashes are invalid either way. |
 | D16 | A site path no request can reach (a `0` segment, dot segments, an interior `//`) is refused at creation, and so is a path under the non-application root (`/q/` by default); WordPress creates such a site, which no request then reaches. |
+| D17 | Archived, spammed and deleted sites resolve like any other. WordPress's `ms_site_check` (skipped for super admins) answers a deleted site with `blog-deleted.php` or a 410 page, and an archived or spammed one with `blog-suspended.php` or a 410 page. QuarkPress leaves that to HTTP layers, which read `SiteContext.site().status()`. |
 
 The parity tests (`-Pwp-parity`) compare the path candidates, the domain and path normalization and the reserved names
 with WordPress 7.1.3's functions (Tier A), and run site creation, lookup, flag and default-option scenarios against a
@@ -190,6 +206,8 @@ full WordPress 7.1.3 multisite installed in a MySQL container (Tier B, `testing/
   session, and the event loop never waits for the database.
 - Unresolved requests are served, not rejected; HTTP layers decide what to do with them and with redirects.
 - Network writes run in the network scope, in their own transaction, after a lock on a row no foreign key refers to;
-  site records change under their version. A write refuses to start while the caller's transaction holds that lock.
+  site records change under their version. A write refuses to start while the caller's transaction holds that lock,
+  and a change of a site refuses while a transaction up the caller's scope chain is bound to that site. Every lock
+  wait of a network transaction is bounded (10 seconds), so a wait no database sees as a deadlock still ends.
 - The site's name follows `blogname` asynchronously, so a write of the option never waits for the network lock.
 - Network capabilities are checked through a replaceable bean that the security module provides.

@@ -14,6 +14,8 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Map;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.SiteNotResolvedException;
+import org.quarkpress.core.SiteOptions;
 import org.quarkpress.persistence.Options;
 
 @Path("/it/data")
@@ -36,14 +38,23 @@ public class SiteDataResource {
         return Map.of("changed", options.set(name, value));
     }
 
+    /**
+     * The option of the request's site; 404 with the text {@code no site} when the library refuses the read for want
+     * of a site (the resource asks the library without checking first, so the library's own refusal is what is tested).
+     */
     @GET
     @Path("/options/{name}")
     public Response option(@PathParam("name") String name) {
-        if (!context.isResolved()) {
-            // No site, no options: the options of a site are not readable without one.
-            return Response.status(Response.Status.NOT_FOUND).build();
+        SiteOptions siteOptions;
+        try {
+            siteOptions = context.options();
+        } catch (SiteNotResolvedException noSite) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity("no site")
+                    .build();
         }
-        return context.options()
+        return siteOptions
                 .get(name)
                 .map(value -> Response.ok(value).build())
                 .orElseGet(() -> Response.status(Response.Status.NOT_FOUND).build());

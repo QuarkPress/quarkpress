@@ -5,8 +5,12 @@ import io.quarkus.arc.ManagedContext;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.narayana.jta.TransactionRunnerOptions;
 import jakarta.transaction.Status;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import org.quarkpress.core.SiteId;
 import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.core.runtime.SiteBinding;
 import org.quarkpress.persistence.NetworkScope;
@@ -33,6 +37,13 @@ public final class Scopes {
     /** Set on a scope's own thread when the transaction of the thread that spawned it holds the network lock. */
     private static final ThreadLocal<Boolean> SPAWNER_HOLDS_LOCK = new ThreadLocal<>();
 
+    /**
+     * Set on a scope's own thread: the sites that the spawning threads up the chain were bound to while a transaction
+     * of theirs was active. Rows such a transaction wrote lock the site's record until the spawner, which waits for
+     * this thread, finishes.
+     */
+    private static final ThreadLocal<Set<SiteId>> SPAWNER_SITES = new ThreadLocal<>();
+
     private Scopes() {}
 
     /**
@@ -41,6 +52,17 @@ public final class Scopes {
      */
     static boolean spawnerHoldsNetworkLock() {
         return SPAWNER_HOLDS_LOCK.get() != null;
+    }
+
+    /**
+     * Whether this thread is a scope thread and a thread up its spawn chain was bound to {@code site} while a
+     * transaction of its own was active. That transaction may hold locks on the site's record (the foreign key checks
+     * of rows it inserted), and it ends only after this thread's work: a change of the site's record from here would
+     * wait for it without any database seeing a deadlock.
+     */
+    public static boolean spawnerBoundTo(SiteId site) {
+        Set<SiteId> sites = SPAWNER_SITES.get();
+        return sites != null && sites.contains(site);
     }
 
     /** Runs the work for one site; {@code target} must be a site binding (the network opens through NetworkScope). */
@@ -83,11 +105,15 @@ public final class Scopes {
         Throwable[] failure = new Throwable[1];
         boolean spawnerHolds =
                 Arc.container().instance(NetworkLockRepository.class).get().heldByCurrentTransaction();
+        Set<SiteId> spawnerSites = spawnerSites();
         Thread worker = Thread.ofVirtual().name("quarkpress-scope").unstarted(() -> {
             ManagedContext requestContext = Arc.container().requestContext();
             requestContext.activate();
             if (spawnerHolds) {
                 SPAWNER_HOLDS_LOCK.set(Boolean.TRUE);
+            }
+            if (!spawnerSites.isEmpty()) {
+                SPAWNER_SITES.set(spawnerSites);
             }
             try {
                 Arc.container().instance(SiteBinding.class).get().bindScope(target);
@@ -96,6 +122,7 @@ public final class Scopes {
                 failure[0] = thrown;
             } finally {
                 SPAWNER_HOLDS_LOCK.remove();
+                SPAWNER_SITES.remove();
                 try {
                     requestContext.terminate();
                 } catch (Throwable thrown) {
@@ -122,6 +149,27 @@ public final class Scopes {
         @SuppressWarnings("unchecked")
         T value = (T) result[0];
         return value;
+    }
+
+    /**
+     * The sites a new scope thread must not change: those carried to this thread from up its spawn chain, and the site
+     * this thread is bound to when a transaction of its own is active (rolled back or not, it holds its locks until it
+     * ends). Read on the spawning thread, before the scope thread starts.
+     */
+    private static Set<SiteId> spawnerSites() {
+        Set<SiteId> sites = new HashSet<>();
+        Set<SiteId> carried = SPAWNER_SITES.get();
+        if (carried != null) {
+            sites.addAll(carried);
+        }
+        if (Arc.container().requestContext().isActive() && QuarkusTransaction.isActive()) {
+            Optional<Binding> bound =
+                    Arc.container().instance(SiteBinding.class).get().bound();
+            if (bound.isPresent() && bound.get().kind() == Binding.Kind.SITE) {
+                sites.add(bound.get().site());
+            }
+        }
+        return Set.copyOf(sites);
     }
 
     /**

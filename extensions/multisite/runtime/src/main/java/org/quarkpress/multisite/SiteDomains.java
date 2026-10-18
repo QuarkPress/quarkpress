@@ -14,7 +14,7 @@ public interface SiteDomains {
     /** Adds an alias; with {@code redirectToPrimary}, requests on it report the site's own address as a redirect. */
     SiteDomain add(SiteId site, String domain, boolean redirectToPrimary);
 
-    /** Removes an alias; returns whether it existed. */
+    /** Removes an alias; returns whether it existed (false for text that does not normalize to a domain). */
     boolean remove(String domain);
 
     /** The alias, or empty when none has this domain or the text does not normalize to a domain. */

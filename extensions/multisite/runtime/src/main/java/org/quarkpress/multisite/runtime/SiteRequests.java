@@ -2,7 +2,7 @@ package org.quarkpress.multisite.runtime;
 
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.net.HostAndPort;
-import org.eclipse.microprofile.config.ConfigProvider;
+import java.util.Optional;
 import org.quarkpress.core.SiteRequest;
 
 /**
@@ -12,18 +12,27 @@ import org.quarkpress.core.SiteRequest;
  * when Quarkus's proxy configuration ({@code quarkus.http.proxy.*}) honours it ({@code X-Forwarded-Host} with
  * {@code enable-forwarded-host}, a {@code Forwarded} header's {@code host=} with {@code allow-forwarded}); the HTTP
  * layer applies that before this runs. An absolute-form target ({@code GET http://host/path}) must name the {@code Host}
- * header's host ({@link #hostsAgree}); the target alone never chooses the site. A target that is neither origin-form nor
+ * header's host ({@code hostsAgree}); the target alone never chooses the site. A target that is neither origin-form nor
  * absolute-form (asterisk-form, authority-form, malformed) yields {@link SiteRequest#none()}: no site.
  */
 final class SiteRequests {
 
-    private static final boolean PROXY_FORWARDING = ConfigProvider.getConfig()
-            .getOptionalValue("quarkus.http.proxy.proxy-address-forwarding", Boolean.class)
-            .orElse(false);
-
     private SiteRequests() {}
 
-    static SiteRequest of(HttpServerRequest request) {
+    /**
+     * What resolvers see of the request, or empty when its target and {@code Host} header disagree
+     * ({@code hostsAgree}): such a request is refused, not resolved. {@code proxyForwarding} is the value of
+     * {@code quarkus.http.proxy.proxy-address-forwarding}.
+     */
+    static Optional<SiteRequest> of(HttpServerRequest request, boolean proxyForwarding) {
+        if (!hostsAgree(request, proxyForwarding)) {
+            return Optional.empty();
+        }
+        return Optional.of(agreed(request));
+    }
+
+    /** The request of a target that {@code hostsAgree} accepted. */
+    private static SiteRequest agreed(HttpServerRequest request) {
         String scheme = request.scheme() == null ? "" : request.scheme();
         String uri = request.uri();
         if (uri == null || uri.isEmpty()) {
@@ -37,7 +46,7 @@ final class SiteRequests {
                     authority == null ? -1 : authority.port(),
                     uri);
         }
-        if (uri.indexOf("://") <= 0 || !hostsAgree(request)) {
+        if (uri.indexOf("://") <= 0) {
             return SiteRequest.none();
         }
         HostAndPort authority = request.authority();
@@ -54,7 +63,7 @@ final class SiteRequests {
      * normalization (port ignored). With {@code quarkus.http.proxy.proxy-address-forwarding} on, an absolute-form target is
      * never accepted (the client's own Host is no longer visible). A request that fails this is refused, not resolved.
      */
-    static boolean hostsAgree(HttpServerRequest request) {
+    private static boolean hostsAgree(HttpServerRequest request, boolean proxyForwarding) {
         String uri = request.uri();
         if (uri == null || uri.isEmpty() || uri.charAt(0) == '/') {
             return true;
@@ -70,7 +79,7 @@ final class SiteRequests {
         if (at >= 0) {
             authority = authority.substring(at + 1);
         }
-        if (PROXY_FORWARDING) {
+        if (proxyForwarding) {
             // Quarkus's proxy handling replaces the Host the client sent with the forwarded one before any filter runs,
             // so the two cannot be compared; a proxy sends origin-form targets anyway
             return false;
