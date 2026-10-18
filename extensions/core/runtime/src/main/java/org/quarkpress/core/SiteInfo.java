@@ -1,5 +1,6 @@
 package org.quarkpress.core;
 
+import java.net.URI;
 import java.util.Objects;
 
 /**
@@ -34,5 +35,24 @@ public record SiteInfo(
             return SiteStatus.SPAM;
         }
         return archived ? SiteStatus.ARCHIVED : SiteStatus.ACTIVE;
+    }
+
+    /**
+     * The site's address as a URL: {@code scheme://domain/path/}. The scheme is {@code http} or {@code https}; the
+     * site record does not store one.
+     */
+    public URI url(String scheme) {
+        return url(scheme, domain, path);
+    }
+
+    /**
+     * The URL of a site address: {@code scheme://domain/path/}, for a stored (normalized) domain and path. The scheme
+     * is {@code http} or {@code https}.
+     */
+    public static URI url(String scheme, String domain, String path) {
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
+            throw new IllegalArgumentException("a site URL uses http or https, not " + scheme);
+        }
+        return URI.create(scheme + "://" + domain + path);
     }
 }

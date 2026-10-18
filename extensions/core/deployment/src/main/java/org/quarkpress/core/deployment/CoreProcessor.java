@@ -9,6 +9,7 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import jakarta.inject.Singleton;
 import java.util.ArrayList;
 import java.util.List;
+import org.quarkpress.core.CapabilityCheck;
 import org.quarkpress.core.FeatureDescriptor;
 import org.quarkpress.core.FeatureRegistry;
 import org.quarkpress.core.QuarkPressClock;
@@ -39,7 +40,8 @@ class CoreProcessor {
                 RequestOptionCache.class,
                 RequestFeatureCache.class,
                 FeatureResolver.class,
-                QuarkPressClock.class);
+                QuarkPressClock.class,
+                CapabilityCheck.class);
     }
 
     @BuildStep
