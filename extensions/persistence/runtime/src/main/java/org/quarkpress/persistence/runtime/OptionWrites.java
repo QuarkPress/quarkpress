@@ -129,7 +129,7 @@ public class OptionWrites {
 
     private void afterChange(SiteId site, String name, JsonNode before, JsonNode after, Instant at) {
         forgetCached(site, name);
-        transactions.fire(() -> changed.fire(new OptionChanged(site, at, name, before, after)));
+        transactions.publish(changed, new OptionChanged(site, at, name, before, after));
     }
 
     /** Drops the request's cached reads now, and again when the transaction completes. */

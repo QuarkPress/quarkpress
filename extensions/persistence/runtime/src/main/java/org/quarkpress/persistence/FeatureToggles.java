@@ -126,7 +126,7 @@ public class FeatureToggles {
         if (before != after) {
             SiteFeatureToggled event =
                     new SiteFeatureToggled(siteId, clock.now().truncatedTo(ChronoUnit.MICROS), key, after);
-            transactions.fire(() -> toggled.fire(event));
+            transactions.publish(toggled, event);
         }
     }
 

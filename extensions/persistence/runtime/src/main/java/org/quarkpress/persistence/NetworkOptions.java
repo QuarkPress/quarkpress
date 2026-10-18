@@ -107,7 +107,7 @@ public class NetworkOptions {
             transactions.afterCompletion(requestFeatures::invalidateAll);
             requestFeatures.invalidateAll();
         }
-        transactions.fire(() -> changed.fire(new NetworkOptionChanged(at, name, before, after)));
+        transactions.publish(changed, new NetworkOptionChanged(at, name, before, after));
     }
 
     private Instant now() {
