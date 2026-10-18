@@ -35,8 +35,9 @@ jobs:
           cache: maven
       - name: Install the modules the integration tests use
         run: mvn -B -ntp install -DskipTests -pl "$IT_MODULES" -am
+      # One native image at a time: .mvn/maven.config's -T4 would build all four at once, which exhausts the runner.
       - name: Build native executables and run the integration tests
         run: >-
-          mvn -B -ntp verify -fae -Dnative -Dquarkus.native.container-build=true
+          mvn -B -ntp -T1 verify -fae -Dnative -Dquarkus.native.container-build=true
           -Dquarkus.native.builder-image=mandrel -DskipUnitTests=true
           -DtestDb=${{ matrix.db }} -pl "$IT_MODULES"
