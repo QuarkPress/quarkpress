@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 /**
@@ -44,6 +45,10 @@ public final class WordPressSources {
 
     static final Duration PER_FILE_TIMEOUT = Duration.ofSeconds(30);
     static final Duration TOTAL_TIMEOUT = Duration.ofMinutes(10);
+
+    /** Per-file limit for a release archive, which is tens of megabytes. */
+    static final Duration ARCHIVE_TIMEOUT = Duration.ofMinutes(5);
+
     static final String MARKER = ".verified";
     static final String LOCK = ".lock";
 
@@ -77,7 +82,33 @@ public final class WordPressSources {
 
     static Path ensure(PinnedRepository repository, Path dir, List<String> files)
             throws IOException, InterruptedException {
-        return fetch(repository.sha256ByPath(), repository.name(), repository::uri, dir, new LinkedHashSet<>(files));
+        return fetch(
+                repository.sha256ByPath(),
+                repository.name(),
+                repository::uri,
+                dir,
+                new LinkedHashSet<>(files),
+                PER_FILE_TIMEOUT);
+    }
+
+    /**
+     * Makes sure the pinned file is present and verified in {@code target/wp-source/<name>/} of the project root, and
+     * returns it.
+     */
+    public static Path ensure(PinnedDownload download) throws IOException, InterruptedException {
+        Path dir = projectRoot().resolve("target").resolve("wp-source").resolve(download.name());
+        return ensure(download, dir);
+    }
+
+    static Path ensure(PinnedDownload download, Path dir) throws IOException, InterruptedException {
+        fetch(
+                Map.of(download.fileName(), download.sha256()),
+                download.name(),
+                path -> download.uri(),
+                dir,
+                new LinkedHashSet<>(List.of(download.fileName())),
+                ARCHIVE_TIMEOUT);
+        return dir.resolve(download.fileName());
     }
 
     static Path ensure(WordPressRelease release, Path dir, URI base, List<String> files)
@@ -89,12 +120,18 @@ public final class WordPressSources {
                 "WordPress " + release.version(),
                 path -> base.resolve(release.tag() + "/src/" + path),
                 dir,
-                wanted);
+                wanted,
+                PER_FILE_TIMEOUT);
     }
 
     @SuppressWarnings("try")
     private static Path fetch(
-            Map<String, String> pins, String what, Function<String, URI> uriOf, Path dir, Set<String> wanted)
+            Map<String, String> pins,
+            String what,
+            Function<String, URI> uriOf,
+            Path dir,
+            Set<String> wanted,
+            Duration perFile)
             throws IOException, InterruptedException {
         for (String path : wanted) {
             if (!pins.containsKey(path)) {
@@ -104,7 +141,9 @@ public final class WordPressSources {
         Files.createDirectories(dir);
         Instant deadline = Instant.now().plus(TOTAL_TIMEOUT);
         StringBuilder marker = new StringBuilder();
-        // modules build in parallel (-T4): one process at a time may download into the shared directory
+        // modules build in parallel: one thread and one process at a time may download into the shared directory
+        ReentrantLock threads = PathLock.of(dir.resolve(LOCK));
+        threads.lock();
         try (FileChannel lockChannel =
                         FileChannel.open(dir.resolve(LOCK), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                 FileLock lock = lockChannel.lock();
@@ -116,34 +155,36 @@ public final class WordPressSources {
                 String expected = pins.get(path);
                 Path target = dir.resolve(path);
                 if (!Files.isRegularFile(target) || !expected.equals(sha256(target))) {
-                    download(client, uriOf.apply(path), target, deadline);
-                    String actual = sha256(target);
-                    if (!expected.equals(actual)) {
-                        Files.delete(target);
-                        throw new IOException("SHA-256 mismatch for " + path + ": expected " + expected + ", got "
-                                + actual + "; the file was deleted");
-                    }
+                    download(client, uriOf.apply(path), target, deadline, perFile, path, expected);
                 }
                 marker.append(expected).append("  ").append(path).append('\n');
             }
+        } finally {
+            threads.unlock();
         }
         Files.writeString(dir.resolve(MARKER), marker);
         return dir;
     }
 
-    private static void download(HttpClient client, URI uri, Path target, Instant deadline)
+    private static void download(
+            HttpClient client, URI uri, Path target, Instant deadline, Duration perFile, String path, String expected)
             throws IOException, InterruptedException {
         Duration left = Duration.between(Instant.now(), deadline);
         if (left.isNegative() || left.isZero()) {
             throw new IOException("downloading WordPress files took longer than " + TOTAL_TIMEOUT.toMinutes()
                     + " minutes; stopped before " + uri);
         }
-        Duration timeout = left.compareTo(PER_FILE_TIMEOUT) < 0 ? left : PER_FILE_TIMEOUT;
+        Duration timeout = left.compareTo(perFile) < 0 ? left : perFile;
         Files.createDirectories(target.getParent());
         Path partial = target.resolveSibling(target.getFileName() + ".part");
         HttpRequest request = HttpRequest.newBuilder(uri).timeout(timeout).GET().build();
-        CompletableFuture<HttpResponse<Path>> pending =
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofFile(partial));
+        CompletableFuture<HttpResponse<Path>> pending = client.sendAsync(
+                request,
+                HttpResponse.BodyHandlers.ofFile(
+                        partial,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.WRITE,
+                        StandardOpenOption.TRUNCATE_EXISTING));
         HttpResponse<Path> response;
         try {
             response = pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -158,6 +199,12 @@ public final class WordPressSources {
         if (response.statusCode() != 200) {
             Files.deleteIfExists(partial);
             throw new IOException("HTTP " + response.statusCode() + " for " + uri);
+        }
+        String actual = sha256(partial);
+        if (!expected.equals(actual)) {
+            Files.delete(partial);
+            throw new IOException("SHA-256 mismatch for " + path + ": expected " + expected + ", got " + actual
+                    + "; the file was deleted");
         }
         Files.move(partial, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }

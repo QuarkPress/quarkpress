@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkpress.testing</groupId>
+    <artifactId>quarkpress-testing-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkpress-test-wp-scenario</artifactId>
+
+  <name>QuarkPress :: testing :: WordPress scenarios</name>
+  <description>Tier B oracle: a full WordPress install in a MySQL container, driven by scenarios that also run against QuarkPress. Test scope only.</description>
+
+  <properties>
+    <automatic.module.name>org.quarkpress.testing.wpscenario</automatic.module.name>
+    <!-- The QuarkPress side runs as a @QuarkusTest; Quarkus 3.40 builds on JUnit 6. -->
+    <junit.version>6.1.3</junit.version>
+    <!-- Quarkus adds its own JVM flags to @{argLine}; empty when nothing sets it. -->
+    <argLine></argLine>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus.platform</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-mysql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-multisite</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-mysql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Make the reactor build the deployment modules before the Quarkus test application. -->
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-core-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-multisite-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>@{argLine} ${surefire.argLine.additional}</argLine>
+          <systemPropertyVariables>
+            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+            <maven.home>${maven.home}</maven.home>
+          </systemPropertyVariables>
+          <!-- The test database of the QuarkPress side reaches the test application as an environment variable: a
+               quarkpress.* system property would be rejected by the QuarkPress configuration root. -->
+          <environmentVariables>
+            <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
+          </environmentVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

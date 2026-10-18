@@ -83,7 +83,7 @@ public record PinnedRepository(String name, URI base, String ref, Map<String, St
         return new PinnedRepository(name, URI.create(source), ref, pins);
     }
 
-    private static boolean isLowerHex(String text, int length) {
+    static boolean isLowerHex(String text, int length) {
         if (text.length() != length) {
             return false;
         }
