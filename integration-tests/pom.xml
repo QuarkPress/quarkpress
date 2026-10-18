@@ -29,6 +29,7 @@
     <module>tenancy-spike</module>
     <module>feature-extension</module>
     <module>content</module>
+    <module>multisite</module>
     <module>host-coexistence</module>
   </modules>
 
