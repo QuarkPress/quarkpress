@@ -266,23 +266,24 @@ final class SiteIsolationModel {
     }
 
     /** The element type of a collection or array (the value type for maps, the bound of a wildcard), or null. */
-    private static DotName elementType(Type type) {
-        Type element;
-        if (type.kind() == Type.Kind.ARRAY) {
-            element = type.asArrayType().elementType();
-        } else if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
-            List<Type> arguments = type.asParameterizedType().arguments();
-            if (arguments.isEmpty()) {
-                return null;
-            }
-            element = arguments.get(arguments.size() - 1);
-        } else {
-            return null;
-        }
-        if (element.kind() == Type.Kind.WILDCARD_TYPE) {
+    static DotName elementType(Type type) {
+        Type element = rawElementType(type);
+        if (element != null && element.kind() == Type.Kind.WILDCARD_TYPE) {
             element = element.asWildcardType().extendsBound();
         }
         return element == null ? null : element.name();
+    }
+
+    /** The element type as declared (a wildcard or type variable stays one), or null when there is none. */
+    static Type rawElementType(Type type) {
+        if (type.kind() == Type.Kind.ARRAY) {
+            return type.asArrayType().elementType();
+        }
+        if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+            List<Type> arguments = type.asParameterizedType().arguments();
+            return arguments.isEmpty() ? null : arguments.get(arguments.size() - 1);
+        }
+        return null;
     }
 
     private static boolean filteredHere(ClassInfo type) {

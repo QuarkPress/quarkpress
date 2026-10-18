@@ -30,4 +30,17 @@ public final class DbApp {
     public static QuarkusExtensionTest buildOnly(Class<?>... classes) {
         return with(classes).overrideConfigKey("quarkus.datasource.\"quarkpress\".devservices.enabled", "false");
     }
+
+    /**
+     * For tests whose build must fail with entities in the application: Hibernate ORM wants a datasource URL while it
+     * builds. The address is reached only if the expected build failure does not happen: the application then starts
+     * and fails on the connection.
+     */
+    public static QuarkusExtensionTest buildOnlyMapped(Class<?>... classes) {
+        boolean mysql = TestDb.kind().equals("mysql");
+        String url = mysql ? "jdbc:mysql://localhost:1/none" : "jdbc:postgresql://localhost:1/none";
+        return buildOnly(classes)
+                .overrideConfigKey("quarkus.datasource.\"quarkpress\".jdbc.url", url)
+                .overrideConfigKey("quarkus.datasource.\"quarkpress\".db-version", mysql ? "8.4" : "17");
+    }
 }

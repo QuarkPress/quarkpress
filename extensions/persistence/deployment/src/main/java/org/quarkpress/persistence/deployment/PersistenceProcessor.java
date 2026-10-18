@@ -6,6 +6,8 @@ import io.quarkus.arc.deployment.ValidationPhaseBuildItem.ValidationErrorBuildIt
 import io.quarkus.arc.processor.InjectionPointInfo;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.ExecutionTime;
+import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.AdditionalIndexedClassesBuildItem;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
@@ -14,7 +16,9 @@ import io.quarkus.runtime.configuration.ConfigurationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -34,6 +38,7 @@ import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.QuarkPressPersistence;
 import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.CurrentSiteIdSupplier;
+import org.quarkpress.persistence.runtime.PersistenceRecorder;
 import org.quarkpress.persistence.runtime.QuarkPressBuildTimeConfig;
 import org.quarkpress.persistence.runtime.QuarkPressJsonJdbcType;
 import org.quarkpress.persistence.runtime.SiteStampListener;
@@ -155,6 +160,33 @@ class PersistenceProcessor {
             errors.produce(
                     new ValidationErrorBuildItem(new IllegalStateException(SiteIsolationScanner.message(findings))));
         }
+    }
+
+    @BuildStep
+    SiteAssociationsBuildItem siteAssociations(
+            CombinedIndexBuildItem combined,
+            BuildProducer<ValidationErrorBuildItem> errors,
+            BuildProducer<ReflectiveClassBuildItem> reflective) {
+        SiteAssociationModel.Result result = SiteAssociationModel.analyse(combined.getIndex());
+        for (String problem : result.problems()) {
+            errors.produce(new ValidationErrorBuildItem(new IllegalStateException(problem)));
+        }
+        if (!result.fieldsByClass().isEmpty()) {
+            reflective.produce(ReflectiveClassBuildItem.builder(
+                            result.fieldsByClass().keySet().toArray(String[]::new))
+                    .fields()
+                    .reason(PersistenceProcessor.class.getName())
+                    .build());
+        }
+        return new SiteAssociationsBuildItem(result.fieldsByClass());
+    }
+
+    @BuildStep
+    @Record(ExecutionTime.STATIC_INIT)
+    void recordSiteAssociations(SiteAssociationsBuildItem associations, PersistenceRecorder recorder) {
+        Map<String, List<String>> byClass = new HashMap<>();
+        associations.fieldsByClass().forEach((type, fields) -> byClass.put(type, new ArrayList<>(fields)));
+        recorder.siteAssociations(byClass);
     }
 
     @BuildStep
