@@ -1,5 +1,6 @@
 package org.quarkpress.security.runtime;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.quarkpress.core.Filters;
+import org.quarkpress.core.UserId;
 import org.quarkpress.security.CapObject;
 import org.quarkpress.security.MetaCapRequest;
 import org.quarkpress.security.MetaCapabilityFilter;
@@ -17,6 +19,9 @@ import org.quarkpress.security.MetaCapabilityNames;
 import org.quarkpress.security.PostFacts;
 import org.quarkpress.security.PostTypeCapabilities;
 import org.quarkpress.security.PostVisibility;
+import org.quarkpress.security.TaxonomyCapabilities;
+import org.quarkpress.security.TermFacts;
+import org.quarkpress.security.UserTarget;
 
 /**
  * Maps a capability to the primitive capabilities a user must hold, as WordPress's {@code map_meta_cap} does. Meta
@@ -120,16 +125,141 @@ public final class MetaCaps {
         };
     }
 
-    /**
-     * Rules for the other named capabilities, or null for a name without a rule. The privacy capabilities are needed
-     * by the privacy-page rule; the user, term and network rules are added next to them.
-     */
+    /** Rules for the other named capabilities, or null for a name without a rule. */
     private List<String> otherRule(String capability, Optional<CapObject> object, MapContext context) {
+        boolean network = context.multisite();
+        boolean restricted = network && !context.isSuperAdmin();
         return switch (capability) {
+            case "remove_user" -> {
+                Optional<UserId> target = target(object);
+                yield target.isPresent() && target.equals(context.user()) && !context.isSuperAdmin()
+                        ? DENY
+                        : List.of("remove_users");
+            }
+            case "promote_user", "add_users" -> List.of("promote_users");
+            case "edit_user", "edit_users" -> editUser(capability, object, context);
+            case "create_app_password",
+                    "list_app_passwords",
+                    "read_app_password",
+                    "edit_app_password",
+                    "delete_app_passwords",
+                    "delete_app_password" -> new ArrayList<>(map("edit_user", object, context));
+            case "delete_user", "delete_users" -> restricted ? DENY : List.of("delete_users");
+            case "create_users" ->
+                !network || context.isSuperAdmin() || truthy(context.networkOption("add_new_users"))
+                        ? List.of("create_users")
+                        : DENY;
+            case "unfiltered_upload" -> DENY;
+            case "edit_css", "unfiltered_html" ->
+                context.disallowUnfilteredHtml() || restricted ? DENY : List.of("unfiltered_html");
+            case "edit_files",
+                    "edit_plugins",
+                    "edit_themes",
+                    "update_plugins",
+                    "delete_plugins",
+                    "install_plugins",
+                    "update_themes",
+                    "delete_themes",
+                    "install_themes",
+                    "update_core" -> restricted ? DENY : List.of(capability);
+            case "upload_plugins" -> restricted ? DENY : List.of("install_plugins");
+            case "upload_themes" -> restricted ? DENY : List.of("install_themes");
+            case "install_languages", "update_languages" -> restricted ? DENY : List.of("install_languages");
+            case "update_php" -> restricted ? DENY : List.of("update_core");
+            case "update_https" -> restricted ? DENY : List.of("manage_options", "update_core");
+            case "activate_plugins", "deactivate_plugins", "activate_plugin", "deactivate_plugin" -> {
+                List<String> caps = new ArrayList<>(List.of("activate_plugins"));
+                if (network && !truthy(context.networkOption("menu_items").map(items -> items.get("plugins")))) {
+                    caps.add("manage_network_plugins");
+                }
+                yield caps;
+            }
+            case "resume_plugin" -> List.of("resume_plugins");
+            case "resume_theme" -> List.of("resume_themes");
+            case "manage_links" -> truthy(context.siteOption("link_manager_enabled")) ? List.of("manage_links") : DENY;
+            case "customize" -> List.of("edit_theme_options");
+            case "delete_site" -> network ? List.of("manage_options") : DENY;
+            case "setup_network" -> List.of(network ? "manage_network_options" : "manage_options");
             case "export_others_personal_data", "erase_others_personal_data", "manage_privacy_options" ->
-                List.of(context.multisite() ? "manage_network" : "manage_options");
+                List.of(network ? "manage_network" : "manage_options");
+            case "edit_term", "delete_term", "assign_term" -> termRule(capability, object, context);
+            case "manage_post_tags", "edit_categories", "edit_post_tags", "delete_categories", "delete_post_tags" ->
+                List.of("manage_categories");
+            case "assign_categories", "assign_post_tags" -> List.of("edit_posts");
+            case "create_sites",
+                    "delete_sites",
+                    "manage_network",
+                    "manage_sites",
+                    "manage_network_users",
+                    "manage_network_plugins",
+                    "manage_network_themes",
+                    "manage_network_options",
+                    "upgrade_network" -> List.of(capability);
             default -> null;
         };
+    }
+
+    /**
+     * Editing users: refused without a user; editing oneself needs nothing; in a network, refused unless the user can
+     * manage network users, and editing a network administrator needs being one.
+     */
+    private List<String> editUser(String capability, Optional<CapObject> object, MapContext context) {
+        if (context.user().isEmpty()) {
+            return DENY;
+        }
+        Optional<UserId> target = target(object);
+        if (capability.equals("edit_user") && target.isPresent() && target.equals(context.user())) {
+            return List.of();
+        }
+        if (context.multisite()) {
+            boolean editsSuperAdmin = !context.isSuperAdmin()
+                    && capability.equals("edit_user")
+                    && target.map(context::isSuperAdmin).orElse(false);
+            if (editsSuperAdmin || !context.userCan("manage_network_users")) {
+                return DENY;
+            }
+        }
+        return List.of("edit_users");
+    }
+
+    /**
+     * Term capabilities: refused without a term, for a term of an unregistered taxonomy, and, for deleting, for the
+     * taxonomy's default term; otherwise the taxonomy's name for the action, mapped again.
+     */
+    private List<String> termRule(String capability, Optional<CapObject> object, MapContext context) {
+        if (object.isEmpty()
+                || !(object.get() instanceof TermFacts term)
+                || term.taxonomy().isEmpty()) {
+            return DENY;
+        }
+        TaxonomyCapabilities taxonomy = term.taxonomy().get();
+        long id = term.id().value();
+        if (capability.equals("delete_term")
+                && (optionId(context, "default_" + taxonomy.name()) == id
+                        || optionId(context, "default_term_" + taxonomy.name()) == id)) {
+            return DENY;
+        }
+        String plural = switch (capability) {
+            case "edit_term" -> taxonomy.editTerms();
+            case "delete_term" -> taxonomy.deleteTerms();
+            default -> taxonomy.assignTerms();
+        };
+        if (plural.equals(capability)) {
+            return List.of(plural);
+        }
+        return new ArrayList<>(map(plural, object, context));
+    }
+
+    private static long optionId(MapContext context, String name) {
+        return context.siteOption(name).map(PhpTruth::intValue).orElse(0L);
+    }
+
+    private static Optional<UserId> target(Optional<CapObject> object) {
+        return object.filter(UserTarget.class::isInstance).map(found -> ((UserTarget) found).user());
+    }
+
+    private static boolean truthy(Optional<JsonNode> value) {
+        return value.map(PhpTruth::truthy).orElse(false);
     }
 
     private List<String> postRule(String capability, Optional<CapObject> object, MapContext context) {
