@@ -1,0 +1,4 @@
+# Deliberate differences between the security module and WordPress 7.1.3.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the "Differences from WordPress" table in
+# README.md. "none" documents a difference that no oracle case shows: the test maps it before comparing.
+nicename-* refused-login-over-60 D7 D7 (logins over 60 characters are accepted): WordPress refuses user_login_too_long, QuarkPress keeps accepting them
