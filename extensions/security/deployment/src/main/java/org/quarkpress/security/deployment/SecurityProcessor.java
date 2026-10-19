@@ -21,6 +21,7 @@ import org.quarkpress.core.deployment.spi.RoleBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Roles;
+import org.quarkpress.security.SiteRoles;
 import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserProfiles;
@@ -64,6 +65,7 @@ class SecurityProcessor {
                 UserProfiles.class,
                 Capabilities.class,
                 SystemIdentity.class,
+                SiteRoles.class,
                 CapabilityGuard.class);
     }
 

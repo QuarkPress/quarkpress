@@ -10,7 +10,8 @@ import org.quarkpress.security.Roles;
 
 /**
  * A site's role table: its {@code qp_user_roles} option when the site's roles were ever changed (a value that is not a
- * table counts as one without roles), else the default table of the running build.
+ * table counts as one without roles), else the default table of the running build. The reads are package-private so
+ * that {@code SiteRoles} is the one public entry point; its reads are unguarded, like WordPress's {@code get_role}.
  */
 @ApplicationScoped
 public class SiteRoleTables {
@@ -24,11 +25,11 @@ public class SiteRoleTables {
     @Inject
     CapabilityReads reads;
 
-    public List<RoleDefinition> forSite(SiteId site) {
+    List<RoleDefinition> forSite(SiteId site) {
         return reads.siteOption(site, OPTION).map(RoleTables::fromJson).orElse(roles.defaults());
     }
 
-    public Map<String, RoleDefinition> byKey(SiteId site) {
+    Map<String, RoleDefinition> byKey(SiteId site) {
         return RoleTables.byKey(forSite(site));
     }
 }

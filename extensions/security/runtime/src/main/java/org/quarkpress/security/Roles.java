@@ -7,7 +7,7 @@ import org.quarkpress.core.RoleDefinition;
 /**
  * The role table every site has until its roles are changed: WordPress's five roles (administrator, editor, author,
  * contributor, subscriber) with their capabilities, then the roles extensions register, in key order, with the
- * capabilities extensions grant appended.
+ * capabilities extensions grant appended. A site's current table is read through {@link SiteRoles}.
  */
 public interface Roles {
 
