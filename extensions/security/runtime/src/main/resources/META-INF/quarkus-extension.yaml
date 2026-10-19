@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Security"
+description: "User profiles from OIDC, site memberships, network administrators, WordPress roles and capabilities"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "security"
+    - "oidc"
+  categories:
+    - "security"
+  status: "experimental"
