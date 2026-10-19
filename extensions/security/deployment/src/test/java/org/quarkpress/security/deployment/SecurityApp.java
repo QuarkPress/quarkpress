@@ -34,7 +34,10 @@ public final class SecurityApp {
                                     Requests.class,
                                     Races.class,
                                     Jdbc.class,
-                                    Failures.class);
+                                    Failures.class,
+                                    Identities.class,
+                                    TestJwt.class,
+                                    TestData.class);
                     if (multisite) {
                         jar.addClasses(TestMultisiteMode.class);
                     }
