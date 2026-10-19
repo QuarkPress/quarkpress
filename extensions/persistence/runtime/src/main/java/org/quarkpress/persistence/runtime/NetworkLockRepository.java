@@ -71,17 +71,41 @@ public class NetworkLockRepository implements PanacheRepositoryBase<NetworkLockE
      * {@code lock_timeout} for the rest of the transaction. MySQL sets the session's {@code innodb_lock_wait_timeout}
      * and restores the server default before the transaction commits; after a rollback the pooled connection keeps the
      * shorter timeout until the next network write on it commits.
+     *
+     * <p>A failure while taking the lock (a lock timeout included) marks the transaction rollback-only before it is
+     * thrown.
      */
     public void lock() {
         if (Scopes.spawnerHoldsNetworkLock()) {
             throw new IllegalStateException(HELD_MESSAGE);
         }
-        boundLockWaits();
-        if (findByIdOptional(NetworkLockEntity.ROW, LockModeType.PESSIMISTIC_WRITE)
-                .isEmpty()) {
-            throw new IllegalStateException("the qp_network_lock row is missing; QuarkPress's migrations create it");
+        try {
+            boundLockWaits();
+            if (findByIdOptional(NetworkLockEntity.ROW, LockModeType.PESSIMISTIC_WRITE)
+                    .isEmpty()) {
+                throw new IllegalStateException(
+                        "the qp_network_lock row is missing; QuarkPress's migrations create it");
+            }
+        } catch (RuntimeException failure) {
+            throw failWrite(failure);
         }
         registry.putResource(HELD, Boolean.TRUE);
+    }
+
+    /**
+     * Marks the current transaction rollback-only and returns {@code failure}, for the caller to throw. Call it when a
+     * network write fails while or after taking the lock: a lock timeout does not mark the transaction by itself (the
+     * database rolls back only the statement), so a caller that caught the failure inside its own transaction could
+     * otherwise go on writing without the lock and commit. A failure to mark the transaction (there is none) is added
+     * to {@code failure} as suppressed.
+     */
+    public RuntimeException failWrite(RuntimeException failure) {
+        try {
+            registry.setRollbackOnly();
+        } catch (RuntimeException notMarked) {
+            failure.addSuppressed(notMarked);
+        }
+        return failure;
     }
 
     /** Bounds this transaction's lock waits, once per transaction. */
