@@ -160,6 +160,15 @@ class SchemaDbTest {
                             dataSource, "update qp_site_membership set roles = 'not json' where site_id = ?", site))
                     .satisfies(failure ->
                             assertThat(Failures.messages(failure)).contains("qp_site_membership_roles_json"));
+            assertThatThrownBy(() -> Jdbc.update(
+                            dataSource,
+                            "update qp_site_membership set capabilities = 'not json' where site_id = ?",
+                            site))
+                    .satisfies(failure ->
+                            assertThat(Failures.messages(failure)).contains("qp_site_membership_capabilities_json"));
+            assertThatThrownBy(() ->
+                            Jdbc.update(dataSource, "update qp_user_profile set meta = 'not json' where id = ?", user))
+                    .satisfies(failure -> assertThat(Failures.messages(failure)).contains("qp_user_profile_meta_json"));
         }
     }
 }

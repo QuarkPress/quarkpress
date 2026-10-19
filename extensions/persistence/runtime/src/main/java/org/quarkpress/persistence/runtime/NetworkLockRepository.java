@@ -9,8 +9,6 @@ import jakarta.transaction.Synchronization;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 import java.sql.Statement;
 import org.hibernate.Session;
-import org.hibernate.dialect.PostgreSQLDialect;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.jboss.logging.Logger;
 
 @ApplicationScoped
@@ -33,8 +31,6 @@ public class NetworkLockRepository implements PanacheRepositoryBase<NetworkLockE
 
     @Inject
     TransactionSynchronizationRegistry registry;
-
-    private volatile Boolean postgresql;
 
     /**
      * Whether the current transaction has taken the network lock, or this is a scope thread (at any depth) spawned by
@@ -114,7 +110,7 @@ public class NetworkLockRepository implements PanacheRepositoryBase<NetworkLockE
             return;
         }
         Session session = getSession();
-        if (postgresql(session)) {
+        if (Dialects.postgresql(session)) {
             execute(session, POSTGRESQL_TIMEOUT);
             return;
         }
@@ -140,18 +136,5 @@ public class NetworkLockRepository implements PanacheRepositoryBase<NetworkLockE
                 statement.execute(sql);
             }
         });
-    }
-
-    private boolean postgresql(Session session) {
-        Boolean known = postgresql;
-        if (known == null) {
-            known = session.getSessionFactory()
-                            .unwrap(SessionFactoryImplementor.class)
-                            .getJdbcServices()
-                            .getDialect()
-                    instanceof PostgreSQLDialect;
-            postgresql = known;
-        }
-        return known;
     }
 }

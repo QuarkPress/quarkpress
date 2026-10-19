@@ -5,8 +5,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import org.hibernate.Session;
-import org.hibernate.dialect.PostgreSQLDialect;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.SiteScopedNativeSql;
 
@@ -40,13 +38,11 @@ public class OptionInserts {
     @Inject
     OptionRepository options;
 
-    private volatile Boolean postgresql;
-
     /** Inserts the site option unless it exists; returns whether this call inserted it. */
     public boolean insertIfAbsent(SiteId site, String name, JsonNode stored, boolean autoload, Instant now) {
         OptionWrites.requireWritable(site);
         Session session = options.getSession();
-        if (postgresql(session)) {
+        if (Dialects.postgresql(session)) {
             return session.createNativeMutationQuery(POSTGRESQL)
                             .setParameter(1, TenantIds.param(site))
                             .setParameter(2, StoredOptionNames.require(name))
@@ -65,18 +61,5 @@ public class OptionInserts {
                 .setParameter(5, now, Instant.class)
                 .executeUpdate();
         return session.createNativeQuery(MYSQL_INSERTED, Long.class).getSingleResult() > 0;
-    }
-
-    private boolean postgresql(Session session) {
-        Boolean known = postgresql;
-        if (known == null) {
-            known = session.getSessionFactory()
-                            .unwrap(SessionFactoryImplementor.class)
-                            .getJdbcServices()
-                            .getDialect()
-                    instanceof PostgreSQLDialect;
-            postgresql = known;
-        }
-        return known;
     }
 }
