@@ -19,6 +19,7 @@ import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.RoleBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
+import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Roles;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserProfiles;
@@ -56,7 +57,7 @@ class SecurityProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(UserProfileProvisioner.class, UserProfiles.class);
+        return UnremovableBeanBuildItem.beanTypes(UserProfileProvisioner.class, UserProfiles.class, Capabilities.class);
     }
 
     @BuildStep

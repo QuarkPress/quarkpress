@@ -43,6 +43,15 @@ public class QuarkPressJsonFormatMapper implements FormatMapper {
         }
     }
 
+    /** Reads JSON text this unit stored, as native queries return it. */
+    public static JsonNode read(String json) {
+        try {
+            return MAPPER.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("stored JSON is not valid: " + e.getOriginalMessage(), e);
+        }
+    }
+
     @Override
     public <T> T fromString(CharSequence text, JavaType<T> javaType, WrapperOptions options) {
         return delegate.fromString(text, javaType, options);
