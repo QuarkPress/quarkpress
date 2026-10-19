@@ -40,6 +40,10 @@ function _doing_it_wrong($function_name, $message, $version)
 
 function get_option($option, $default_value = false)
 {
+    // A driver may give options for the case it runs.
+    if (isset($GLOBALS['qp_options']) && array_key_exists($option, $GLOBALS['qp_options'])) {
+        return $GLOBALS['qp_options'][$option];
+    }
     return 'blog_charset' === $option ? 'UTF-8' : $default_value;
 }
 

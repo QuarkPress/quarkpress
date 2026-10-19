@@ -1,0 +1,8 @@
+# Deliberate differences between the capability mapping and WordPress 7.1.3.
+# Format: <case-id> <aspect> <item> <reason>. "none" documents a difference that no oracle case shows.
+# The D numbers are those of the README differences table, shared with wp-parity-skip.txt (D5 and up). Each parity
+# test has its own skip file because ParityRun rejects an entry that its own run does not use.
+none - D1 meta capabilities for post, term, user and comment meta, edit_comment and edit_block_binding are not mapped yet (they arrive with their modules) and behave as unknown names; no case checks them
+none - D2 revisions are not posts: no revision is passed to the post rules, so WordPress's redirect to the parent and its refusal to delete a revision are left to the revisions module; no case uses a revision
+pageform-unnamed|* map_meta_cap D3 a page form (edit_page, read_page, delete_page) checked on a post of a type that does not map meta capabilities and does not name that form requires the empty name, which no role holds; WordPress requires an undefined property (null); granted-or-refused is compared and agrees for every holder, only the name filters see differs ("" against null)
+none - D4 file editing and file modifications count as allowed and unfiltered uploads are always refused (WordPress's defaults); WordPress's DISALLOW_FILE_EDIT, DISALLOW_FILE_MODS and ALLOW_UNFILTERED_UPLOADS have no setting; the oracle runs with the defaults
