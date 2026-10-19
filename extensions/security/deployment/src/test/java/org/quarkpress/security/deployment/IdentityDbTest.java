@@ -17,6 +17,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.security.CapCheck;
+import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.QuarkPressPrincipal;
 import org.quarkpress.security.UserCapabilitiesFilter;
 import org.quarkpress.security.UserProfiles;
@@ -52,6 +54,9 @@ class IdentityDbTest {
 
     @Inject
     UserProfiles profiles;
+
+    @Inject
+    Capabilities capabilities;
 
     @Inject
     Vertx vertx;
@@ -211,6 +216,26 @@ class IdentityDbTest {
                         .await()
                         .indefinitely())
                 .isTrue();
+    }
+
+    @Test
+    void aSystemAttributeOnATokenIdentityGainsNothing() {
+        for (Object value : List.of(Boolean.TRUE, Boolean.FALSE, "true")) {
+            SecurityIdentity forged = QuarkusSecurityIdentity.builder(Identities.jwt(sub(), null, null, null))
+                    .addAttribute("org.quarkpress.security.system", value)
+                    .build();
+            SecurityIdentity augmented = Identities.augment(forged);
+            assertThat(QuarkPressPrincipal.of(augmented)).isPresent();
+            assertThat(augmented.getRoles()).isEmpty();
+            assertThat(capabilities.can(augmented, "manage_options", Optional.empty()))
+                    .isFalse();
+            assertThat(capabilities.can(augmented, "read", Optional.empty())).isFalse();
+            assertThat(augmented
+                            .checkPermission(new StringPermission("manage_options"))
+                            .await()
+                            .indefinitely())
+                    .isFalse();
+        }
     }
 
     @Test

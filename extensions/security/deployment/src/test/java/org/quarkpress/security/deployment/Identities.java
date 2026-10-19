@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.quarkpress.core.UserId;
 import org.quarkpress.security.QuarkPressPrincipal;
-import org.quarkpress.security.runtime.Actor;
+import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.runtime.QuarkPressIdentityAugmentor;
 
 /** Identities for tests, and running code as one of them in a request context of its own. */
@@ -108,12 +108,9 @@ public final class Identities {
                 .build();
     }
 
-    /** The system identity as the evaluator recognises it (the attribute {@code SystemIdentity} will carry). */
+    /** The application's system identity ({@link SystemIdentity#identity()}). */
     public static SecurityIdentity system() {
-        return QuarkusSecurityIdentity.builder()
-                .setPrincipal(new QuarkusPrincipal("system"))
-                .addAttribute(Actor.SYSTEM_ATTRIBUTE, Boolean.TRUE)
-                .build();
+        return Arc.container().instance(SystemIdentity.class).get().identity();
     }
 
     /** Runs {@code work} on the current thread in a fresh request context whose identity is {@code identity}. */

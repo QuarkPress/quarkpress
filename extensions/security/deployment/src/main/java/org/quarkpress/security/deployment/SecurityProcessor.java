@@ -21,9 +21,11 @@ import org.quarkpress.core.deployment.spi.RoleBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Roles;
+import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.security.runtime.BuiltInRoles;
+import org.quarkpress.security.runtime.CapabilityGuard;
 import org.quarkpress.security.runtime.DevConfig;
 import org.quarkpress.security.runtime.RoleTables;
 import org.quarkpress.security.runtime.SecurityConfig;
@@ -57,7 +59,12 @@ class SecurityProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(UserProfileProvisioner.class, UserProfiles.class, Capabilities.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                UserProfileProvisioner.class,
+                UserProfiles.class,
+                Capabilities.class,
+                SystemIdentity.class,
+                CapabilityGuard.class);
     }
 
     @BuildStep

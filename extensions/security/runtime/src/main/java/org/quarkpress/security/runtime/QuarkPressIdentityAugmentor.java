@@ -15,6 +15,7 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.security.ProfileClaims;
 import org.quarkpress.security.QuarkPressPrincipal;
+import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.UserProfile;
 import org.quarkpress.security.UserProfileProvisioner;
 
@@ -47,7 +48,7 @@ public class QuarkPressIdentityAugmentor implements SecurityIdentityAugmentor {
     @Override
     public Uni<SecurityIdentity> augment(SecurityIdentity identity, AuthenticationRequestContext context) {
         if (identity.isAnonymous()
-                || identity.getAttribute(Actor.SYSTEM_ATTRIBUTE) != null
+                || SystemIdentity.isSystem(identity)
                 || identity.getAttribute(QuarkPressPrincipal.ATTRIBUTE) != null) {
             return Uni.createFrom().item(identity);
         }

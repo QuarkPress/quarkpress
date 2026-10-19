@@ -58,7 +58,7 @@ public class CapabilityEvaluator {
      * The answer for {@code actor}. A user id without a profile is a logged-out visitor, as WordPress uses the
      * anonymous user for an id that does not exist.
      */
-    public boolean check(Actor actor, Optional<SiteId> site, String capability, Optional<CapObject> object) {
+    boolean check(Actor actor, Optional<SiteId> site, String capability, Optional<CapObject> object) {
         return decide(known(actor), site, capability, object);
     }
 
@@ -87,11 +87,6 @@ public class CapabilityEvaluator {
             }
         }
         return true;
-    }
-
-    /** The primitive capabilities {@code capability} maps to for this actor and site. */
-    public Set<String> required(Actor actor, Optional<SiteId> site, String capability, Optional<CapObject> object) {
-        return metaCaps.map(capability, object, new Context(known(actor), site));
     }
 
     /** In a network, a network administrator; on a single site, a user who can delete users on {@code site}. */
