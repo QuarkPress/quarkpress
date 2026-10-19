@@ -19,21 +19,64 @@ public record Scenario(String id, String rule, NetworkVariant variant, List<Scen
             throw new IllegalArgumentException("scenario " + id + " has no ops");
         }
         int created = 0;
+        int users = 0;
         for (int i = 0; i < ops.size(); i++) {
-            int site = switch (ops.get(i)) {
-                case ScenarioOp.CreateSite create -> -1;
-                case ScenarioOp.Lookup lookup -> -1;
+            ScenarioOp op = ops.get(i);
+            Integer site = switch (op) {
                 case ScenarioOp.SetFlag flag -> flag.site();
                 case ScenarioOp.ReadOptions read -> read.site();
+                case ScenarioOp.AddUser add -> add.site();
+                case ScenarioOp.RemoveUser remove -> remove.site();
+                case ScenarioOp.SetRole set -> set.site();
+                case ScenarioOp.AddCap cap -> cap.site();
+                case ScenarioOp.SiteSetting setting -> setting.site();
+                case ScenarioOp.AddRole role -> role.site();
+                case ScenarioOp.RoleCap role -> role.site();
+                case ScenarioOp.RemoveRole role -> role.site();
+                case ScenarioOp.Can can -> can.site();
+                default -> null;
             };
-            if (site > created) {
+            int user = switch (op) {
+                case ScenarioOp.AddUser add -> add.user();
+                case ScenarioOp.RemoveUser remove -> remove.user();
+                case ScenarioOp.SetRole set -> set.user();
+                case ScenarioOp.AddCap cap -> cap.user();
+                case ScenarioOp.SuperAdmin admin -> admin.user();
+                case ScenarioOp.Can can -> Math.max(can.user(), can.target());
+                default -> 0;
+            };
+            if (site != null && site < 0) {
+                throw new IllegalArgumentException(
+                        "scenario " + id + ": op " + (i + 1) + " refers to site #" + site + "; sites count from 0");
+            }
+            if (site != null && site > created) {
                 throw new IllegalArgumentException("scenario " + id + ": op " + (i + 1) + " refers to site #" + site
                         + ", but only " + created + " sites were created before it");
             }
-            if (ops.get(i) instanceof ScenarioOp.CreateSite) {
+            if (user < 1 && opNamesUser(op)) {
+                throw new IllegalArgumentException("scenario " + id + ": op " + (i + 1) + " refers to user #" + user
+                        + "; users count from 1 (user 0, a logged-out visitor, is only valid in can)");
+            }
+            if (user > users) {
+                throw new IllegalArgumentException("scenario " + id + ": op " + (i + 1) + " refers to user #" + user
+                        + ", but only " + users + " users were created before it");
+            }
+            if (op instanceof ScenarioOp.CreateSite) {
                 created++;
             }
+            if (op instanceof ScenarioOp.CreateUser) {
+                users++;
+            }
         }
+    }
+
+    /** Whether the op names a user that must exist (every user operation except a capability check). */
+    private static boolean opNamesUser(ScenarioOp op) {
+        return op instanceof ScenarioOp.AddUser
+                || op instanceof ScenarioOp.RemoveUser
+                || op instanceof ScenarioOp.SetRole
+                || op instanceof ScenarioOp.AddCap
+                || op instanceof ScenarioOp.SuperAdmin;
     }
 
     /** The comparison's case id: the scenario on its variant. */

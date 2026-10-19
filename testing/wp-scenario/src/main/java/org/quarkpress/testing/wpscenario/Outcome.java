@@ -40,6 +40,38 @@ public final class Outcome {
         put("op" + op + ":read_options:" + name, text == null ? "(missing)" : text);
     }
 
+    /** A user WordPress created, with the nicename and display name it stored. */
+    public void userCreated(int op, String nicename, String displayName) {
+        put("op" + op + ":create_user", "nicename=" + nicename + " display=" + displayName);
+    }
+
+    /** A user WordPress refused to create, with its error code. */
+    public void userRefused(int op, String code) {
+        put("op" + op + ":create_user", "refused:" + code);
+    }
+
+    /** The result of a user, role or option change: ok, failed, missing, or changed=true|false. */
+    public void done(int op, String kind, String result) {
+        put("op" + op + ":" + kind, result);
+    }
+
+    public void answer(int op, boolean can) {
+        put("op" + op + ":can", can ? "yes" : "no");
+    }
+
+    /**
+     * A nicename QuarkPress derived from its profile id ({@code user-<id>}, with any suffix) shown as
+     * {@code user-#<index>}: the two sides number users differently. Scenario usernames never read as such a
+     * nicename (the rules refuse them), so only fallback nicenames are rewritten.
+     */
+    public static String nicename(String nicename, long id, int index) {
+        String own = "user-" + id;
+        if (nicename.equals(own) || nicename.startsWith(own + "-")) {
+            return "user-#" + index + nicename.substring(own.length());
+        }
+        return nicename;
+    }
+
     public void site(
             int index,
             String domain,

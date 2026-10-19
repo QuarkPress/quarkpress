@@ -16,8 +16,14 @@ import org.quarkpress.testing.wporacle.OracleJson;
 /**
  * The scenario format: {@code {"id", "rule", "variant", "ops": [...]}} with ops {@code create_site {domain, path,
  * title}}, {@code lookup {host, path}}, {@code set_flag {site, flag, value}} ({@code flag} one of archived, mature,
- * spam, deleted, public) and {@code read_options {site, names}} ({@code names} a non-empty list of distinct option
- * names). Unknown keys, duplicate keys and trailing content are refused.
+ * spam, deleted, public), {@code read_options {site, names}} ({@code names} a non-empty list of distinct option
+ * names), {@code create_user {username, given_name, family_name}}, {@code add_user {user, site, role}},
+ * {@code remove_user {user, site}}, {@code set_role {user, site, role}}, {@code add_cap {user, site, capability,
+ * grant}}, {@code super_admin {user, grant}}, {@code network_flag {name, value}} ({@code add_new_users} or
+ * {@code menu_plugins}), {@code site_setting {site, name, value}} ({@code link_manager_enabled}), {@code add_role
+ * {site, role, name, capabilities}}, {@code role_cap {site, role, capability, grant}}, {@code remove_role {site,
+ * role}} and {@code can {user, site, capability, target}}. Users count from 1 in creation order; 0 is a logged-out
+ * visitor in {@code can}, and a target of 0 is no user. Unknown keys, duplicate keys and trailing content are refused.
  */
 public final class ScenarioJson {
 
@@ -83,6 +89,42 @@ public final class ScenarioJson {
                     ArrayNode names = out.putArray("names");
                     read.names().forEach(names::add);
                 }
+                case ScenarioOp.CreateUser user ->
+                    out.put("username", user.username())
+                            .put("given_name", user.givenName())
+                            .put("family_name", user.familyName());
+                case ScenarioOp.AddUser add ->
+                    out.put("user", add.user()).put("site", add.site()).put("role", add.role());
+                case ScenarioOp.RemoveUser remove ->
+                    out.put("user", remove.user()).put("site", remove.site());
+                case ScenarioOp.SetRole set ->
+                    out.put("user", set.user()).put("site", set.site()).put("role", set.role());
+                case ScenarioOp.AddCap cap ->
+                    out.put("user", cap.user())
+                            .put("site", cap.site())
+                            .put("capability", cap.capability())
+                            .put("grant", cap.grant());
+                case ScenarioOp.SuperAdmin admin ->
+                    out.put("user", admin.user()).put("grant", admin.grant());
+                case ScenarioOp.NetworkFlag flag -> out.put("name", flag.name()).put("value", flag.value());
+                case ScenarioOp.SiteSetting setting ->
+                    out.put("site", setting.site()).put("name", setting.name()).put("value", setting.value());
+                case ScenarioOp.AddRole role -> {
+                    out.put("site", role.site()).put("role", role.role()).put("name", role.name());
+                    ArrayNode capabilities = out.putArray("capabilities");
+                    role.capabilities().forEach(capabilities::add);
+                }
+                case ScenarioOp.RoleCap role ->
+                    out.put("site", role.site())
+                            .put("role", role.role())
+                            .put("capability", role.capability())
+                            .put("grant", role.grant());
+                case ScenarioOp.RemoveRole role -> out.put("site", role.site()).put("role", role.role());
+                case ScenarioOp.Can can ->
+                    out.put("user", can.user())
+                            .put("site", can.site())
+                            .put("capability", can.capability())
+                            .put("target", can.target());
             }
         }
         return node;
@@ -117,6 +159,17 @@ public final class ScenarioJson {
             case "lookup" -> onlyKeys(op, id, "op", "host", "path");
             case "set_flag" -> onlyKeys(op, id, "op", "site", "flag", "value");
             case "read_options" -> onlyKeys(op, id, "op", "site", "names");
+            case "create_user" -> onlyKeys(op, id, "op", "username", "given_name", "family_name");
+            case "add_user", "set_role" -> onlyKeys(op, id, "op", "user", "site", "role");
+            case "remove_user" -> onlyKeys(op, id, "op", "user", "site");
+            case "add_cap" -> onlyKeys(op, id, "op", "user", "site", "capability", "grant");
+            case "super_admin" -> onlyKeys(op, id, "op", "user", "grant");
+            case "network_flag" -> onlyKeys(op, id, "op", "name", "value");
+            case "site_setting" -> onlyKeys(op, id, "op", "site", "name", "value");
+            case "add_role" -> onlyKeys(op, id, "op", "site", "role", "name", "capabilities");
+            case "role_cap" -> onlyKeys(op, id, "op", "site", "role", "capability", "grant");
+            case "remove_role" -> onlyKeys(op, id, "op", "site", "role");
+            case "can" -> onlyKeys(op, id, "op", "user", "site", "capability", "target");
             default -> {}
         }
         return switch (kind) {
@@ -145,8 +198,60 @@ public final class ScenarioJson {
                 }
                 yield new ScenarioOp.ReadOptions(number(op, "site", id), names);
             }
+            case "create_user" ->
+                new ScenarioOp.CreateUser(
+                        text(op, "username", id), text(op, "given_name", id), text(op, "family_name", id));
+            case "add_user" ->
+                new ScenarioOp.AddUser(number(op, "user", id), number(op, "site", id), text(op, "role", id));
+            case "remove_user" -> new ScenarioOp.RemoveUser(number(op, "user", id), number(op, "site", id));
+            case "set_role" ->
+                new ScenarioOp.SetRole(number(op, "user", id), number(op, "site", id), text(op, "role", id));
+            case "add_cap" ->
+                new ScenarioOp.AddCap(
+                        number(op, "user", id),
+                        number(op, "site", id),
+                        text(op, "capability", id),
+                        bool(op, "grant", id));
+            case "super_admin" -> new ScenarioOp.SuperAdmin(number(op, "user", id), bool(op, "grant", id));
+            case "network_flag" -> new ScenarioOp.NetworkFlag(text(op, "name", id), bool(op, "value", id));
+            case "site_setting" ->
+                new ScenarioOp.SiteSetting(number(op, "site", id), text(op, "name", id), bool(op, "value", id));
+            case "add_role" ->
+                new ScenarioOp.AddRole(
+                        number(op, "site", id),
+                        text(op, "role", id),
+                        text(op, "name", id),
+                        texts(op, "capabilities", id));
+            case "role_cap" ->
+                new ScenarioOp.RoleCap(
+                        number(op, "site", id),
+                        text(op, "role", id),
+                        text(op, "capability", id),
+                        bool(op, "grant", id));
+            case "remove_role" -> new ScenarioOp.RemoveRole(number(op, "site", id), text(op, "role", id));
+            case "can" ->
+                new ScenarioOp.Can(
+                        number(op, "user", id),
+                        number(op, "site", id),
+                        text(op, "capability", id),
+                        number(op, "target", id));
             default -> throw new IllegalArgumentException("scenario " + id + ": unknown op '" + kind + "'");
         };
+    }
+
+    private static List<String> texts(JsonNode node, String field, String id) {
+        JsonNode list = node.get(field);
+        if (list == null || !list.isArray()) {
+            throw new IllegalArgumentException("scenario " + id + ": '" + field + "' must be a list");
+        }
+        List<String> texts = new ArrayList<>();
+        for (JsonNode element : list) {
+            if (!element.isTextual()) {
+                throw new IllegalArgumentException("scenario " + id + ": '" + field + "' holds only text");
+            }
+            texts.add(element.textValue());
+        }
+        return texts;
     }
 
     private static void onlyKeys(JsonNode node, String id, String... allowed) {

@@ -80,6 +80,171 @@ public sealed interface ScenarioOp {
         }
     }
 
+    /**
+     * A user registering with {@code username} and, when not empty, given and family names (WordPress's first and last
+     * name). On both sides a new user is a member of no site.
+     */
+    record CreateUser(String username, String givenName, String familyName) implements ScenarioOp {
+        public CreateUser {
+            Objects.requireNonNull(username, "username");
+            Objects.requireNonNull(givenName, "givenName");
+            Objects.requireNonNull(familyName, "familyName");
+            ScenarioRules.requireName(givenName);
+            ScenarioRules.requireName(familyName);
+            ScenarioRules.requireUsername(username, givenName.isEmpty() && familyName.isEmpty());
+        }
+
+        @Override
+        public String kind() {
+            return "create_user";
+        }
+    }
+
+    /** A user added to a site with a role (empty: a member without role). */
+    record AddUser(int user, int site, String role) implements ScenarioOp {
+        public AddUser {
+            Objects.requireNonNull(role, "role");
+            ScenarioRules.requireKey(role, true);
+        }
+
+        @Override
+        public String kind() {
+            return "add_user";
+        }
+    }
+
+    /** A user removed from a site. */
+    record RemoveUser(int user, int site) implements ScenarioOp {
+        @Override
+        public String kind() {
+            return "remove_user";
+        }
+    }
+
+    /** A user's roles on a site replaced by one role (empty: none). */
+    record SetRole(int user, int site, String role) implements ScenarioOp {
+        public SetRole {
+            Objects.requireNonNull(role, "role");
+            ScenarioRules.requireKey(role, true);
+        }
+
+        @Override
+        public String kind() {
+            return "set_role";
+        }
+    }
+
+    /** An individual capability of a user on a site (false: a denial). */
+    record AddCap(int user, int site, String capability, boolean grant) implements ScenarioOp {
+        public AddCap {
+            Objects.requireNonNull(capability, "capability");
+            ScenarioRules.requireKey(capability, false);
+        }
+
+        @Override
+        public String kind() {
+            return "add_cap";
+        }
+    }
+
+    /** A user made a super admin, or no longer one. */
+    record SuperAdmin(int user, boolean grant) implements ScenarioOp {
+        @Override
+        public String kind() {
+            return "super_admin";
+        }
+    }
+
+    /** A network option: {@code add_new_users}, or {@code menu_plugins} (the plugins entry of menu_items). */
+    record NetworkFlag(String name, boolean value) implements ScenarioOp {
+        public NetworkFlag {
+            Objects.requireNonNull(name, "name");
+            ScenarioRules.requireNetworkFlag(name);
+        }
+
+        @Override
+        public String kind() {
+            return "network_flag";
+        }
+    }
+
+    /** A site option that capability rules read: {@code link_manager_enabled}. */
+    record SiteSetting(int site, String name, boolean value) implements ScenarioOp {
+        public SiteSetting {
+            Objects.requireNonNull(name, "name");
+            ScenarioRules.requireSiteSetting(name);
+        }
+
+        @Override
+        public String kind() {
+            return "site_setting";
+        }
+    }
+
+    /** A role added to a site's table, granting the listed capabilities. */
+    record AddRole(int site, String role, String name, List<String> capabilities) implements ScenarioOp {
+        public AddRole {
+            Objects.requireNonNull(role, "role");
+            Objects.requireNonNull(name, "name");
+            capabilities = List.copyOf(capabilities);
+            ScenarioRules.requireKey(role, true);
+            ScenarioRules.requireName(name);
+            capabilities.forEach(capability -> ScenarioRules.requireKey(capability, false));
+        }
+
+        @Override
+        public String kind() {
+            return "add_role";
+        }
+    }
+
+    /** A capability of a site's role set (false: a denial). */
+    record RoleCap(int site, String role, String capability, boolean grant) implements ScenarioOp {
+        public RoleCap {
+            Objects.requireNonNull(role, "role");
+            Objects.requireNonNull(capability, "capability");
+            ScenarioRules.requireKey(role, false);
+            ScenarioRules.requireKey(capability, false);
+        }
+
+        @Override
+        public String kind() {
+            return "role_cap";
+        }
+    }
+
+    /** A role removed from a site's table. */
+    record RemoveRole(int site, String role) implements ScenarioOp {
+        public RemoveRole {
+            Objects.requireNonNull(role, "role");
+            ScenarioRules.requireKey(role, false);
+        }
+
+        @Override
+        public String kind() {
+            return "remove_role";
+        }
+    }
+
+    /**
+     * Whether a user ({@code 0}: a logged-out visitor) has a capability on a site, checked against another user when
+     * {@code target} is not 0.
+     */
+    record Can(int user, int site, String capability, int target) implements ScenarioOp {
+        public Can {
+            Objects.requireNonNull(capability, "capability");
+            ScenarioRules.requireKey(capability, false);
+            if (user < 0 || target < 0) {
+                throw new IllegalArgumentException("a scenario user reference is 0 or more");
+            }
+        }
+
+        @Override
+        public String kind() {
+            return "can";
+        }
+    }
+
     /** The site fields a scenario may set. */
     enum Flag {
         ARCHIVED,

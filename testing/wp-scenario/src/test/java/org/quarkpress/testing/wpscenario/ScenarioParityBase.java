@@ -158,6 +158,7 @@ abstract class ScenarioParityBase {
                             outcome.option(op, name, text);
                         }
                     }
+                    default -> throw new IllegalStateException("not run on QuarkPress yet: " + step.kind());
                 }
             }
             for (int index = 1; index <= created.size(); index++) {

@@ -207,6 +207,156 @@ function qp_read_options(array $op, array $created): array
     return ['op' => 'read_options', 'values' => $values];
 }
 
+/**
+ * Creates a user as the network's user creation does. Driver-applied rule (wpmu_create_user): after wp_insert_user,
+ * the user's capabilities and level on the main site are deleted, so a new network user is a member of no site.
+ */
+function qp_create_user(array $op, array &$users): array
+{
+    $index = count($users) + 1;
+    $data = [
+        'user_login' => $op['username'],
+        'user_pass' => 'scenario-password-1',
+        'user_email' => 'user' . $index . '@example.test',
+    ];
+    if ('' !== $op['given_name']) {
+        $data['first_name'] = $op['given_name'];
+    }
+    if ('' !== $op['family_name']) {
+        $data['last_name'] = $op['family_name'];
+    }
+    $id = wp_insert_user($data);
+    if (is_wp_error($id)) {
+        $users[$index] = null;
+        return ['op' => 'create_user', 'error' => $id->get_error_code()];
+    }
+    delete_user_option($id, 'capabilities');
+    delete_user_option($id, 'user_level');
+    clean_user_cache($id);
+    $user = get_userdata($id);
+    $users[$index] = (int) $id;
+    return ['op' => 'create_user', 'id' => (int) $id, 'nicename' => $user->user_nicename, 'display_name' => $user->display_name];
+}
+
+function qp_site_id(int $index, array $created): ?int
+{
+    return 0 === $index ? get_main_site_id() : ($created[$index] ?? null);
+}
+
+/** Runs $work for a user (index; 0 for nobody) on a site (index), or reports a site or user that was not created. */
+function qp_on_site(string $kind, array $op, array $created, array $users, callable $work): array
+{
+    $site = qp_site_id($op['site'], $created);
+    $user = 0 === ($op['user'] ?? 0) ? 0 : ($users[$op['user']] ?? null);
+    if (null === $site || null === $user) {
+        return ['op' => $kind, 'missing' => true];
+    }
+    switch_to_blog($site);
+    try {
+        return ['op' => $kind] + $work($site, $user);
+    } finally {
+        restore_current_blog();
+    }
+}
+
+/** The result of a call that returns true or a WP_Error: ok, or the error's code. */
+function qp_true_or_error($answer): array
+{
+    return is_wp_error($answer) ? ['ok' => false, 'error' => $answer->get_error_code()] : ['ok' => true === $answer];
+}
+
+/**
+ * Operations on users, roles and options. Each reports what WordPress answered: a function that returns true or a
+ * WP_Error is reported as such; one that returns nothing is reported from the state read back afterwards.
+ */
+function qp_capability_op(array $op, array $created, array $users): array
+{
+    switch ($op['op']) {
+        case 'add_user':
+            return qp_on_site('add_user', $op, $created, $users, static function ($site, $user) use ($op) {
+                return qp_true_or_error(add_user_to_blog($site, $user, $op['role']));
+            });
+        case 'remove_user':
+            return qp_on_site('remove_user', $op, $created, $users, static function ($site, $user) {
+                return qp_true_or_error(remove_user_from_blog($user, $site));
+            });
+        case 'set_role':
+            return qp_on_site('set_role', $op, $created, $users, static function ($site, $user) use ($op) {
+                (new WP_User($user))->set_role($op['role']);
+                $roles = (new WP_User($user))->roles;
+                return ['ok' => '' === $op['role'] ? [] === $roles : [$op['role']] === array_values($roles)];
+            });
+        case 'add_cap':
+            return qp_on_site('add_cap', $op, $created, $users, static function ($site, $user) use ($op) {
+                (new WP_User($user))->add_cap($op['capability'], $op['grant']);
+                $caps = (new WP_User($user))->caps;
+                return ['ok' => array_key_exists($op['capability'], $caps) && $op['grant'] === $caps[$op['capability']]];
+            });
+        case 'super_admin':
+            $user = $users[$op['user']] ?? null;
+            if (null === $user) {
+                return ['op' => 'super_admin', 'missing' => true];
+            }
+            return ['op' => 'super_admin', 'changed' => $op['grant'] ? grant_super_admin($user) : revoke_super_admin($user)];
+        case 'network_flag':
+            if ('add_new_users' === $op['name']) {
+                $value = $op['value'] ? '1' : '0';
+                update_site_option('add_new_users', $value);
+                $stored = (string) get_site_option('add_new_users');
+                return ['op' => 'network_flag', 'ok' => $value === $stored];
+            }
+            $value = $op['value'] ? ['plugins' => '1'] : [];
+            update_site_option('menu_items', $value);
+            return ['op' => 'network_flag', 'ok' => $value === get_site_option('menu_items')];
+        case 'site_setting':
+            $site = qp_site_id($op['site'], $created);
+            if (null === $site) {
+                return ['op' => 'site_setting', 'missing' => true];
+            }
+            $value = $op['value'] ? 1 : 0;
+            update_blog_option($site, $op['name'], $value);
+            return ['op' => 'site_setting', 'ok' => $value === (int) get_blog_option($site, $op['name'])];
+        case 'add_role':
+            return qp_on_site('add_role', $op + ['user' => 0], $created, $users, static function () use ($op) {
+                // WordPress takes a map of capability => granted.
+                $capabilities = array_fill_keys($op['capabilities'], true);
+                return ['changed' => null !== add_role($op['role'], $op['name'], $capabilities)];
+            });
+        case 'role_cap':
+            return qp_on_site('role_cap', $op + ['user' => 0], $created, $users, static function () use ($op) {
+                $role = get_role($op['role']);
+                if (null === $role) {
+                    return ['ok' => false];
+                }
+                $role->add_cap($op['capability'], $op['grant']);
+                $capabilities = get_role($op['role'])->capabilities;
+                return ['ok' => array_key_exists($op['capability'], $capabilities)
+                    && $op['grant'] === $capabilities[$op['capability']]];
+            });
+        case 'remove_role':
+            return qp_on_site('remove_role', $op + ['user' => 0], $created, $users, static function () use ($op) {
+                remove_role($op['role']);
+                return ['ok' => null === get_role($op['role'])];
+            });
+        case 'can':
+            $target = 0 === $op['target'] ? null : ($users[$op['target']] ?? null);
+            if (0 !== $op['target'] && null === $target) {
+                return ['op' => 'can', 'missing' => true];
+            }
+            return qp_on_site('can', $op, $created, $users, static function ($site, $user) use ($op, $target) {
+                $args = null === $target ? [] : [$target];
+                if (0 === $user) {
+                    // A logged-out visitor is WordPress's current user 0, evaluated by current_user_can.
+                    wp_set_current_user(0);
+                    return ['can' => current_user_can($op['capability'], ...$args)];
+                }
+                return ['can' => user_can($user, $op['capability'], ...$args)];
+            });
+        default:
+            throw new InvalidArgumentException('unknown op ' . $op['op']);
+    }
+}
+
 function qp_run_scenario(array $scenario, array $variant): array
 {
     $segments = (int) $variant['path_segments'];
@@ -216,6 +366,7 @@ function qp_run_scenario(array $scenario, array $variant): array
         add_filter('site_by_path_segments_count', static fn($count) => null === $count ? null : $count + $segments - 1, 10, 1);
     }
     $created = [];
+    $users = [];
     $results = [];
     foreach ($scenario['ops'] as $op) {
         $results[] = match ($op['op']) {
@@ -223,6 +374,9 @@ function qp_run_scenario(array $scenario, array $variant): array
             'lookup' => qp_lookup($op, $variant),
             'set_flag' => qp_set_flag($op, $created),
             'read_options' => qp_read_options($op, $created),
+            'create_user' => qp_create_user($op, $users),
+            'add_user', 'remove_user', 'set_role', 'add_cap', 'super_admin', 'network_flag', 'site_setting',
+            'add_role', 'role_cap', 'remove_role', 'can' => qp_capability_op($op, $created, $users),
             default => throw new InvalidArgumentException('unknown op ' . $op['op']),
         };
     }

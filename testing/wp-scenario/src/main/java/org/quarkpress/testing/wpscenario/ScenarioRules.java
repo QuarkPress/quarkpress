@@ -31,6 +31,100 @@ final class ScenarioRules {
 
     private ScenarioRules() {}
 
+    /** The network options a scenario may set: add_new_users, and the plugins entry of menu_items. */
+    static final List<String> NETWORK_FLAGS = List.of("add_new_users", "menu_plugins");
+
+    /** The site options a scenario may set. */
+    static final List<String> SITE_SETTINGS = List.of("link_manager_enabled");
+
+    /**
+     * A username both sides can create: 1 to 60 characters, no control characters, not WordPress's installed
+     * {@code admin}. A user without names shows the username as display name; WordPress shows its login instead, so
+     * such a username must be one strict sanitizing keeps (ASCII letters, digits, {@code _ . - @}, single inner
+     * spaces).
+     */
+    static void requireUsername(String username, boolean withoutNames) {
+        if (username.isEmpty() || username.length() > 60) {
+            throw new IllegalArgumentException("a scenario username has 1 to 60 characters: " + username);
+        }
+        for (int i = 0; i < username.length(); i++) {
+            if (username.charAt(i) < 0x20 || username.charAt(i) == 0x7F) {
+                throw new IllegalArgumentException("a scenario username holds no control characters");
+            }
+        }
+        if (lowerAscii(username.strip()).equals("admin")) {
+            throw new IllegalArgumentException("the username admin belongs to the WordPress installation's own user");
+        }
+        if (username.startsWith(" ")
+                || username.endsWith(" ")
+                || "<>&%".chars().anyMatch(c -> username.indexOf(c) >= 0)) {
+            throw new IllegalArgumentException(
+                    "a scenario username holds none of < > & % and no surrounding spaces, which WordPress would"
+                            + " strip: " + username);
+        }
+        if (isFallbackNicename(username)) {
+            throw new IllegalArgumentException(
+                    "a scenario username does not read as QuarkPress's fallback nicename user-<number>: " + username);
+        }
+        if (withoutNames && !keptByStrictSanitizing(username)) {
+            throw new IllegalArgumentException("a user without names needs a username WordPress keeps as it is:"
+                    + " ASCII letters, digits, _ . - @ and single inner spaces: " + username);
+        }
+    }
+
+    /** Whether a username becomes the nicename {@code user-<digits>} (with optional {@code -<digits>} suffixes). */
+    private static boolean isFallbackNicename(String username) {
+        String slug = lowerAscii(username).replace(' ', '-').replace('.', '-');
+        if (!slug.startsWith("user-")) {
+            return false;
+        }
+        boolean digit = false;
+        for (int i = 5; i < slug.length(); i++) {
+            char c = slug.charAt(i);
+            if (c >= '0' && c <= '9') {
+                digit = true;
+            } else if (c == '-' && digit && i + 1 < slug.length()) {
+                digit = false;
+            } else {
+                return false;
+            }
+        }
+        return digit;
+    }
+
+    /** A given or family name both sides store alike: WordPress escapes and trims names on save. */
+    static void requireName(String name) {
+        boolean ok = name.length() <= 100 && name.equals(name.strip()) && !name.contains("  ");
+        for (int i = 0; ok && i < name.length(); i++) {
+            char c = name.charAt(i);
+            ok = c >= 0x20 && c != 0x7F && "&<>\"'%\\".indexOf(c) < 0;
+        }
+        if (!ok) {
+            throw new IllegalArgumentException("a scenario name holds no HTML-special characters, no control"
+                    + " characters and no surrounding or doubled spaces: " + name);
+        }
+    }
+
+    /** A capability or role key; {@code emptyAllowed} for a role meaning "no role". */
+    static void requireKey(String key, boolean emptyAllowed) {
+        if ((key.isEmpty() && !emptyAllowed) || key.length() > 60 || !onlyOf(key, "_-", true)) {
+            throw new IllegalArgumentException(
+                    "a scenario capability or role key holds only letters, digits, _ and -: " + key);
+        }
+    }
+
+    static void requireNetworkFlag(String name) {
+        if (!NETWORK_FLAGS.contains(name)) {
+            throw new IllegalArgumentException("a scenario network flag is add_new_users or menu_plugins: " + name);
+        }
+    }
+
+    static void requireSiteSetting(String name) {
+        if (!SITE_SETTINGS.contains(name)) {
+            throw new IllegalArgumentException("a scenario site setting is link_manager_enabled: " + name);
+        }
+    }
+
     static void requireId(String id) {
         if (id.isEmpty() || !onlyOf(id, "-", false)) {
             throw new IllegalArgumentException("a scenario id holds only lower-case letters, digits and -: " + id);
@@ -90,6 +184,13 @@ final class ScenarioRules {
             lower.append(c >= 'A' && c <= 'Z' ? (char) (c + ('a' - 'A')) : c);
         }
         return lower.toString();
+    }
+
+    private static boolean keptByStrictSanitizing(String username) {
+        if (username.startsWith(" ") || username.endsWith(" ") || username.contains("  ")) {
+            return false;
+        }
+        return onlyOf(username, "_.-@ ", true);
     }
 
     private static boolean onlyOf(String text, String punctuation, boolean upperCase) {

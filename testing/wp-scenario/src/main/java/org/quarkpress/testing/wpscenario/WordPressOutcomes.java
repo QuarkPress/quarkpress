@@ -16,6 +16,13 @@ import java.util.Map;
  *       {@code {"result": "not_installed"}} (what {@code ms_load_current_site_and_network} answered);
  *   <li>{@code set_flag}: {@code {"ok": <bool>}} or {@code {"missing": true}};
  *   <li>{@code read_options}: {@code {"values": {<name>: <text or null>}}} or {@code {"missing": true}};
+ *   <li>{@code create_user}: {@code {"id": <user id>, "nicename": <text>, "display_name": <text>}} or
+ *       {@code {"error": <wp_insert_user error code>}};
+ *   <li>{@code can}: {@code {"can": <bool>}}; {@code super_admin} and {@code add_role}: {@code {"changed": <bool>}};
+ *       {@code add_user}, {@code remove_user}, {@code set_role}, {@code add_cap}, {@code network_flag},
+ *       {@code site_setting}, {@code role_cap} and {@code remove_role}: {@code {"ok": <bool>}}, with {@code "error":
+ *       <code>} added when WordPress answered with an error; any of them on a site or user that was not created:
+ *       {@code {"missing": true}};
  * </ul>
  * and {@code sites} lists each created site's final record ({@code index}, {@code id}, {@code domain}, {@code path},
  * {@code public}, {@code archived}, {@code mature}, {@code spam}, {@code deleted}) in creation order. Domains and paths
@@ -90,6 +97,33 @@ public final class WordPressOutcomes {
                         outcome.option(op, name, text);
                     }
                 }
+                case ScenarioOp.CreateUser user -> {
+                    if (result.has("id")) {
+                        outcome.userCreated(
+                                op,
+                                field(result, "nicename", at).asText(),
+                                field(result, "display_name", at).asText());
+                    } else {
+                        outcome.userRefused(op, field(result, "error", at).asText());
+                    }
+                }
+                case ScenarioOp.Can can -> {
+                    if (result.path("missing").asBoolean()) {
+                        outcome.done(op, can.kind(), "missing");
+                    } else {
+                        outcome.answer(op, field(result, "can", at).asBoolean());
+                    }
+                }
+                case ScenarioOp.SuperAdmin admin -> outcome.done(op, admin.kind(), changed(result, at));
+                case ScenarioOp.AddRole role -> outcome.done(op, role.kind(), changed(result, at));
+                case ScenarioOp.AddUser add -> outcome.done(op, add.kind(), okay(result, at));
+                case ScenarioOp.RemoveUser remove -> outcome.done(op, remove.kind(), okay(result, at));
+                case ScenarioOp.SetRole set -> outcome.done(op, set.kind(), okay(result, at));
+                case ScenarioOp.AddCap cap -> outcome.done(op, cap.kind(), okay(result, at));
+                case ScenarioOp.NetworkFlag flag -> outcome.done(op, flag.kind(), okay(result, at));
+                case ScenarioOp.SiteSetting setting -> outcome.done(op, setting.kind(), okay(result, at));
+                case ScenarioOp.RoleCap role -> outcome.done(op, role.kind(), okay(result, at));
+                case ScenarioOp.RemoveRole role -> outcome.done(op, role.kind(), okay(result, at));
             }
         }
         for (JsonNode site : field(out, "sites", where)) {
@@ -113,6 +147,22 @@ public final class WordPressOutcomes {
                     field(site, "deleted", at).asInt() != 0);
         }
         return outcome;
+    }
+
+    private static String changed(JsonNode result, String at) {
+        return result.path("missing").asBoolean()
+                ? "missing"
+                : "changed=" + field(result, "changed", at).asBoolean();
+    }
+
+    private static String okay(JsonNode result, String at) {
+        if (result.path("missing").asBoolean()) {
+            return "missing";
+        }
+        if (field(result, "ok", at).asBoolean()) {
+            return "ok";
+        }
+        return result.hasNonNull("error") ? "failed:" + result.get("error").asText() : "failed";
     }
 
     private static JsonNode field(JsonNode node, String name, String where) {
