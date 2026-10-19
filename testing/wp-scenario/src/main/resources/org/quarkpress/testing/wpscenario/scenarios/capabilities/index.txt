@@ -1,0 +1,13 @@
+# Hand-written capability scenarios, one or more per behaviour-reference rule.
+cap1-roles.json
+cap9-allcaps.json
+cap15-special.json
+cap18-super-admin.json
+cap21-network-restrictions.json
+cap22-users.json
+cap33-links.json
+cap7-roles-api.json
+cap41-nicenames.json
+cap41-refused.json
+cap42-same-login.json
+cap45-membership.json

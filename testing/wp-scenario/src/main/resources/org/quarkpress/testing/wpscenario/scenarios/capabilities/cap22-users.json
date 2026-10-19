@@ -1,0 +1,21 @@
+{"id": "cap22-users", "rule": "CAP22", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/people/", "title": "People"},
+  {"op": "create_user", "username": "ada", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "abe", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "sal", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 1, "role": "administrator"},
+  {"op": "add_user", "user": 2, "site": 1, "role": "author"},
+  {"op": "super_admin", "user": 3, "grant": true},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_user", "target": 2},
+  {"op": "can", "user": 2, "site": 1, "capability": "edit_user", "target": 2},
+  {"op": "can", "user": 1, "site": 1, "capability": "remove_user", "target": 1},
+  {"op": "can", "user": 1, "site": 1, "capability": "remove_user", "target": 2},
+  {"op": "can", "user": 1, "site": 1, "capability": "promote_user", "target": 2},
+  {"op": "can", "user": 1, "site": 1, "capability": "delete_user", "target": 2},
+  {"op": "can", "user": 3, "site": 1, "capability": "delete_user", "target": 2},
+  {"op": "can", "user": 0, "site": 1, "capability": "edit_user", "target": 2},
+  {"op": "add_cap", "user": 1, "site": 1, "capability": "manage_network_users", "grant": true},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_user", "target": 2},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_user", "target": 3},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_users", "target": 0}
+]}

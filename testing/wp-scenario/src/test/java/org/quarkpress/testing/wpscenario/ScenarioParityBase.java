@@ -3,25 +3,47 @@ package org.quarkpress.testing.wpscenario;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.arc.Arc;
 import io.quarkus.arc.InjectableContext.ContextState;
 import io.quarkus.arc.ManagedContext;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.inject.Inject;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
 import org.quarkpress.core.OptionStore;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteInfo;
 import org.quarkpress.core.SiteRequest;
+import org.quarkpress.core.UserId;
 import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.multisite.NewSite;
 import org.quarkpress.multisite.SiteChanges;
 import org.quarkpress.multisite.SiteFlag;
 import org.quarkpress.multisite.Sites;
 import org.quarkpress.multisite.runtime.HttpResolution;
+import org.quarkpress.persistence.NetworkOptions;
+import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
+import org.quarkpress.security.CapObject;
+import org.quarkpress.security.Capabilities;
+import org.quarkpress.security.Membership;
+import org.quarkpress.security.Memberships;
+import org.quarkpress.security.ProfileClaims;
+import org.quarkpress.security.SiteRoles;
+import org.quarkpress.security.SystemIdentity;
+import org.quarkpress.security.UserProfile;
+import org.quarkpress.security.UserProfileProvisioner;
+import org.quarkpress.security.UserTarget;
+import org.quarkpress.security.runtime.UserProfileRepository;
 import org.quarkpress.testing.wporacle.ParityRun;
 import org.quarkpress.testing.wporacle.ParitySkipList;
 
@@ -46,6 +68,30 @@ abstract class ScenarioParityBase {
 
     @Inject
     OptionStore store;
+
+    @Inject
+    SystemIdentity system;
+
+    @Inject
+    UserProfileProvisioner provisioner;
+
+    @Inject
+    UserProfileRepository profileRows;
+
+    @Inject
+    Memberships memberships;
+
+    @Inject
+    SiteRoles siteRoles;
+
+    @Inject
+    Capabilities capabilities;
+
+    @Inject
+    NetworkOptions networkOptions;
+
+    @Inject
+    Options options;
 
     /** Compares every scenario; fails on a difference, a stale skip entry, or fewer comparisons than {@code minimum}. */
     void compareWithWordPress(String library, List<Scenario> scenarios, Path skips, int minimum) throws Exception {
@@ -82,7 +128,7 @@ abstract class ScenarioParityBase {
         }
         requests.activate();
         try {
-            return runInRequest(scenario);
+            return system.call(() -> runInRequest(scenario));
         } finally {
             requests.terminate();
             if (outer != null) {
@@ -96,9 +142,19 @@ abstract class ScenarioParityBase {
         Outcome outcome = new Outcome();
         List<SiteId> created = new ArrayList<>();
         List<ScenarioOp.CreateSite> leaked = new ArrayList<>();
-        assertMainAddress("before the scenario " + scenario.caseId());
+        List<UserId> users = new ArrayList<>();
+        // WordPress's installation has a user named admin (nicename admin); mirror it so nicenames collide alike.
+        UserProfile[] installer = new UserProfile[1];
         Throwable failure = null;
         try {
+            assertMainAddress("before the scenario " + scenario.caseId());
+            installer[0] = provisioner.provision(new ProfileClaims(
+                    "tierb-admin-" + UUID.randomUUID(), Optional.of("admin"), Optional.empty(), Optional.empty()));
+            if (!installer[0].nicename().equals("admin")) {
+                throw new AssertionError("a profile left by an earlier run holds the nicename admin ("
+                        + installer[0].nicename() + " was assigned): delete the stale profile whose subject starts"
+                        + " with tierb- from the QuarkPress test database and run again");
+            }
             sites.update(MAIN, SiteChanges.none().withDomain(variant.domain()).withPath(variant.path()));
             int op = 0;
             for (ScenarioOp step : scenario.ops()) {
@@ -158,7 +214,18 @@ abstract class ScenarioParityBase {
                             outcome.option(op, name, text);
                         }
                     }
-                    default -> throw new IllegalStateException("not run on QuarkPress yet: " + step.kind());
+                    case ScenarioOp.CreateUser user -> runCapabilityOp(op, user, outcome, created, users);
+                    case ScenarioOp.AddUser add -> runCapabilityOp(op, add, outcome, created, users);
+                    case ScenarioOp.RemoveUser remove -> runCapabilityOp(op, remove, outcome, created, users);
+                    case ScenarioOp.SetRole set -> runCapabilityOp(op, set, outcome, created, users);
+                    case ScenarioOp.AddCap cap -> runCapabilityOp(op, cap, outcome, created, users);
+                    case ScenarioOp.SuperAdmin admin -> runCapabilityOp(op, admin, outcome, created, users);
+                    case ScenarioOp.NetworkFlag flag -> runCapabilityOp(op, flag, outcome, created, users);
+                    case ScenarioOp.SiteSetting setting -> runCapabilityOp(op, setting, outcome, created, users);
+                    case ScenarioOp.AddRole role -> runCapabilityOp(op, role, outcome, created, users);
+                    case ScenarioOp.RoleCap role -> runCapabilityOp(op, role, outcome, created, users);
+                    case ScenarioOp.RemoveRole role -> runCapabilityOp(op, role, outcome, created, users);
+                    case ScenarioOp.Can can -> runCapabilityOp(op, can, outcome, created, users);
                 }
             }
             for (int index = 1; index <= created.size(); index++) {
@@ -181,6 +248,20 @@ abstract class ScenarioParityBase {
             failure = t;
         }
         // Every cleanup step runs, whatever failed before: the original error is kept, later ones are suppressed.
+        for (UserId user : users) {
+            failure = attempt(failure, () -> deleteProfile(user));
+        }
+        if (installer[0] != null) {
+            failure = attempt(failure, () -> deleteProfile(installer[0].id()));
+        }
+        failure = attempt(failure, () -> networkOptions.delete("add_new_users"));
+        failure = attempt(failure, () -> networkOptions.delete("menu_items"));
+        failure = attempt(
+                failure,
+                () -> scope.run(MAIN, () -> {
+                    options.delete("link_manager_enabled");
+                    options.delete("qp_user_roles");
+                }));
         for (int index = created.size() - 1; index >= 0; index--) {
             SiteId id = created.get(index);
             if (id != null) {
@@ -202,6 +283,156 @@ abstract class ScenarioParityBase {
             throw (Error) failure;
         }
         return outcome;
+    }
+
+    /**
+     * Removes a profile and what hangs on it: memberships on every site, super admin status. The foreign keys cascade
+     * to both anyway; the explicit calls go through the services so their events and locks run, and are
+     * belt-and-braces.
+     */
+    private void deleteProfile(UserId user) {
+        QuarkusTransaction.requiringNew().run(() -> {
+            memberships.sitesOf(user).forEach(membership -> memberships.remove(membership.site(), user));
+            memberships.revokeSuperAdmin(user);
+            profileRows.deleteById(user.value());
+        });
+    }
+
+    /** Runs a user, role, option or capability operation on QuarkPress, recording what WordPress's side records. */
+    private void runCapabilityOp(int op, ScenarioOp step, Outcome outcome, List<SiteId> created, List<UserId> users) {
+        switch (step) {
+            case ScenarioOp.CreateUser user -> {
+                UserProfile profile = provisioner.provision(new ProfileClaims(
+                        "tierb-" + UUID.randomUUID(),
+                        Optional.of(user.username()),
+                        nonEmpty(user.givenName()),
+                        nonEmpty(user.familyName())));
+                users.add(profile.id());
+                outcome.userCreated(
+                        op,
+                        Outcome.nicename(profile.nicename(), profile.id().value(), users.size()),
+                        profile.displayName());
+            }
+            case ScenarioOp.AddUser add ->
+                outcome.done(op, add.kind(), onSite(created, add.site(), site -> {
+                    UserId user = users.get(add.user() - 1);
+                    memberships.add(site, user, add.role());
+                    return stored(memberships.find(site, user), add.role());
+                }));
+            case ScenarioOp.RemoveUser remove ->
+                outcome.done(op, remove.kind(), onSite(created, remove.site(), site -> {
+                    UserId user = users.get(remove.user() - 1);
+                    memberships.remove(site, user);
+                    return memberships.find(site, user).isEmpty() ? "ok" : "failed";
+                }));
+            case ScenarioOp.SetRole set ->
+                outcome.done(op, set.kind(), onSite(created, set.site(), site -> {
+                    UserId user = users.get(set.user() - 1);
+                    memberships.setRole(site, user, set.role());
+                    return stored(memberships.find(site, user), set.role());
+                }));
+            case ScenarioOp.AddCap cap ->
+                outcome.done(op, cap.kind(), onSite(created, cap.site(), site -> {
+                    UserId user = users.get(cap.user() - 1);
+                    memberships.setCapability(site, user, cap.capability(), cap.grant());
+                    Boolean held = memberships
+                            .find(site, user)
+                            .map(membership -> membership.capabilities().get(cap.capability()))
+                            .orElse(null);
+                    return Boolean.valueOf(cap.grant()).equals(held) ? "ok" : "failed";
+                }));
+            case ScenarioOp.SuperAdmin admin -> {
+                UserId user = users.get(admin.user() - 1);
+                boolean changed =
+                        admin.grant() ? memberships.grantSuperAdmin(user) : memberships.revokeSuperAdmin(user);
+                outcome.done(op, admin.kind(), "changed=" + changed);
+            }
+            case ScenarioOp.NetworkFlag flag -> {
+                if (flag.name().equals("add_new_users")) {
+                    networkOptions.set("add_new_users", TextNode.valueOf(flag.value() ? "1" : "0"));
+                } else {
+                    networkOptions.set(
+                            "menu_items",
+                            flag.value()
+                                    ? JsonNodeFactory.instance.objectNode().put("plugins", "1")
+                                    : JsonNodeFactory.instance.objectNode());
+                }
+                outcome.done(op, flag.kind(), "ok");
+            }
+            case ScenarioOp.SiteSetting setting ->
+                outcome.done(op, setting.kind(), onSite(created, setting.site(), site -> {
+                    scope.run(site, () -> options.set(setting.name(), IntNode.valueOf(setting.value() ? 1 : 0)));
+                    return "ok";
+                }));
+            case ScenarioOp.AddRole role ->
+                outcome.done(op, role.kind(), onSite(created, role.site(), site -> {
+                    Map<String, Boolean> grants = new LinkedHashMap<>();
+                    role.capabilities().forEach(capability -> grants.put(capability, true));
+                    return "changed="
+                            + siteRoles
+                                    .add(site, role.role(), role.name(), grants)
+                                    .isPresent();
+                }));
+            case ScenarioOp.RoleCap role ->
+                outcome.done(
+                        op,
+                        role.kind(),
+                        onSite(
+                                created,
+                                role.site(),
+                                site -> siteRoles.setCapability(site, role.role(), role.capability(), role.grant())
+                                        ? "ok"
+                                        : "failed"));
+            case ScenarioOp.RemoveRole role ->
+                outcome.done(op, role.kind(), onSite(created, role.site(), site -> {
+                    siteRoles.remove(site, role.role());
+                    return siteRoles.role(site, role.role()).isEmpty() ? "ok" : "failed";
+                }));
+            case ScenarioOp.Can can -> {
+                SiteId site = can.site() == 0 ? MAIN : created.get(can.site() - 1);
+                if (site == null) {
+                    outcome.done(op, can.kind(), "missing");
+                    break;
+                }
+                Optional<CapObject> target =
+                        can.target() == 0 ? Optional.empty() : Optional.of(new UserTarget(users.get(can.target() - 1)));
+                boolean answer = can.user() == 0
+                        ? capabilities.anonymousCan(site, can.capability(), target)
+                        : capabilities.userCan(users.get(can.user() - 1), site, can.capability(), target);
+                outcome.answer(op, answer);
+            }
+            case ScenarioOp.CreateSite create -> throw notCapability(create);
+            case ScenarioOp.Lookup lookup -> throw notCapability(lookup);
+            case ScenarioOp.SetFlag flag -> throw notCapability(flag);
+            case ScenarioOp.ReadOptions read -> throw notCapability(read);
+        }
+    }
+
+    /** {@code missing} for a site that was not created, {@code failed} when QuarkPress refuses the change. */
+    private static String onSite(List<SiteId> created, int index, Function<SiteId, String> work) {
+        SiteId site = index == 0 ? MAIN : created.get(index - 1);
+        if (site == null) {
+            return "missing";
+        }
+        try {
+            return work.apply(site);
+        } catch (IllegalArgumentException refused) {
+            return "failed";
+        }
+    }
+
+    /** {@code ok} when the membership holds exactly {@code role} (none for an empty role), as the driver reads back. */
+    private static String stored(Optional<Membership> membership, String role) {
+        List<String> expected = role.isEmpty() ? List.of() : List.of(role);
+        return membership.isPresent() && membership.get().roles().equals(expected) ? "ok" : "failed";
+    }
+
+    private static IllegalStateException notCapability(ScenarioOp step) {
+        return new IllegalStateException("not a user or capability operation: " + step.kind());
+    }
+
+    private static Optional<String> nonEmpty(String text) {
+        return text.isEmpty() ? Optional.empty() : Optional.of(text);
     }
 
     /** Runs {@code step}; returns {@code failure}, or the step's error when nothing failed before (else suppressed). */

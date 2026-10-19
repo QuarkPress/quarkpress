@@ -1,0 +1,8 @@
+# Deliberate differences between the security module and WordPress 7.1.3 in the capability scenarios.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the security README's "Differences from
+# WordPress" table.
+cap41-refused@subdirectory op1:create_user D5 a username that strict sanitizing empties gives the nicename user-<id>; WordPress refuses the user
+cap41-refused@subdirectory op2:create_user D5 a login whose nicename sanitizes to nothing gives the nicename user-<id>; WordPress refuses the user
+cap42-same-login@subdirectory op2:create_user D6 a second user with the same username gets a suffixed nicename; WordPress refuses an existing login
+cap22-users@subdirectory op17:can D20 manage_network_users granted to a site administrator is ignored, so edit_user stays refused; WordPress honours the grant
+cap22-users@subdirectory op19:can D20 manage_network_users granted to a site administrator is ignored, so edit_users stays refused; WordPress honours the grant

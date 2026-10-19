@@ -1,0 +1,19 @@
+{"id": "cap7-roles-api", "rule": "CAP7", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/shop/", "title": "Shop"},
+  {"op": "create_user", "username": "shopper", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "edwin", "given_name": "", "family_name": ""},
+  {"op": "add_role", "site": 1, "role": "shop_manager", "name": "Shop manager", "capabilities": ["read", "edit_posts"]},
+  {"op": "add_role", "site": 1, "role": "shop_manager", "name": "Again", "capabilities": ["read"]},
+  {"op": "add_role", "site": 1, "role": "editor", "name": "Chief", "capabilities": ["read"]},
+  {"op": "add_user", "user": 1, "site": 1, "role": "shop_manager"},
+  {"op": "add_user", "user": 2, "site": 1, "role": "editor"},
+  {"op": "add_user", "user": 2, "site": 0, "role": "editor"},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_posts", "target": 0},
+  {"op": "role_cap", "site": 1, "role": "editor", "capability": "edit_theme_options", "grant": true},
+  {"op": "role_cap", "site": 1, "role": "nobody", "capability": "read", "grant": true},
+  {"op": "can", "user": 2, "site": 1, "capability": "edit_theme_options", "target": 0},
+  {"op": "can", "user": 2, "site": 0, "capability": "edit_theme_options", "target": 0},
+  {"op": "remove_role", "site": 1, "role": "shop_manager"},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_posts", "target": 0},
+  {"op": "can", "user": 1, "site": 1, "capability": "shop_manager", "target": 0}
+]}

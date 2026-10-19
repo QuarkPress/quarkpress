@@ -1,0 +1,4 @@
+{"id": "cap41-refused", "rule": "CAP41", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "\u0418\u0432\u0430\u043d", "given_name": "Ivan", "family_name": "Petrov"},
+  {"op": "create_user", "username": "...", "given_name": "Dot", "family_name": ""}
+]}

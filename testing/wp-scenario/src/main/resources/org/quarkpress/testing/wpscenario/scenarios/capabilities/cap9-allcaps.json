@@ -1,0 +1,18 @@
+{"id": "cap9-allcaps", "rule": "CAP9", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/allcaps/", "title": "Allcaps"},
+  {"op": "create_user", "username": "edna", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "sam", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "dora", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 1, "role": "editor"},
+  {"op": "add_cap", "user": 1, "site": 1, "capability": "edit_others_posts", "grant": false},
+  {"op": "add_user", "user": 2, "site": 1, "role": "subscriber"},
+  {"op": "add_cap", "user": 2, "site": 1, "capability": "edit_posts", "grant": true},
+  {"op": "add_user", "user": 3, "site": 1, "role": "editor"},
+  {"op": "add_cap", "user": 3, "site": 1, "capability": "editor", "grant": false},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_others_posts", "target": 0},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_posts", "target": 0},
+  {"op": "can", "user": 2, "site": 1, "capability": "edit_posts", "target": 0},
+  {"op": "can", "user": 2, "site": 1, "capability": "publish_posts", "target": 0},
+  {"op": "can", "user": 3, "site": 1, "capability": "edit_others_posts", "target": 0},
+  {"op": "can", "user": 3, "site": 1, "capability": "editor", "target": 0}
+]}

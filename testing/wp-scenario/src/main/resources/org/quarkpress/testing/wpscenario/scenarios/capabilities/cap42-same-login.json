@@ -1,0 +1,4 @@
+{"id": "cap42-same-login", "rule": "CAP42", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "kim", "given_name": "Kim", "family_name": "One"},
+  {"op": "create_user", "username": "KIM", "given_name": "Kim", "family_name": "Two"}
+]}

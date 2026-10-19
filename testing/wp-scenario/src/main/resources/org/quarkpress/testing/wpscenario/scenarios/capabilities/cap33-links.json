@@ -1,0 +1,10 @@
+{"id": "cap33-links", "rule": "CAP33", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/links/", "title": "Links"},
+  {"op": "create_user", "username": "lin", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 1, "role": "editor"},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "can", "user": 1, "site": 1, "capability": "manage_links", "target": 0},
+  {"op": "site_setting", "site": 1, "name": "link_manager_enabled", "value": true},
+  {"op": "can", "user": 1, "site": 1, "capability": "manage_links", "target": 0},
+  {"op": "can", "user": 1, "site": 0, "capability": "manage_links", "target": 0}
+]}

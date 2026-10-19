@@ -54,6 +54,19 @@ uses only what WordPress itself requires (`json`, `hash`) besides `mysqli`.
 - Inputs both sides cannot be compared on are refused when a scenario is read: hosts with ports, paths with a query,
   backslash, `%` or `/wp-admin/`, titles with HTML-special characters, flag changes of the main site.
 
+Capability scenarios (`scenarios/capabilities/`) add user, role and capability operations, all on the subdirectory
+network: `create_user {username, given_name, family_name}` (empty names are absent; on both sides a new user is a
+member of no site), `add_user {user, site, role}`, `remove_user {user, site}`, `set_role {user, site, role}`,
+`add_cap {user, site, capability, grant}`, `super_admin {user, grant}`, `network_flag {name, value}`
+(`add_new_users`, or `menu_plugins` for the plugins entry of `menu_items`), `site_setting {site, name, value}`
+(`link_manager_enabled`), `add_role {site, role, name, capabilities}`, `role_cap {site, role, capability, grant}`,
+`remove_role {site, role}` and `can {user, site, capability, target}`. Users count from 1 in creation order; `0` is a
+logged-out visitor in `can`, and `target` 0 means no user object. The QuarkPress side runs as the system identity and
+mirrors WordPress's installed `admin` user with a placeholder profile. Usernames are refused when WordPress would
+treat them differently from the comparison's reach: `admin`, control characters, and, for a user without names, any
+username strict sanitizing would change (WordPress would show its login as display name); names are refused with
+HTML-special characters or surrounding or doubled spaces.
+
 ## Adding scenarios
 
 Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for

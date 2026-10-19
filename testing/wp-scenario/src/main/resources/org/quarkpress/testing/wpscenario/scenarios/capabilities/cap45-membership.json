@@ -1,0 +1,14 @@
+{"id": "cap45-membership", "rule": "CAP45", "variant": "subdirectory", "ops": [
+  {"op": "create_site", "domain": "localhost", "path": "/members/", "title": "Members"},
+  {"op": "create_user", "username": "mia", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 1, "role": "editor"},
+  {"op": "add_user", "user": 1, "site": 1, "role": "subscriber"},
+  {"op": "can", "user": 1, "site": 1, "capability": "edit_posts", "target": 0},
+  {"op": "can", "user": 1, "site": 1, "capability": "read", "target": 0},
+  {"op": "set_role", "user": 1, "site": 1, "role": ""},
+  {"op": "can", "user": 1, "site": 1, "capability": "read", "target": 0},
+  {"op": "add_cap", "user": 1, "site": 1, "capability": "upload_files", "grant": true},
+  {"op": "can", "user": 1, "site": 1, "capability": "upload_files", "target": 0},
+  {"op": "remove_user", "user": 1, "site": 1},
+  {"op": "can", "user": 1, "site": 1, "capability": "upload_files", "target": 0}
+]}

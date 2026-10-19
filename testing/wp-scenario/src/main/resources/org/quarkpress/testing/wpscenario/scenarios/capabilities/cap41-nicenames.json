@@ -1,0 +1,9 @@
+{"id": "cap41-nicenames", "rule": "CAP41", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "\u00c9milie Dubois", "given_name": "\u00c9milie", "family_name": "Dubois"},
+  {"op": "create_user", "username": "John.Smith", "given_name": "John", "family_name": "Smith"},
+  {"op": "create_user", "username": "john smith", "given_name": "Johnny", "family_name": ""},
+  {"op": "create_user", "username": "jane.doe@example.com", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijklmnopqrst", "given_name": "", "family_name": ""},
+  {"op": "create_user", "username": "Stra\u00dfe", "given_name": "", "family_name": "Weg"}
+]}

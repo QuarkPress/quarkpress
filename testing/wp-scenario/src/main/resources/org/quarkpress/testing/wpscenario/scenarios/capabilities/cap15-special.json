@@ -1,0 +1,12 @@
+{"id": "cap15-special", "rule": "CAP15", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "wanda", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "subscriber"},
+  {"op": "add_cap", "user": 1, "site": 0, "capability": "do_not_allow", "grant": true},
+  {"op": "can", "user": 0, "site": 0, "capability": "exist", "target": 0},
+  {"op": "can", "user": 0, "site": 0, "capability": "read", "target": 0},
+  {"op": "can", "user": 0, "site": 0, "capability": "edit_user", "target": 1},
+  {"op": "can", "user": 1, "site": 0, "capability": "do_not_allow", "target": 0},
+  {"op": "can", "user": 1, "site": 0, "capability": "frobnicate", "target": 0},
+  {"op": "can", "user": 1, "site": 0, "capability": "level_0", "target": 0},
+  {"op": "can", "user": 1, "site": 0, "capability": "exist", "target": 0}
+]}
