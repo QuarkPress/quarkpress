@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +24,9 @@ import org.quarkpress.security.UserCapabilitiesFilter;
  * WordPress's check: map the capability; in a network a network administrator passes unless the result holds
  * {@code do_not_allow}; the system passes unless it holds {@code do_not_allow} or {@code unfiltered_html}; anyone else
  * needs every required name in their capabilities on the site, after the core grants and the
- * {@link UserCapabilitiesFilter}s, with {@code exist} always held and {@code do_not_allow} never. Nothing is cached.
+ * {@link UserCapabilitiesFilter}s, with {@code exist} always held and {@code do_not_allow} never. In a network, the
+ * network capabilities ({@link MetaCaps#NETWORK_ONLY}) are never held that way, whatever a role, a role table, an
+ * individual entry or a filter says: only the network administrator bypass satisfies them. Nothing is cached.
  */
 @ApplicationScoped
 public class CapabilityEvaluator {
@@ -81,12 +84,40 @@ public class CapabilityEvaluator {
         Map<String, Boolean> held = new HashMap<>(caps);
         held.put(MetaCaps.EXIST, true);
         held.remove(MetaCaps.DO_NOT_ALLOW);
+        if (mode.multisite()) {
+            // only the network administrator bypass above satisfies a network capability
+            held.keySet().removeAll(MetaCaps.NETWORK_ONLY);
+        }
         for (String name : required) {
             if (!Boolean.TRUE.equals(held.get(name))) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Whether {@code actor} may give any role or capability on a site: the system, or in a network a network
+     * administrator.
+     */
+    boolean givesAnything(Actor actor) {
+        return actor instanceof Actor.SystemActor
+                || (actor instanceof Actor.User user && mode.multisite() && reads.networkAdmin(user.id()));
+    }
+
+    /**
+     * The names {@code actor} holds on {@code site} from roles, individual entries and the core grants (before the
+     * filters), without the network capabilities; empty for anyone but a known user.
+     */
+    Set<String> heldNames(Actor actor, SiteId site) {
+        Map<String, Boolean> caps = CoreGrants.apply(allCaps(known(actor), Optional.of(site)), mode.multisite());
+        Set<String> held = new HashSet<>();
+        caps.forEach((name, value) -> {
+            if (Boolean.TRUE.equals(value) && !MetaCaps.NETWORK_ONLY.contains(name)) {
+                held.add(name);
+            }
+        });
+        return held;
     }
 
     /** In a network, a network administrator; on a single site, a user who can delete users on {@code site}. */

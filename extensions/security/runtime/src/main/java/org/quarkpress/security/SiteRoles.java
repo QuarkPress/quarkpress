@@ -12,6 +12,11 @@ import org.quarkpress.core.SiteId;
  * releases no longer affect it. Reads are unguarded, like WordPress's {@code get_role}; changes require
  * {@code manage_options} on the site and are visible to the next check. A change that changes nothing stores nothing.
  * On a single site every id means the main site.
+ *
+ * <p>{@link #add} and {@link #setCapability} also refuse ({@code ForbiddenException}) to give what the caller could
+ * not give themselves: only the system and network administrators may give any capability; anyone else may grant
+ * only capabilities they hold on the site, never a network capability ({@code manage_network} and the like, granted
+ * or denied); on a single site, a user who can delete users may grant any capability but a network one.
  */
 public interface SiteRoles {
 

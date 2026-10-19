@@ -15,9 +15,10 @@ import org.quarkpress.core.UserId;
  * <p>Nothing is cached: each check reads the membership, the site's role table, the network administrators and the
  * options it needs, each in a short transaction of its own when the caller has none, so one check may combine reads
  * from either side of a concurrent change. A check made inside the caller's transaction joins it and sees what that
- * transaction sees: on MySQL (repeatable read) a change committed by others after the transaction's first read, such as
- * a revoked network administrator, is not visible to checks until that transaction ends. A user id without a profile
- * counts as a logged-out visitor.
+ * transaction sees, its own changes included (pending entity changes are flushed before the reads): on MySQL
+ * (repeatable read) a change committed by others after the transaction's first read, such as a revoked network
+ * administrator, is not visible to checks until that transaction ends. A user id without a profile counts as a
+ * logged-out visitor.
  */
 public interface Capabilities {
 

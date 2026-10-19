@@ -106,6 +106,7 @@ public final class Scopes {
         boolean spawnerHolds =
                 Arc.container().instance(NetworkLockRepository.class).get().heldByCurrentTransaction();
         Set<SiteId> spawnerSites = spawnerSites();
+        Set<String> spawnerLocks = HeldLocks.forScopeThread();
         Thread worker = Thread.ofVirtual().name("quarkpress-scope").unstarted(() -> {
             ManagedContext requestContext = Arc.container().requestContext();
             requestContext.activate();
@@ -115,6 +116,7 @@ public final class Scopes {
             if (!spawnerSites.isEmpty()) {
                 SPAWNER_SITES.set(spawnerSites);
             }
+            HeldLocks.inherit(spawnerLocks);
             try {
                 Arc.container().instance(SiteBinding.class).get().bindScope(target);
                 result[0] = inNewTransaction(work);
@@ -123,6 +125,7 @@ public final class Scopes {
             } finally {
                 SPAWNER_HOLDS_LOCK.remove();
                 SPAWNER_SITES.remove();
+                HeldLocks.forget();
                 try {
                     requestContext.terminate();
                 } catch (Throwable thrown) {

@@ -39,6 +39,24 @@ public final class MetaCaps {
 
     static final List<String> DENY = List.of(DO_NOT_ALLOW);
 
+    /**
+     * The network capabilities: no role holds them, and in a network only the network administrator bypass (and the
+     * system) satisfies them; a site's roles, its role table or a user's individual entries never do.
+     * {@code setup_network} maps to {@code manage_network_options} in a network but is listed so that it is never
+     * stored either.
+     */
+    public static final Set<String> NETWORK_ONLY = Set.of(
+            "create_sites",
+            "delete_sites",
+            "manage_network",
+            "manage_sites",
+            "manage_network_users",
+            "manage_network_plugins",
+            "manage_network_themes",
+            "manage_network_options",
+            "upgrade_network",
+            "setup_network");
+
     private static final Set<String> CORE_META = Set.of("edit_post", "read_post", "delete_post");
 
     private static final Map<String, String> BLOCK_CAPS = Map.of(

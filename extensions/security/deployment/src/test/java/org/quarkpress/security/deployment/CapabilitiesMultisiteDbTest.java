@@ -152,17 +152,51 @@ class CapabilitiesMultisiteDbTest {
     }
 
     @Test
-    void anIndividualNetworkCapabilityCountsOnItsSiteOnly() {
+    void storedNetworkCapabilitiesGrantNothingWithoutTheNetworkAdministratorBypass() {
+        // a documented difference: WordPress would honour these stored entries (its own screens never store them)
         SiteId site = TestData.site(dataSource);
-        SiteId other = TestData.site(dataSource);
         UserId user = TestData.profile(dataSource, "granted");
-        TestData.member(dataSource, site, user, "[\"administrator\"]", "{\"manage_network\":true}");
-        assertThat(capabilities.userCan(user, site, "manage_network", Optional.empty()))
+        TestData.member(
+                dataSource,
+                site,
+                user,
+                "[\"administrator\"]",
+                "{\"manage_network\":true,\"manage_network_options\":true,\"manage_network_users\":true}");
+        UserId author = member(site, "[\"author\"]", "{}");
+        for (String capability : List.of(
+                "manage_network",
+                "manage_network_options",
+                "manage_network_users",
+                "setup_network",
+                "manage_privacy_options")) {
+            assertThat(capabilities.userCan(user, site, capability, Optional.empty()))
+                    .as(capability)
+                    .isFalse();
+            assertThat(capabilities.canForSite(identity(user), site, capability, Optional.empty()))
+                    .as(capability)
+                    .isFalse();
+        }
+        // edit_user on another user needs manage_network_users in a network
+        assertThat(capabilities.userCan(user, site, "edit_user", Optional.of(new UserTarget(author))))
+                .isFalse();
+        // a site's role table that grants a network capability grants nothing either
+        SiteId other = TestData.site(dataSource);
+        TestData.siteOption(
+                dataSource,
+                other,
+                "qp_user_roles",
+                "{\"administrator\":{\"name\":\"Administrator\",\"capabilities\":"
+                        + "{\"read\":true,\"manage_network_options\":true,\"create_sites\":true}}}");
+        UserId admin = member(other, "[\"administrator\"]", "{}");
+        assertThat(capabilities.userCan(admin, other, "read", Optional.empty())).isTrue();
+        assertThat(capabilities.userCan(admin, other, "manage_network_options", Optional.empty()))
+                .isFalse();
+        assertThat(capabilities.userCan(admin, other, "create_sites", Optional.empty()))
+                .isFalse();
+        // the network administrator bypass still passes
+        TestData.networkAdmin(dataSource, author);
+        assertThat(capabilities.userCan(author, site, "manage_network_options", Optional.empty()))
                 .isTrue();
-        assertThat(capabilities.userCan(user, other, "manage_network", Optional.empty()))
-                .isFalse();
-        assertThat(capabilities.userCan(user, site, "manage_network_users", Optional.empty()))
-                .isFalse();
     }
 
     @Test

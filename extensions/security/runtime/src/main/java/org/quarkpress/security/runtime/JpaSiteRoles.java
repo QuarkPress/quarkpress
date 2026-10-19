@@ -78,6 +78,7 @@ public class JpaSiteRoles implements SiteRoles {
         if (key.isEmpty() || key.equals("0")) {
             return Optional.empty();
         }
+        guard.requireMayGive(target, capabilities);
         RoleDefinition role = new RoleDefinition(key, displayName, capabilities);
         return change(target, table -> {
             if (table.containsKey(key)) {
@@ -113,6 +114,7 @@ public class JpaSiteRoles implements SiteRoles {
         Objects.requireNonNull(capability, "capability");
         guard.require(site, "manage_options", Optional.empty());
         SiteId target = target(site);
+        guard.requireMayGive(target, Map.of(capability, grant));
         return change(target, table -> {
             RoleDefinition found = table.get(role);
             if (found == null) {

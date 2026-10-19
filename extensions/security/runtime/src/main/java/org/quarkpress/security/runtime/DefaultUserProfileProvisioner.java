@@ -83,18 +83,13 @@ public class DefaultUserProfileProvisioner implements UserProfileProvisioner {
 
     /** A unique-key violation, a deadlock or a lock timeout, on PostgreSQL or MySQL, however it is wrapped. */
     static boolean isRace(Throwable failure) {
+        if (LockConflicts.isDeadlockOrLockTimeout(failure)) {
+            return true;
+        }
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof SQLException sql) {
-                String state = sql.getSQLState();
-                int code = sql.getErrorCode();
-                if ("23505".equals(state)
-                        || "40P01".equals(state)
-                        || "55P03".equals(state)
-                        || code == 1062
-                        || code == 1213
-                        || code == 1205) {
-                    return true;
-                }
+            if (cause instanceof SQLException sql
+                    && ("23505".equals(sql.getSQLState()) || sql.getErrorCode() == 1062)) {
+                return true;
             }
             if (cause.getCause() == cause) {
                 break;
