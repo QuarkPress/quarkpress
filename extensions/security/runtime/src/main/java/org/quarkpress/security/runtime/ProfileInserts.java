@@ -19,10 +19,10 @@ public class ProfileInserts {
 
     private static final String POSTGRESQL = "insert into qp_user_profile"
             + " (subject, display_name, nicename, meta, created_at, last_login_at)"
-            + " values (?1, ?2, ?3, cast('{}' as json), ?4, ?4) on conflict do nothing returning id";
+            + " values (?1, ?2, ?3, cast('{}' as json), ?4, ?5) on conflict do nothing returning id";
     private static final String MYSQL = "insert into qp_user_profile"
             + " (subject, display_name, nicename, meta, created_at, last_login_at)"
-            + " values (?1, ?2, ?3, '{}', ?4, ?4) on duplicate key update id = id";
+            + " values (?1, ?2, ?3, '{}', ?4, ?5) on duplicate key update id = id";
     private static final String MYSQL_RESET = "select last_insert_id(0)";
     private static final String MYSQL_INSERTED = "select last_insert_id()";
     private static final String LOCK_SUBJECT = "select id from qp_user_profile where subject = ?1 for share";
@@ -30,8 +30,13 @@ public class ProfileInserts {
     @Inject
     UserProfileRepository profiles;
 
-    /** Inserts the profile unless its subject or nicename exists; returns the new id, or empty. */
-    public Optional<Long> insertIfAbsent(String subject, String displayName, String nicename, Instant now) {
+    /**
+     * Inserts the profile, created {@code now}, unless its subject or nicename exists; returns the new id, or empty.
+     * The login time is {@code now} for a login and null otherwise.
+     */
+    public Optional<Long> insertIfAbsent(
+            String subject, String displayName, String nicename, Instant now, boolean login) {
+        Instant lastLogin = login ? now : null;
         Session session = profiles.getSession();
         if (Dialects.postgresql(session)) {
             List<?> ids = session.createNativeQuery(POSTGRESQL, Object.class)
@@ -39,6 +44,7 @@ public class ProfileInserts {
                     .setParameter(2, displayName)
                     .setParameter(3, nicename)
                     .setParameter(4, now, Instant.class)
+                    .setParameter(5, lastLogin, Instant.class)
                     .getResultList();
             return ids.isEmpty() ? Optional.empty() : Optional.of(((Number) ids.get(0)).longValue());
         }
@@ -48,6 +54,7 @@ public class ProfileInserts {
                 .setParameter(2, displayName)
                 .setParameter(3, nicename)
                 .setParameter(4, now, Instant.class)
+                .setParameter(5, lastLogin, Instant.class)
                 .executeUpdate();
         long id = session.createNativeQuery(MYSQL_INSERTED, Long.class).getSingleResult();
         return id > 0 ? Optional.of(id) : Optional.empty();

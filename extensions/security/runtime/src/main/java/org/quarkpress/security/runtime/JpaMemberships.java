@@ -33,6 +33,7 @@ import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.security.Membership;
 import org.quarkpress.security.MembershipChanged;
 import org.quarkpress.security.Memberships;
+import org.quarkpress.security.QuarkPressPrincipal;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.security.UserTarget;
 import org.quarkpress.security.runtime.CapabilityReads.StoredMembership;
@@ -94,6 +95,9 @@ public class JpaMemberships implements Memberships {
 
     @Inject
     Event<MembershipChanged> changed;
+
+    @Inject
+    NetworkAdmins networkAdmins;
 
     @Override
     public Optional<Membership> find(SiteId site, UserId user) {
@@ -234,6 +238,33 @@ public class JpaMemberships implements Memberships {
         return change(target(site), user, false, false, false, state -> state.removeCapability(capability));
     }
 
+    @Override
+    public boolean grantSuperAdmin(UserId user) {
+        Objects.requireNonNull(user, "user");
+        if (!mode.multisite()) {
+            return false;
+        }
+        guard.requireHere("manage_network_options");
+        Optional<UserId> grantor =
+                QuarkPressPrincipal.of(JpaCapabilities.currentIdentity()).map(QuarkPressPrincipal::user);
+        return networkAdmins.grant(user, grantor);
+    }
+
+    @Override
+    public boolean revokeSuperAdmin(UserId user) {
+        Objects.requireNonNull(user, "user");
+        if (!mode.multisite()) {
+            return false;
+        }
+        guard.requireHere("manage_network_options");
+        return networkAdmins.revoke(user);
+    }
+
+    @Override
+    public List<UserId> superAdmins() {
+        return mode.multisite() ? reads.networkAdmins() : List.of();
+    }
+
     /**
      * Changes a membership in a transaction bound to the site: the row is created first when {@code create} (race-free)
      * and locked; {@code edit} says whether it changed the row. A user without a primary site gets this one when
@@ -307,7 +338,8 @@ public class JpaMemberships implements Memberships {
         return locked;
     }
 
-    private static String profileLock(UserId user) {
+    /** The name under which a transaction records its lock on the user's profile row ({@link HeldLocks}). */
+    static String profileLock(UserId user) {
         return "qp_user_profile:" + user.value();
     }
 

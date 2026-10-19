@@ -72,4 +72,20 @@ public interface Memberships {
 
     /** Removes an individual capability or role key; empty when the user is not a member. */
     Optional<Membership> removeCapability(SiteId site, UserId user, String capability);
+
+    /**
+     * Makes a user a network administrator (WordPress's super admin). False on a single site, for an unknown user and
+     * when the user already is one. Requires {@code manage_network_options} for the current identity.
+     */
+    boolean grantSuperAdmin(UserId user);
+
+    /**
+     * Ends a user's network administration. False on a single site and when the user is not one. Revoking the last
+     * one is allowed, as in WordPress; {@code quarkpress.security.initial-super-admins} restores listed subjects at the
+     * next start. Requires {@code manage_network_options} for the current identity.
+     */
+    boolean revokeSuperAdmin(UserId user);
+
+    /** The network administrators, by id; empty on a single site. */
+    List<UserId> superAdmins();
 }
