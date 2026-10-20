@@ -9,6 +9,8 @@ import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.posts.PostCreated;
+import org.quarkpress.posts.PostDeleted;
+import org.quarkpress.posts.PostDeleting;
 import org.quarkpress.posts.PostPublished;
 import org.quarkpress.posts.PostRestored;
 import org.quarkpress.posts.PostSaved;
@@ -63,6 +65,12 @@ public class PostEvents {
 
     @Inject
     Event<PostRestored> restoredEvent;
+
+    @Inject
+    Event<PostDeleting> deletingEvent;
+
+    @Inject
+    Event<PostDeleted> deletedEvent;
 
     public void saved(
             SiteId site,
@@ -126,5 +134,15 @@ public class PostEvents {
      */
     public void restored(SiteId site, Instant at, PostSnapshot post, Optional<String> previousStatus) {
         transactions.publish(restoredEvent, new PostRestored(site, at, post, previousStatus));
+    }
+
+    /** A post is about to be deleted for good; fired for every type, attachments included. */
+    public void deleting(SiteId site, Instant at, PostSnapshot post) {
+        transactions.publish(deletingEvent, new PostDeleting(site, at, post));
+    }
+
+    /** A post was deleted for good; fired for every type, attachments included. */
+    public void deleted(SiteId site, Instant at, PostId post, String type) {
+        transactions.publish(deletedEvent, new PostDeleted(site, at, post, type));
     }
 }

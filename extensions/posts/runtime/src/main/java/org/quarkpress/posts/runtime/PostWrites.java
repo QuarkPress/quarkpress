@@ -525,7 +525,7 @@ public class PostWrites {
                         },
                         // the reading settings are reset before the save is announced, as in WordPress, but after
                         // the post row is written: option rows come last in the lock order
-                        () -> frontPages.forget(before, false)))
+                        () -> frontPages.forget(before)))
                 .map(after -> written(() -> {
                     events.trashed(siteId, now, after);
                     return before;
@@ -558,6 +558,78 @@ public class PostWrites {
                     events.restored(siteId, now, after, previous);
                     return before;
                 }));
+    }
+
+    /**
+     * Deletes a post for good: WordPress's {@code wp_delete_post} after its checks ({@code wp_delete_attachment} for an
+     * attachment). The caller holds the site's post lock and the row lock and has checked the capability. The delete
+     * is announced before anything changes; then its children are handed down or let go, the row goes (its meta with
+     * it; its revisions and term assignments by the foreign-key cascade), and, in WordPress's order, the reading
+     * settings naming the page are reset, a sticky post is announced as unstuck (its flag went with the row) and the
+     * privacy policy page setting naming the page is reset; option rows come last in the lock order. Then the delete
+     * is announced as done. Any failure marks the transaction for rollback, so a failed delete changes nothing.
+     */
+    void delete(SiteId siteId, PostEntity row) {
+        Instant now = PostDates.now(clock);
+        PostSnapshot before = row.toSnapshot();
+        written(() -> {
+            events.deleting(siteId, now, before);
+            releaseChildren(siteId, before);
+            // an observer of the delete may have changed the post: what was stuck is read from the row
+            boolean sticky = row.sticky;
+            posts.delete(row);
+            posts.flush();
+            frontPages.forget(before);
+            if (sticky) {
+                events.sticky(siteId, now, before.id(), false);
+            }
+            frontPages.forgetPrivacyPolicyPage(before);
+            events.deleted(siteId, now, before.id(), before.type());
+            return null;
+        });
+    }
+
+    /**
+     * The children of a post being deleted, locked in id order under the site's post lock, which already serializes
+     * every writer of the site's posts. Same-type children of a hierarchical type and attachments get the post's
+     * parent, as in WordPress; the children of an attachment, which WordPress leaves naming the missing post, and
+     * every other child are left without parent, since the parent key cascades the delete to children still naming
+     * the post. A post that is its own parent hands down none. As in WordPress only the parent changes: not the
+     * version, so an update made with a version read before the delete still succeeds, nor the modification date.
+     */
+    private void releaseChildren(SiteId siteId, PostSnapshot post) {
+        long id = post.id().value();
+        Object site = TenantIds.param(siteId);
+        Long handedDown =
+                post.parent().map(PostId::value).filter(parent -> parent != id).orElse(null);
+        boolean attachment = post.type().equals("attachment");
+        boolean hierarchical = types.hierarchical(post.type());
+        // the site condition is defence in depth: the composite parent key already keeps children on the post's site
+        List<PostEntity> children = posts.find("siteId = ?1 and parentId = ?2 and id <> ?2 order by id", site, id)
+                .withLock(LockModeType.PESSIMISTIC_WRITE)
+                .list();
+        List<Long> follow = new ArrayList<>();
+        List<Long> release = new ArrayList<>();
+        for (PostEntity child : children) {
+            // a child already in this transaction's context keeps its old state on a query: read it again
+            posts.getEntityManager().refresh(child, LockModeType.PESSIMISTIC_WRITE);
+            if (child.parentId == null || child.parentId != id) {
+                continue;
+            }
+            boolean follows = !attachment
+                    && (child.type.equals("attachment") || (hierarchical && child.type.equals(post.type())));
+            (follows && handedDown != null ? follow : release).add(child.id);
+        }
+        // plain updates of the locked rows, not versioned ones: WordPress changes nothing but the parent
+        if (!follow.isEmpty()) {
+            posts.update("parentId = ?1 where siteId = ?2 and id in ?3", handedDown, site, follow);
+        }
+        if (!release.isEmpty()) {
+            posts.update("parentId = null where siteId = ?1 and id in ?2", site, release);
+        }
+        for (PostEntity child : children) {
+            posts.getEntityManager().refresh(child);
+        }
     }
 
     /**

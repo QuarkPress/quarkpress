@@ -532,6 +532,17 @@ class TrashDbTest {
     }
 
     @Test
+    void trashingThePrivacyPageLeavesItsSetting() throws Exception {
+        PostSnapshot privacy =
+                create(PostChanges.builder().type("page").title("Privacy").status("publish"));
+        String value = Long.toString(privacy.id().value());
+        TestData.siteOption(dataSource, site, "wp_page_for_privacy_policy", value);
+        as(() -> posts.trash(privacy.id()));
+        assertThat(find(privacy.id()).status()).isEqualTo("trash");
+        assertThat(option("wp_page_for_privacy_policy")).containsExactly(value);
+    }
+
+    @Test
     void theReadingSettingsAreReadAsPhpCastsThemToNumbers() throws Exception {
         List<String> matching = List.of(
                 "\"%dabc\"",

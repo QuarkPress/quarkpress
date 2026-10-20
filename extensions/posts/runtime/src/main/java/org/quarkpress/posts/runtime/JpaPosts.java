@@ -60,6 +60,9 @@ public class JpaPosts implements Posts {
     @Inject
     PostCapabilityFacts facts;
 
+    @Inject
+    PostsConfig config;
+
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
@@ -130,10 +133,39 @@ public class JpaPosts implements Posts {
         Objects.requireNonNull(post, "post");
         SiteId siteId = site.siteId();
         PostEntity row = lockedRow(siteId, post, "delete_post");
+        if (!trashOn()) {
+            return deleted(siteId, row);
+        }
         if (row.status.equals("trash")) {
             return Optional.empty();
         }
         return writes.trash(siteId, row);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<PostSnapshot> delete(PostId post, boolean force) {
+        Objects.requireNonNull(post, "post");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedRow(siteId, post, "delete_post");
+        boolean trashable = row.type.equals("post") || row.type.equals("page");
+        if (!force && trashable && !row.status.equals("trash") && trashOn()) {
+            return writes.trash(siteId, row);
+        }
+        return deleted(siteId, row);
+    }
+
+    /** Deletes the locked post for good; the post as it was before. */
+    private Optional<PostSnapshot> deleted(SiteId siteId, PostEntity row) {
+        PostSnapshot before = row.toSnapshot();
+        writes.delete(siteId, row);
+        return Optional.of(before);
+    }
+
+    /** Whether trashed posts are kept (WordPress's {@code EMPTY_TRASH_DAYS} is not 0). */
+    private boolean trashOn() {
+        return config.emptyTrashDays() != 0;
     }
 
     @Override

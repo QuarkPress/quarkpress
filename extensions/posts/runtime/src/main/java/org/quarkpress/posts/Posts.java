@@ -59,9 +59,31 @@ public interface Posts {
      * or when the save was refused before writing anything, in which case nothing changed and the caller's
      * transaction stays usable (WordPress keeps the recorded meta then). A failed call changes nothing: a failure
      * after the first write marks the caller's transaction for rollback and propagates. A missing post, or one of
-     * another site, is {@code invalid_post}.
+     * another site, is {@code invalid_post}. With the trash turned off ({@code quarkpress.posts.empty-trash-days=0})
+     * the post is deleted for good instead, as {@link #delete} with {@code force} does, even when it is in the trash
+     * already.
      */
     Optional<PostSnapshot> trash(PostId post);
+
+    /**
+     * Deletes a post (WordPress's {@code wp_delete_post}); needs {@code delete_post}. Without {@code force}, a post or
+     * page that is not in the trash is trashed instead, as {@link #trash} does, unless the trash is turned off; every
+     * other type, and a post or page in the trash, is deleted at once.
+     *
+     * <p>A delete announces itself with {@code PostDeleting} before anything changes, inside the transaction, so
+     * observers can clean up what they keep about the post. Then same-type children of a hierarchical type get its
+     * parent, as do attachments (except for a deleted attachment, which, as in WordPress, hands nothing down); every
+     * other child is left without parent, where WordPress would leave it naming the missing post. Only the children's
+     * parent changes, not their version or modification date. The row goes with its meta; its revisions and term
+     * assignments go by the foreign-key cascade. In WordPress's order, a page named by the front page or posts page
+     * setting is no longer named there, a sticky post is announced as unstuck, and a page named by the privacy policy
+     * page setting is no longer named there; then {@code PostDeleted} is fired. Comments are not deleted yet.
+     *
+     * <p>Returns the post as it was before (for a post trashed instead, what {@link #trash} returns). A missing post,
+     * or one of another site, is {@code invalid_post}. A failed delete changes nothing: a failure after the first
+     * write marks the caller's transaction for rollback and propagates.
+     */
+    Optional<PostSnapshot> delete(PostId post, boolean force);
 
     /**
      * Restores a trashed post (WordPress's {@code wp_untrash_post}) as a draft, an attachment as inherit; needs

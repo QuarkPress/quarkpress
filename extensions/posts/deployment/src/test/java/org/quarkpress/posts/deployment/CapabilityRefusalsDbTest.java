@@ -144,6 +144,18 @@ class CapabilityRefusalsDbTest {
     }
 
     @Test
+    void aRefusedDeleteLeavesTheTransactionUsable() throws Exception {
+        PostSnapshot post = create(editor, PostChanges.builder().title("Theirs").status("publish"));
+        refusedThenAllowed(
+                contributor, "delete_post", () -> posts.delete(post.id(), true), () -> posts.delete(post.id(), true));
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select count(*) from qp_post where id = ?",
+                        post.id().value()))
+                .isZero();
+    }
+
+    @Test
     void aRefusedAncestorsLeavesTheTransactionUsable() throws Exception {
         PostSnapshot top =
                 create(editor, PostChanges.builder().type("page").title("Top").status("publish"));

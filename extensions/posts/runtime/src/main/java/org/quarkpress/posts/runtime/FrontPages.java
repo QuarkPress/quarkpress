@@ -23,8 +23,11 @@ public class FrontPages {
     @Inject
     Options options;
 
-    /** Forgets {@code page} in the settings that name it; a post of another type changes nothing. */
-    void forget(PostSnapshot page, boolean deleting) {
+    /**
+     * Forgets {@code page} in the reading settings that name it (WordPress's {@code
+     * _reset_front_page_settings_for_post}, without the unstick); a post of another type changes nothing.
+     */
+    void forget(PostSnapshot page) {
         if (!page.type().equals("page")) {
             return;
         }
@@ -37,7 +40,16 @@ public class FrontPages {
         if (phpInt(current, "page_for_posts") == id) {
             options.set("page_for_posts", IntNode.valueOf(0));
         }
-        if (deleting && phpInt(current, "wp_page_for_privacy_policy") == id) {
+    }
+
+    /**
+     * Forgets a deleted {@code page} in the privacy policy page setting (WordPress's {@code
+     * _reset_privacy_policy_page_for_post}); a post of another type changes nothing.
+     */
+    void forgetPrivacyPolicyPage(PostSnapshot page) {
+        if (page.type().equals("page")
+                && phpInt(site.options(), "wp_page_for_privacy_policy")
+                        == page.id().value()) {
             options.set("wp_page_for_privacy_policy", IntNode.valueOf(0));
         }
     }
