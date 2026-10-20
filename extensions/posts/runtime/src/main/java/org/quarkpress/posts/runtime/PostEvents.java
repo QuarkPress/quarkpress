@@ -5,6 +5,7 @@ import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.Optional;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.posts.PostCreated;
@@ -15,6 +16,7 @@ import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatusChanged;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.PostUpdated;
+import org.quarkpress.posts.StickyChanged;
 
 /**
  * Fires the events of a save in WordPress's order: the status transition, published or scheduled, updated (updates
@@ -50,6 +52,9 @@ public class PostEvents {
 
     @Inject
     Event<PostCreated> created;
+
+    @Inject
+    Event<StickyChanged> stickyChanged;
 
     public void saved(
             SiteId site,
@@ -95,5 +100,10 @@ public class PostEvents {
         if (before.isEmpty()) {
             transactions.publish(created, new PostCreated(site, at, after));
         }
+    }
+
+    /** A post was stuck or unstuck. */
+    public void sticky(SiteId site, Instant at, PostId post, boolean sticky) {
+        transactions.publish(stickyChanged, new StickyChanged(site, at, post, sticky));
     }
 }

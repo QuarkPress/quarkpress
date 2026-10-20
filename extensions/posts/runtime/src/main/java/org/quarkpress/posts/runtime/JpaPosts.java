@@ -102,6 +102,10 @@ public class JpaPosts implements Posts {
             throw new OptimisticLockException("post " + post.value() + " changed since version "
                     + changes.expectedVersion().getAsInt() + "; it is now at version " + row.version);
         }
+        if (row.sticky
+                && changes.password().map(password -> !password.isEmpty()).orElse(false)) {
+            throw new PostException("rest_invalid_field", "A sticky post can not be password protected.");
+        }
         return writes.update(siteId, row, changes);
     }
 
@@ -116,6 +120,49 @@ public class JpaPosts implements Posts {
             return false;
         }
         writes.publish(siteId, row);
+        return true;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public boolean stick(PostId post) {
+        return setSticky(post, true);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public boolean unstick(PostId post) {
+        return setSticky(post, false);
+    }
+
+    @Override
+    @Transactional(dontRollbackOn = {ForbiddenException.class, UnauthorizedException.class})
+    public List<PostId> stickyPosts() {
+        return posts.stickyIds(site.siteId());
+    }
+
+    private boolean setSticky(PostId post, boolean sticky) {
+        Objects.requireNonNull(post, "post");
+        SiteId siteId = site.siteId();
+        PostTypeCapabilities names = types.capabilitiesOrPost("post");
+        PostEntity row = lockedRow(siteId, post, OptionalLong.empty(), stored -> {
+            acting.require(siteId, names.editOthersPosts(), Optional.empty());
+            acting.require(siteId, names.publishPosts(), Optional.empty());
+        });
+        if (!row.type.equals("post")) {
+            throw new PostException(
+                    "rest_invalid_field",
+                    "only posts of type post can be sticky; post " + post.value() + " is a " + row.type);
+        }
+        if (sticky && !row.password.isEmpty()) {
+            throw new PostException("rest_invalid_field", "A password protected post can not be set to sticky.");
+        }
+        if (row.sticky == sticky) {
+            return false;
+        }
+        writes.setSticky(siteId, row, sticky);
         return true;
     }
 

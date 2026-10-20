@@ -369,6 +369,16 @@ public class PostWrites {
         });
     }
 
+    /** Changes a post's stickiness and announces it; the caller holds the row lock. */
+    void setSticky(SiteId siteId, PostEntity row, boolean sticky) {
+        written(() -> {
+            row.sticky = sticky;
+            posts.flush();
+            events.sticky(siteId, PostDates.now(clock), PostId.of(row.id), sticky);
+            return null;
+        });
+    }
+
     /**
      * Runs the part of a save that writes: any exception marks the transaction for rollback before it propagates, so a
      * refusal after the first write never leaves a partly saved post for the caller to commit.

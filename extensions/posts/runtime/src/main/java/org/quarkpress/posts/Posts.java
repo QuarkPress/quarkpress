@@ -61,4 +61,21 @@ public interface Posts {
      * {@link #ancestors}.
      */
     String uri(PostId post);
+
+    /**
+     * Sticks a post to the front of the site (WordPress's {@code stick_post}, as its REST layer allows it): only a post
+     * of type {@code post}, and not one with a password (else {@code rest_invalid_field}); needs {@code
+     * edit_others_posts} and {@code publish_posts}. False when it was sticky already; a change is announced with
+     * {@code StickyChanged}.
+     */
+    boolean stick(PostId post);
+
+    /** Unsticks a post; same rules as {@link #stick} except the password. False when it was not sticky. */
+    boolean unstick(PostId post);
+
+    /**
+     * The ids of the site's sticky posts, by id (WordPress's {@code sticky_posts} option). Like that option the list is
+     * public: it is not filtered by what the caller may read.
+     */
+    List<PostId> stickyPosts();
 }

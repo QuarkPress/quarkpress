@@ -3,6 +3,7 @@ package org.quarkpress.posts.runtime;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
@@ -27,5 +28,12 @@ public class PostRepository implements PanacheRepositoryBase<PostEntity, Long> {
         Optional<PostEntity> found = findPost(site, id);
         found.ifPresent(row -> getEntityManager().refresh(row, LockModeType.PESSIMISTIC_WRITE));
         return found;
+    }
+
+    /** The ids of the site's sticky posts, ascending. */
+    public List<PostId> stickyIds(SiteId site) {
+        return list("siteId = ?1 and sticky = true order by id", TenantIds.param(site)).stream()
+                .map(row -> PostId.of(row.id))
+                .toList();
     }
 }

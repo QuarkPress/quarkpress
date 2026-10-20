@@ -18,6 +18,7 @@ import java.util.Optional;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
@@ -84,6 +85,7 @@ public class PostEntity extends SiteScopedEntity {
     @Column(name = "password", nullable = false, length = 255)
     public String password;
 
+    @OptimisticLock(excluded = true)
     @Column(name = "sticky", nullable = false)
     public boolean sticky;
 
