@@ -203,33 +203,52 @@ public class PostWrites {
                 changes.pingStatus().orElse(before.pingStatus()),
                 PostRules.defaultPingStatus(type, types, option("default_ping_status")));
         String password = PostRules.password(changes.password().orElse(before.password()), status);
-        slug = slugs.unique(siteId, slug, Optional.of(before.id()), Optional.of(before.slug()), status, type, parent);
-        PostDraft draft = new PostDraft(
-                type,
-                status,
-                slug,
-                title,
-                content,
-                excerpt,
-                author,
-                parent,
-                changes.menuOrder().orElse(before.menuOrder()),
-                dates.publishedAt(),
-                dates.modifiedAt(),
-                commentStatus,
-                pingStatus,
-                password);
-        PostDraft saved =
-                filtered(siteId, draft, new PostWriteContext(siteId, Optional.of(before), acting.user(), true), true);
-        return written(() -> {
-            apply(row, saved);
-            lateSlug(siteId, row);
-            trackOldSlugAndDate(row, before, zone);
-            posts.flush();
-            PostSnapshot after = row.toSnapshot();
-            events.saved(siteId, now, before.status(), Optional.of(before), after, true);
-            return after;
-        });
+        // WordPress's loop check runs once the dates are valid, before the slug is made unique
+        Hierarchy.Decision decision = Hierarchy.check(before.id(), parent, id -> storedParent(siteId, id));
+        parent = decision.parent();
+        boolean cut = false;
+        try {
+            for (PostId member : decision.cut()) {
+                PostEntity memberRow =
+                        posts.lockPost(siteId, member).orElseThrow(() -> PostException.invalidPost(member));
+                update(siteId, memberRow, PostChanges.builder().parent(0).build());
+                cut = true;
+            }
+            slug = slugs.unique(
+                    siteId, slug, Optional.of(before.id()), Optional.of(before.slug()), status, type, parent);
+            PostDraft draft = new PostDraft(
+                    type,
+                    status,
+                    slug,
+                    title,
+                    content,
+                    excerpt,
+                    author,
+                    parent,
+                    changes.menuOrder().orElse(before.menuOrder()),
+                    dates.publishedAt(),
+                    dates.modifiedAt(),
+                    commentStatus,
+                    pingStatus,
+                    password);
+            PostDraft saved = filtered(
+                    siteId, draft, new PostWriteContext(siteId, Optional.of(before), acting.user(), true), true);
+            return written(() -> {
+                apply(row, saved);
+                lateSlug(siteId, row);
+                trackOldSlugAndDate(row, before, zone);
+                posts.flush();
+                PostSnapshot after = row.toSnapshot();
+                events.saved(siteId, now, before.status(), Optional.of(before), after, true);
+                return after;
+            });
+        } catch (RuntimeException failure) {
+            // a loop member re-parented above is a write: the failed update must not leave it for the caller to commit
+            if (cut) {
+                markRollbackOnly(failure);
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -358,12 +377,17 @@ public class PostWrites {
         try {
             return work.get();
         } catch (RuntimeException failure) {
-            try {
-                registry.setRollbackOnly();
-            } catch (RuntimeException rollbackFailure) {
-                failure.addSuppressed(rollbackFailure);
-            }
+            markRollbackOnly(failure);
             throw failure;
+        }
+    }
+
+    /** Marks the transaction for rollback; a failure to do so is added to {@code failure} as suppressed. */
+    void markRollbackOnly(RuntimeException failure) {
+        try {
+            registry.setRollbackOnly();
+        } catch (RuntimeException rollbackFailure) {
+            failure.addSuppressed(rollbackFailure);
         }
     }
 
@@ -458,6 +482,11 @@ public class PostWrites {
             throw new PostException("invalid_author", "Invalid author ID: " + id);
         }
         return Optional.of(user);
+    }
+
+    /** The stored parent of a post of the site; empty for a post without parent or a missing post. */
+    Optional<PostId> storedParent(SiteId siteId, PostId post) {
+        return posts.findPost(siteId, post).map(row -> row.parentId).map(PostId::of);
     }
 
     /** A parent id: 0 is none; a positive id must be a post of the site. */

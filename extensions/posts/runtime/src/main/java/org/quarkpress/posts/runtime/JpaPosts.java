@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.transaction.Transactional;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -27,9 +28,10 @@ import org.quarkpress.security.PostTypeCapabilities;
  * The posts service: capability checks first (WordPress's REST rules), then a share lock on the author's profile, then
  * the site's post lock, then the save path. A write to a stored post reads it and checks it unlocked, then takes the
  * locks, reads it again under its row lock and checks it again. Invalid input refused before the first write throws
- * {@code PostException} without marking the caller's transaction for rollback; a refused read does not mark it either.
- * A stale-version refusal is raised before any write and does not mark it either. Once a save has written, any
- * exception (a refusal included) marks the transaction for rollback before it propagates.
+ * {@code PostException} without marking the caller's transaction for rollback; a refused capability check, for a read
+ * or a write, does not mark it either, nor does a stale-version refusal, which is raised before any write. A refused
+ * lock does mark it. Once a save has written, any exception (a refusal included) marks the transaction for rollback
+ * before it propagates.
  */
 @ApplicationScoped
 public class JpaPosts implements Posts {
@@ -59,7 +61,8 @@ public class JpaPosts implements Posts {
     PostCapabilityFacts facts;
 
     @Override
-    @Transactional(dontRollbackOn = IllegalArgumentException.class)
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public PostSnapshot create(PostChanges changes) {
         Objects.requireNonNull(changes, "changes");
         SiteId siteId = site.siteId();
@@ -74,7 +77,13 @@ public class JpaPosts implements Posts {
     }
 
     @Override
-    @Transactional(dontRollbackOn = {IllegalArgumentException.class, OptimisticLockException.class})
+    @Transactional(
+            dontRollbackOn = {
+                IllegalArgumentException.class,
+                OptimisticLockException.class,
+                ForbiddenException.class,
+                UnauthorizedException.class
+            })
     public PostSnapshot update(PostId post, PostChanges changes) {
         Objects.requireNonNull(post, "post");
         Objects.requireNonNull(changes, "changes");
@@ -97,7 +106,8 @@ public class JpaPosts implements Posts {
     }
 
     @Override
-    @Transactional(dontRollbackOn = IllegalArgumentException.class)
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public boolean publish(PostId post) {
         Objects.requireNonNull(post, "post");
         SiteId siteId = site.siteId();
@@ -142,6 +152,41 @@ public class JpaPosts implements Posts {
         SiteId siteId = site.siteId();
         Optional<PostSnapshot> found = posts.findPost(siteId, post).map(PostEntity::toSnapshot);
         found.ifPresent(snapshot -> acting.requireReadable(siteId, facts.of(snapshot)));
+        return found;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<PostId> ancestors(PostId post) {
+        SiteId siteId = site.siteId();
+        PostSnapshot found = readable(siteId, post);
+        return Hierarchy.ancestors(found.id(), found.parent(), id -> writes.storedParent(siteId, id));
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public String uri(PostId post) {
+        SiteId siteId = site.siteId();
+        PostSnapshot found = readable(siteId, post);
+        StringBuilder uri = new StringBuilder(found.slug());
+        for (PostId ancestor : Hierarchy.ancestors(found.id(), found.parent(), id -> writes.storedParent(siteId, id))) {
+            Optional<PostEntity> row = posts.findPost(siteId, ancestor);
+            if (row.isPresent() && !PostRules.phpEmpty(row.get().slug)) {
+                uri.insert(0, row.get().slug + "/");
+            }
+        }
+        return uri.toString();
+    }
+
+    /** The stored post, which the caller must be able to read; a missing post, or one of another site, is refused. */
+    private PostSnapshot readable(SiteId siteId, PostId post) {
+        Objects.requireNonNull(post, "post");
+        PostSnapshot found = posts.findPost(siteId, post)
+                .map(PostEntity::toSnapshot)
+                .orElseThrow(() -> PostException.invalidPost(post));
+        acting.requireReadable(siteId, facts.of(found));
         return found;
     }
 
