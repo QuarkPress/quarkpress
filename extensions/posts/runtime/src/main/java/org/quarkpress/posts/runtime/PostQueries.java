@@ -135,9 +135,13 @@ public class PostQueries {
             long menuOrder = Math.abs((long) query.menuOrder().getAsInt());
             where.and(menuOrder > Integer.MAX_VALUE ? "1 = 0" : "p.menuOrder = " + where.param((int) menuOrder));
         }
+        Optional<SearchTerms.Parsed> parsed = query.searching()
+                ? Optional.of(SearchTerms.parse(query.search().get(), query.sentence()))
+                : Optional.empty();
+        parsed.ifPresent(terms -> searchCondition(terms, where));
         TypedQuery<PostEntity> select = posts.getEntityManager()
                 .createQuery(
-                        "select p from PostEntity p where " + where.text() + orderClause(query, where),
+                        "select p from PostEntity p where " + where.text() + orderClause(query, parsed, where),
                         PostEntity.class);
         where.bindAll(select);
 
@@ -216,12 +220,14 @@ public class PostQueries {
     }
 
     /**
-     * The types the query covers: post when none is given, the searchable types for a lone {@code any}, else the given
-     * ones sanitized as keys (an {@code any} among others stays a type name that matches nothing, as in WordPress).
+     * The types the query covers: when none is given, the searchable types for a query given a search (even an empty
+     * or over-long one) that does not look for one post, and post otherwise; the searchable types for a lone {@code
+     * any}; else the given ones sanitized as keys (an {@code any} among others stays a type name that matches nothing,
+     * as in WordPress).
      */
     List<String> queriedTypes(PostQuery query) {
         if (query.types().isEmpty()) {
-            return List.of("post");
+            return query.search().isPresent() && !query.singular() ? types.searchable() : List.of("post");
         }
         if (query.types().size() == 1
                 && WordPressKeys.sanitize(query.types().get(0)).equals("any")) {
@@ -448,12 +454,65 @@ public class PostQueries {
     }
 
     /**
-     * The ORDER BY clause (see {@link OrderKey}): the keys that apply, newest first when none does, then the id in
-     * the first key's direction; nothing for {@code NONE}.
+     * The search condition: each term in the title, the excerpt or the content, each excluded term in none of them;
+     * password-protected posts only for a logged-in caller.
      */
-    String orderClause(PostQuery query, Where where) {
+    private void searchCondition(SearchTerms.Parsed parsed, Where where) {
+        for (String term : parsed.positive()) {
+            String like = where.param(like(term));
+            where.and(contains("p.title", like) + " or " + contains("p.excerpt", like) + " or "
+                    + contains("p.content", like));
+        }
+        for (String term : parsed.excluded()) {
+            String like = where.param(like(term));
+            where.and(lacks("p.title", like) + " and " + lacks("p.excerpt", like) + " and " + lacks("p.content", like));
+        }
+        if (!acting.loggedIn()) {
+            where.and("p.password = ''");
+        }
+    }
+
+    /** {@code column} holds the pattern bound to {@code like}, ignoring case. */
+    private static String contains(String column, String like) {
+        return "lower(" + column + ") like lower(" + like + ") escape '!'";
+    }
+
+    /** {@code column} does not hold the pattern bound to {@code like}, ignoring case (the columns are never null). */
+    private static String lacks(String column, String like) {
+        return "lower(" + column + ") not like lower(" + like + ") escape '!'";
+    }
+
+    /** {@code %text%} with {@code !}, {@code %} and {@code _} escaped by {@code !}. */
+    static String like(String text) {
+        StringBuilder out = new StringBuilder(text.length() + 2).append('%');
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '!' || c == '%' || c == '_') {
+                out.append('!');
+            }
+            out.append(c);
+        }
+        return out.append('%').toString();
+    }
+
+    /**
+     * The ORDER BY clause (see {@link OrderKey}). A search with no key, or with {@code RELEVANCE} first, orders by
+     * rank (when WordPress ranks it), then by date in the relevance key's direction (newest first without one), then
+     * by id the same way; the keys after the relevance key are dropped. Otherwise: the keys that apply, newest first
+     * when none does, then the id in the first key's direction; nothing for {@code NONE}.
+     */
+    String orderClause(PostQuery query, Optional<SearchTerms.Parsed> parsed, Where where) {
+        List<PostOrder> requested = query.orderBy();
+        if (parsed.isPresent() && (requested.isEmpty() || requested.get(0).key() == OrderKey.RELEVANCE)) {
+            String direction =
+                    direction(!requested.isEmpty() && requested.get(0).ascending());
+            String byDate = expression(OrderKey.DATE) + direction + ", " + expression(OrderKey.ID) + direction;
+            return rank(parsed.get(), where)
+                    .map(rank -> " order by " + rank + ", " + byDate)
+                    .orElse(" order by " + byDate);
+        }
         List<PostOrder> orders = new ArrayList<>();
-        for (PostOrder order : query.orderBy()) {
+        for (PostOrder order : requested) {
             if (order.key() == OrderKey.NONE) {
                 return "";
             }
@@ -477,6 +536,49 @@ public class PostQueries {
             parts.add(expression(OrderKey.ID) + direction(first.ascending()));
         }
         return " order by " + String.join(", ", parts);
+    }
+
+    /**
+     * WordPress's search rank, as an ascending expression; none for a search without positive terms, for the search
+     * {@code "0"} once line breaks are removed (which PHP counts as empty), or when no rank applies (seven or more
+     * positive terms and a hyphen starting a word). With several raw tokens: the whole string in the title, every
+     * positive term in the title (up to six terms), any of them (two to six terms), the whole string in the excerpt,
+     * then in the content (the whole string only when no hyphen starts a word), then the rest. With one token: title
+     * matches first.
+     */
+    private static Optional<String> rank(SearchTerms.Parsed parsed, Where where) {
+        List<String> positive = parsed.positive();
+        if (positive.isEmpty() || PostRules.phpEmpty(parsed.cleaned())) {
+            return Optional.empty();
+        }
+        if (parsed.rawCount() <= 1) {
+            return Optional.of(
+                    "case when " + contains("p.title", where.orderParam(like(positive.get(0)))) + " then 0 else 1 end");
+        }
+        boolean sentenceRank = !parsed.sentenceRankSkipped();
+        String whole = sentenceRank ? where.orderParam(like(parsed.cleaned())) : null;
+        StringBuilder rank = new StringBuilder();
+        if (sentenceRank) {
+            rank.append(" when ").append(contains("p.title", whole)).append(" then 1");
+        }
+        if (positive.size() < 7) {
+            List<String> titleTerms = new ArrayList<>();
+            for (String term : positive) {
+                titleTerms.add(contains("p.title", where.orderParam(like(term))));
+            }
+            rank.append(" when ").append(String.join(" and ", titleTerms)).append(" then 2");
+            if (positive.size() > 1) {
+                rank.append(" when ").append(String.join(" or ", titleTerms)).append(" then 3");
+            }
+        }
+        if (sentenceRank) {
+            rank.append(" when ").append(contains("p.excerpt", whole)).append(" then 4");
+            rank.append(" when ").append(contains("p.content", whole)).append(" then 5");
+        }
+        if (rank.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of("case" + rank + " else 6 end");
     }
 
     static String direction(boolean ascending) {

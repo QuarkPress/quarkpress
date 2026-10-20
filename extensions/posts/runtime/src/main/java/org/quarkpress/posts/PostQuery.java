@@ -1,5 +1,6 @@
 package org.quarkpress.posts;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -39,6 +40,15 @@ import org.quarkpress.core.UserId;
  * site's {@code posts_per_page} option (0 there means 1); -1 means no paging; below -1 counts as its absolute value.
  * {@code page} counts from 1 (0 means 1; a negative page counts as its absolute value); {@code offset} replaces the
  * page's start.
+ *
+ * <p>{@code search} (WordPress's {@code s}) is split into terms as WordPress splits it, or is one term with {@code
+ * sentence}; an empty search, or one longer than {@link #MAX_SEARCH_BYTES} bytes, searches nothing. Each term must
+ * appear in the title, the excerpt or the content, and a term starting with a hyphen in none of them. Matching ignores
+ * case but not accents, and {@code %} and {@code _} match themselves. A caller that is not logged in (the system
+ * included) finds no password-protected post. Without types, a query given a search (even an empty or over-long one)
+ * that does not look for one post by id or slug covers every searchable type. With no order, or
+ * {@code RELEVANCE} first, results are ranked as WordPress ranks them, then ordered by date (newest first unless the
+ * relevance key is ascending) and id; see {@link OrderKey}.
  */
 public record PostQuery(
         List<String> types,
@@ -55,10 +65,18 @@ public record PostQuery(
         Optional<String> name,
         Optional<String> title,
         OptionalInt menuOrder,
+        Optional<String> search,
+        boolean sentence,
         List<PostOrder> orderBy,
         OptionalInt perPage,
         int page,
         OptionalInt offset) {
+
+    /**
+     * The longest search string, in bytes of UTF-8, that is searched for; a longer one is ignored, as WordPress empties
+     * it before searching.
+     */
+    public static final int MAX_SEARCH_BYTES = 1600;
 
     public PostQuery {
         types = List.copyOf(types);
@@ -75,6 +93,7 @@ public record PostQuery(
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(menuOrder, "menuOrder");
+        Objects.requireNonNull(search, "search");
         orderBy = List.copyOf(orderBy);
         Objects.requireNonNull(perPage, "perPage");
         Objects.requireNonNull(offset, "offset");
@@ -83,6 +102,16 @@ public record PostQuery(
     /** A query for one post, by id or by a slug that is not blank: never paged, and each post found is checked. */
     public boolean singular() {
         return id.isPresent() || slug().isPresent();
+    }
+
+    /**
+     * Whether the query searches: a search string that is not empty and holds at most {@link #MAX_SEARCH_BYTES} bytes
+     * in UTF-8 (a longer one is ignored, as if absent).
+     */
+    public boolean searching() {
+        return search.isPresent()
+                && !search.get().isEmpty()
+                && search.get().getBytes(StandardCharsets.UTF_8).length <= MAX_SEARCH_BYTES;
     }
 
     /** The slug asked for, trimmed as PHP trims; empty when absent or blank. */
@@ -136,6 +165,8 @@ public record PostQuery(
         builder.name = name;
         builder.title = title;
         builder.menuOrder = menuOrder;
+        builder.search = search;
+        builder.sentence = sentence;
         builder.orderBy.addAll(orderBy);
         builder.perPage = perPage;
         builder.page = page;
@@ -158,6 +189,8 @@ public record PostQuery(
         private Optional<String> name = Optional.empty();
         private Optional<String> title = Optional.empty();
         private OptionalInt menuOrder = OptionalInt.empty();
+        private Optional<String> search = Optional.empty();
+        private boolean sentence;
         private final List<PostOrder> orderBy = new ArrayList<>();
         private OptionalInt perPage = OptionalInt.empty();
         private int page = 1;
@@ -246,6 +279,18 @@ public record PostQuery(
             return this;
         }
 
+        /** A search string (WordPress's {@code s}). */
+        public Builder search(String value) {
+            this.search = Optional.of(value);
+            return this;
+        }
+
+        /** Searches for the whole string as one term (WordPress's {@code sentence}). */
+        public Builder sentence(boolean value) {
+            this.sentence = value;
+            return this;
+        }
+
         /** Appends an ordering key. */
         public Builder orderBy(OrderKey key, boolean ascending) {
             orderBy.add(new PostOrder(key, ascending));
@@ -284,6 +329,8 @@ public record PostQuery(
                     name,
                     title,
                     menuOrder,
+                    search,
+                    sentence,
                     orderBy,
                     perPage,
                     page,

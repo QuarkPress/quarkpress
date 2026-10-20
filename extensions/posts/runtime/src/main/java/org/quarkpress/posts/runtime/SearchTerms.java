@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.quarkpress.posts.PostQuery;
 
 /**
  * A search string split into terms as WordPress splits it: a token is a double-quoted phrase (to the next double quote
@@ -21,9 +22,9 @@ public final class SearchTerms {
 
     /**
      * The longest search string, in bytes, that WordPress searches for: a longer one is replaced by an empty string
-     * before parsing. The query applies this limit, {@link #parse} does not.
+     * before parsing. The query applies this limit ({@link PostQuery#searching()}), {@link #parse} does not.
      */
-    public static final int MAX_BYTES = 1600;
+    public static final int MAX_BYTES = PostQuery.MAX_SEARCH_BYTES;
 
     private static final int MAX_TERMS = 9;
 
