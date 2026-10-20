@@ -25,6 +25,7 @@ import org.quarkpress.persistence.runtime.NetworkOptionRepository;
 import org.quarkpress.persistence.runtime.OptionEntity;
 import org.quarkpress.persistence.runtime.OptionRepository;
 import org.quarkpress.persistence.runtime.OptionTransactions;
+import org.quarkpress.persistence.runtime.OptionWrites;
 
 /**
  * Switches per-site features on and off: for the current site, or as network defaults. A site change fires
@@ -48,7 +49,7 @@ public class FeatureToggles {
     SiteContext site;
 
     @Inject
-    Options options;
+    OptionWrites writes;
 
     @Inject
     OptionRepository siteOptions;
@@ -102,7 +103,7 @@ public class FeatureToggles {
             edit.accept(values);
             boolean after = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
                     .enabled();
-            if (options.add(FeatureOptions.SITE, values, true)) {
+            if (writes.add(siteId, FeatureOptions.SITE, JsonValues.requireStorable(values), true)) {
                 toggled(siteId, key, before, after);
                 return;
             }
@@ -118,7 +119,7 @@ public class FeatureToggles {
         edit.accept(values);
         boolean after = FeatureValues.resolve(feature, FeatureOptions.switches(Optional.of(values)), defaults)
                 .enabled();
-        options.set(FeatureOptions.SITE, values);
+        writes.set(siteId, FeatureOptions.SITE, JsonValues.requireStorable(values), null);
         toggled(siteId, key, before, after);
     }
 

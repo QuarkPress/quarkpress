@@ -422,6 +422,41 @@ class OptionsDbTest {
     }
 
     @Test
+    void namesStartingWithQpAreReservedForQuarkPressModules() {
+        // a module's own state (a site's role table, its feature switches) is no option a caller may write
+        SiteId site = sites.create("reserved");
+        Jdbc.update(
+                dataSource,
+                "insert into qp_option (site_id, name, value) values (?, 'qp_user_roles', '[]')",
+                site.value());
+        scope.run(site, () -> {
+            for (String name : new String[] {"qp_user_roles", " qp_user_roles\n", "qp_features", "qp_new"}) {
+                List<Callable<Boolean>> writes = List.of(
+                        () -> options.set(name, TextNode.valueOf("x")),
+                        () -> options.set(name, TextNode.valueOf("x"), false),
+                        () -> options.add(name, TextNode.valueOf("x"), true),
+                        () -> options.setAutoload(name, false),
+                        () -> options.delete(name));
+                for (Callable<Boolean> write : writes) {
+                    assertThatThrownBy(write::call)
+                            .as(name)
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessage("option names starting with qp_ are reserved for QuarkPress's modules: "
+                                    + name.strip());
+                }
+            }
+        });
+        assertThat(stored(site, "qp_user_roles")).contains(JsonNodeFactory.instance.arrayNode());
+        assertThat(stored(site, "qp_new")).isEmpty();
+        assertThat(events.site(site, "qp_user_roles")).isEmpty();
+        // other names are as before, and so is a name that only contains qp_
+        scope.run(
+                site,
+                () -> assertThat(options.set("my_qp_setting", TextNode.valueOf("x")))
+                        .isTrue());
+    }
+
+    @Test
     void valuesRoundTripTheSameOnBothDatabases() {
         SiteId site = sites.create("values");
         List<JsonNode> accepted = List.of(

@@ -2,10 +2,16 @@ package org.quarkpress.security.deployment;
 
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
+import io.quarkus.arc.deployment.ValidationPhaseBuildItem;
+import io.quarkus.arc.deployment.ValidationPhaseBuildItem.ValidationErrorBuildItem;
+import io.quarkus.deployment.Capability;
+import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.oidc.TenantConfigResolver;
+import io.quarkus.resteasy.reactive.spi.ExceptionMapperBuildItem;
 import jakarta.inject.Singleton;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import org.jboss.jandex.DotName;
+import org.quarkpress.core.CapabilityDeniedException;
 import org.quarkpress.core.RoleDefinition;
 import org.quarkpress.core.deployment.spi.CapabilityBuildItem;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
@@ -27,6 +35,7 @@ import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.security.runtime.BuiltInRoles;
+import org.quarkpress.security.runtime.CapabilityDeniedMapper;
 import org.quarkpress.security.runtime.CapabilityGuard;
 import org.quarkpress.security.runtime.DevConfig;
 import org.quarkpress.security.runtime.RoleTables;
@@ -36,6 +45,8 @@ import org.quarkpress.security.runtime.SecurityRecorder;
 class SecurityProcessor {
 
     static final String FEATURE = "quarkpress-security";
+
+    static final DotName TENANT_CONFIG_RESOLVER = DotName.createSimple(TenantConfigResolver.class);
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -69,6 +80,34 @@ class SecurityProcessor {
                 SiteRoles.class,
                 CapabilityGuard.class,
                 Memberships.class);
+    }
+
+    /**
+     * With Quarkus REST, a network capability the caller lacks answers 401 (anonymous, with the bearer challenge) or
+     * 403 instead of 500. The mapper is a bean, so nothing needs reflection; priority 5001 lets an application's own
+     * mapper at the default priority (5000) win.
+     */
+    @BuildStep
+    void capabilityDeniedMapper(
+            io.quarkus.deployment.Capabilities capabilities, BuildProducer<ExceptionMapperBuildItem> mappers) {
+        if (capabilities.isPresent(Capability.REST)) {
+            mappers.produce(new ExceptionMapperBuildItem(
+                    CapabilityDeniedMapper.class.getName(), CapabilityDeniedException.class.getName(), 5001, true));
+        }
+    }
+
+    /**
+     * Refuses dynamic OIDC tenants: a {@code TenantConfigResolver}'s tenant built without an id carries the default
+     * tenant's id, so its tokens cannot be told from the default tenant's, and users are keyed by the subject alone.
+     */
+    @BuildStep
+    void refuseDynamicTenants(ValidationPhaseBuildItem validation, BuildProducer<ValidationErrorBuildItem> errors) {
+        validation.getContext().beans().withBeanType(TENANT_CONFIG_RESOLVER).forEach(bean -> {
+            String message = "QuarkPress: the TenantConfigResolver " + bean.getBeanClass()
+                    + " adds dynamic OIDC tenants, whose tokens cannot be told from the default tenant's;"
+                    + " QuarkPress users come from the default tenant only, and dynamic tenants are not supported";
+            errors.produce(new ValidationErrorBuildItem(new IllegalStateException(message)));
+        });
     }
 
     @BuildStep

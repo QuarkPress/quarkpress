@@ -117,6 +117,25 @@ class SecuredMethodsDbTest {
     }
 
     @Test
+    void aTokenScopeNamedLikeTheCapabilityDoesNotOpenTheMethod() {
+        String subject = "sub-" + UUID.randomUUID();
+        SecurityIdentity first = Identities.augment(Identities.jwt(subject, null, null, null));
+        TestData.member(dataSource, MAIN, user(first), "[\"subscriber\"]", "{}");
+        SecurityIdentity scoped = Identities.augment(Identities.scoped(subject, Set.of("edit_posts")));
+        assertThatThrownBy(() -> Identities.as(scoped, () -> drafts.write())).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void anOpaqueTokensScopeNamedLikeTheCapabilityDoesNotOpenTheMethod() {
+        SecurityIdentity opaque = Identities.augment(QuarkusSecurityIdentity.builder()
+                .setPrincipal(new QuarkusPrincipal("opaque-" + UUID.randomUUID()))
+                .addAttribute(Identities.TENANT_ATTRIBUTE, Identities.DEFAULT_TENANT)
+                .addPermissionAsString("edit_posts")
+                .build());
+        assertThatThrownBy(() -> Identities.as(opaque, () -> drafts.write())).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
     void aMetaCapabilityIsCheckedAgainstTheMethodsArgument() {
         SecurityIdentity contributor = member("[\"contributor\"]");
         PostFacts ownDraft =

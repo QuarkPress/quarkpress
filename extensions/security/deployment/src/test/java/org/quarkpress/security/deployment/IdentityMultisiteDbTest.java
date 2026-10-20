@@ -18,6 +18,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -111,6 +112,40 @@ class IdentityMultisiteDbTest {
         } finally {
             TestResolver.SITE.set(null);
         }
+    }
+
+    @Test
+    void aSiteAdministratorsNetworkScopesGrantNoNetworkCapability() {
+        // D20: only network administrators hold network capabilities, whatever the token's scopes are named
+        String subject = "sub-" + UUID.randomUUID();
+        UserId user = QuarkPressPrincipal.of(signedIn(subject)).orElseThrow().user();
+        TestData.member(dataSource, MAIN, user, "[\"administrator\"]", "{}");
+        SecurityIdentity scoped = Identities.augment(Identities.scoped(
+                subject, Set.of("manage_network_options", "manage_network", "create_sites", "manage_sites")));
+        try {
+            TestResolver.SITE.set(MAIN);
+            assertThat(checkInRequest(scoped, "manage_options")).isTrue();
+            for (String capability :
+                    List.of("manage_network_options", "manage_network", "create_sites", "manage_sites")) {
+                assertThat(checkInRequest(scoped, capability)).as(capability).isFalse();
+            }
+        } finally {
+            TestResolver.SITE.set(null);
+        }
+        assertThat(scoped.checkPermission(new StringPermission("manage_network_options"))
+                        .await()
+                        .indefinitely())
+                .isFalse();
+    }
+
+    /** {@code identity}'s answer for {@code capability} inside a request bound by the test resolver. */
+    private static boolean checkInRequest(SecurityIdentity identity, String capability) {
+        return Requests.call(() -> {
+            Arc.container().instance(SiteBinding.class).get().current();
+            return identity.checkPermission(new StringPermission(capability))
+                    .await()
+                    .indefinitely();
+        });
     }
 
     @Test

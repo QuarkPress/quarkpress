@@ -42,14 +42,18 @@ import org.quarkpress.security.runtime.CapabilityReads.StoredMembership;
  * Memberships in qp_site_membership. A change runs in a transaction bound to the site; the user's profile row is locked
  * first when the change may move the user's primary site, then the membership row (created first, without a race,
  * when the change creates a membership). Changes are flushed before they return, so capability checks and
- * {@link #find} made later in the same transaction see them; {@link #sitesOf} reads committed rows only.
+ * {@link #find} made later in the same transaction see them; {@link #sitesOf} reads committed rows only, unless the
+ * caller is bound to the network.
  *
- * <p>A change that would wait for the user's profile row while a transaction that waits for it holds that row (a
- * change of the same user on another site, earlier in the caller's transaction) is refused at once with
- * {@link IllegalStateException}. Adding a user can still deadlock with the deletion of the site: the add holds the
- * profile and its insert waits for the site's row, while the deletion holds the site's row and its cascade to the
- * profile's primary site waits for the profile. The database rolls one back; here that failure, like any deadlock or
- * lock timeout, surfaces as a {@link jakarta.persistence.PessimisticLockException}: retry the whole transaction.
+ * <p>A change that would wait for the user's profile row while a transaction that waits for it holds that row (a change
+ * of the same user on another site, earlier in the caller's transaction) is refused at once with
+ * {@link IllegalStateException}: any change that moves the primary site ({@code add}, {@code remove}) and any change
+ * that creates a membership ({@code setRole}, {@code addRole} or {@code setCapability} of a non-member), whose insert
+ * waits for the profile row on MySQL (the foreign key check); it is refused on both databases alike. Adding a user can
+ * still deadlock with the deletion of the site: the add holds the profile and its insert waits for the site's row,
+ * while the deletion holds the site's row and its cascade to the profile's primary site waits for the profile. The
+ * database rolls one back; here that failure, like any deadlock or lock timeout, surfaces as a
+ * {@link jakarta.persistence.PessimisticLockException}: retry the whole transaction.
  */
 @ApplicationScoped
 public class JpaMemberships implements Memberships {
@@ -277,7 +281,11 @@ public class JpaMemberships implements Memberships {
             // the profile before the membership, in every change that takes both locks (see remove)
             Optional<UserProfileEntity> profile = primary ? lockedProfile(user) : Optional.empty();
             if (create) {
-                // on MySQL a new membership row holds a shared lock on the profile (the foreign key check)
+                // on MySQL a new membership row holds a shared lock on the profile (the foreign key check), which waits
+                // for a transaction that holds the profile and waits for this change
+                if (!primary && !exists(site, user)) {
+                    refuseIfHeldBySpawner(user);
+                }
                 HeldLocks.record(profileLock(user));
                 inserts.ensure(site, user, now);
             }
@@ -318,11 +326,7 @@ public class JpaMemberships implements Memberships {
      */
     private Optional<UserProfileEntity> lockedProfile(UserId user) {
         String lock = profileLock(user);
-        if (HeldLocks.heldBySpawner(lock)) {
-            throw new IllegalStateException("the profile of user " + user.value()
-                    + " is locked by a transaction that waits for this change: change the memberships of one user on"
-                    + " several sites in separate transactions");
-        }
+        refuseIfHeldBySpawner(user);
         UserProfileEntity loaded = profileRows.findById(user.value());
         if (loaded == null) {
             return Optional.empty();
@@ -336,6 +340,23 @@ public class JpaMemberships implements Memberships {
                 .singleResultOptional();
         HeldLocks.record(lock);
         return locked;
+    }
+
+    /**
+     * Refuses a change that would wait for the user's profile row while a transaction that waits for this change holds
+     * it: the two would wait for each other until the database's lock timeout.
+     */
+    private static void refuseIfHeldBySpawner(UserId user) {
+        if (HeldLocks.heldBySpawner(profileLock(user))) {
+            throw new IllegalStateException("the profile of user " + user.value()
+                    + " is locked by a transaction that waits for this change: change the memberships of one user on"
+                    + " several sites in separate transactions");
+        }
+    }
+
+    /** Whether the membership row exists, as this transaction sees it (no lock). */
+    private boolean exists(SiteId site, UserId user) {
+        return memberships.count("siteId = ?1 and userId = ?2", TenantIds.param(site), user.value()) > 0;
     }
 
     /** The name under which a transaction records its lock on the user's profile row ({@link HeldLocks}). */

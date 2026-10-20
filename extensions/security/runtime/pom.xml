@@ -28,6 +28,12 @@
       <artifactId>quarkus-oidc</artifactId>
     </dependency>
     <dependency>
+      <!-- for CapabilityDeniedMapper, registered only when Quarkus REST is present -->
+      <groupId>jakarta.ws.rs</groupId>
+      <artifactId>jakarta.ws.rs-api</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
       <groupId>org.quarkpress.lib</groupId>
       <artifactId>quarkpress-lib-wp-kses</artifactId>
       <version>${project.version}</version>

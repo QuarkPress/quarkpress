@@ -189,7 +189,10 @@ defaults. Site options and network options live in separate tables (`qp_option`,
 
 - **Names** are PHP-trimmed (space, tab, line feed, carriage return, NUL, vertical tab); an empty name and `"0"` are
   refused, as WordPress refuses them. Names hold at most 191 characters (code points, the same limit on both
-  databases), no NUL inside and no unpaired surrogate.
+  databases), no NUL inside and no unpaired surrogate. `Options` refuses to write names starting with `qp_`: they are
+  reserved for QuarkPress's modules, which keep state there (`qp_features`, the security module's `qp_user_roles`) and
+  write it through their own services, so no caller of `Options` can replace it. WordPress's `update_option` writes
+  any name, including its own `wp_user_roles`.
 - **Change detection** compares numbers by value (`1`, `1.0` and `1L` are the same) and object keys **in order**:
   `{"a":1,"b":2}` and `{"b":2,"a":1}` differ, as PHP's comparison of the serialized arrays does. Option arrays in
   WordPress are ordered (roles, sidebars, widgets).

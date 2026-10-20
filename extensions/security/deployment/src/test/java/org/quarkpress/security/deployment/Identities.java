@@ -28,6 +28,12 @@ public final class Identities {
 
     private Identities() {}
 
+    /** The identity attribute in which Quarkus OIDC names the tenant that verified the token. */
+    public static final String TENANT_ATTRIBUTE = "tenant-id";
+
+    /** The id of Quarkus OIDC's default tenant when {@code quarkus.oidc.tenant-id} is not set. */
+    public static final String DEFAULT_TENANT = "Default";
+
     /** Runs blocking work in place, as Quarkus runs it on a worker thread. */
     private static final AuthenticationRequestContext IN_PLACE =
             supplier -> Uni.createFrom().item(supplier);
@@ -91,13 +97,35 @@ public final class Identities {
 
     /**
      * An authenticated identity whose principal is a token with exactly {@code claims}, and whose roles are
-     * {@code roles}, as an OIDC mechanism leaves it after reading the token's groups or realm roles.
+     * {@code roles}, as an OIDC mechanism leaves it after reading the token's groups or realm roles, verified by the
+     * default OIDC tenant.
      */
     public static SecurityIdentity token(Map<String, Object> claims, Set<String> roles) {
-        return QuarkusSecurityIdentity.builder()
+        return token(DEFAULT_TENANT, claims, roles, Set.of());
+    }
+
+    /**
+     * An identity as Quarkus OIDC leaves it for a token with exactly {@code claims} verified by the OIDC tenant
+     * {@code tenant} ({@code null}: an identity without the tenant attribute, as other token mechanisms leave it),
+     * with {@code roles} and with each of {@code scopes} turned into a permission as Quarkus OIDC turns a token's
+     * scopes into permissions ({@code read} gives {@code StringPermission("read")}, {@code export:run} gives
+     * {@code StringPermission("export", "run")}).
+     */
+    public static SecurityIdentity token(
+            String tenant, Map<String, Object> claims, Set<String> roles, Set<String> scopes) {
+        QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()
                 .setPrincipal(new TestJwt(claims))
                 .addRoles(roles)
-                .build();
+                .addPermissionsAsString(scopes);
+        if (tenant != null) {
+            builder.addAttribute(TENANT_ATTRIBUTE, tenant);
+        }
+        return builder.build();
+    }
+
+    /** A token of the default tenant for {@code subject} whose scopes are {@code scopes} (see {@link #token}). */
+    public static SecurityIdentity scoped(String subject, Set<String> scopes) {
+        return token(DEFAULT_TENANT, Map.of("sub", subject, "scope", String.join(" ", scopes)), Set.of(), scopes);
     }
 
     /** An identity of a profile, as the augmentor leaves it, without permission checker (enough for explicit checks). */

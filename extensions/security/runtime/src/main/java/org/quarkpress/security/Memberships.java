@@ -19,17 +19,23 @@ import org.quarkpress.core.UserId;
  * capability but a network one.
  *
  * <p>A change is written to the database before it returns: {@link #find} and capability checks made later in the same
- * transaction see it. {@link #sitesOf} reads committed memberships only, on a thread of its own. {@link #add} and
- * {@link #remove} of a user after another change of that user on a different site, in one caller transaction, are
- * refused with {@link IllegalStateException} (they would wait for the first change's lock on the user's profile, held
- * by the transaction that waits for it). A change that meets a deadlock or a lock timeout fails with
- * {@code jakarta.persistence.PessimisticLockException}: retry the whole transaction.
+ * transaction see it. {@link #sitesOf} reads committed memberships only, on a thread of its own, unless the caller is
+ * bound to the network: then it reads in the caller's transaction and sees what that transaction sees. {@link #add},
+ * {@link #remove} and any change that creates a membership ({@link #setRole}, {@link #addRole} or
+ * {@link #setCapability} of a user who is not a member yet) of a user after another change of that user on a
+ * different site, in one caller transaction, are refused with {@link IllegalStateException} (they would wait for the
+ * first change's lock on the user's profile, held by the transaction that waits for it). A change that meets a
+ * deadlock or a lock timeout fails with {@code jakarta.persistence.PessimisticLockException}: retry the whole
+ * transaction.
  */
 public interface Memberships {
 
     Optional<Membership> find(SiteId site, UserId user);
 
-    /** Every membership of the user, by site id, as committed. */
+    /**
+     * Every membership of the user, by site id, as committed (for a caller bound to the network: as its transaction
+     * sees them).
+     */
     List<Membership> sitesOf(UserId user);
 
     /**

@@ -14,7 +14,9 @@ import org.quarkpress.persistence.runtime.OptionWrites;
  * Writes the current site's options; read them through {@code SiteContext.options()}. The methods behave like
  * WordPress's {@code update_option}, {@code add_option}, {@code delete_option} and {@code wp_set_option_autoload}.
  *
- * <p>Names are trimmed like WordPress trims them, and an empty name or {@code "0"} is refused. Values follow the rules
+ * <p>Names are trimmed like WordPress trims them, and an empty name or {@code "0"} is refused. Names starting with
+ * {@code qp_} are reserved for QuarkPress's modules, which keep state there (a site's role table, its feature
+ * switches) and write it through their own services: a write of one is refused. Values follow the rules
  * of {@link JsonValues}; numbers compare by value and object keys in order. A write that creates, changes or deletes a
  * value fires {@link OptionChanged} inside the transaction; an observer that throws rolls the transaction back. An
  * invalid name or value throws {@link IllegalArgumentException} without marking the caller's transaction for rollback.
@@ -31,6 +33,9 @@ import org.quarkpress.persistence.runtime.OptionWrites;
 @ApplicationScoped
 public class Options {
 
+    /** The prefix of the option names QuarkPress's modules keep for themselves. */
+    private static final String RESERVED_PREFIX = "qp_";
+
     @Inject
     SiteContext site;
 
@@ -43,7 +48,7 @@ public class Options {
      */
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public boolean set(String name, JsonNode value) {
-        String normalized = OptionNames.normalize(name);
+        String normalized = writable(name);
         JsonNode stored = JsonValues.requireStorable(value);
         return writes.set(site.siteId(), normalized, stored, null);
     }
@@ -55,7 +60,7 @@ public class Options {
      */
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public boolean set(String name, JsonNode value, boolean autoload) {
-        String normalized = OptionNames.normalize(name);
+        String normalized = writable(name);
         JsonNode stored = JsonValues.requireStorable(value);
         return writes.set(site.siteId(), normalized, stored, autoload);
     }
@@ -63,7 +68,7 @@ public class Options {
     /** Adds an option, like {@code add_option}: returns false and changes nothing when the option already exists. */
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public boolean add(String name, JsonNode value, boolean autoload) {
-        String normalized = OptionNames.normalize(name);
+        String normalized = writable(name);
         JsonNode stored = JsonValues.requireStorable(value);
         return writes.add(site.siteId(), normalized, stored, autoload);
     }
@@ -74,14 +79,24 @@ public class Options {
      */
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public boolean setAutoload(String name, boolean autoload) {
-        String normalized = OptionNames.normalize(name);
+        String normalized = writable(name);
         return writes.setAutoload(site.siteId(), normalized, autoload);
     }
 
     /** Deletes the option. Returns whether it existed. */
     @Transactional(dontRollbackOn = IllegalArgumentException.class)
     public boolean delete(String name) {
-        String normalized = OptionNames.normalize(name);
+        String normalized = writable(name);
         return writes.delete(site.siteId(), normalized);
+    }
+
+    /** The normalized name, refused when it is reserved for QuarkPress's modules. */
+    private static String writable(String name) {
+        String normalized = OptionNames.normalize(name);
+        if (normalized.startsWith(RESERVED_PREFIX)) {
+            throw new IllegalArgumentException(
+                    "option names starting with qp_ are reserved for QuarkPress's modules: " + normalized);
+        }
+        return normalized;
     }
 }

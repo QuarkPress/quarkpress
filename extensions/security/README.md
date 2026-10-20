@@ -16,10 +16,11 @@ WordPress's capability checks, answered as WordPress 7.1.3 answers them.
 
 The extension brings `quarkpress-persistence`, `quarkus-oidc` (and with it `quarkus-security`) and
 `quarkpress-lib-wp-kses`. Configure OIDC as Quarkus documents it (`quarkus.oidc.auth-server-url` and the client in
-production). In dev and test, Dev Services for Keycloak starts Keycloak with QuarkPress's dev realm (see
-[Dev mode](#dev-mode)). With the security module installed, the network services (`Sites`, `SiteDomains`) check
-capabilities for real; without it they allow every caller. The installation is a network when
-the multisite module is installed (decided at build time) and a single site otherwise.
+production); QuarkPress's users come from the default tenant only (see [Tenants](#tenants)). In dev and test, Dev
+Services for Keycloak starts Keycloak with QuarkPress's dev realm (see [Dev mode](#dev-mode)). With the security module
+installed, the network services (`Sites`, `SiteDomains`) check capabilities for real; without it they allow every
+caller. The installation is a network when the multisite module is installed (decided at build time) and a single site
+otherwise.
 
 ## Configuration
 
@@ -31,9 +32,9 @@ the multisite module is installed (decided at build time) and a single site othe
 
 ## Users
 
-- **Profiles.** The first time a subject authenticates with an OIDC token that carries `sub`, it gets a profile in
-  `qp_user_profile`: a numeric `UserId`, the subject, a display name and a nicename. Concurrent first logins of one
-  subject create one profile. `UserProfiles` reads them; `UserProfileProvisioner` can be replaced with an
+- **Profiles.** The first time a subject authenticates with a token of the default OIDC tenant that carries `sub`, it
+  gets a profile in `qp_user_profile`: a numeric `UserId`, the subject, a display name and a nicename. Concurrent first
+  logins of one subject create one profile. `UserProfiles` reads them; `UserProfileProvisioner` can be replaced with an
   `@Alternative @Priority` bean (it does not shape the profiles that `initial-super-admins` and dev seeding create).
 - **Subjects.** A subject with leading or trailing whitespace, or longer than 255 characters, is refused (the token
   fails authentication with 401): MySQL's collation would otherwise match `abc ` to the profile of `abc`. This is a
@@ -52,7 +53,7 @@ the multisite module is installed (decided at build time) and a single site othe
 
 ## The identity
 
-Every identity authenticated with an OIDC token that carries a usable `sub` gets:
+Every identity authenticated with a token of the default OIDC tenant that carries a usable `sub` gets:
 
 - the attribute `QuarkPressPrincipal` (`QuarkPressPrincipal.of(identity)`): its `UserId` and subject;
 - as roles, the user's role keys on the request's site (never a network role);
@@ -65,18 +66,34 @@ What else happens to an identity:
   roles are per site. A host application on the same server that relies on `@RolesAllowed` with IdP roles must read
   the token's claims itself. `quarkus.http.auth.roles-mapping` still applies, after augmentation, so it maps from the
   site roles.
-- **Only tokens with `sub` are augmented.** A token without `sub`, a principal that is not a `JsonWebToken` (for
-  example an opaque token checked by introspection) and any other mechanism's identity pass through unchanged and
-  count as logged out for QuarkPress (no principal, no roles, no capabilities: fail closed). A `sub` that is blank,
-  padded with whitespace or too long fails authentication.
+- **Only the default tenant's tokens with `sub` are augmented.** Every other authenticated identity counts as logged out
+  for QuarkPress: a token without `sub`, a token of another OIDC tenant or of another token mechanism (see
+  [Tenants](#tenants)), a principal that is not a `JsonWebToken` (for example an opaque token checked by introspection
+  or UserInfo) and any other mechanism's identity. It gets no principal and no capabilities: its own permissions (token
+  scopes included) never answer a capability (fail closed), while it keeps its own roles and its permissions other than
+  capabilities. A `sub` that is blank, padded with whitespace or too long fails authentication.
 - **Roles are a snapshot** taken when the identity is built; capabilities are decided at every check, so a change is
   seen by the next check even on a token issued before it.
 - **Order.** The augmentor runs with Quarkus's other augmentors, highest priority first, except that Quarkus's own
   permission augmentor (which turns `@PermissionChecker` methods into permissions) always runs last.
-- **Permissions without actions are capabilities.** Every `StringPermission` without actions is treated as a
-  WordPress capability, and network administrators pass all of them. Give your own permissions an action, or use your
-  own `Permission` class. Token scopes also become permissions in Quarkus OIDC: do not give scopes the names of
-  capabilities.
+- **Permissions without actions are capabilities, decided by QuarkPress alone.** Every `StringPermission` without
+  actions is treated as a WordPress capability, and network administrators pass all of them. Give your own
+  permissions an action, or use your own `Permission` class. Quarkus OIDC turns each token scope into such a
+  permission; on a token's identity those permissions never answer a capability (a scope named `manage_options` or
+  `manage_network_options` grants nothing), while scopes in the `name:action` form and other permissions the
+  mechanism gave keep answering. A `@PermissionChecker` method or an HTTP permission policy of your own still grants
+  what it grants.
+
+### Tenants
+
+A subject (`sub`) is unique only for its issuer, and profiles are keyed by the subject alone. So only tokens verified
+by the default OIDC tenant (the tenant Quarkus OIDC names in the identity's `tenant-id` attribute, `Default` unless
+`quarkus.oidc.tenant-id` names it otherwise) are QuarkPress users. A token of a named tenant
+(`quarkus.oidc.<tenant>.*`), or of another token mechanism (which sets no `tenant-id`), is logged out for QuarkPress,
+even when its subject is a user's: it never signs in as that user and creates no profile. A `TenantConfigResolver`
+fails the build: a dynamic tenant built without an id carries the default tenant's id, so its tokens could not be
+told apart. Keying profiles by issuer and subject, so that several tenants can hold users, is planned for a later
+release. `initial-super-admins` and the dev realm's users are subjects of the default tenant.
 
 ## Checking capabilities
 
@@ -164,24 +181,15 @@ logged-out caller, `ForbiddenException` otherwise; an authenticated caller witho
 
 ### Network services in a host application
 
-The network services (`Sites`, `SiteDomains`) throw core's `CapabilityDeniedException` (a `SecurityException`) and
-do not know whether the caller is anonymous. A host application maps it: 401 (with `WWW-Authenticate: Bearer`) for
-an anonymous caller, 403 otherwise, as a refused `@PermissionsAllowed` answers. `integration-tests/security`'s
-`CapabilityDeniedMapper` is the example:
-
-```java
-@Provider
-public class CapabilityDeniedMapper implements ExceptionMapper<CapabilityDeniedException> {
-    @Inject SecurityIdentity identity;
-
-    public Response toResponse(CapabilityDeniedException exception) {
-        if (identity.isAnonymous()) {
-            return Response.status(Response.Status.UNAUTHORIZED).header("WWW-Authenticate", "Bearer").build();
-        }
-        return Response.status(Response.Status.FORBIDDEN).build();
-    }
-}
-```
+The network services (`Sites`, `SiteDomains`) throw core's `CapabilityDeniedException` (a `SecurityException`);
+`anonymous()` says whether nobody was authenticated (a call outside a request counts as anonymous). With Quarkus REST
+(`quarkus-rest`) in the application, the extension maps it as a refused `@PermissionsAllowed` answers: 401 with
+`WWW-Authenticate: Bearer` for an anonymous caller, 403 otherwise, both with an empty body. An application's own
+`ExceptionMapper<CapabilityDeniedException>` at the default priority takes precedence. The shipped mapper matches
+`CapabilityDeniedException` exactly, so it also takes precedence over a broader mapper of the application
+(`ExceptionMapper<SecurityException>`, `<RuntimeException>` or `<Throwable>`): an application whose catch-all should
+answer these refusals maps `CapabilityDeniedException` itself. Without Quarkus REST (for example with RESTEasy Classic
+or a plain Vert.x route) nothing maps it: map it yourself from `anonymous()`.
 
 ## Roles
 
@@ -193,7 +201,9 @@ public class CapabilityDeniedMapper implements ExceptionMapper<CapabilityDeniedE
   nothing stores nothing. Adding a role that exists changes nothing; removing a role resets a `default_role` that named
   it to `subscriber`; users keep a removed role's key as a plain capability. Adding a role with the key `""` or `0`
   changes nothing. Reads are unguarded (like WordPress's `get_role`); changes require `manage_options` on the site. On a
-  single site every site id means the main site.
+  single site every site id means the main site. The persistence module's `Options` refuses to write `qp_user_roles`
+  (it reserves every name starting with `qp_` for QuarkPress's modules, D25): the table changes only through
+  `SiteRoles`.
 
 ## Memberships
 
@@ -216,9 +226,12 @@ public class CapabilityDeniedMapper implements ExceptionMapper<CapabilityDeniedE
   separate steps: a concurrent change between them is not detected.
 - `isMember`: in a network, a membership row on a site that is not archived, spam or deleted; on a single site, every
   existing user.
-- Adding or removing a user after another change of that user on a different site, inside one caller transaction, is
-  refused with `IllegalStateException` (it would wait for the first change's lock on the user's profile). A change that
-  meets a deadlock or lock timeout fails with `PessimisticLockException`: retry the whole transaction.
+- Adding or removing a user, or any other change that creates a membership (`setRole`, `addRole` or
+  `setCapability` of a user who is not a member of the site yet), after another change of that user on a different
+  site, inside one caller transaction, is refused with `IllegalStateException` on both databases (it would wait for
+  the first change's lock on the user's profile; on MySQL until the lock wait timeout). A change of an existing
+  membership is made. A change that meets a deadlock or lock timeout fails with `PessimisticLockException`: retry
+  the whole transaction.
 - `grantSuperAdmin`, `revokeSuperAdmin` (network administrators, `qp_network_admin`) require
   `manage_network_options`, return false on a single site and fire `SuperAdminChanged`. Revoking the last one is
   allowed, and with `initial-super-admins` empty there is then no recovery except code running as the system
@@ -301,6 +314,7 @@ ignored. His token carries it; his identity never does (he is an editor on the m
 | D22 | `Memberships.remove` of a user who is not a member returns false and fires no event; WordPress returns true and fires its hook. |
 | D23 | On a single site, adding a user to the site gives them a primary site; WordPress has none there. |
 | D24 | What a membership or role-table change gives is checked: a caller who is not the system or a network administrator may give only roles and capabilities they hold, and never a network capability (on a single site, a user who can delete users may grant any name but a network one); D11 covers the checks of the change itself. WordPress's functions check nothing. |
+| D25 | A site's role table (`qp_user_roles`) cannot be written as an option: `Options` refuses names starting with `qp_`, so only `SiteRoles` changes it, with its checks. WordPress's `update_option` can replace `wp_user_roles`. |
 
 The parity tests (`-Pwp-parity`) compare the user-name rules (`sanitize_user`, `remove_accents`, the nicename),
 `map_meta_cap` on a matrix of capabilities, objects, users and both install types, the post-type capability names

@@ -104,14 +104,16 @@ class IdentityDbTest {
     }
 
     @Test
-    void anIdentityWithoutATokenIsLeftAsItIs() {
+    void anIdentityWithoutATokenIsLoggedOut() {
         // a name equal to a signed-in subject (Basic, mTLS, an application's own mechanism) never becomes that user
         String subject = contributorSubject();
         long profilesBefore = Jdbc.count(dataSource, "select count(*) from qp_user_profile");
         SecurityIdentity named = Identities.named(subject);
         SecurityIdentity augmented = Identities.augment(named);
         assertLoggedOut(augmented);
-        assertThat(Identities.augmentByQuarkPress(named)).isSameAs(named);
+        SecurityIdentity passed = Identities.augmentByQuarkPress(named);
+        assertThat(passed.getPrincipal()).isSameAs(named.getPrincipal());
+        assertThat(passed.getAttributes()).isEqualTo(named.getAttributes());
         String stranger = "plain" + UUID.randomUUID().toString().substring(0, 8);
         assertLoggedOut(Identities.augment(Identities.named(stranger)));
         assertThat(Jdbc.count(dataSource, "select count(*) from qp_user_profile where subject = ?", stranger))
@@ -121,13 +123,53 @@ class IdentityDbTest {
     }
 
     @Test
-    void aTokenWithoutSubIsLeftAsItIs() {
+    void anIdentityWithoutATokenAnswersNoCapabilityFromItsPermissions() {
+        // an opaque token checked by introspection: a plain principal, the tenant attribute, scopes as permissions;
+        // and the same without the attribute, as another mechanism leaves it
+        for (String tenant : java.util.Arrays.asList(Identities.DEFAULT_TENANT, null)) {
+            QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()
+                    .setPrincipal(new QuarkusPrincipal("opaque-" + UUID.randomUUID()))
+                    .addRole("operators")
+                    .addPermissionsAsString(Set.of("manage_options", "manage_network_options", "export:run"));
+            if (tenant != null) {
+                builder.addAttribute(Identities.TENANT_ATTRIBUTE, tenant);
+            }
+            SecurityIdentity augmented = Identities.augment(builder.build());
+            assertThat(QuarkPressPrincipal.of(augmented))
+                    .as("tenant %s", tenant)
+                    .isEmpty();
+            assertThat(answers(augmented, new StringPermission("manage_options")))
+                    .as("tenant %s", tenant)
+                    .isFalse();
+            assertThat(answers(augmented, new StringPermission("manage_network_options")))
+                    .as("tenant %s", tenant)
+                    .isFalse();
+            assertThat(answers(augmented, new StringPermission("export", "run")))
+                    .as("tenant %s", tenant)
+                    .isTrue();
+            assertThat(augmented.getRoles()).as("tenant %s", tenant).containsExactly("operators");
+        }
+    }
+
+    @Test
+    void aTokenWithoutSubIsLoggedOut() {
         String subject = contributorSubject();
         // a token whose preferred_username (its principal name) is another user's subject
         SecurityIdentity token = Identities.token(Map.of("preferred_username", subject), Set.of());
         assertThat(token.getPrincipal().getName()).isEqualTo(subject);
         assertLoggedOut(Identities.augment(token));
-        assertThat(Identities.augmentByQuarkPress(token)).isSameAs(token);
+        SecurityIdentity passed = Identities.augmentByQuarkPress(token);
+        assertThat(passed.getPrincipal()).isSameAs(token.getPrincipal());
+        assertThat(passed.getAttributes()).isEqualTo(token.getAttributes());
+        // its scopes answer no capability
+        SecurityIdentity scoped = Identities.token(
+                Identities.DEFAULT_TENANT,
+                Map.of("preferred_username", subject),
+                Set.of(),
+                Set.of("edit_posts", "export:run"));
+        SecurityIdentity augmented = Identities.augment(scoped);
+        assertLoggedOut(augmented);
+        assertThat(answers(augmented, new StringPermission("export", "run"))).isTrue();
     }
 
     @Test
@@ -158,6 +200,7 @@ class IdentityDbTest {
     void theAuthenticationsOwnPermissionCheckersStillAnswer() {
         SecurityIdentity source = QuarkusSecurityIdentity.builder()
                 .setPrincipal(new TestJwt(Map.of("sub", sub())))
+                .addAttribute(Identities.TENANT_ATTRIBUTE, Identities.DEFAULT_TENANT)
                 .addPermissionChecker(
                         permission -> Uni.createFrom().item(permission.equals(new StringPermission("export", "run"))))
                 .addPermission(new StringPermission("report", "read"))
@@ -179,6 +222,68 @@ class IdentityDbTest {
                         .await()
                         .indefinitely())
                 .isFalse();
+    }
+
+    private boolean answers(SecurityIdentity identity, StringPermission permission) {
+        return identity.checkPermission(permission).await().indefinitely();
+    }
+
+    @Test
+    void tokenScopesNamedLikeCapabilitiesGrantNothing() {
+        // Quarkus OIDC turns each scope into a permission; only QuarkPress decides a capability
+        String subscriber = sub();
+        SecurityIdentity first = Identities.augment(Identities.jwt(subscriber, null, null, null));
+        TestData.member(
+                dataSource, MAIN, QuarkPressPrincipal.of(first).orElseThrow().user(), "[\"subscriber\"]", "{}");
+        Set<String> scopes = Set.of("manage_options", "upload_files", "edit_posts", "export:run");
+        SecurityIdentity scoped = Identities.augment(Identities.scoped(subscriber, scopes));
+        assertThat(QuarkPressPrincipal.of(scoped)).isPresent();
+        assertThat(answers(scoped, new StringPermission("manage_options"))).isFalse();
+        assertThat(answers(scoped, new StringPermission("upload_files"))).isFalse();
+        assertThat(answers(scoped, new StringPermission("edit_posts"))).isFalse();
+        assertThat(answers(scoped, new StringPermission("read"))).isTrue();
+        // a scope that is not a capability (it has an action) still answers as the mechanism made it
+        assertThat(answers(scoped, new StringPermission("export", "run"))).isTrue();
+        // a user who is no member: a read scope gives no read
+        SecurityIdentity stranger = Identities.augment(Identities.scoped(sub(), Set.of("read", "exist")));
+        assertThat(QuarkPressPrincipal.of(stranger)).isPresent();
+        assertThat(answers(stranger, new StringPermission("read"))).isFalse();
+    }
+
+    @Test
+    void aTokenOfAnotherTenantIsLoggedOutAndCreatesNoProfile() {
+        // the same sub from another issuer is another user: it never becomes the profile of this subject
+        String subject = contributorSubject();
+        long profilesBefore = Jdbc.count(dataSource, "select count(*) from qp_user_profile");
+        for (String tenant : java.util.Arrays.asList("customers", "default", null)) {
+            SecurityIdentity foreign = Identities.token(
+                    tenant, Map.of("sub", subject, "scope", "edit_posts"), Set.of("operators"), Set.of("edit_posts"));
+            SecurityIdentity augmented = Identities.augment(foreign);
+            // not a QuarkPress user: no principal, no capability (its scope included); its own roles stay its own
+            assertThat(QuarkPressPrincipal.of(augmented))
+                    .as("tenant %s", tenant)
+                    .isEmpty();
+            assertThat(augmented.getRoles()).as("tenant %s", tenant).containsExactly("operators");
+            assertThat(answers(augmented, new StringPermission("edit_posts")))
+                    .as("tenant %s", tenant)
+                    .isFalse();
+            assertThat(answers(augmented, new StringPermission("exist")))
+                    .as("tenant %s", tenant)
+                    .isFalse();
+            assertThat(capabilities.can(augmented, "edit_posts", Optional.empty()))
+                    .as("tenant %s", tenant)
+                    .isFalse();
+            // a fresh subject of another tenant gets no profile either
+            String stranger = sub();
+            assertLoggedOut(Identities.augment(Identities.token(tenant, Map.of("sub", stranger), Set.of(), Set.of())));
+            assertThat(Jdbc.count(dataSource, "select count(*) from qp_user_profile where subject = ?", stranger))
+                    .isZero();
+        }
+        assertThat(Jdbc.count(dataSource, "select count(*) from qp_user_profile"))
+                .isEqualTo(profilesBefore);
+        // the default tenant's token of the same subject is that user
+        assertThat(QuarkPressPrincipal.of(Identities.augment(Identities.jwt(subject, null, null, null))))
+                .isPresent();
     }
 
     @Test

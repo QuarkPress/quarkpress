@@ -36,10 +36,10 @@ import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.core.runtime.SiteBinding;
 import org.quarkpress.persistence.FeatureToggles;
-import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.FeatureOptions;
 import org.quarkpress.persistence.runtime.OptionFeatureSettings;
+import org.quarkpress.persistence.runtime.OptionWrites;
 
 class FeatureTogglesDbTest {
 
@@ -114,7 +114,7 @@ class FeatureTogglesDbTest {
     OptionFeatureSettings settings;
 
     @Inject
-    Options options;
+    OptionWrites writes;
 
     @Inject
     SiteBinding binding;
@@ -301,7 +301,7 @@ class FeatureTogglesDbTest {
     @Test
     void storedValuesThatAreNotSwitchesAreIgnored() {
         SiteId text = sites.create("not-object");
-        scope.run(text, () -> options.set(FeatureOptions.SITE, TextNode.valueOf("on")));
+        scope.run(text, () -> writes.set(text, FeatureOptions.SITE, TextNode.valueOf("on"), null));
         assertThat(valueIn(text, "demo-off")).isEqualTo(new FeatureValue("demo-off", false, Source.MODULE));
         scope.run(text, () -> toggles.setForSite("demo-off", true));
         assertThat(valueIn(text, "demo-off")).isEqualTo(new FeatureValue("demo-off", true, Source.SITE));
@@ -310,7 +310,7 @@ class FeatureTogglesDbTest {
         SiteId members = sites.create("not-boolean");
         ObjectNode stored =
                 JsonNodeFactory.instance.objectNode().put("demo-on", "no").put("demo-off", 1);
-        scope.run(members, () -> options.set(FeatureOptions.SITE, stored));
+        scope.run(members, () -> writes.set(members, FeatureOptions.SITE, stored, null));
         assertThat(valueIn(members, "demo-on")).isEqualTo(new FeatureValue("demo-on", true, Source.MODULE));
         assertThat(valueIn(members, "demo-off")).isEqualTo(new FeatureValue("demo-off", false, Source.MODULE));
         scope.run(members, () -> toggles.setForSite("demo-on", false));

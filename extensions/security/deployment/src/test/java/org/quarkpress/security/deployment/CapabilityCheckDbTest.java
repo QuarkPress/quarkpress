@@ -72,7 +72,9 @@ class CapabilityCheckDbTest {
                     return null;
                 }))
                 .isInstanceOf(CapabilityDeniedException.class)
-                .hasMessage("the caller lacks the network capability create_sites");
+                .hasMessage("the caller lacks the network capability create_sites")
+                .extracting(denied -> ((CapabilityDeniedException) denied).anonymous())
+                .isEqualTo(false);
         SecurityIdentity anonymous = QuarkusSecurityIdentity.builder()
                 .setPrincipal(new QuarkusPrincipal(""))
                 .setAnonymous(true)
@@ -81,7 +83,14 @@ class CapabilityCheckDbTest {
                     check.requireNetwork(NetworkCapabilities.DELETE_SITES);
                     return null;
                 }))
-                .isInstanceOf(CapabilityDeniedException.class);
+                .isInstanceOf(CapabilityDeniedException.class)
+                .extracting(denied -> ((CapabilityDeniedException) denied).anonymous())
+                .isEqualTo(true);
+        // outside a request nobody is authenticated
+        assertThatThrownBy(() -> check.requireNetwork(NetworkCapabilities.DELETE_SITES))
+                .isInstanceOf(CapabilityDeniedException.class)
+                .extracting(denied -> ((CapabilityDeniedException) denied).anonymous())
+                .isEqualTo(true);
         system.run(() -> check.requireNetwork(NetworkCapabilities.MANAGE_SITES));
     }
 

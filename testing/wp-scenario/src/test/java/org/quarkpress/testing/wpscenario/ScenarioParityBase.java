@@ -33,6 +33,7 @@ import org.quarkpress.multisite.runtime.HttpResolution;
 import org.quarkpress.persistence.NetworkOptions;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
+import org.quarkpress.persistence.runtime.OptionWrites;
 import org.quarkpress.security.CapObject;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Membership;
@@ -43,6 +44,7 @@ import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.UserProfile;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserTarget;
+import org.quarkpress.security.runtime.SiteRoleTables;
 import org.quarkpress.security.runtime.UserProfileRepository;
 import org.quarkpress.testing.wporacle.ParityRun;
 import org.quarkpress.testing.wporacle.ParitySkipList;
@@ -92,6 +94,9 @@ abstract class ScenarioParityBase {
 
     @Inject
     Options options;
+
+    @Inject
+    OptionWrites optionWrites;
 
     /** Compares every scenario; fails on a difference, a stale skip entry, or fewer comparisons than {@code minimum}. */
     void compareWithWordPress(String library, List<Scenario> scenarios, Path skips, int minimum) throws Exception {
@@ -260,7 +265,8 @@ abstract class ScenarioParityBase {
                 failure,
                 () -> scope.run(MAIN, () -> {
                     options.delete("link_manager_enabled");
-                    options.delete("qp_user_roles");
+                    // the stored role table is the security module's state, which Options refuses to write
+                    optionWrites.delete(MAIN, SiteRoleTables.OPTION);
                 }));
         for (int index = created.size() - 1; index >= 0; index--) {
             SiteId id = created.get(index);

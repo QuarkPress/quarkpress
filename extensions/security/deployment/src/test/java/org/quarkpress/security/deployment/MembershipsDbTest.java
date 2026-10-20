@@ -497,6 +497,60 @@ class MembershipsDbTest {
     }
 
     @Test
+    void changesThatCreateAMembershipAfterAChangeOnAnotherSiteFailFast() {
+        // setRole, addRole and setCapability of a non-member create the membership, as add does
+        List<String> refused = new ArrayList<>();
+        for (String operation : List.of("setRole", "addRole", "setCapability")) {
+            SiteId first = TestData.site(dataSource);
+            SiteId second = TestData.site(dataSource);
+            UserId user = TestData.profile(dataSource, "two-sites-" + operation);
+            long started = System.nanoTime();
+            assertThatThrownBy(() -> scope.call(
+                            first,
+                            () -> system.call(() -> {
+                                memberships.add(first, user, "author");
+                                return switch (operation) {
+                                    case "setRole" -> memberships.setRole(second, user, "editor");
+                                    case "addRole" -> memberships.addRole(second, user, "editor");
+                                    default -> memberships.setCapability(second, user, "upload_files", true);
+                                };
+                            })))
+                    .as(operation)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("the profile of user " + user.value()
+                            + " is locked by a transaction that waits for this change: change the memberships of one"
+                            + " user on several sites in separate transactions");
+            assertThat(Duration.ofNanos(System.nanoTime() - started))
+                    .as(operation)
+                    .isLessThan(Duration.ofSeconds(10));
+            assertThat(memberships.sitesOf(user)).as(operation).isEmpty();
+            refused.add(operation);
+        }
+        assertThat(refused).containsExactly("setRole", "addRole", "setCapability");
+    }
+
+    @Test
+    void aChangeOfAMembershipThatExistsAfterAChangeOnAnotherSiteIsMade() throws Exception {
+        // no membership is created, so nothing waits for the profile
+        SiteId first = TestData.site(dataSource);
+        SiteId second = TestData.site(dataSource);
+        UserId user = TestData.profile(dataSource, "two-sites-member");
+        TestData.member(dataSource, second, user, "[\"author\"]", "{}");
+        long started = System.nanoTime();
+        Membership changed = scope.call(
+                first,
+                () -> system.call(() -> {
+                    memberships.add(first, user, "author");
+                    memberships.setCapability(second, user, "upload_files", false);
+                    return memberships.setRole(second, user, "editor");
+                }));
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(10));
+        assertThat(changed.roles()).containsExactly("editor");
+        assertThat(changed.capabilities()).containsExactly(Map.entry("upload_files", false));
+        assertThat(memberships.find(first, user).orElseThrow().roles()).containsExactly("author");
+    }
+
+    @Test
     void addingAnEmptyRoleWritesNothing() throws Exception {
         SiteId site = TestData.site(dataSource);
         UserId user = TestData.profile(dataSource, "empty-role");
