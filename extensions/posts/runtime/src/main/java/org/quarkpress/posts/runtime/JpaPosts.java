@@ -19,6 +19,8 @@ import org.quarkpress.core.UserId;
 import org.quarkpress.core.WordPressKeys;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostException;
+import org.quarkpress.posts.PostPage;
+import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
@@ -62,6 +64,9 @@ public class JpaPosts implements Posts {
 
     @Inject
     PostsConfig config;
+
+    @Inject
+    PostQueries queries;
 
     @Override
     @Transactional(
@@ -199,6 +204,13 @@ public class JpaPosts implements Posts {
     @Transactional(dontRollbackOn = {ForbiddenException.class, UnauthorizedException.class})
     public List<PostId> stickyPosts() {
         return posts.stickyIds(site.siteId());
+    }
+
+    @Override
+    @Transactional(dontRollbackOn = {ForbiddenException.class, UnauthorizedException.class})
+    public PostPage query(PostQuery query) {
+        Objects.requireNonNull(query, "query");
+        return queries.run(site.siteId(), query);
     }
 
     private boolean setSticky(PostId post, boolean sticky) {

@@ -14,14 +14,18 @@ import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Status;
 import jakarta.transaction.TransactionManager;
+import java.util.ArrayList;
+import java.util.List;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.runtime.HeldLocks;
 import org.quarkpress.posts.PostChanges;
+import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
 
@@ -119,6 +123,20 @@ class CapabilityRefusalsDbTest {
                 () -> posts.update(
                         post.id(), PostChanges.builder().title("Kept").build()));
         assertThat(column("title", post)).isEqualTo("Kept");
+    }
+
+    @Test
+    void aRefusedQueryLeavesTheTransactionUsable() throws Exception {
+        PostSnapshot draft = create(editor, PostChanges.builder().title("Draft"));
+        List<PostId> found = new ArrayList<>();
+        refusedThenAllowed(
+                subscriber,
+                "edit_posts",
+                () -> posts.query(PostQuery.builder().statuses("draft").build()),
+                () -> posts.query(PostQuery.builder().statuses("draft").build()).posts().stream()
+                        .map(PostSnapshot::id)
+                        .forEach(found::add));
+        assertThat(found).containsExactly(draft.id());
     }
 
     @Test

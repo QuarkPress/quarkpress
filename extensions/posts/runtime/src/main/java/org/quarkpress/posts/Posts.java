@@ -129,4 +129,11 @@ public interface Posts {
      * public: it is not filtered by what the caller may read.
      */
     List<PostId> stickyPosts();
+
+    /**
+     * Posts of the current site matching {@code query} (WordPress's {@code WP_Query}), after the {@link
+     * PostQueryFilter}s changed it. Asking for statuses other than publish needs the queried types' {@code
+     * edit_posts}; what each caller then sees is described on {@link PostQuery}.
+     */
+    PostPage query(PostQuery query);
 }
