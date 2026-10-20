@@ -1,0 +1,2 @@
+# Deliberate differences between the posts module's search parsing and WordPress 7.1.3's WP_Query.
+# Format: <case-id> <aspect> <item> <reason>. A line that no longer covers a difference fails the run.

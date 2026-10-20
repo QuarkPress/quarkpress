@@ -40,3 +40,4 @@ df0040896b30f89bdc254f62857ac7508109062217ee746750b69f3b024549e1  wp-includes/cl
 a446ddd76ce401fc8173bfee4e79a98f8c3567ed3ba7560c2f167ca85e6976b0  wp-admin/includes/schema.php
 f6c85fc833545d80d1c389709ac0881600b15a5211f6538471fa317d09584da7  wp-includes/class-wp-post-type.php
 083ef446b34a63cbb811a980185b63dc931325bfba60b922b2093a4821418808  wp-includes/block-supports/custom-css.php
+34b5b13f7c41d83a7c888cd8506513f661259949b27acab271faf39eb53c20c2  wp-includes/class-wp-query.php
