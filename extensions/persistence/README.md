@@ -41,6 +41,13 @@ Everything else has defaults (shipped with ordinal 100) that `application.proper
 - the persistence unit `quarkpress` uses the datasource `quarkpress`, attaches the entities of the `org.quarkpress`
   packages, manages no schema itself, and stores times in UTC;
 - its second-level and query caches are off and must stay off (see "Site isolation");
+- the `quarkpress` datasource's connections use the READ COMMITTED isolation level
+  (`quarkus.datasource."quarkpress".jdbc.transaction-isolation-level=read-committed`), PostgreSQL's default, so both
+  databases share one isolation level: on MySQL, locking reads then lock only the rows they find, not gaps that rows
+  of other sites share, and a plain read made after a lock sees what was committed before it. An application may set
+  another level, and any application code that uses the `quarkpress` datasource works at this level too. On MySQL
+  with binary logging on, READ COMMITTED needs `binlog_format` `ROW` (MySQL's default) or `MIXED`: under `STATEMENT`
+  MySQL refuses the writes;
 - its JSON columns are read and written by its own Jackson mapper, so the application's `ObjectMapper` settings do not
   change how options are stored, and the application's own unit is untouched;
 - Flyway runs at start from `db/quarkpress/common` and `db/quarkpress/<vendor>` into the history table
@@ -71,7 +78,9 @@ QuarkPress can share your application's database. Checklist for the application:
    packages>`; QuarkPress's unit claims `org.quarkpress`.
 2. **Own datasource.** Set `quarkus.datasource."quarkpress".*`. It may reuse your JDBC URL and credentials, for example
    `quarkus.datasource."quarkpress".jdbc.url=${quarkus.datasource.jdbc.url}`; turn its Dev Services off
-   (`quarkus.datasource."quarkpress".devservices.enabled=false`) when it should use your dev database.
+   (`quarkus.datasource."quarkpress".devservices.enabled=false`) when it should use your dev database. Its connections
+   read committed data (see "Configuration"); your own datasource keeps its own isolation level, and on MySQL the
+   server's `binlog_format` must be `ROW` or `MIXED`.
 3. **Flyway baseline on both sides.** The two Flyway runs happen in an order you cannot control, and whichever runs
    second finds a non-empty schema. QuarkPress already ships `baseline-on-migrate=true` and `baseline-version=0` for
    its own Flyway; set `quarkus.flyway.baseline-on-migrate=true` and `quarkus.flyway.baseline-version=0` on yours. Your

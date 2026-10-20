@@ -200,6 +200,18 @@ with `RoleBuildItem` and grants a capability to roles with `CapabilityBuildItem`
 `quarkpress-core-deployment-spi`); the security module builds the default role table from them and fails the build
 on a role key registered twice, the reserved key `super_admin`, or a capability granted to an unknown role.
 
+### Post types and statuses
+
+`PostTypeDefinition` and `PostStatusDefinition` describe what WordPress's `register_post_type` and
+`register_post_status` register. Their builders apply WordPress's defaults: a type's flags not given follow `public`,
+its meta-capability mapping is on by default only for the `post` and `page` capability types, its supported features
+default to title, editor and autosave, and its labels are derived from its names and its hierarchical flag; a status
+given none of public, protected, private and internal is internal, and its other flags follow from those four. A type
+key and a status name each hold 1 to 20 characters of `a-z`, `0-9`, `_` and `-` (the builders sanitize them as keys
+first). An extension registers them with `PostTypeBuildItem` and `PostStatusBuildItem` (both in
+`quarkpress-core-deployment-spi`); the posts module collects them and fails the build on a key registered twice.
+`WordPressKeys.sanitize` is WordPress's `sanitize_key`.
+
 ## Typed ids
 
 `SiteId`, `UserId`, `PostId`, `TermId` and `RevisionId` wrap positive 64-bit ids, so one kind of id cannot be passed

@@ -124,7 +124,9 @@ Meta capabilities about an object take a `CapObject`:
   the effective status and its `PostVisibility`), built by the module that owns the posts (`PostFacts.of`;
   `PostFacts.ofAttachment` for attachments); `edit_post`, `delete_post`, `read_post`, `publish_post` and their page
   forms follow WordPress's tables (own and others' posts, published, scheduled, private and trashed ones, the front
-  page, the page for posts and the privacy policy page);
+  page, the page for posts and the privacy policy page). The posts module (`quarkpress-posts`) builds them from stored
+  posts (`PostCapabilityFacts`) and gives the meta capability names of the custom post types that map meta
+  capabilities (a `MetaCapabilityNames` bean), so a type's `edit_book` maps as `edit_post` does;
 - terms: `TermFacts` with the taxonomy's `TaxonomyCapabilities`; the taxonomy's default term cannot be deleted;
 - users: `UserTarget` for `edit_user`, `promote_user`, `remove_user`, `delete_user`;
 - `MissingObject` for an id that resolves to nothing: refused.
@@ -141,9 +143,11 @@ requires the site option `link_manager_enabled`. `delete_site` is refused on a s
 `edit_theme_options`.
 
 Checks read the database (nothing is cached: a change is seen by the next check). A check made inside the caller's
-transaction sees what that transaction sees; on MySQL a change committed by others after the transaction's first
-read, such as a revoked network administrator, is not visible until it ends. An identity's permission check made on
-an event-loop thread runs its reads on a worker thread.
+transaction sees what that transaction sees. QuarkPress's datasource reads committed data on both databases (see the
+persistence README), so a check sees what others committed before it ran; an application that sets MySQL's repeatable
+read for that datasource instead hides from checks what others committed after the transaction's first read, such as
+a revoked network administrator, until the transaction ends. An identity's permission check made on an event-loop
+thread runs its reads on a worker thread.
 
 Work inside a `SiteScope` for another site runs in a fresh request context, without the caller's identity: checks
 there are anonymous. Check before opening the scope, or use `canForSite`.
@@ -276,7 +280,8 @@ ignored. His token carries it; his identity never does (he is an editor on the m
 ## Rules for module authors
 
 - Describe your objects for capability checks with `PostFacts`, `TermFacts` or `UserTarget`; register custom post
-  type meta capability names with a `MetaCapabilityNames` bean.
+  type meta capability names with a `MetaCapabilityNames` bean (the posts module registers those of the post types
+  registered with it).
 - Change the mapping with a `MetaCapabilityFilter` (it runs for network administrators too) and a user's
   capabilities for one check with a `UserCapabilitiesFilter` (not for network administrators or the system); both run
   in `@Priority` order, higher first, which is the reverse of WordPress's filters.
@@ -290,7 +295,7 @@ ignored. His token carries it; his identity never does (he is an editor on the m
 
 | Item | Difference |
 |---|---|
-| D1 | Meta capabilities for post, term, user and comment meta, `edit_comment` and `edit_block_binding` are not mapped yet (they arrive with their modules) and behave as unknown names: held only by network administrators and users given them. |
+| D1 | Meta capabilities for term, user and comment meta, `edit_comment` and `edit_block_binding` are not mapped yet (they arrive with their modules) and behave as unknown names: held only by network administrators and users given them. Post meta is checked by the posts module, whose `PostMeta` requires `edit_post` as WordPress maps the post meta capabilities; the names `edit_post_meta`, `add_post_meta` and `delete_post_meta` are still unknown names to a direct check. |
 | D2 | Revisions are not posts: the post rules never see one; the revisions module checks a revision against its parent. |
 | D3 | A page form (`edit_page`, `read_page`, `delete_page`) checked on a post of a type that does not map meta capabilities and does not name that form requires the empty name, which no role holds; WordPress requires an undefined property (null). The decision is the same; only the name a `MetaCapabilityFilter` sees differs. A type that names the form requires that name. |
 | D4 | File editing and file modifications count as allowed and unfiltered uploads are always refused (WordPress's defaults); WordPress's `DISALLOW_FILE_EDIT`, `DISALLOW_FILE_MODS` and `ALLOW_UNFILTERED_UPLOADS` have no setting. |
