@@ -26,7 +26,8 @@ Project home: <https://quarkpress.org>
 | `extensions/core/` | `quarkpress-core`: site context, typed ids, events, filter interfaces, per-site features |
 | `extensions/persistence/` | `quarkpress-persistence`: QuarkPress's datasource and persistence unit, sites, options, site isolation |
 | `extensions/multisite/` | `quarkpress-multisite`: several sites per network, site resolution by domain, subdomain and path, domain aliases, network administration |
-| `testing/wp-oracle/` | Tier A oracle (test only): runs pinned WordPress 7.1.3 PHP code to compare it with QuarkPress libraries and multisite functions |
+| `extensions/security/` | `quarkpress-security`: user profiles from OIDC, site memberships, network administrators, WordPress roles and capability checks |
+| `testing/wp-oracle/` | Tier A oracle (test only): runs pinned WordPress 7.1.3 PHP code to compare it with QuarkPress libraries, multisite and security functions |
 | `testing/wp-scenario/` | Tier B oracle (test only): a full WordPress 7.1.3 install in a MySQL container, compared with QuarkPress on JSON scenarios |
 | `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI) |
 | `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |

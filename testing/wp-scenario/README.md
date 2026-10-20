@@ -31,8 +31,9 @@ uses only what WordPress itself requires (`json`, `hash`) besides `mysqli`.
   created.
 - **Comparison.** Sites are named by creation order (`#0` is the main site). Each operation and each created site's
   final record is one compared aspect. `testing/wp-oracle`'s `ParityRun` compares them, with a skip list per test
-  class (`src/test/resources/wp-scenario*-skip.txt`, items from the multisite README's "Differences from WordPress")
-  and a minimum number of comparisons, so an empty corpus cannot pass.
+  class (`src/test/resources/wp-scenario*-skip.txt`, items from the multisite README's "Differences from WordPress",
+  and, for the capability scenarios, from the security README's table: D5, D6 and D20) and a minimum number of
+  comparisons, so an empty corpus cannot pass.
 
 ## Scenario format
 
@@ -69,6 +70,6 @@ HTML-special characters or surrounding or doubled spaces.
 
 ## Adding scenarios
 
-Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for
-a deliberate difference, add an item to the multisite README's differences table and a skip-list line naming it. A
-skip-list line that no longer covers a difference fails the run.
+Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for a
+deliberate difference, add an item to the multisite README's differences table (the security README's for capability
+scenarios) and a skip-list line naming it. A skip-list line that no longer covers a difference fails the run.

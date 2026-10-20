@@ -179,7 +179,11 @@ rolled back.
 ### Network capabilities
 
 Network services ask the `CapabilityCheck` bean before every write (`create_sites`, `delete_sites`, `manage_sites`;
-see `NetworkCapabilities`). The default check allows every caller; the security module replaces it.
+see `NetworkCapabilities`). Without the security module the default check allows every caller; with it, the caller's
+identity must hold the capability (network administrators in a network, and the system identity). A refused call
+throws `CapabilityDeniedException`, which a host application maps to 401 for an anonymous caller and 403 otherwise (see
+the security README). Do not provide a second `CapabilityCheck` bean next to the security module: the dependency is
+ambiguous.
 
 Filters are beans implementing a filter interface. `Filters.ordered` sorts an `@All List<InstanceHandle<F>>` by
 `@Priority`, higher first (none counts as 0), then by the fully qualified bean class name, the same rule as for
@@ -188,6 +192,13 @@ fails with a `NullPointerException` naming its class, and a filter that throws s
 
 `QuarkPressClock` is the time source of QuarkPress decisions; an application bean implementing it replaces the system
 clock.
+
+### Roles and capabilities from extensions
+
+`RoleDefinition` describes a role (key, English display name, capabilities in order). An extension registers a role
+with `RoleBuildItem` and grants a capability to roles with `CapabilityBuildItem` (both in
+`quarkpress-core-deployment-spi`); the security module builds the default role table from them and fails the build
+on a role key registered twice, the reserved key `super_admin`, or a capability granted to an unknown role.
 
 ## Typed ids
 

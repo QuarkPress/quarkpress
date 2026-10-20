@@ -8,9 +8,10 @@ import org.quarkpress.core.UserId;
 /**
  * Answers WordPress capability checks. A check without an explicit site is for the binding in effect: the site the
  * request (or the {@code SiteScope}) is bound to; for the main site when bound to the network; for no site when
- * unresolved, where only {@code exist} is held (and, in a network, network administrators pass). Work in a
- * {@code SiteScope} for another site runs without the caller's identity. Checks read the database and must not be
- * made on an event-loop thread, except through an identity's permission check, which moves its reads off it.
+ * unresolved, where only {@code exist} is held (and, in a network, network administrators pass; the system identity
+ * passes too). Work in a {@code SiteScope} for another site runs without the caller's identity. Checks read the
+ * database and must not be made on an event-loop thread, except through an identity's permission check, which moves
+ * its reads off it.
  *
  * <p>Nothing is cached: each check reads the membership, the site's role table, the network administrators and the
  * options it needs, each in a short transaction of its own when the caller has none, so one check may combine reads

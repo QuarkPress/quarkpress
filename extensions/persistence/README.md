@@ -315,6 +315,9 @@ string cannot be traced counts every string of its method, so it fails the build
 - Never lock a site's `qp_site` row: a transaction that inserted rows of that site holds a shared lock on it, so a lock
   on it waits for, or deadlocks with, such transactions. QuarkPress's own writes never lock it; network writes serialize
   on the `qp_network_lock` row and change site rows under their version.
+- A failed network write (a lock timeout included) marks its transaction rollback-only: a caller that catches the
+  failure inside its own network transaction cannot go on writing without the network lock. A module's own network
+  write does the same with `NetworkLockRepository.failWrite` when it fails after taking the lock.
 - Reads are `@Transactional`; writes are `@Transactional(dontRollbackOn = IllegalArgumentException.class)`, so a
   validation error leaves the caller's transaction usable.
 - Each module owns one migration version band, declared with `MigrationLocationBuildItem`; two modules claiming the

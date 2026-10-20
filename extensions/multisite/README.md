@@ -97,7 +97,9 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 `Sites` creates, finds, lists, changes, flags and deletes sites; `SiteDomains` manages aliases.
 
 - Writes require the network capabilities `create_sites`, `manage_sites` or `delete_sites`, asked from the
-  `CapabilityCheck` bean. **Without the security module every caller is allowed**: do not expose these services to
+  `CapabilityCheck` bean. With the security module, the caller must hold them (only network administrators and the
+  system identity do); a refused call throws `CapabilityDeniedException`, which the host application maps to 401 or 403
+  (see the security README). **Without the security module every caller is allowed**: do not expose these services to
   untrusted callers without it.
 - Each write runs in a network transaction of its own, one after the other (they all take one lock row,
   `qp_network_lock`, first). Called from a request bound to a site, it commits independently of the caller's
@@ -210,4 +212,4 @@ full WordPress 7.1.3 multisite installed in a MySQL container (Tier B, `testing/
   and a change of a site refuses while a transaction up the caller's scope chain is bound to that site. Every lock
   wait of a network transaction is bounded (10 seconds), so a wait no database sees as a deadlock still ends.
 - The site's name follows `blogname` asynchronously, so a write of the option never waits for the network lock.
-- Network capabilities are checked through a replaceable bean that the security module provides.
+- Network capabilities are checked through core's replaceable `CapabilityCheck`, which the security module fills.

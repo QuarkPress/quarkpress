@@ -19,11 +19,11 @@ import org.quarkpress.core.UserId;
  * capability but a network one.
  *
  * <p>A change is written to the database before it returns: {@link #find} and capability checks made later in the same
- * transaction see it. {@link #sitesOf} reads committed memberships only, on a thread of its own. Changes of one user
- * on several sites cannot share the caller's transaction: the second is refused with {@link IllegalStateException}
- * (it would wait for the first's lock on the user's profile, held by the transaction that waits for it). A change that
- * meets a deadlock or a lock timeout fails with {@code jakarta.persistence.PessimisticLockException}: retry the whole
- * transaction.
+ * transaction see it. {@link #sitesOf} reads committed memberships only, on a thread of its own. {@link #add} and
+ * {@link #remove} of a user after another change of that user on a different site, in one caller transaction, are
+ * refused with {@link IllegalStateException} (they would wait for the first change's lock on the user's profile, held
+ * by the transaction that waits for it). A change that meets a deadlock or a lock timeout fails with
+ * {@code jakarta.persistence.PessimisticLockException}: retry the whole transaction.
  */
 public interface Memberships {
 
