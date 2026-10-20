@@ -1,0 +1,11 @@
+---
+name: "QuarkPress Posts"
+description: "Posts and pages with WordPress's types, statuses, dates, slugs, sticky and hierarchy rules"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "posts"
+  categories:
+    - "data"
+  status: "experimental"

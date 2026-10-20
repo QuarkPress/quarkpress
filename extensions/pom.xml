@@ -26,6 +26,7 @@
     <module>persistence</module>
     <module>multisite</module>
     <module>security</module>
+    <module>posts</module>
   </modules>
 
   <dependencyManagement>
