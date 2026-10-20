@@ -1,6 +1,7 @@
 package org.quarkpress.posts.deployment;
 
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
+import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
@@ -30,6 +31,7 @@ import org.quarkpress.posts.PostType;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.runtime.BuiltInPostStatuses;
 import org.quarkpress.posts.runtime.BuiltInPostTypes;
+import org.quarkpress.posts.runtime.PostCapabilityFacts;
 import org.quarkpress.posts.runtime.PostsConfig;
 import org.quarkpress.posts.runtime.PostsRecorder;
 import org.quarkpress.posts.runtime.RegistryJson;
@@ -43,6 +45,11 @@ class PostsProcessor {
     @BuildStep
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
+    }
+
+    @BuildStep
+    UnremovableBeanBuildItem unremovable() {
+        return UnremovableBeanBuildItem.beanTypes(PostCapabilityFacts.class);
     }
 
     @BuildStep

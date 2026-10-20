@@ -10,13 +10,21 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
+import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.runtime.QuarkPressJsonJdbcType;
 import org.quarkpress.persistence.runtime.SiteScopedEntity;
+import org.quarkpress.posts.PostSnapshot;
 
 /**
  * A post of any type. {@code publishedAt} is the GMT date (null while a draft has no date); {@code meta} is a JSON
@@ -100,5 +108,41 @@ public class PostEntity extends SiteScopedEntity {
         post.slug = "";
         post.guid = "";
         return post;
+    }
+
+    /** The row as an immutable record. */
+    public PostSnapshot toSnapshot() {
+        Map<String, List<JsonNode>> values = new LinkedHashMap<>();
+        if (meta != null && meta.isObject()) {
+            meta.properties().forEach(entry -> {
+                List<JsonNode> list = new ArrayList<>();
+                if (entry.getValue().isArray()) {
+                    entry.getValue().forEach(list::add);
+                }
+                values.put(entry.getKey(), list);
+            });
+        }
+        return new PostSnapshot(
+                PostId.of(id),
+                site(),
+                type,
+                status,
+                slug,
+                title,
+                content,
+                excerpt,
+                Optional.ofNullable(authorId).map(UserId::of),
+                Optional.ofNullable(parentId).map(PostId::of),
+                menuOrder,
+                Optional.ofNullable(publishedAt),
+                createdAt,
+                modifiedAt,
+                commentStatus,
+                pingStatus,
+                password,
+                sticky,
+                guid,
+                values,
+                version);
     }
 }
