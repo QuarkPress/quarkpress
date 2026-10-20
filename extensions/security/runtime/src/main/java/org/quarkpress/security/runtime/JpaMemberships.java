@@ -360,7 +360,7 @@ public class JpaMemberships implements Memberships {
     }
 
     /** The name under which a transaction records its lock on the user's profile row ({@link HeldLocks}). */
-    static String profileLock(UserId user) {
+    public static String profileLock(UserId user) {
         return "qp_user_profile:" + user.value();
     }
 

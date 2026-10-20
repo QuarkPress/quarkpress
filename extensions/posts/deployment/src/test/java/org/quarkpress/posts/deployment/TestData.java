@@ -58,6 +58,13 @@ public final class TestData {
         return site;
     }
 
+    /** A new site whose time zone option names {@code zone}. */
+    public static SiteId siteIn(AgroalDataSource dataSource, String zone) {
+        SiteId site = site(dataSource);
+        siteOption(dataSource, site, "timezone_string", "\"" + zone + "\"");
+        return site;
+    }
+
     public static void siteOption(AgroalDataSource dataSource, SiteId site, String name, String json) {
         Jdbc.update(dataSource, "delete from qp_option where site_id = ? and name = ?", site.value(), name);
         Jdbc.update(

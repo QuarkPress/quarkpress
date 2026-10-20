@@ -5,11 +5,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.hibernate.Session;
 import org.quarkpress.core.SiteId;
+import org.quarkpress.core.UserId;
 import org.quarkpress.core.runtime.Binding;
 import org.quarkpress.core.runtime.SiteBinding;
 import org.quarkpress.persistence.SiteScopedNativeSql;
 import org.quarkpress.persistence.runtime.Dialects;
 import org.quarkpress.persistence.runtime.HeldLocks;
+import org.quarkpress.security.runtime.JpaMemberships;
 
 /**
  * The lock every post write of a site takes after its capability checks and before it locks or writes post rows, held
@@ -36,6 +38,9 @@ public class PostLocks {
     private static final String MYSQL_ENSURE =
             "insert into qp_post_lock (site_id) values (?1) on duplicate key update site_id = site_id";
     private static final String LOCK = "select site_id from qp_post_lock where site_id = ?1 for update";
+    private static final String PROFILE = "select id from qp_user_profile where id = ?1";
+    private static final String POSTGRESQL_PROFILE = PROFILE + " for key share";
+    private static final String MYSQL_PROFILE = PROFILE + " for share";
 
     @Inject
     PostRepository posts;
@@ -64,6 +69,38 @@ public class PostLocks {
                 .setParameter(1, site.value())
                 .getSingleResult();
         HeldLocks.record(name);
+    }
+
+    /**
+     * Share-locks the profile of {@code user} until the transaction ends, so that it cannot be deleted while a post
+     * names it as author; returns whether the profile exists (a missing profile is not locked). Take it before
+     * {@link #lock}: a profile comes before the site lock in the lock order. A write filter that changes the author,
+     * and a post created from inside another post write of the site, lock the profile after the site lock instead;
+     * they are still refused with {@link IllegalStateException}, as every caller is, when a transaction up this
+     * thread's scope chain holds the profile (the two would wait for each other).
+     */
+    public boolean lockProfile(UserId user) {
+        String name = JpaMemberships.profileLock(user);
+        if (HeldLocks.heldBySpawner(name)) {
+            throw new IllegalStateException("the profile of user " + user.value()
+                    + " is locked by a transaction that waits for this post write: write the post in a separate"
+                    + " transaction");
+        }
+        Session session = posts.getSession();
+        // a missing row is not locked: on MySQL that would lock the gap new profiles are inserted into
+        if (!exists(session, PROFILE, user)) {
+            return false;
+        }
+        boolean found = exists(session, Dialects.postgresql(session) ? POSTGRESQL_PROFILE : MYSQL_PROFILE, user);
+        HeldLocks.record(name);
+        return found;
+    }
+
+    private static boolean exists(Session session, String sql, UserId user) {
+        return !session.createNativeQuery(sql, Long.class)
+                .setParameter(1, user.value())
+                .getResultList()
+                .isEmpty();
     }
 
     /** The name under which a transaction records the lock ({@code HeldLocks}). */

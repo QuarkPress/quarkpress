@@ -30,6 +30,7 @@ import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostType;
 import org.quarkpress.posts.PostTypes;
+import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.BuiltInPostStatuses;
 import org.quarkpress.posts.runtime.BuiltInPostTypes;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
@@ -50,7 +51,7 @@ class PostsProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(PostCapabilityFacts.class, PostMeta.class);
+        return UnremovableBeanBuildItem.beanTypes(PostCapabilityFacts.class, PostMeta.class, Posts.class);
     }
 
     @BuildStep
