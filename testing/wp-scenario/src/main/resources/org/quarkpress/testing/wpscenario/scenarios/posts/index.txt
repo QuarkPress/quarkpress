@@ -1,0 +1,11 @@
+# Hand-written post scenarios, one or more per behaviour-reference rule.
+post7-slugs.json
+post14-dates.json
+post15-guids.json
+post20-sanitize.json
+post36-hierarchy.json
+post39-numeric-slugs.json
+post45-trash.json
+post60-sticky.json
+post66-query.json
+post72-search.json

@@ -1,0 +1,23 @@
+{"id": "post72-search", "rule": "POST72", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Red car for sale", "content": "a red car", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Car painted red", "content": "a red car", "status": "publish", "date": "2020-01-02 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Red bike", "content": "next to a car", "status": "publish", "date": "2020-01-03 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Bikes", "content": "a red car", "excerpt": "red car", "status": "publish", "date": "2020-01-04 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "100% sure_thing", "status": "publish", "date": "2020-01-05 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Locked red car", "password": "pw", "status": "publish", "date": "2020-01-06 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Red page", "type": "page", "status": "publish", "date": "2020-01-07 10:00:00"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "red car"}},
+  {"op": "query_posts", "as": 1, "args": {"search": "red car"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "red"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "red -bike"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "\"red car\""}},
+  {"op": "query_posts", "as": 0, "args": {"search": "the red"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "RED CAR"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "100%"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "sure_thing"}},
+  {"op": "query_posts", "as": 0, "args": {"search": "red", "types": ["post"]}},
+  {"op": "query_posts", "as": 0, "args": {"search": "red car", "orderby": ["title asc"]}},
+  {"op": "query_posts", "as": 0, "args": {"search": "red", "sticky_first": true}}
+]}

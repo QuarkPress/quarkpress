@@ -34,6 +34,7 @@ import org.quarkpress.persistence.NetworkOptions;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.OptionWrites;
+import org.quarkpress.posts.Posts;
 import org.quarkpress.security.CapObject;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Membership;
@@ -98,6 +99,9 @@ abstract class ScenarioParityBase {
     @Inject
     OptionWrites optionWrites;
 
+    @Inject
+    Posts posts;
+
     /** Compares every scenario; fails on a difference, a stale skip entry, or fewer comparisons than {@code minimum}. */
     void compareWithWordPress(String library, List<Scenario> scenarios, Path skips, int minimum) throws Exception {
         assumeTrue(ScenarioDatabase.runtimeAvailable(), "ASSUMPTION: no container runtime");
@@ -148,6 +152,9 @@ abstract class ScenarioParityBase {
         List<SiteId> created = new ArrayList<>();
         List<ScenarioOp.CreateSite> leaked = new ArrayList<>();
         List<UserId> users = new ArrayList<>();
+        boolean postScenario = scenario.ops().stream().anyMatch(ScenarioOp.PostOp.class::isInstance);
+        PostScenarioRunner postRunner =
+                new PostScenarioRunner(posts, scope, store, options, PostRecords.includeGuid(scenario));
         // WordPress's installation has a user named admin (nicename admin); mirror it so nicenames collide alike.
         UserProfile[] installer = new UserProfile[1];
         Throwable failure = null;
@@ -216,6 +223,9 @@ abstract class ScenarioParityBase {
                             if (text != null && name.equals("blogname")) {
                                 text = Outcome.title(text, id.value(), read.site());
                             }
+                            if (text != null && postScenario) {
+                                text = postRunner.optionText(name, text);
+                            }
                             outcome.option(op, name, text);
                         }
                     }
@@ -231,9 +241,7 @@ abstract class ScenarioParityBase {
                     case ScenarioOp.RoleCap role -> runCapabilityOp(op, role, outcome, created, users);
                     case ScenarioOp.RemoveRole role -> runCapabilityOp(op, role, outcome, created, users);
                     case ScenarioOp.Can can -> runCapabilityOp(op, can, outcome, created, users);
-                    case ScenarioOp.PostOp post ->
-                        throw new IllegalStateException(
-                                "post operations need the posts runner (Task 24 of the M1d plan): " + post.kind());
+                    case ScenarioOp.PostOp post -> postRunner.run(op, post, outcome, users);
                 }
             }
             for (int index = 1; index <= created.size(); index++) {
@@ -252,10 +260,14 @@ abstract class ScenarioParityBase {
                         site.spam(),
                         site.deleted());
             }
+            if (postScenario) {
+                postRunner.record(outcome, users, installer[0].id());
+            }
         } catch (Throwable t) {
             failure = t;
         }
         // Every cleanup step runs, whatever failed before: the original error is kept, later ones are suppressed.
+        failure = attempt(failure, postRunner::cleanUp);
         for (UserId user : users) {
             failure = attempt(failure, () -> deleteProfile(user));
         }

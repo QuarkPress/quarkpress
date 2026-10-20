@@ -1,0 +1,22 @@
+{"id": "post7-slugs", "rule": "POST7", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Hello World", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Hello World", "status": "publish", "date": "2020-01-02 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Hello World", "status": "draft"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Hello World", "type": "page", "status": "publish", "date": "2020-01-03 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Café crème über", "status": "publish", "date": "2020-01-04 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "日本語", "status": "publish", "date": "2020-01-05 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "100% <b>bold</b> &amp; more", "status": "publish", "date": "2020-01-06 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "x", "slug": "page", "status": "publish", "date": "2020-01-07 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "y", "slug": "2020", "status": "publish", "date": "2020-01-08 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "", "content": "only content", "status": "publish", "date": "2020-01-09 10:00:00"}},
+  {"op": "update_post", "as": 1, "post": 2, "fields": {"slug": "hello-world"}, "edit_date": false},
+  {"op": "update_post", "as": 1, "post": 1, "fields": {"slug": "renamed"}, "edit_date": false},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Hello World", "status": "publish", "date": "2020-01-10 10:00:00"}},
+  {"op": "update_post", "as": 1, "post": 1, "fields": {"date": "2020-02-01 10:00:00", "date_gmt": "2020-02-01 10:00:00"}, "edit_date": false},
+  {"op": "update_post", "as": 1, "post": 2, "fields": {"date": "2020-03-01 10:00:00", "date_gmt": "2020-03-01 10:00:00"}, "edit_date": false},
+  {"op": "update_post", "as": 1, "post": 2, "fields": {"date": "2020-01-02 10:00:00", "date_gmt": "2020-01-02 10:00:00"}, "edit_date": false},
+  {"op": "update_post", "as": 1, "post": 4, "fields": {"date": "2020-04-01 10:00:00", "date_gmt": "2020-04-01 10:00:00"}, "edit_date": false},
+  {"op": "read_post", "post": 1}
+]}

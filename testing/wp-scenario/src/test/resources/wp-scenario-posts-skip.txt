@@ -1,0 +1,55 @@
+# Deliberate differences between the posts module and WordPress 7.1.3 in the post scenarios.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the posts README's "Differences from WordPress"
+# table.
+post14-dates@subdirectory op18:read_post:date D3 given both dates the GMT date wins and the local date is derived from it; WordPress stores the local text as given
+post14-dates@subdirectory op18:read_post:date_offset D3 given both dates the GMT date wins and the local date is derived from it; WordPress stores both texts as given
+post14-dates@subdirectory op18:read_post:modified D3 an insert is modified at its post date, which is derived from the GMT date that won; WordPress copies the given local text
+post14-dates@subdirectory op18:read_post:modified_offset D3 an insert is modified at its post date, derived from the GMT date that won; WordPress copies both given texts
+post14-dates@subdirectory op19:read_post:date D3 a local date in the spring-forward gap is converted once and shown from the stored instant; WordPress keeps the text as given
+post14-dates@subdirectory op19:read_post:date_offset D3 a local date in the spring-forward gap is converted once and shown from the stored instant; WordPress keeps the text
+post14-dates@subdirectory op19:read_post:modified D3 an insert is modified at its post date, shown from the stored instant; WordPress copies the local text of the gap
+post14-dates@subdirectory op19:read_post:modified_offset D3 an insert is modified at its post date, shown from the stored instant; WordPress copies the text of the gap
+post14-dates@subdirectory op21:read_post:date D4 a floating draft given only a local date with edit_date stays floating and shows its modification time; WordPress stores the local date
+post14-dates@subdirectory post#6:date D4 a floating draft given only a local date with edit_date stays floating and shows its modification time; WordPress stores the local date
+post7-slugs@subdirectory post#3:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post7-slugs@subdirectory post#3:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post14-dates@subdirectory post#1:date D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#1:date_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#1:modified D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#1:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#2:date D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#2:date_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#2:modified D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#2:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#3:date D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#3:date_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#3:modified D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#3:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#4:date D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#4:date_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#4:modified D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#4:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#5:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#6:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#7:date D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#7:date_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#7:modified D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#7:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#8:date D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#8:date_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#8:modified D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post14-dates@subdirectory post#8:modified_offset D3 after the site's time zone changes, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+post15-guids@subdirectory post#4:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post15-guids@subdirectory post#4:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#2:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#2:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#4:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#4:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#6:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#6:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#7:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post20-sanitize@subdirectory post#7:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post60-sticky@subdirectory post#7:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post60-sticky@subdirectory post#7:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post66-query@subdirectory post#5:modified_gmt D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+post66-query@subdirectory post#5:modified_offset D5 a new post whose date floats has a real GMT modification date; WordPress copies its zero GMT post date there until the next update

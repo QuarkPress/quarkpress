@@ -1,9 +1,5 @@
 package org.quarkpress.testing.wpscenario;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -94,15 +90,7 @@ public final class CapabilityScenarios {
 
     /** The hand-written scenarios listed in {@code scenarios/capabilities/index.txt}, in that order. */
     public static List<Scenario> handWritten() {
-        List<Scenario> scenarios = new ArrayList<>();
-        for (String line : resource(DIRECTORY + "index.txt").split("\n")) {
-            String file = line.strip();
-            if (file.isEmpty() || file.startsWith("#")) {
-                continue;
-            }
-            scenarios.add(ScenarioJson.parse(resource(DIRECTORY + file)));
-        }
-        return List.copyOf(scenarios);
+        return ScenarioIndex.load(DIRECTORY);
     }
 
     /** The hand-written scenarios, then the generated ones of two seeds. */
@@ -189,16 +177,5 @@ public final class CapabilityScenarios {
 
     private static <T> T pick(RandomGenerator random, List<T> values) {
         return values.get(random.nextInt(values.size()));
-    }
-
-    private static String resource(String name) {
-        try (InputStream in = CapabilityScenarios.class.getResourceAsStream(name)) {
-            if (in == null) {
-                throw new IllegalStateException("missing scenario resource " + name);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

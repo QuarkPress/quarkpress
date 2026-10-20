@@ -1,0 +1,18 @@
+{"id": "post20-sanitize", "rule": "POST20", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "create_user", "username": "au", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 2, "site": 0, "role": "author"},
+  {"op": "create_user", "username": "sa", "given_name": "", "family_name": ""},
+  {"op": "super_admin", "user": 3, "grant": true},
+  {"op": "insert_post", "as": 1, "fields": {"title": "<script>alert(1)</script>Title <em>ok</em>", "content": "<p onclick=\"x()\">Hi</p><script>bad()</script><iframe src=\"https://example.test/\"></iframe>", "excerpt": "<b>Ex</b><style>p{}</style>", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_post", "as": 2, "fields": {"title": "Author's & <i>post</i>", "content": "<a href=\"javascript:alert(1)\">x</a> &copy; &#9731; &bogus; <!-- wp:paragraph {\"style\":{\"css\":\"color:red\"}} --><p>b</p><!-- /wp:paragraph -->", "status": "draft"}},
+  {"op": "insert_post", "as": 0, "fields": {"title": "System <u>post</u>", "content": "<div style=\"color:red\">styled</div><form><input></form>", "status": "publish", "date": "2020-01-02 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "  spaced\ttitle  ", "content": "line\nbreak", "status": "draft", "comment_status": "closed", "ping_status": "bogus"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "", "content": "", "excerpt": ""}},
+  {"op": "site_option", "name": "default_comment_status", "value": "closed"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Defaults", "type": "page", "status": "draft"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Defaults post", "status": "draft"}},
+  {"op": "insert_post", "as": 3, "fields": {"title": "<script>alert(1)</script>Title <em>ok</em>", "content": "<p onclick=\"x()\">Hi</p><script>bad()</script><iframe src=\"https://example.test/\"></iframe>", "excerpt": "<b>Ex</b><style>p{}</style>", "status": "publish", "date": "2020-01-03 10:00:00"}},
+  {"op": "update_post", "as": 3, "post": 3, "fields": {"content": "<div style=\"color:red\">styled</div><form><input></form>"}, "edit_date": false}
+]}

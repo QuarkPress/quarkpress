@@ -1,9 +1,5 @@
 package org.quarkpress.testing.wpscenario;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -31,15 +27,7 @@ public final class MultisiteScenarios {
 
     /** The hand-written scenarios listed in {@code scenarios/multisite/index.txt}, in that order. */
     public static List<Scenario> handWritten() {
-        List<Scenario> scenarios = new ArrayList<>();
-        for (String line : resource(DIRECTORY + "index.txt").split("\n")) {
-            String file = line.strip();
-            if (file.isEmpty() || file.startsWith("#")) {
-                continue;
-            }
-            scenarios.add(ScenarioJson.parse(resource(DIRECTORY + file)));
-        }
-        return List.copyOf(scenarios);
+        return ScenarioIndex.load(DIRECTORY);
     }
 
     /** Every scenario to compare: the hand-written ones, then the generated ones of every variant. */
@@ -176,16 +164,5 @@ public final class MultisiteScenarios {
         }
         return List.of(
                 "localhost", "LOCALHOST", "www.localhost", "a.localhost", "m.example", "www.m.example", "zz.example");
-    }
-
-    private static String resource(String name) {
-        try (InputStream in = MultisiteScenarios.class.getResourceAsStream(name)) {
-            if (in == null) {
-                throw new IllegalArgumentException("missing scenario resource " + name);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

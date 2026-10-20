@@ -1,0 +1,18 @@
+{"id": "post36-hierarchy", "rule": "POST36", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Top", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Middle", "parent": 1, "status": "publish", "date": "2020-01-02 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Leaf", "parent": 2, "status": "publish", "date": "2020-01-03 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Leaf", "parent": 1, "status": "publish", "date": "2020-01-04 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Leaf", "status": "publish", "date": "2020-01-05 10:00:00"}},
+  {"op": "page_uri", "post": 3},
+  {"op": "page_uri", "post": 4},
+  {"op": "update_post", "as": 1, "post": 1, "fields": {"parent": 3}, "edit_date": false},
+  {"op": "page_uri", "post": 3},
+  {"op": "update_post", "as": 1, "post": 2, "fields": {"parent": 2}, "edit_date": false},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Post with parent", "parent": 1, "status": "publish", "date": "2020-01-06 10:00:00"}},
+  {"op": "delete_post", "as": 1, "post": 2, "force": true},
+  {"op": "page_uri", "post": 3},
+  {"op": "query_posts", "as": 0, "args": {"types": ["page"], "parent": 0, "orderby": ["title asc"]}}
+]}
