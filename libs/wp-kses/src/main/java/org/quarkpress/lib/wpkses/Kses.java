@@ -165,6 +165,15 @@ public final class Kses {
         return StripTags.stripAllTags(TextUtils.wellFormed(text), removeBreaks);
     }
 
+    /**
+     * PHP's {@code strip_tags} without allowed tags: tags, comments and PHP blocks removed, the text between them
+     * kept (script content included, unlike {@link #stripAllTags}).
+     */
+    public static String stripTags(String text) {
+        Objects.requireNonNull(text, "text");
+        return StripTags.phpStripTags(TextUtils.wellFormed(text));
+    }
+
     /** wp_kses_normalize_entities in the "html" context. */
     public static String normalizeEntities(String text) {
         Objects.requireNonNull(text, "text");

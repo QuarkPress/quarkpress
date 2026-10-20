@@ -202,11 +202,12 @@ public final class UserNames {
     }
 
     /**
-     * Removes each entity-like run: an {@code &}, at least one more character, up to and including the first {@code ;}
-     * after it, with no line feed before that {@code ;}. One pass, left to right; a scan that finds no end proves that
-     * no {@code &} before the place where it stopped can end either, so the text is read a bounded number of times.
+     * Removes each entity-like run, as WordPress removes them from user names and slugs: an {@code &}, at least one
+     * more character, up to and including the first {@code ;} after it, with no line feed before that {@code ;}. One
+     * pass, left to right; a scan that finds no end proves that no {@code &} before the place where it stopped can
+     * end either, so the text is read a bounded number of times.
      */
-    private static String removeEntities(String text) {
+    public static String removeEntities(String text) {
         StringBuilder out = new StringBuilder(text.length());
         int noEndBefore = -1;
         int i = 0;
