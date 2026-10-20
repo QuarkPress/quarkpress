@@ -1,11 +1,14 @@
 package org.quarkpress.posts.runtime;
 
+import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.arc.All;
 import io.quarkus.arc.InstanceHandle;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
+import jakarta.transaction.Status;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -15,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.quarkpress.core.Filters;
 import org.quarkpress.core.PostId;
@@ -22,6 +26,7 @@ import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
+import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.ContentSanitizer;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostDraft;
@@ -89,6 +94,9 @@ public class PostWrites {
     @Inject
     PostCapabilityFacts facts;
 
+    @Inject
+    FrontPages frontPages;
+
     /** Inserts a post: WordPress's {@code wp_insert_post} for a new post. */
     PostSnapshot insert(SiteId siteId, PostChanges changes) {
         Instant now = PostDates.now(clock);
@@ -127,36 +135,48 @@ public class PostWrites {
                 changes.pingStatus().orElse(""),
                 PostRules.defaultPingStatus(type, types, option("default_ping_status")));
         String password = PostRules.password(changes.password().orElse(""), status);
-        slug = slugs.unique(siteId, slug, Optional.empty(), Optional.empty(), status, type, parent);
-        PostDraft draft = new PostDraft(
-                type,
-                status,
-                slug,
-                title,
-                content,
-                excerpt,
-                author,
-                parent,
-                changes.menuOrder().orElse(0),
-                dates.publishedAt(),
-                dates.modifiedAt(),
-                commentStatus,
-                pingStatus,
-                password);
-        draft = filtered(siteId, draft, new PostWriteContext(siteId, Optional.empty(), acting.user(), false), false);
-        PostEntity row = PostEntity.create(siteId);
-        apply(row, draft);
-        row.createdAt = clock.now().truncatedTo(ChronoUnit.MICROS);
-        return written(() -> {
-            posts.persist(row);
-            posts.flush();
-            row.guid = PostRules.guid(home(), row.type, row.id);
-            lateSlug(siteId, row);
-            posts.flush();
-            PostSnapshot saved = row.toSnapshot();
-            events.saved(siteId, now, "new", Optional.empty(), saved, false);
-            return saved;
-        });
+        boolean claimed = !status.equals("trash")
+                && !PostRules.phpEmpty(slug)
+                && claimFromTrashed(siteId, slug, Optional.empty());
+        try {
+            slug = slugs.unique(siteId, slug, Optional.empty(), Optional.empty(), status, type, parent);
+            PostDraft draft = new PostDraft(
+                    type,
+                    status,
+                    slug,
+                    title,
+                    content,
+                    excerpt,
+                    author,
+                    parent,
+                    changes.menuOrder().orElse(0),
+                    dates.publishedAt(),
+                    dates.modifiedAt(),
+                    commentStatus,
+                    pingStatus,
+                    password);
+            PostDraft saved = filtered(
+                    siteId, draft, new PostWriteContext(siteId, Optional.empty(), acting.user(), false), false);
+            PostEntity row = PostEntity.create(siteId);
+            apply(row, saved);
+            row.createdAt = clock.now().truncatedTo(ChronoUnit.MICROS);
+            return written(() -> {
+                posts.persist(row);
+                posts.flush();
+                row.guid = PostRules.guid(home(), row.type, row.id);
+                lateSlug(siteId, row);
+                posts.flush();
+                PostSnapshot after = row.toSnapshot();
+                events.saved(siteId, now, "new", Optional.empty(), after, false);
+                return after;
+            });
+        } catch (RuntimeException failure) {
+            // a trashed post renamed above is a write: the failed insert must not leave it for the caller to commit
+            if (claimed) {
+                markRollbackOnly(failure);
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -164,6 +184,16 @@ public class PostWrites {
      * Fields not given keep their stored values; every text field is filtered again with the caller's settings.
      */
     PostSnapshot update(SiteId siteId, PostEntity row, PostChanges changes) {
+        return update(siteId, row, changes, stored -> {}, () -> {});
+    }
+
+    /**
+     * {@link #update(SiteId, PostEntity, PostChanges)} with {@code beforeWrite} run on the row first once the save
+     * writes, so a save refused before writing leaves the row as it was, and {@code afterWrite} run once the row is
+     * written, before the save is announced.
+     */
+    PostSnapshot update(
+            SiteId siteId, PostEntity row, PostChanges changes, Consumer<PostEntity> beforeWrite, Runnable afterWrite) {
         Instant now = PostDates.now(clock);
         ZoneId zone = site.zone();
         PostSnapshot before = row.toSnapshot();
@@ -206,16 +236,18 @@ public class PostWrites {
         // WordPress's loop check runs once the dates are valid, before the slug is made unique
         Hierarchy.Decision decision = Hierarchy.check(before.id(), parent, id -> storedParent(siteId, id));
         parent = decision.parent();
-        boolean cut = false;
+        boolean wrote = false;
         try {
             for (PostId member : decision.cut()) {
                 PostEntity memberRow =
                         posts.lockPost(siteId, member).orElseThrow(() -> PostException.invalidPost(member));
                 update(siteId, memberRow, PostChanges.builder().parent(0).build());
-                cut = true;
+                wrote = true;
             }
+            TrashedSlug trashed = trashSteps(siteId, before, slug, status);
+            wrote |= trashed.claimed();
             slug = slugs.unique(
-                    siteId, slug, Optional.of(before.id()), Optional.of(before.slug()), status, type, parent);
+                    siteId, trashed.slug(), Optional.of(before.id()), Optional.of(before.slug()), status, type, parent);
             PostDraft draft = new PostDraft(
                     type,
                     status,
@@ -234,17 +266,21 @@ public class PostWrites {
             PostDraft saved = filtered(
                     siteId, draft, new PostWriteContext(siteId, Optional.of(before), acting.user(), true), true);
             return written(() -> {
+                beforeWrite.accept(row);
+                trashed.recordOn(row);
                 apply(row, saved);
                 lateSlug(siteId, row);
                 trackOldSlugAndDate(row, before, zone);
                 posts.flush();
+                afterWrite.run();
                 PostSnapshot after = row.toSnapshot();
                 events.saved(siteId, now, before.status(), Optional.of(before), after, true);
                 return after;
             });
         } catch (RuntimeException failure) {
-            // a loop member re-parented above is a write: the failed update must not leave it for the caller to commit
-            if (cut) {
+            // a loop member re-parented or a trashed post renamed above is a write: the failed update must not leave
+            // it for the caller to commit
+            if (wrote) {
                 markRollbackOnly(failure);
             }
             throw failure;
@@ -377,6 +413,171 @@ public class PostWrites {
             events.sticky(siteId, PostDates.now(clock), PostId.of(row.id), sticky);
             return null;
         });
+    }
+
+    /**
+     * The slug a save takes into uniqueness after its trash steps, and the desired-slug record the save writes:
+     * {@code forgetDesired} removes {@code _wp_desired_post_slug}, {@code desired} adds that value to it.
+     * {@code claimed} tells whether trashed posts were renamed, which is a write.
+     */
+    record TrashedSlug(String slug, boolean claimed, boolean forgetDesired, Optional<String> desired) {
+
+        /** Writes the desired-slug record on the saved row. */
+        void recordOn(PostEntity row) {
+            if (!forgetDesired && desired.isEmpty()) {
+                return;
+            }
+            ObjectNode meta = MetaRows.copy(row.meta);
+            if (forgetDesired) {
+                MetaRows.delete(meta, "_wp_desired_post_slug");
+            }
+            desired.ifPresent(value -> MetaRows.add(meta, "_wp_desired_post_slug", TextNode.valueOf(value), false));
+            row.meta = meta;
+        }
+    }
+
+    /**
+     * The trash steps of an update, before uniqueness. Leaving the trash restores the recorded desired slug, which
+     * then wins over the candidate (an empty one is neither restored nor forgotten). A post that will not be trashed
+     * takes a non-empty slug back from trashed posts of the searchable types. Entering the trash from another status
+     * gives the stored slug the trashed suffix and records the stored slug, unless it already has the suffix.
+     */
+    TrashedSlug trashSteps(SiteId siteId, PostSnapshot before, String slug, String status) {
+        String result = slug;
+        boolean forget = false;
+        if (before.status().equals("trash") && !status.equals("trash")) {
+            Optional<String> desired =
+                    before.metaText("_wp_desired_post_slug").filter(value -> !PostRules.phpEmpty(value));
+            if (desired.isPresent()) {
+                forget = true;
+                result = desired.get();
+            }
+        }
+        boolean claimed = !status.equals("trash")
+                && !PostRules.phpEmpty(result)
+                && claimFromTrashed(siteId, result, Optional.of(before.id()));
+        Optional<String> desired = Optional.empty();
+        if (status.equals("trash") && !before.status().equals("trash")) {
+            result = UniqueSlugs.withTrashedSuffix(before.slug());
+            if (!UniqueSlugs.isTrashedSlug(before.slug())) {
+                desired = Optional.of(before.slug());
+            }
+        }
+        return new TrashedSlug(result, claimed, forget, desired);
+    }
+
+    /**
+     * Renames the trashed posts of the searchable types, other than {@code exclude}, whose slug is {@code slug}, as
+     * trashing them would have; whether any was renamed.
+     */
+    boolean claimFromTrashed(SiteId siteId, String slug, Optional<PostId> exclude) {
+        List<String> searchable = types.searchable();
+        // a holder of a slug with the trashed suffix would keep it: nothing to rename
+        if (searchable.isEmpty() || UniqueSlugs.isTrashedSlug(slug)) {
+            return false;
+        }
+        List<PostEntity> holders = posts.find(
+                        "siteId = ?1 and status = 'trash' and slug = ?2 and id <> ?3 and type in ?4",
+                        TenantIds.param(siteId),
+                        slug,
+                        exclude.map(PostId::value).orElse(-1L),
+                        searchable)
+                .withLock(LockModeType.PESSIMISTIC_WRITE)
+                .list();
+        boolean renamed = false;
+        for (PostEntity holder : holders) {
+            // a holder already in this transaction's context keeps its old state on a query: read it again
+            posts.getEntityManager().refresh(holder, LockModeType.PESSIMISTIC_WRITE);
+            if (!holder.status.equals("trash") || !holder.slug.equals(slug)) {
+                continue;
+            }
+            ObjectNode meta = MetaRows.copy(holder.meta);
+            MetaRows.add(meta, "_wp_desired_post_slug", TextNode.valueOf(holder.slug), false);
+            holder.meta = meta;
+            holder.slug = UniqueSlugs.withTrashedSuffix(holder.slug);
+            renamed = true;
+        }
+        return renamed;
+    }
+
+    /**
+     * Trashes a post: WordPress's {@code wp_trash_post} after its checks. The caller holds the site's post lock and
+     * the row lock and has checked the capability and that the post is not trashed. Empty when the save was refused
+     * before writing anything; then nothing changed.
+     */
+    Optional<PostSnapshot> trash(SiteId siteId, PostEntity row) {
+        PostSnapshot before = row.toSnapshot();
+        Instant now = PostDates.now(clock);
+        return unlessRefused(() -> update(
+                        siteId,
+                        row,
+                        PostChanges.builder().status("trash").build(),
+                        stored -> {
+                            if (stored.sticky) {
+                                stored.sticky = false;
+                                posts.flush();
+                                events.sticky(siteId, now, before.id(), false);
+                            }
+                            ObjectNode meta = MetaRows.copy(stored.meta);
+                            MetaRows.add(meta, "_wp_trash_meta_status", TextNode.valueOf(before.status()), false);
+                            MetaRows.add(meta, "_wp_trash_meta_time", LongNode.valueOf(now.getEpochSecond()), false);
+                            stored.meta = meta;
+                        },
+                        // the reading settings are reset before the save is announced, as in WordPress, but after
+                        // the post row is written: option rows come last in the lock order
+                        () -> frontPages.forget(before, false)))
+                .map(after -> written(() -> {
+                    events.trashed(siteId, now, after);
+                    return before;
+                }));
+    }
+
+    /**
+     * Restores a trashed post: WordPress's {@code wp_untrash_post} after its checks, as a draft (an attachment as
+     * inherit). The caller holds the site's post lock and the row lock and has checked the capability and that the
+     * post is trashed. Empty when the save was refused before writing anything; then nothing changed.
+     */
+    Optional<PostSnapshot> untrash(SiteId siteId, PostEntity row) {
+        PostSnapshot before = row.toSnapshot();
+        Instant now = PostDates.now(clock);
+        String restored = row.type.equals("attachment") ? "inherit" : "draft";
+        Optional<String> previous =
+                before.metaText("_wp_trash_meta_status").filter(status -> !PostRules.phpEmpty(status));
+        return unlessRefused(() -> update(
+                        siteId,
+                        row,
+                        PostChanges.builder().status(restored).build(),
+                        stored -> {
+                            ObjectNode meta = MetaRows.copy(stored.meta);
+                            MetaRows.delete(meta, "_wp_trash_meta_status");
+                            MetaRows.delete(meta, "_wp_trash_meta_time");
+                            stored.meta = meta;
+                        },
+                        () -> {}))
+                .map(after -> written(() -> {
+                    events.restored(siteId, now, after, previous);
+                    return before;
+                }));
+    }
+
+    /**
+     * The saved post, or empty when the save was refused before it wrote anything (the transaction is then not
+     * marked for rollback); a refusal after a write propagates.
+     */
+    private Optional<PostSnapshot> unlessRefused(Supplier<PostSnapshot> save) {
+        try {
+            return Optional.of(save.get());
+        } catch (PostException refused) {
+            // marked: the save wrote (or the caller's transaction was doomed already); either way not a clean refusal
+            if (markedForRollback()) {
+                throw refused;
+            }
+            return Optional.empty();
+        }
+    }
+
+    private boolean markedForRollback() {
+        return registry.getTransactionStatus() == Status.STATUS_MARKED_ROLLBACK;
     }
 
     /**

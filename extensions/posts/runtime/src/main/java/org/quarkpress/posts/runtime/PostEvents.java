@@ -10,10 +10,12 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.posts.PostCreated;
 import org.quarkpress.posts.PostPublished;
+import org.quarkpress.posts.PostRestored;
 import org.quarkpress.posts.PostSaved;
 import org.quarkpress.posts.PostScheduled;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatusChanged;
+import org.quarkpress.posts.PostTrashed;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.PostUpdated;
 import org.quarkpress.posts.StickyChanged;
@@ -55,6 +57,12 @@ public class PostEvents {
 
     @Inject
     Event<StickyChanged> stickyChanged;
+
+    @Inject
+    Event<PostTrashed> trashedEvent;
+
+    @Inject
+    Event<PostRestored> restoredEvent;
 
     public void saved(
             SiteId site,
@@ -105,5 +113,18 @@ public class PostEvents {
     /** A post was stuck or unstuck. */
     public void sticky(SiteId site, Instant at, PostId post, boolean sticky) {
         transactions.publish(stickyChanged, new StickyChanged(site, at, post, sticky));
+    }
+
+    /** A post was moved to the trash; fired for every type, attachments included. */
+    public void trashed(SiteId site, Instant at, PostSnapshot post) {
+        transactions.publish(trashedEvent, new PostTrashed(site, at, post));
+    }
+
+    /**
+     * A post left the trash; {@code previousStatus} is the status recorded when it was trashed. Fired for every type,
+     * attachments included.
+     */
+    public void restored(SiteId site, Instant at, PostSnapshot post, Optional<String> previousStatus) {
+        transactions.publish(restoredEvent, new PostRestored(site, at, post, previousStatus));
     }
 }

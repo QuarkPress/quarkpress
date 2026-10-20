@@ -129,6 +129,21 @@ class CapabilityRefusalsDbTest {
     }
 
     @Test
+    void aRefusedTrashLeavesTheTransactionUsable() throws Exception {
+        PostSnapshot post = create(editor, PostChanges.builder().title("Theirs").status("publish"));
+        refusedThenAllowed(contributor, "delete_post", () -> posts.trash(post.id()), () -> posts.trash(post.id()));
+        assertThat(column("status", post)).isEqualTo("trash");
+    }
+
+    @Test
+    void aRefusedUntrashLeavesTheTransactionUsable() throws Exception {
+        PostSnapshot post = create(editor, PostChanges.builder().title("Theirs").status("publish"));
+        Identities.onSite(site, Identities.user(editor), () -> posts.trash(post.id()));
+        refusedThenAllowed(contributor, "delete_post", () -> posts.untrash(post.id()), () -> posts.untrash(post.id()));
+        assertThat(column("status", post)).isEqualTo("draft");
+    }
+
+    @Test
     void aRefusedAncestorsLeavesTheTransactionUsable() throws Exception {
         PostSnapshot top =
                 create(editor, PostChanges.builder().type("page").title("Top").status("publish"));

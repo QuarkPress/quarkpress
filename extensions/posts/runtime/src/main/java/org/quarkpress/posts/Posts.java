@@ -16,7 +16,9 @@ public interface Posts {
     /**
      * Creates a post (WordPress's {@code wp_insert_post}). Needs the type's {@code create_posts}; a status of
      * publish, future or private needs the type's {@code publish_posts}; an author other than the caller needs
-     * {@code edit_others_posts}.
+     * {@code edit_others_posts}. A post that is not created in the trash takes its slug, when not empty, from trashed
+     * posts of the searchable types that hold it: they get the trashed suffix and keep their slug as the one to
+     * restore.
      */
     PostSnapshot create(PostChanges changes);
 
@@ -31,8 +33,10 @@ public interface Posts {
      * loop check: a post that is its own parent, or whose parent's chain leads back to it, is left without parent; a
      * loop further up the parent's chain is cut by updating each of its posts, in WordPress's order, to have no
      * parent. Unlike WordPress, which skips a loop post whose update fails and keeps the loop, such a failure makes
-     * the whole update fail. With {@code expectedVersion}, a post that changed since that version is refused with
-     * {@code jakarta.persistence.OptimisticLockException}, before any write and without marking the caller's
+     * the whole update fail. A post leaving the trash gets back the slug it had before trashing, which wins over a
+     * given one; a post entering it gets the trashed suffix; a post that stays out of it takes its slug from trashed
+     * posts as {@link #create} does. With {@code expectedVersion}, a post that changed since that version is refused
+     * with {@code jakarta.persistence.OptimisticLockException}, before any write and without marking the caller's
      * transaction for rollback, so the caller can read the post again and retry. A failed update changes nothing:
      * once it has written, the failure also marks the caller's transaction for rollback.
      */
@@ -44,6 +48,31 @@ public interface Posts {
      * too, but not as an update. Needs {@code publish_post}. False when it was published already.
      */
     boolean publish(PostId post);
+
+    /**
+     * Moves a post to the trash (WordPress's {@code wp_trash_post}); needs {@code delete_post}. Any type can be trashed
+     * this way. The post is unstuck, a page named by the front page or posts page setting is no longer named there,
+     * the status it had and the time are recorded in its meta ({@code _wp_trash_meta_status}, {@code
+     * _wp_trash_meta_time}), and it is saved with status trash by every rule of an update: its slug gets the trashed
+     * suffix (the slug it had is kept in {@code _wp_desired_post_slug}) and a draft whose date floats is dated now.
+     * Its children keep it as their parent. Returns the post as it was before; empty when it was in the trash already,
+     * or when the save was refused before writing anything, in which case nothing changed and the caller's
+     * transaction stays usable (WordPress keeps the recorded meta then). A failed call changes nothing: a failure
+     * after the first write marks the caller's transaction for rollback and propagates. A missing post, or one of
+     * another site, is {@code invalid_post}.
+     */
+    Optional<PostSnapshot> trash(PostId post);
+
+    /**
+     * Restores a trashed post (WordPress's {@code wp_untrash_post}) as a draft, an attachment as inherit; needs
+     * {@code delete_post}, as wp-admin checks it. The trash records are removed and the post is saved by every rule
+     * of an update, which gives back the slug it had before trashing (unless that was empty) and keeps its date; it
+     * stays unstuck. Returns the post as it was before; empty when it was not in the trash, or when the save was
+     * refused before writing anything, in which case nothing changed. A failed call changes nothing: a failure after
+     * the first write marks the caller's transaction for rollback and propagates. A missing post, or one of another
+     * site, is {@code invalid_post}.
+     */
+    Optional<PostSnapshot> untrash(PostId post);
 
     /** The post with this id on the current site; a non-public post needs {@code read_post}. */
     Optional<PostSnapshot> find(PostId post);

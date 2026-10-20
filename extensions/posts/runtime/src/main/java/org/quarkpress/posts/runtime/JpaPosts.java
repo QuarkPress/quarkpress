@@ -26,12 +26,12 @@ import org.quarkpress.security.PostTypeCapabilities;
 
 /**
  * The posts service: capability checks first (WordPress's REST rules), then a share lock on the author's profile, then
- * the site's post lock, then the save path. A write to a stored post reads it and checks it unlocked, then takes the
- * locks, reads it again under its row lock and checks it again. Invalid input refused before the first write throws
- * {@code PostException} without marking the caller's transaction for rollback; a refused capability check, for a read
- * or a write, does not mark it either, nor does a stale-version refusal, which is raised before any write. A refused
- * lock does mark it. Once a save has written, any exception (a refusal included) marks the transaction for rollback
- * before it propagates.
+ * the site's post lock, then the save path, which locks post rows and writes option rows last. A write to a stored
+ * post reads it and checks it unlocked, then takes the locks, reads it again under its row lock and checks it again.
+ * Invalid input refused before the first write throws {@code PostException} without marking the caller's transaction
+ * for rollback; a refused capability check, for a read or a write, does not mark it either, nor does a stale-version
+ * refusal, which is raised before any write. A refused lock does mark it. Once a save has written, any exception (a
+ * refusal included) marks the transaction for rollback before it propagates.
  */
 @ApplicationScoped
 public class JpaPosts implements Posts {
@@ -121,6 +121,32 @@ public class JpaPosts implements Posts {
         }
         writes.publish(siteId, row);
         return true;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<PostSnapshot> trash(PostId post) {
+        Objects.requireNonNull(post, "post");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedRow(siteId, post, "delete_post");
+        if (row.status.equals("trash")) {
+            return Optional.empty();
+        }
+        return writes.trash(siteId, row);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<PostSnapshot> untrash(PostId post) {
+        Objects.requireNonNull(post, "post");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedRow(siteId, post, "delete_post");
+        if (!row.status.equals("trash")) {
+            return Optional.empty();
+        }
+        return writes.untrash(siteId, row);
     }
 
     @Override
