@@ -245,6 +245,167 @@ public sealed interface ScenarioOp {
         }
     }
 
+    /**
+     * An operation on posts of the main site, run as a user: {@code as} is a created user's index, or 0 for WordPress's
+     * user 0, which QuarkPress plays with its system identity. Posts count from 1 in insertion order. A scenario
+     * performs only what WordPress's REST layer would allow the acting user; the format does not check capabilities.
+     */
+    sealed interface PostOp extends ScenarioOp {}
+
+    /** A main-site option the post rules read. */
+    record SiteOption(String name, String value) implements PostOp {
+        public SiteOption {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(value, "value");
+            ScenarioRules.requirePostOption(name);
+            ScenarioRules.requirePostText(value);
+        }
+
+        @Override
+        public String kind() {
+            return "site_option";
+        }
+    }
+
+    /** {@code page_on_front} or {@code page_for_posts} set to a post (0: none). */
+    record FrontPage(String option, int post) implements PostOp {
+        public FrontPage {
+            Objects.requireNonNull(option, "option");
+            if (!option.equals("page_on_front") && !option.equals("page_for_posts")) {
+                throw new IllegalArgumentException("a scenario front page option is page_on_front or page_for_posts");
+            }
+            ScenarioRules.requireReference(post);
+        }
+
+        @Override
+        public String kind() {
+            return "front_page";
+        }
+    }
+
+    record InsertPost(int as, PostFields fields) implements PostOp {
+        public InsertPost {
+            Objects.requireNonNull(fields, "fields");
+            ScenarioRules.requireReference(as);
+        }
+
+        @Override
+        public String kind() {
+            return "insert_post";
+        }
+    }
+
+    /**
+     * An update of the given fields. {@code editDate} is WordPress's {@code edit_date} flag: without it, an update that
+     * leaves a post a draft without a GMT date gives it the current date.
+     */
+    record UpdatePost(int as, int post, PostFields fields, boolean editDate) implements PostOp {
+        public UpdatePost {
+            Objects.requireNonNull(fields, "fields");
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "update_post";
+        }
+    }
+
+    record PublishPost(int post) implements PostOp {
+        public PublishPost {
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "publish_post";
+        }
+    }
+
+    record TrashPost(int as, int post) implements PostOp {
+        public TrashPost {
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "trash_post";
+        }
+    }
+
+    record UntrashPost(int as, int post) implements PostOp {
+        public UntrashPost {
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "untrash_post";
+        }
+    }
+
+    record DeletePost(int as, int post, boolean force) implements PostOp {
+        public DeletePost {
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "delete_post";
+        }
+    }
+
+    record Stick(int post, boolean sticky) implements PostOp {
+        public Stick {
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "stick";
+        }
+    }
+
+    record QueryPosts(int as, QueryArgs args) implements PostOp {
+        public QueryPosts {
+            Objects.requireNonNull(args, "args");
+            ScenarioRules.requireReference(as);
+        }
+
+        @Override
+        public String kind() {
+            return "query_posts";
+        }
+    }
+
+    /** A page's path of slugs, as WordPress's {@code get_page_uri} builds it. */
+    record PageUri(int post) implements PostOp {
+        public PageUri {
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "page_uri";
+        }
+    }
+
+    /** A post's record at this point of the scenario. */
+    record ReadPost(int post) implements PostOp {
+        public ReadPost {
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "read_post";
+        }
+    }
+
     /** The site fields a scenario may set. */
     enum Flag {
         ARCHIVED,

@@ -23,7 +23,11 @@ import org.quarkpress.testing.wporacle.OracleJson;
  * {@code menu_plugins}), {@code site_setting {site, name, value}} ({@code link_manager_enabled}), {@code add_role
  * {site, role, name, capabilities}}, {@code role_cap {site, role, capability, grant}}, {@code remove_role {site,
  * role}} and {@code can {user, site, capability, target}}. Users count from 1 in creation order; 0 is a logged-out
- * visitor in {@code can}, and a target of 0 is no user. Unknown keys, duplicate keys and trailing content are refused.
+ * visitor in {@code can}, and a target of 0 is no user. Post operations on the main site ({@code site_option},
+ * {@code front_page}, {@code insert_post}, {@code update_post}, {@code publish_post}, {@code trash_post},
+ * {@code untrash_post}, {@code delete_post}, {@code stick}, {@code query_posts}, {@code page_uri} and
+ * {@code read_post}) are read and written by {@link PostScenarioJson}. Unknown keys, duplicate keys and trailing
+ * content are refused.
  */
 public final class ScenarioJson {
 
@@ -125,6 +129,7 @@ public final class ScenarioJson {
                             .put("site", can.site())
                             .put("capability", can.capability())
                             .put("target", can.target());
+                case ScenarioOp.PostOp post -> PostScenarioJson.write(post, out);
             }
         }
         return node;
@@ -154,6 +159,9 @@ public final class ScenarioJson {
             throw new IllegalArgumentException("scenario " + id + ": every op must be an object");
         }
         String kind = text(op, "op", id);
+        if (PostScenarioJson.KINDS.contains(kind)) {
+            return PostScenarioJson.read(kind, op, id);
+        }
         switch (kind) {
             case "create_site" -> onlyKeys(op, id, "op", "domain", "path", "title");
             case "lookup" -> onlyKeys(op, id, "op", "host", "path");
@@ -239,7 +247,7 @@ public final class ScenarioJson {
         };
     }
 
-    private static List<String> texts(JsonNode node, String field, String id) {
+    static List<String> texts(JsonNode node, String field, String id) {
         JsonNode list = node.get(field);
         if (list == null || !list.isArray()) {
             throw new IllegalArgumentException("scenario " + id + ": '" + field + "' must be a list");
@@ -254,7 +262,7 @@ public final class ScenarioJson {
         return texts;
     }
 
-    private static void onlyKeys(JsonNode node, String id, String... allowed) {
+    static void onlyKeys(JsonNode node, String id, String... allowed) {
         List<String> known = List.of(allowed);
         for (java.util.Iterator<String> keys = node.fieldNames(); keys.hasNext(); ) {
             String key = keys.next();
@@ -265,7 +273,7 @@ public final class ScenarioJson {
         }
     }
 
-    private static String text(JsonNode node, String field, String id) {
+    static String text(JsonNode node, String field, String id) {
         JsonNode value = node.get(field);
         if (value == null || !value.isTextual()) {
             throw new IllegalArgumentException("scenario " + id + ": '" + field + "' must be text");
@@ -273,7 +281,7 @@ public final class ScenarioJson {
         return value.textValue();
     }
 
-    private static int number(JsonNode node, String field, String id) {
+    static int number(JsonNode node, String field, String id) {
         JsonNode value = node.get(field);
         if (value == null || !value.isInt()) {
             throw new IllegalArgumentException("scenario " + id + ": '" + field + "' must be a whole number");
@@ -281,7 +289,7 @@ public final class ScenarioJson {
         return value.intValue();
     }
 
-    private static boolean bool(JsonNode node, String field, String id) {
+    static boolean bool(JsonNode node, String field, String id) {
         JsonNode value = node.get(field);
         if (value == null || !value.isBoolean()) {
             throw new IllegalArgumentException("scenario " + id + ": '" + field + "' must be true or false");

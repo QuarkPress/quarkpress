@@ -68,6 +68,32 @@ treat them differently from the comparison's reach: `admin`, control characters,
 username strict sanitizing would change (WordPress would show its login as display name); names are refused with
 HTML-special characters or surrounding or doubled spaces.
 
+Post operations act on the main site of the subdirectory network, which the driver empties of WordPress's sample
+content when it installs the template: `site_option {name, value}` (`timezone_string`, `gmt_offset`,
+`permalink_structure`, `posts_per_page`, `default_comment_status`, `default_ping_status`, `show_on_front`),
+`front_page {option, post}`, `insert_post {as, fields}`, `update_post {as, post, fields, edit_date}`,
+`publish_post {post}`, `trash_post {as, post}`, `untrash_post {as, post}`, `delete_post {as, post, force}`,
+`stick {post, sticky}`, `query_posts {as, args}`, `page_uri {post}` and `read_post {post}` (`PostScenarioJson` lists the
+keys of `fields` and `args`). Posts count from 1 in insertion order; `as` is a created user, or `0` for WordPress's
+user 0, which QuarkPress plays with its system identity, and a scenario performs only what WordPress's REST layer would
+allow that user. Every inserted post's final record is compared field by field (`post#<k>:<field>`), with users and
+posts named by index (`u1`, `p1`; `admin` is the installation's user, `none` no one) and `page_on_front` and
+`page_for_posts` naming their post; a slug, page path segment or slug meta value that is a post id (with `-<n>` or
+`__trashed`) shows as `#self` or `#p<k>`. A slug a scenario gives that reads as a number is 1000 or more: WordPress
+numbers the main site's posts from a few, so a smaller one would name a post on WordPress's side only. Dates a scenario
+gives lie before 2025 or from 2090 on. A stamp of the run shows as `now` on both sides: a local date or modification
+within 14 hours of the run (whatever the site's zone was), a GMT one within the run; each local date's offset from its
+GMT date is compared in minutes, so a zone slip on a stamp still shows. Queries name only the types `post`, `page`,
+`any` and the statuses `publish`, `future`, `draft`, `pending`, `private`, `trash`, `any`: WordPress also writes
+revisions, which QuarkPress does not keep. WordPress leaves rows that tie on every order key to the database; the
+driver appends the id in the direction QuarkPress breaks ties in: the first key's (newest first without one) for the
+query itself, and descending for WordPress's fetch of sticky posts missing from the first page, which QuarkPress orders
+by date, then id, both descending. Query orders are therefore total on both sides. A query ordered by `none` is
+compared as a sorted set and must not be paged (`per_page` -1, no `page` or `offset`). Guids are compared only when
+every post is inserted under plain permalinks (a `permalink_structure` of `""`): WordPress's network setup gives the
+main site a pretty structure, under which a published post's guid is its pretty link. Post text holds no control
+characters but tab and line feed and no characters outside the Basic Multilingual Plane, so Tier B has no emoji.
+
 ## Adding scenarios
 
 Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for a

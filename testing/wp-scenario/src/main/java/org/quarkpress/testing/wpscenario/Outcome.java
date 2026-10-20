@@ -2,19 +2,27 @@ package org.quarkpress.testing.wpscenario;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * What one side observed in a scenario, normalized for comparison: one text value per aspect, in recording order.
  * Aspects are {@code op<n>:<kind>} (and {@code op<n>:read_options:<name>}) for the n-th operation, and
  * {@code site#<k>} for the final record of the k-th created site. Sites are named by creation order: {@code #0} is the
- * main site.
+ * main site. Post scenarios add {@code op<n>:read_post:<field>} and {@code post#<k>:<field>}, the final record of the
+ * k-th inserted post; posts are named {@code p<k>} by insertion order.
  */
 public final class Outcome {
 
     /** A lookup that found no site (WordPress's redirect and "not installed" both map to it:
      * QuarkPress answers "no site" where WordPress redirects or reports not installed; a deliberate difference). */
     public static final String NONE = "none";
+
+    /**
+     * What WordPress's trash, untrash and delete answer when they did nothing (false or null); the other answer is
+     * {@code done:<status before>}.
+     */
+    public static final String NOTHING = "nothing";
 
     private final Map<String, String> facts = new LinkedHashMap<>();
 
@@ -85,6 +93,21 @@ public final class Outcome {
                 "site" + siteName(index),
                 domain + path + " public=" + publicFlag + " archived=" + bit(archived) + " mature=" + bit(mature)
                         + " spam=" + bit(spam) + " deleted=" + bit(deleted));
+    }
+
+    /** A post inserted, named by its insertion index. */
+    public void postCreated(int op, int index) {
+        put("op" + op + ":insert_post", "created p" + index);
+    }
+
+    /** A query's posts, by reference, and the number it counts as found; no posts show as {@code (none)}. */
+    public void queried(int op, List<String> refs, long found) {
+        put("op" + op + ":query_posts", (refs.isEmpty() ? "(none)" : String.join(",", refs)) + " found=" + found);
+    }
+
+    /** A post record: one aspect per field, named {@code <prefix>:<field>}. */
+    public void observed(String prefix, ObservedPost post) {
+        post.fields().forEach((field, value) -> put(prefix + ":" + field, value));
     }
 
     public Map<String, String> facts() {

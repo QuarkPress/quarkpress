@@ -1,6 +1,7 @@
 package org.quarkpress.testing.wpscenario;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +24,13 @@ import java.util.Map;
  *       {@code site_setting}, {@code role_cap} and {@code remove_role}: {@code {"ok": <bool>}}, with {@code "error":
  *       <code>} added when WordPress answered with an error; any of them on a site or user that was not created:
  *       {@code {"missing": true}};
+ *   <li>post operations: {@code insert_post} {@code {"id"}}; {@code update_post}, {@code publish_post} and
+ *       {@code stick} {@code {"ok": <bool>}}; {@code site_option} and {@code front_page} {@code {"changed": <bool>}}
+ *       (what {@code update_option} answered); {@code trash_post}, {@code untrash_post} and {@code delete_post}
+ *       {@code {"result": "done:<status before>" | "nothing"}}; {@code query_posts} {@code {"ids", "found"}};
+ *       {@code page_uri} {@code {"uri"}}; {@code read_post} {@code {"post": <record>}}; any of them
+ *       {@code {"error": <code>}} when WordPress answered with an error, or {@code {"missing": true}} when it names a
+ *       post or user that was never created;
  * </ul>
  * and {@code sites} lists each created site's final record ({@code index}, {@code id}, {@code domain}, {@code path},
  * {@code public}, {@code archived}, {@code mature}, {@code spam}, {@code deleted}) in creation order. Domains and paths
@@ -31,6 +39,16 @@ import java.util.Map;
  * deliberate ones: the redirect target and the distinction between the two are not compared. A default title
  * {@code Site <id>} is shown as {@code Site #<index>} only for a site created with an empty title. Output that does
  * not have the shape above fails with an {@link IllegalStateException} naming the case.
+ *
+ * <p>A scenario with post operations also reads {@code started} and {@code finished} (Unix seconds), {@code home} (the
+ * main site's home URL), {@code installer} (the installation's user id) and {@code posts}, the final record of each
+ * inserted post ({@code [{"index", "post"}]}). A record holds {@code id, type, status, slug, title, content, excerpt,
+ * author, parent, menu_order, date, date_gmt, modified, modified_gmt, comment_status, ping_status, password, sticky,
+ * guid, meta}, or {@code {"deleted": true}}. Users and posts are named by index. A stamp of the run shows as
+ * {@code now}: a local date or modification within 14 hours of the run, whatever the zone when it was written, and a
+ * GMT one within the run; each local date's offset from its GMT date is compared in minutes, so a zone slip still
+ * shows. Id-shaped slugs, page paths and slug meta name their post ({@code #self}, {@code #p<k>});
+ * {@code page_on_front} and {@code page_for_posts} name their post; a query ordered by {@code none} is a sorted set.
  */
 public final class WordPressOutcomes {
 
@@ -53,6 +71,23 @@ public final class WordPressOutcomes {
         List<Boolean> emptyTitles = new ArrayList<>();
         emptyTitles.add(false);
         int creates = 0;
+        Map<Long, Integer> userIndex = new HashMap<>();
+        Map<Long, Integer> postIndex = new HashMap<>();
+        boolean posts = ops.stream().anyMatch(ScenarioOp.PostOp.class::isInstance);
+        PostContext context = posts
+                ? new PostContext(
+                        userIndex,
+                        postIndex,
+                        field(out, "installer", where).asLong(),
+                        field(out, "home", where).asText(),
+                        new RunWindow(
+                                Instant.ofEpochSecond(
+                                        field(out, "started", where).asLong()),
+                                Instant.ofEpochSecond(
+                                        field(out, "finished", where).asLong())),
+                        PostRecords.includeGuid(scenario))
+                : null;
+        int inserted = 0;
         for (int i = 0; i < ops.size(); i++) {
             int op = i + 1;
             String at = where + " op " + op;
@@ -94,10 +129,16 @@ public final class WordPressOutcomes {
                         if (text != null && id != null && name.equals("blogname") && emptyTitles.get(read.site())) {
                             text = Outcome.title(text, id, read.site());
                         }
+                        if (text != null && posts) {
+                            text = PostRecords.optionText(name, text, postIndex);
+                        }
                         outcome.option(op, name, text);
                     }
                 }
                 case ScenarioOp.CreateUser user -> {
+                    // users are numbered by creation order, failed creations included
+                    long key = result.has("id") ? result.get("id").asLong() : -1L - userIndex.size();
+                    userIndex.put(key, userIndex.size() + 1);
                     if (result.has("id")) {
                         outcome.userCreated(
                                 op,
@@ -124,6 +165,15 @@ public final class WordPressOutcomes {
                 case ScenarioOp.SiteSetting setting -> outcome.done(op, setting.kind(), okay(result, at));
                 case ScenarioOp.RoleCap role -> outcome.done(op, role.kind(), okay(result, at));
                 case ScenarioOp.RemoveRole role -> outcome.done(op, role.kind(), okay(result, at));
+                case ScenarioOp.PostOp post -> {
+                    if (post instanceof ScenarioOp.InsertPost) {
+                        inserted++;
+                        if (result.has("id")) {
+                            postIndex.put(result.get("id").asLong(), inserted);
+                        }
+                    }
+                    postResult(outcome, op, post, result, at, context);
+                }
             }
         }
         for (JsonNode site : field(out, "sites", where)) {
@@ -146,7 +196,114 @@ public final class WordPressOutcomes {
                     field(site, "spam", at).asInt() != 0,
                     field(site, "deleted", at).asInt() != 0);
         }
+        if (posts) {
+            for (JsonNode entry : field(out, "posts", where)) {
+                String at = where + " post";
+                outcome.observed(
+                        "post#" + field(entry, "index", at).asInt(), record(field(entry, "post", at), context, at));
+            }
+        }
         return outcome;
+    }
+
+    /** What normalizing a post record needs: the indexes, the installer, the home URL and the run's window. */
+    record PostContext(
+            Map<Long, Integer> userIndex,
+            Map<Long, Integer> postIndex,
+            long installer,
+            String home,
+            RunWindow window,
+            boolean guids) {}
+
+    private static void postResult(
+            Outcome outcome, int op, ScenarioOp.PostOp post, JsonNode result, String at, PostContext context) {
+        if (result.path("missing").asBoolean()) {
+            outcome.done(op, post.kind(), "missing");
+            return;
+        }
+        if (result.hasNonNull("error")) {
+            outcome.done(op, post.kind(), "refused:" + result.get("error").asText());
+            return;
+        }
+        switch (post) {
+            case ScenarioOp.SiteOption option -> outcome.done(op, option.kind(), changed(result, at));
+            case ScenarioOp.FrontPage front -> outcome.done(op, front.kind(), changed(result, at));
+            case ScenarioOp.InsertPost insert ->
+                outcome.postCreated(
+                        op, context.postIndex().get(field(result, "id", at).asLong()));
+            case ScenarioOp.UpdatePost update -> outcome.done(op, update.kind(), okay(result, at));
+            case ScenarioOp.PublishPost publish -> outcome.done(op, publish.kind(), okay(result, at));
+            case ScenarioOp.TrashPost trash ->
+                outcome.done(op, trash.kind(), field(result, "result", at).asText());
+            case ScenarioOp.UntrashPost untrash ->
+                outcome.done(op, untrash.kind(), field(result, "result", at).asText());
+            case ScenarioOp.DeletePost delete ->
+                outcome.done(op, delete.kind(), field(result, "result", at).asText());
+            case ScenarioOp.Stick stick -> outcome.done(op, stick.kind(), okay(result, at));
+            case ScenarioOp.QueryPosts query -> {
+                List<String> refs = new ArrayList<>();
+                field(result, "ids", at).forEach(id -> refs.add(PostRecords.postRef(id.asLong(), context.postIndex())));
+                outcome.queried(
+                        op,
+                        query.args().unordered() ? PostRecords.sortedRefs(refs) : refs,
+                        field(result, "found", at).asLong());
+            }
+            case ScenarioOp.PageUri uri ->
+                outcome.done(
+                        op,
+                        uri.kind(),
+                        PostRecords.pageUri(field(result, "uri", at).asText(), context.postIndex()));
+            case ScenarioOp.ReadPost read ->
+                outcome.observed("op" + op + ":read_post", record(field(result, "post", at), context, at));
+        }
+    }
+
+    /** A driver post record, normalized: references by index, run-time dates as now, guid on the home URL. */
+    static ObservedPost record(JsonNode post, PostContext context, String at) {
+        if (post.path("deleted").asBoolean()) {
+            return ObservedPost.DELETED;
+        }
+        RunWindow window = context.window();
+        long ownId = field(post, "id", at).asLong();
+        String dateGmt = text(post, "date_gmt", at);
+        String modifiedGmt = text(post, "modified_gmt", at);
+        PostRecords.Record record = PostRecords.record()
+                .field("type", text(post, "type", at))
+                .field("status", text(post, "status", at))
+                .field("slug", PostRecords.slug(text(post, "slug", at), ownId, context.postIndex()))
+                .field("title", text(post, "title", at))
+                .field("content", text(post, "content", at))
+                .field("excerpt", text(post, "excerpt", at))
+                .field(
+                        "author",
+                        PostRecords.userRef(
+                                field(post, "author", at).asLong(), context.userIndex(), context.installer()))
+                .field("parent", PostRecords.postRef(field(post, "parent", at).asLong(), context.postIndex()))
+                .field("menu_order", text(post, "menu_order", at))
+                .field("date", window.showLocal(text(post, "date", at)))
+                .field("date_gmt", PostRecords.gmtText(dateGmt, window))
+                .field("date_offset", PostRecords.offsetMinutes(text(post, "date", at), dateGmt))
+                .field("modified", window.showLocal(text(post, "modified", at)))
+                .field("modified_gmt", PostRecords.gmtText(modifiedGmt, window))
+                .field("modified_offset", PostRecords.offsetMinutes(text(post, "modified", at), modifiedGmt))
+                .field("comment_status", text(post, "comment_status", at))
+                .field("ping_status", text(post, "ping_status", at))
+                .field("password", text(post, "password", at))
+                .field("sticky", field(post, "sticky", at).asBoolean() ? "1" : "0");
+        if (context.guids()) {
+            record.field("guid", PostRecords.guid(text(post, "guid", at), context.home(), context.postIndex()));
+        }
+        field(post, "meta", at).properties().forEach(entry -> {
+            List<String> values = new ArrayList<>();
+            entry.getValue().forEach(value -> values.add(value.asText()));
+            record.meta(
+                    entry.getKey(), PostRecords.metaText(entry.getKey(), values, ownId, context.postIndex(), window));
+        });
+        return record.build();
+    }
+
+    private static String text(JsonNode node, String name, String where) {
+        return field(node, name, where).asText();
     }
 
     private static String changed(JsonNode result, String at) {

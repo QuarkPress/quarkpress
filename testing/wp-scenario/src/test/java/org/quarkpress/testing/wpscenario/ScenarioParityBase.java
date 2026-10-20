@@ -231,6 +231,9 @@ abstract class ScenarioParityBase {
                     case ScenarioOp.RoleCap role -> runCapabilityOp(op, role, outcome, created, users);
                     case ScenarioOp.RemoveRole role -> runCapabilityOp(op, role, outcome, created, users);
                     case ScenarioOp.Can can -> runCapabilityOp(op, can, outcome, created, users);
+                    case ScenarioOp.PostOp post ->
+                        throw new IllegalStateException(
+                                "post operations need the posts runner (Task 24 of the M1d plan): " + post.kind());
                 }
             }
             for (int index = 1; index <= created.size(); index++) {
@@ -411,6 +414,7 @@ abstract class ScenarioParityBase {
             case ScenarioOp.Lookup lookup -> throw notCapability(lookup);
             case ScenarioOp.SetFlag flag -> throw notCapability(flag);
             case ScenarioOp.ReadOptions read -> throw notCapability(read);
+            case ScenarioOp.PostOp post -> throw notCapability(post);
         }
     }
 

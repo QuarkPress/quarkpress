@@ -68,6 +68,51 @@ public record Scenario(String id, String rule, NetworkVariant variant, List<Scen
                 users++;
             }
         }
+        requirePostReferences(id, variant, ops);
+    }
+
+    /**
+     * Post operations run on the subdirectory network, act as users created before them (or user 0) and name posts
+     * inserted before them; an insertion counts even when it fails, as a user creation does.
+     */
+    private static void requirePostReferences(String id, NetworkVariant variant, List<ScenarioOp> ops) {
+        int inserted = 0;
+        int users = 0;
+        for (int i = 0; i < ops.size(); i++) {
+            ScenarioOp op = ops.get(i);
+            if (op instanceof ScenarioOp.CreateUser) {
+                users++;
+            }
+            if (!(op instanceof ScenarioOp.PostOp post)) {
+                continue;
+            }
+            String at = "scenario " + id + ": op " + (i + 1);
+            if (!variant.equals(NetworkVariant.SUBDIRECTORY)) {
+                throw new IllegalArgumentException(
+                        at + " is a post operation, which runs on the subdirectory network only");
+            }
+            for (int user : PostScenarioJson.actors(post)) {
+                if (user > users) {
+                    throw new IllegalArgumentException(
+                            at + " acts as user #" + user + ", but only " + users + " users were created before it");
+                }
+            }
+            for (int user : PostScenarioJson.users(post)) {
+                if (user > users) {
+                    throw new IllegalArgumentException(
+                            at + " refers to user #" + user + ", but only " + users + " users were created before it");
+                }
+            }
+            for (int reference : PostScenarioJson.posts(post)) {
+                if (reference > inserted) {
+                    throw new IllegalArgumentException(at + " refers to post #" + reference + ", but only " + inserted
+                            + " posts were inserted before it");
+                }
+            }
+            if (post instanceof ScenarioOp.InsertPost) {
+                inserted++;
+            }
+        }
     }
 
     /** Whether the op names a user that must exist (every user operation except a capability check). */

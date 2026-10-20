@@ -1,5 +1,7 @@
 package org.quarkpress.testing.wpscenario;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /**
@@ -174,6 +176,83 @@ final class ScenarioRules {
     static void requireOption(String name) {
         if (!OPTIONS.contains(name)) {
             throw new IllegalArgumentException("a scenario reads only these options: " + String.join(", ", OPTIONS));
+        }
+    }
+
+    /** The main-site options a post scenario may set. */
+    static final List<String> POST_OPTIONS = List.of(
+            "timezone_string",
+            "gmt_offset",
+            "permalink_structure",
+            "posts_per_page",
+            "default_comment_status",
+            "default_ping_status",
+            "show_on_front");
+
+    static void requirePostOption(String name) {
+        if (!POST_OPTIONS.contains(name)) {
+            throw new IllegalArgumentException(
+                    "a scenario sets only these options: " + String.join(", ", POST_OPTIONS) + "; not " + name);
+        }
+    }
+
+    /**
+     * Post text both sides store alike: at most 2,000 characters, no control characters but tab and line feed, and no
+     * characters outside the Basic Multilingual Plane (no surrogates).
+     */
+    static void requirePostText(String text) {
+        if (text.length() > 2_000) {
+            throw new IllegalArgumentException("a scenario post text has at most 2,000 characters");
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if ((c < 0x20 && c != '\t' && c != '\n') || c == 0x7F || Character.isSurrogate(c)) {
+                throw new IllegalArgumentException(
+                        "a scenario post text holds no control characters but tab and line feed, and no surrogates");
+            }
+        }
+    }
+
+    /**
+     * A post date both sides store alike, far from any run: a real {@code Y-m-d H:i:s} date before 2025 or from 2090
+     * on (the zero date is not a date a scenario gives).
+     */
+    static void requirePostDate(String text) {
+        LocalDateTime date;
+        try {
+            date = PostRecords.parse(text);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("a scenario post date is a real Y-m-d H:i:s date: " + text, e);
+        }
+        if ((date.getYear() >= 2025 && date.getYear() < 2090) || date.getYear() < 1000) {
+            throw new IllegalArgumentException(
+                    "a scenario post date is Y-m-d H:i:s before 2025 or from 2090 on, away from the run: " + text);
+        }
+    }
+
+    /**
+     * A typed slug that reads as a post id is 1000 or more: WordPress numbers the main site's posts from a few, so a
+     * smaller one would name a post on WordPress's side only.
+     */
+    static void requirePostSlug(String slug) {
+        long number = PostRecords.idNumber(slug);
+        if (number >= 0 && number < 1000) {
+            throw new IllegalArgumentException(
+                    "a scenario slug that is a number is 1000 or more, beyond WordPress's post ids: " + slug);
+        }
+    }
+
+    /** A reference that may be 0 for none: an author, a parent, a front page, or the acting user. */
+    static void requireReference(int reference) {
+        if (reference < 0) {
+            throw new IllegalArgumentException("a scenario reference is 0 (none) or positive: " + reference);
+        }
+    }
+
+    /** The post an operation acts on: an insertion index from 1. */
+    static void requirePost(int post) {
+        if (post < 1) {
+            throw new IllegalArgumentException("a scenario post operation names a post: 1 or more, not " + post);
         }
     }
 

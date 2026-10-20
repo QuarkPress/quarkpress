@@ -8,7 +8,7 @@
  *   php scenario-driver.php run     <wordpress-dir> <input.json> <output.json>
  * The database server comes from QP_DB_HOST, QP_DB_PORT, QP_DB_USER and QP_DB_PASSWORD. Every call is its own PHP
  * process: WordPress keeps its state in constants and globals, which one process cannot reset. The driver calls
- * WordPress functions; the two rules it applies itself are marked where they happen.
+ * WordPress functions; every rule it applies itself is marked "Driver-applied rule" where it happens.
  */
 
 declare(strict_types=1);
@@ -357,6 +357,299 @@ function qp_capability_op(array $op, array $created, array $users): array
     }
 }
 
+/**
+ * Acts as a user (0: nobody) for the next WordPress calls. Setting the current user fires set_current_user, on which
+ * WordPress itself re-initializes its content filters (kses_init, wp_custom_css_kses_init) for that user.
+ */
+function qp_act_as(int $user): void
+{
+    wp_set_current_user($user);
+}
+
+/** The postarr of scenario fields, or null when a reference names a post or user that was never created. */
+function qp_postarr(array $fields, array $users, array $posts): ?array
+{
+    $columns = ['type' => 'post_type', 'status' => 'post_status', 'title' => 'post_title',
+        'content' => 'post_content', 'excerpt' => 'post_excerpt', 'slug' => 'post_name',
+        'password' => 'post_password', 'comment_status' => 'comment_status', 'ping_status' => 'ping_status',
+        'date' => 'post_date', 'date_gmt' => 'post_date_gmt', 'menu_order' => 'menu_order'];
+    $postarr = [];
+    foreach ($columns as $key => $column) {
+        if (array_key_exists($key, $fields)) {
+            $postarr[$column] = $fields[$key];
+        }
+    }
+    if (array_key_exists('parent', $fields)) {
+        $parent = 0 === $fields['parent'] ? 0 : ($posts[$fields['parent']] ?? null);
+        if (null === $parent) {
+            return null;
+        }
+        $postarr['post_parent'] = $parent;
+    }
+    if (array_key_exists('author', $fields)) {
+        $author = 0 === $fields['author'] ? 0 : ($users[$fields['author']] ?? null);
+        if (null === $author) {
+            return null;
+        }
+        $postarr['post_author'] = $author;
+    }
+    return $postarr;
+}
+
+/** A post as the comparison reads it, or {deleted: true}. */
+function qp_post_record(int $id): array
+{
+    clean_post_cache($id);
+    $post = get_post($id);
+    if (null === $post) {
+        return ['deleted' => true];
+    }
+    $meta = [];
+    foreach (['_wp_desired_post_slug', '_wp_old_date', '_wp_old_slug', '_wp_trash_meta_status',
+                 '_wp_trash_meta_time'] as $key) {
+        $values = get_post_meta($id, $key);
+        if ([] !== $values) {
+            $meta[$key] = array_map('strval', $values);
+        }
+    }
+    return [
+        'id' => $id, 'type' => $post->post_type, 'status' => $post->post_status, 'slug' => $post->post_name,
+        'title' => $post->post_title, 'content' => $post->post_content, 'excerpt' => $post->post_excerpt,
+        'author' => (int) $post->post_author, 'parent' => (int) $post->post_parent,
+        'menu_order' => (int) $post->menu_order, 'date' => $post->post_date, 'date_gmt' => $post->post_date_gmt,
+        'modified' => $post->post_modified, 'modified_gmt' => $post->post_modified_gmt,
+        'comment_status' => $post->comment_status, 'ping_status' => $post->ping_status,
+        'password' => $post->post_password, 'sticky' => is_sticky($id), 'guid' => $post->guid,
+        'meta' => (object) $meta,
+    ];
+}
+
+/** WordPress's answer of trash, untrash and delete: the post before (its status), or nothing (false or null). */
+function qp_post_answer($answer): string
+{
+    return $answer instanceof WP_Post ? 'done:' . $answer->post_status : 'nothing';
+}
+
+/** WP_Query arguments of scenario query args; null when a reference names a post or user that was never created. */
+function qp_query_args(array $args, array $users, array $posts): ?array
+{
+    $refs = static function (array $indexes, array $table): ?array {
+        $ids = [];
+        foreach ($indexes as $index) {
+            if (null === ($table[$index] ?? null)) {
+                return null;
+            }
+            $ids[] = $table[$index];
+        }
+        return $ids;
+    };
+    $query = ['ignore_sticky_posts' => !($args['sticky_first'] ?? false)];
+    foreach (['types' => 'post_type', 'statuses' => 'post_status'] as $key => $name) {
+        if (isset($args[$key])) {
+            $query[$name] = $args[$key];
+        }
+    }
+    foreach (['author_in' => ['author__in', $users], 'author_not_in' => ['author__not_in', $users],
+                 'post_in' => ['post__in', $posts], 'post_not_in' => ['post__not_in', $posts]] as $key => [$name, $table]) {
+        if (isset($args[$key])) {
+            $ids = $refs($args[$key], $table);
+            if (null === $ids) {
+                return null;
+            }
+            $query[$name] = $ids;
+        }
+    }
+    if (array_key_exists('parent', $args)) {
+        $parent = 0 === $args['parent'] ? 0 : ($posts[$args['parent']] ?? null);
+        if (null === $parent) {
+            return null;
+        }
+        $query['post_parent'] = $parent;
+    }
+    if (isset($args['name'])) {
+        $query['name'] = $args['name'];
+    }
+    if (isset($args['search'])) {
+        // Driver-applied rule: query variables arrive slashed, as WordPress's request parsing leaves them.
+        $query['s'] = wp_slash($args['search']);
+    }
+    if (isset($args['orderby'])) {
+        // The scenario's order keys in WP_Query's names; "none" is only ever the sole order.
+        $keys = ['date' => 'date', 'modified' => 'modified', 'title' => 'title', 'name' => 'name',
+            'author' => 'author', 'parent' => 'parent', 'type' => 'type', 'id' => 'ID',
+            'menu_order' => 'menu_order', 'post_in' => 'post__in'];
+        if (['none asc'] === $args['orderby'] || ['none desc'] === $args['orderby']) {
+            $query['orderby'] = 'none';
+        } else {
+            $query['orderby'] = [];
+            foreach ($args['orderby'] as $order) {
+                [$key, $direction] = explode(' ', $order);
+                $query['orderby'][$keys[$key]] = strtoupper($direction);
+            }
+        }
+    }
+    foreach (['per_page' => 'posts_per_page', 'page' => 'paged', 'offset' => 'offset'] as $key => $name) {
+        if (isset($args[$key])) {
+            $query[$name] = $args[$key];
+        }
+    }
+    return $query;
+}
+
+/**
+ * The direction in which QuarkPress breaks ties between equal rows of a query: the first order key's, newest first
+ * without one; null when nothing is appended (no order, or the post_in order, which has no ties).
+ */
+function qp_tie_direction(array $args): ?string
+{
+    $orderby = $args['orderby'] ?? [];
+    if ([] === $orderby) {
+        return 'DESC';
+    }
+    [$key, $direction] = explode(' ', $orderby[0]);
+    return 'none' === $key || 'post_in' === $key ? null : strtoupper($direction);
+}
+
+/**
+ * A post operation on the main site, as the op's user ("as"; 0 is WordPress's user 0). Each reports what WordPress
+ * answered; a reference to a post or user that was never created is reported as missing.
+ */
+function qp_post_op(array $op, array $users, array &$posts): array
+{
+    $user = static fn(int $index): ?int => 0 === $index ? 0 : ($users[$index] ?? null);
+    $post = static fn(int $index): ?int => $posts[$index] ?? null;
+    switch_to_blog(get_main_site_id());
+    try {
+        switch ($op['op']) {
+            case 'site_option':
+                // update_option answers whether the stored value changed: false for the value already stored, and
+                // for a value its sanitizing refuses (such as an unknown time zone), which keeps the old one.
+                $changed = update_option($op['name'], $op['value']);
+                if ('permalink_structure' === $op['name']) {
+                    // Driver-applied rule: every operation stands for a request of its own, and a request's bootstrap
+                    // reads the permalink structure into WP_Rewrite; this one read it before the change.
+                    global $wp_rewrite;
+                    $wp_rewrite->init();
+                }
+                return ['op' => 'site_option', 'changed' => $changed];
+            case 'front_page':
+                $id = 0 === $op['post'] ? 0 : $post($op['post']);
+                if (null === $id) {
+                    return ['op' => 'front_page', 'missing' => true];
+                }
+                return ['op' => 'front_page', 'changed' => update_option($op['option'], $id)];
+            case 'insert_post':
+                $as = $user($op['as']);
+                $postarr = qp_postarr($op['fields'], $users, $posts);
+                $index = count($posts) + 1;
+                if (null === $as || null === $postarr) {
+                    $posts[$index] = null;
+                    return ['op' => 'insert_post', 'missing' => true];
+                }
+                qp_act_as($as);
+                // wp_insert_post expects slashed data, as the REST layer passes it.
+                $id = wp_insert_post(wp_slash($postarr), true);
+                if (is_wp_error($id)) {
+                    $posts[$index] = null;
+                    return ['op' => 'insert_post', 'error' => $id->get_error_code()];
+                }
+                $posts[$index] = (int) $id;
+                return ['op' => 'insert_post', 'id' => (int) $id];
+            case 'update_post':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                $postarr = qp_postarr($op['fields'], $users, $posts);
+                if (null === $as || null === $id || null === $postarr) {
+                    return ['op' => 'update_post', 'missing' => true];
+                }
+                qp_act_as($as);
+                $postarr['ID'] = $id;
+                if ($op['edit_date']) {
+                    $postarr['edit_date'] = true;
+                }
+                $result = wp_update_post(wp_slash($postarr), true);
+                return is_wp_error($result)
+                    ? ['op' => 'update_post', 'error' => $result->get_error_code()]
+                    : ['op' => 'update_post', 'ok' => $id === (int) $result];
+            case 'publish_post':
+                $id = $post($op['post']);
+                if (null === $id) {
+                    return ['op' => 'publish_post', 'missing' => true];
+                }
+                // wp_publish_post answers nothing; it returns early for a post that does not exist or is published.
+                wp_publish_post($id);
+                return ['op' => 'publish_post', 'ok' => true];
+            case 'trash_post':
+            case 'untrash_post':
+            case 'delete_post':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                if (null === $as || null === $id) {
+                    return ['op' => $op['op'], 'missing' => true];
+                }
+                qp_act_as($as);
+                $answer = match ($op['op']) {
+                    'trash_post' => wp_trash_post($id),
+                    'untrash_post' => wp_untrash_post($id),
+                    'delete_post' => wp_delete_post($id, (bool) $op['force']),
+                };
+                return ['op' => $op['op'], 'result' => qp_post_answer($answer)];
+            case 'stick':
+                $id = $post($op['post']);
+                if (null === $id) {
+                    return ['op' => 'stick', 'missing' => true];
+                }
+                // stick_post and unstick_post answer nothing; they only edit the sticky_posts list, for any id.
+                $op['sticky'] ? stick_post($id) : unstick_post($id);
+                return ['op' => 'stick', 'ok' => true];
+            case 'query_posts':
+                $as = $user($op['as']);
+                $args = qp_query_args($op['args'], $users, $posts);
+                if (null === $as || null === $args) {
+                    return ['op' => 'query_posts', 'missing' => true];
+                }
+                qp_act_as($as);
+                // Driver-applied rule: WordPress leaves rows that tie on every order key to the database, which may
+                // return them in any order; the driver appends the id in the direction QuarkPress breaks ties in.
+                // For the query itself that is the first key's direction (qp_tie_direction). The only other query
+                // WP_Query runs here is its fetch of sticky posts missing from the first page, ordered by
+                // post_date DESC: QuarkPress orders those by date, then id, both descending, so it gets ID DESC.
+                $tie = qp_tie_direction($op['args']);
+                $query = new WP_Query();
+                $total = static function (string $orderby, WP_Query $current) use ($tie, $query): string {
+                    global $wpdb;
+                    $direction = $current === $query ? $tie : 'DESC';
+                    return '' === $orderby || null === $direction ? $orderby : "$orderby, {$wpdb->posts}.ID $direction";
+                };
+                add_filter('posts_orderby', $total, 10, 2);
+                try {
+                    $query->query($args);
+                } finally {
+                    remove_filter('posts_orderby', $total, 10);
+                }
+                return ['op' => 'query_posts', 'ids' => array_map(static fn($p) => (int) $p->ID, $query->posts),
+                    'found' => (int) $query->found_posts];
+            case 'page_uri':
+                $id = $post($op['post']);
+                if (null === $id) {
+                    return ['op' => 'page_uri', 'missing' => true];
+                }
+                $uri = get_page_uri($id);
+                return ['op' => 'page_uri', 'uri' => false === $uri ? '(false)' : $uri];
+            case 'read_post':
+                $id = $post($op['post']);
+                return null === $id
+                    ? ['op' => 'read_post', 'missing' => true]
+                    : ['op' => 'read_post', 'post' => qp_post_record($id)];
+            default:
+                throw new InvalidArgumentException('unknown op ' . $op['op']);
+        }
+    } finally {
+        restore_current_blog();
+        qp_act_as(0);
+    }
+}
+
 function qp_run_scenario(array $scenario, array $variant): array
 {
     $segments = (int) $variant['path_segments'];
@@ -367,6 +660,8 @@ function qp_run_scenario(array $scenario, array $variant): array
     }
     $created = [];
     $users = [];
+    $posts = [];
+    $started = time();
     $results = [];
     foreach ($scenario['ops'] as $op) {
         $results[] = match ($op['op']) {
@@ -377,6 +672,9 @@ function qp_run_scenario(array $scenario, array $variant): array
             'create_user' => qp_create_user($op, $users),
             'add_user', 'remove_user', 'set_role', 'add_cap', 'super_admin', 'network_flag', 'site_setting',
             'add_role', 'role_cap', 'remove_role', 'can' => qp_capability_op($op, $created, $users),
+            'site_option', 'front_page', 'insert_post', 'update_post', 'publish_post', 'trash_post',
+            'untrash_post', 'delete_post', 'stick', 'query_posts', 'page_uri', 'read_post'
+                => qp_post_op($op, $users, $posts),
             default => throw new InvalidArgumentException('unknown op ' . $op['op']),
         };
     }
@@ -399,7 +697,20 @@ function qp_run_scenario(array $scenario, array $variant): array
             'deleted' => (int) $site->deleted,
         ];
     }
-    return ['main' => get_main_site_id(), 'results' => $results, 'sites' => $sites];
+    $records = [];
+    switch_to_blog(get_main_site_id());
+    foreach ($posts as $index => $id) {
+        if (null !== $id) {
+            $records[] = ['index' => $index, 'post' => qp_post_record($id)];
+        }
+    }
+    $home = home_url();
+    restore_current_blog();
+    // The installation's user: wp_install created it with the login admin.
+    $installer = get_user_by('login', 'admin');
+    return ['main' => get_main_site_id(), 'results' => $results, 'sites' => $sites, 'posts' => $records,
+        'started' => $started, 'finished' => time(), 'home' => $home,
+        'installer' => false === $installer ? 0 : (int) $installer->ID];
 }
 
 $qp_input = json_decode((string) file_get_contents($qp_input_file), true, 512, JSON_THROW_ON_ERROR);
@@ -416,6 +727,12 @@ try {
         $qp_url = 'http://' . $qp_variant['domain'] . rtrim($qp_variant['path'], '/');
         update_option('siteurl', $qp_url);
         update_option('home', $qp_url);
+        // Driver-applied rule: the installation's sample content (a post, a page and the privacy policy draft, with
+        // the sample comment) is deleted for good, so post scenarios start from an empty main site on both sides:
+        // QuarkPress creates no sample content.
+        foreach ($wpdb->get_col("SELECT ID FROM {$wpdb->posts}") as $qp_post) {
+            wp_delete_post((int) $qp_post, true);
+        }
         $qp_single = [
             'installed' => is_blog_installed(),
             'blogname' => get_option('blogname'),
