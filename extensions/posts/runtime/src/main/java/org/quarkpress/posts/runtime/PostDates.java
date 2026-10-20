@@ -7,6 +7,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneRules;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.quarkpress.core.QuarkPressClock;
@@ -27,7 +31,60 @@ public final class PostDates {
     private static final int MAX_YEAR = 9999;
     private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss");
 
+    /** The earliest storable date. */
+    public static final Instant STORABLE_FROM =
+            LocalDateTime.of(MIN_YEAR, 1, 1, 0, 0).toInstant(ZoneOffset.UTC);
+
+    /** The first date past the storable ones. */
+    public static final Instant STORABLE_UNTIL =
+            LocalDateTime.of(MAX_YEAR + 1, 1, 1, 0, 0).toInstant(ZoneOffset.UTC);
+
     private PostDates() {}
+
+    /** A run of instants from {@code from} (kept) until {@code until} (left out); an empty end is open. */
+    public record Span(Optional<Instant> from, Optional<Instant> until) {
+        public Span {
+            Objects.requireNonNull(from, "from");
+            Objects.requireNonNull(until, "until");
+        }
+    }
+
+    /**
+     * The instants whose wall time in the zone, to the second, is {@code wall} or later, in order. Wall times compare
+     * as WordPress compares its local date text, which is not the order of the instants: in an autumn overlap the
+     * repeated times before {@code wall} are left out although they come after its first occurrence; a wall time in a
+     * spring gap is reached at the transition.
+     */
+    public static List<Span> wallFrom(LocalDateTime wall, ZoneId zone) {
+        ZoneRules rules = zone.getRules();
+        List<ZoneOffset> offsets = rules.getValidOffsets(wall);
+        if (offsets.size() == 1) {
+            return List.of(new Span(Optional.of(wall.toInstant(offsets.get(0))), Optional.empty()));
+        }
+        ZoneOffsetTransition transition = rules.getTransition(wall);
+        if (transition.isGap()) {
+            return List.of(new Span(Optional.of(transition.getInstant()), Optional.empty()));
+        }
+        return List.of(
+                new Span(
+                        Optional.of(wall.toInstant(transition.getOffsetBefore())),
+                        Optional.of(transition.getInstant())),
+                new Span(Optional.of(wall.toInstant(transition.getOffsetAfter())), Optional.empty()));
+    }
+
+    /** The instants whose wall time in the zone is before {@code wall}, in order (see {@link #wallFrom}). */
+    public static List<Span> wallBefore(LocalDateTime wall, ZoneId zone) {
+        List<Span> before = new ArrayList<>();
+        Optional<Instant> start = Optional.empty();
+        for (Span from : wallFrom(wall, zone)) {
+            before.add(new Span(start, from.from()));
+            start = from.until();
+        }
+        if (start.isPresent()) {
+            before.add(new Span(start, Optional.empty()));
+        }
+        return before;
+    }
 
     /** The resolved dates of a save: the GMT date (empty while floating) and the modification time. */
     public record Resolved(Optional<Instant> publishedAt, Instant modifiedAt) {
@@ -115,8 +172,7 @@ public final class PostDates {
     }
 
     public static void requireStorable(Instant instant) {
-        if (instant.isBefore(LocalDateTime.of(MIN_YEAR, 1, 1, 0, 0).toInstant(ZoneOffset.UTC))
-                || !instant.isBefore(LocalDateTime.of(MAX_YEAR + 1, 1, 1, 0, 0).toInstant(ZoneOffset.UTC))) {
+        if (instant.isBefore(STORABLE_FROM) || !instant.isBefore(STORABLE_UNTIL)) {
             throw PostException.invalidDate();
         }
     }

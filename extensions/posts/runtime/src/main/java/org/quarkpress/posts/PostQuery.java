@@ -49,6 +49,18 @@ import org.quarkpress.core.UserId;
  * that does not look for one post by id or slug covers every searchable type. With no order, or
  * {@code RELEVANCE} first, results are ranked as WordPress ranks them, then ordered by date (newest first unless the
  * relevance key is ascending) and id; see {@link OrderKey}.
+ *
+ * <p>{@code dates} are WordPress's date conditions, all of which must hold; see {@link DateCondition}.
+ *
+ * <p>{@code stickyFirst} (off by default, as in WordPress's {@code get_posts}) puts sticky posts first as WordPress's
+ * main query does, and only where it does: on the first page (a query without paging always counts as on it, and
+ * {@code offset} does not move it off), and not for a query for one post, a query given a search (even an empty or
+ * over-long one), one given {@code author}, or one given exactly one type whose registration has an archive. Sticky
+ * posts the page holds move to its front in the page's order; then the published sticky posts of the queried types
+ * that the page lacks and {@code postNotIn} does not name are inserted after them, newest first, whatever the query's
+ * other conditions, so the page can hold more posts than its size. The count of matching posts is unchanged.
+ * Whether the query is for one post, a search, an author's posts or one type's archive is judged before the query
+ * filters run; a query filter does not change the fetch of the added sticky posts.
  */
 public record PostQuery(
         List<String> types,
@@ -67,6 +79,8 @@ public record PostQuery(
         OptionalInt menuOrder,
         Optional<String> search,
         boolean sentence,
+        List<DateCondition> dates,
+        boolean stickyFirst,
         List<PostOrder> orderBy,
         OptionalInt perPage,
         int page,
@@ -94,6 +108,7 @@ public record PostQuery(
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(menuOrder, "menuOrder");
         Objects.requireNonNull(search, "search");
+        dates = List.copyOf(dates);
         orderBy = List.copyOf(orderBy);
         Objects.requireNonNull(perPage, "perPage");
         Objects.requireNonNull(offset, "offset");
@@ -167,6 +182,8 @@ public record PostQuery(
         builder.menuOrder = menuOrder;
         builder.search = search;
         builder.sentence = sentence;
+        builder.dates.addAll(dates);
+        builder.stickyFirst = stickyFirst;
         builder.orderBy.addAll(orderBy);
         builder.perPage = perPage;
         builder.page = page;
@@ -191,6 +208,8 @@ public record PostQuery(
         private OptionalInt menuOrder = OptionalInt.empty();
         private Optional<String> search = Optional.empty();
         private boolean sentence;
+        private final List<DateCondition> dates = new ArrayList<>();
+        private boolean stickyFirst;
         private final List<PostOrder> orderBy = new ArrayList<>();
         private OptionalInt perPage = OptionalInt.empty();
         private int page = 1;
@@ -291,6 +310,18 @@ public record PostQuery(
             return this;
         }
 
+        /** Appends a date condition; all of them must hold. */
+        public Builder date(DateCondition condition) {
+            dates.add(Objects.requireNonNull(condition, "condition"));
+            return this;
+        }
+
+        /** Puts sticky posts first as WordPress's main query does (off by default). */
+        public Builder stickyFirst(boolean value) {
+            this.stickyFirst = value;
+            return this;
+        }
+
         /** Appends an ordering key. */
         public Builder orderBy(OrderKey key, boolean ascending) {
             orderBy.add(new PostOrder(key, ascending));
@@ -331,6 +362,8 @@ public record PostQuery(
                     menuOrder,
                     search,
                     sentence,
+                    dates,
+                    stickyFirst,
                     orderBy,
                     perPage,
                     page,

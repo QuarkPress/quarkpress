@@ -6,6 +6,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -23,6 +26,8 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.core.WordPressKeys;
 import org.quarkpress.persistence.runtime.TenantIds;
+import org.quarkpress.posts.DateColumn;
+import org.quarkpress.posts.DateCondition;
 import org.quarkpress.posts.OrderKey;
 import org.quarkpress.posts.PostOrder;
 import org.quarkpress.posts.PostPage;
@@ -139,6 +144,9 @@ public class PostQueries {
                 ? Optional.of(SearchTerms.parse(query.search().get(), query.sentence()))
                 : Optional.empty();
         parsed.ifPresent(terms -> searchCondition(terms, where));
+        for (DateCondition condition : query.dates()) {
+            dateCondition(condition, where);
+        }
         TypedQuery<PostEntity> select = posts.getEntityManager()
                 .createQuery(
                         "select p from PostEntity p where " + where.text() + orderClause(query, parsed, where),
@@ -151,22 +159,30 @@ public class PostQueries {
                     .map(PostEntity::toSnapshot)
                     .filter(row -> !query.singular() || shownAlone(siteId, row, requestedStatuses(query)))
                     .toList();
-            return new PostPage(rows, rows.size(), 0);
+            return new PostPage(stickyFirst(siteId, requested, query, queriedTypes, perPage, rows), rows.size(), 0);
         }
-        long page = query.page() == 0 ? 1 : Math.abs((long) query.page());
-        long first = query.offset().isPresent() ? Math.abs((long) query.offset().getAsInt()) : (page - 1) * perPage;
+        long first =
+                query.offset().isPresent() ? Math.abs((long) query.offset().getAsInt()) : (page(query) - 1) * perPage;
         select.setFirstResult((int) Math.min(first, Integer.MAX_VALUE));
         select.setMaxResults(perPage);
         List<PostSnapshot> rows =
                 select.getResultList().stream().map(PostEntity::toSnapshot).toList();
         if (rows.isEmpty()) {
-            return new PostPage(rows, 0, 0);
+            return new PostPage(stickyFirst(siteId, requested, query, queriedTypes, perPage, rows), 0, 0);
         }
         TypedQuery<Long> count = posts.getEntityManager()
                 .createQuery("select count(p) from PostEntity p where " + where.text(), Long.class);
         where.bindConditions(count);
         long found = count.getSingleResult();
-        return new PostPage(rows, found, (found + perPage - 1) / perPage);
+        return new PostPage(
+                stickyFirst(siteId, requested, query, queriedTypes, perPage, rows),
+                found,
+                (found + perPage - 1) / perPage);
+    }
+
+    /** The page asked for: 0 counts as 1 and a negative page as its absolute value. */
+    private static long page(PostQuery query) {
+        return query.page() == 0 ? 1 : Math.abs((long) query.page());
     }
 
     /**
@@ -493,6 +509,118 @@ public class PostQueries {
             out.append(c);
         }
         return out.append('%').toString();
+    }
+
+    /**
+     * One date condition: the column's date text, to the second, compared with the bounds as WordPress compares it.
+     * The local post date is the GMT date in the site's zone, or the modification date while the date floats; the
+     * local modification date is the modification date in the site's zone; GMT columns read in UTC. A missing GMT
+     * post date is WordPress's zero date. Wall times become spans of instants (see {@link PostDates#wallFrom}),
+     * clipped to the storable dates.
+     */
+    private void dateCondition(DateCondition condition, Where where) {
+        DateColumn column = condition.column();
+        ZoneId zone = column == DateColumn.DATE_GMT || column == DateColumn.MODIFIED_GMT ? ZoneOffset.UTC : site.zone();
+        String date = switch (column) {
+            case DATE -> expression(OrderKey.DATE);
+            case DATE_GMT -> "p.publishedAt";
+            case MODIFIED, MODIFIED_GMT -> expression(OrderKey.MODIFIED);
+        };
+        List<String> parts = new ArrayList<>();
+        condition.from().ifPresent(from -> parts.add(within(date, PostDates.wallFrom(from, zone), where)));
+        condition.until().ifPresent(until -> parts.add(within(date, PostDates.wallBefore(until, zone), where)));
+        if (parts.isEmpty()) {
+            return;
+        }
+        String dated = String.join(" and ", parts);
+        if (column == DateColumn.DATE_GMT) {
+            where.and(
+                    condition.zeroDateKept()
+                            ? date + " is null or (" + dated + ")"
+                            : date + " is not null and (" + dated + ")");
+        } else {
+            where.and(dated);
+        }
+    }
+
+    /** {@code date} within one of the spans, clipped to the storable dates; false when none is left. */
+    private static String within(String date, List<PostDates.Span> spans, Where where) {
+        List<String> kept = new ArrayList<>();
+        for (PostDates.Span span : spans) {
+            Optional<Instant> from = span.from().filter(instant -> instant.isAfter(PostDates.STORABLE_FROM));
+            Optional<Instant> until = span.until().filter(instant -> instant.isBefore(PostDates.STORABLE_UNTIL));
+            boolean empty = span.from().isPresent() && !span.from().get().isBefore(PostDates.STORABLE_UNTIL)
+                    || span.until().isPresent() && !span.until().get().isAfter(PostDates.STORABLE_FROM);
+            if (empty) {
+                continue;
+            }
+            List<String> ends = new ArrayList<>();
+            from.ifPresent(instant -> ends.add(date + " >= " + where.param(instant)));
+            until.ifPresent(instant -> ends.add(date + " < " + where.param(instant)));
+            kept.add(ends.isEmpty() ? "1 = 1" : String.join(" and ", ends));
+        }
+        return kept.isEmpty() ? "(1 = 0)" : "((" + String.join(") or (", kept) + "))";
+    }
+
+    /**
+     * Sticky posts first, as WordPress's main query puts them (see {@link PostQuery}): the page's sticky posts move to
+     * its front in the page's order, then the published sticky posts of the queried types that the page lacks and
+     * {@code postNotIn} does not name follow, newest first, whatever the other conditions. Whether the query is for
+     * one post, a search, an author's posts or one type's archive is read from the query as requested, before the
+     * query filters ran, as WordPress decides it before {@code pre_get_posts}; the rest from the filtered query. The
+     * fetch of the added posts runs no query filter.
+     */
+    private List<PostSnapshot> stickyFirst(
+            SiteId siteId,
+            PostQuery requested,
+            PostQuery query,
+            List<String> queriedTypes,
+            int perPage,
+            List<PostSnapshot> rows) {
+        if (!query.stickyFirst()
+                || requested.singular()
+                || requested.search().isPresent()
+                || requested.author().isPresent()
+                || typeArchive(requested)
+                || (perPage != -1 && page(query) > 1)) {
+            return rows;
+        }
+        Set<PostId> missing = new LinkedHashSet<>(posts.stickyIds(siteId));
+        if (missing.isEmpty()) {
+            return rows;
+        }
+        List<PostSnapshot> result = new ArrayList<>();
+        List<PostSnapshot> rest = new ArrayList<>();
+        for (PostSnapshot row : rows) {
+            (missing.remove(row.id()) ? result : rest).add(row);
+        }
+        missing.removeAll(query.postNotIn());
+        if (!missing.isEmpty() && !queriedTypes.isEmpty()) {
+            TypedQuery<PostEntity> added = posts.getEntityManager()
+                    .createQuery(
+                            "select p from PostEntity p where p.siteId = :site and p.id in :ids and p.type in :types"
+                                    + " and p.status = :status order by " + expression(OrderKey.DATE)
+                                    + direction(false) + ", " + expression(OrderKey.ID) + direction(false),
+                            PostEntity.class);
+            added.setParameter("site", TenantIds.param(siteId));
+            added.setParameter("ids", postIds(missing));
+            added.setParameter("types", queriedTypes);
+            added.setParameter("status", "publish");
+            added.getResultList().stream().map(PostEntity::toSnapshot).forEach(result::add);
+        }
+        result.addAll(rest);
+        return result;
+    }
+
+    /**
+     * Whether the query is an archive of one type, as WordPress decides it: exactly one type given, named as
+     * registered (before sanitizing), whose registration has an archive.
+     */
+    private boolean typeArchive(PostQuery query) {
+        return query.types().size() == 1
+                && types.find(query.types().get(0))
+                        .map(PostTypeDefinition::hasArchive)
+                        .orElse(false);
     }
 
     /**

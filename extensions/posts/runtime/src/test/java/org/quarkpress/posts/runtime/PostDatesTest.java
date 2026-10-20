@@ -247,4 +247,38 @@ class PostDatesTest {
     private static String coerce(String status, String gmtDate) {
         return PostDates.coerceStatus(status, Optional.of(gmt(gmtDate)), NOW, false);
     }
+
+    private static PostDates.Span span(String from, String until) {
+        return new PostDates.Span(
+                Optional.ofNullable(from).map(PostDatesTest::gmt),
+                Optional.ofNullable(until).map(PostDatesTest::gmt));
+    }
+
+    @Test
+    void anOrdinaryWallTimeSplitsTimeAtItsOneInstant() {
+        assertThat(PostDates.wallFrom(local("2026-01-15 12:00:00"), PARIS))
+                .containsExactly(span("2026-01-15 11:00:00", null));
+        assertThat(PostDates.wallBefore(local("2026-01-15 12:00:00"), PARIS))
+                .containsExactly(span(null, "2026-01-15 11:00:00"));
+        assertThat(PostDates.wallFrom(local("2026-01-15 12:00:00"), ZoneOffset.UTC))
+                .containsExactly(span("2026-01-15 12:00:00", null));
+    }
+
+    @Test
+    void aWallTimeInASpringGapStartsAtTheTransition() {
+        assertThat(PostDates.wallFrom(local("2026-03-29 02:30:00"), PARIS))
+                .containsExactly(span("2026-03-29 01:00:00", null));
+        assertThat(PostDates.wallBefore(local("2026-03-29 02:30:00"), PARIS))
+                .containsExactly(span(null, "2026-03-29 01:00:00"));
+    }
+
+    @Test
+    void aWallTimeInAnAutumnOverlapLeavesOutTheRepeatedTimesBeforeIt() {
+        assertThat(PostDates.wallFrom(local("2025-10-26 02:20:00"), PARIS))
+                .containsExactly(span("2025-10-26 00:20:00", "2025-10-26 01:00:00"), span("2025-10-26 01:20:00", null));
+        assertThat(PostDates.wallBefore(local("2025-10-26 02:20:00"), PARIS))
+                .containsExactly(span(null, "2025-10-26 00:20:00"), span("2025-10-26 01:00:00", "2025-10-26 01:20:00"));
+        assertThat(PostDates.wallFrom(local("2025-11-02 01:30:00"), NEW_YORK))
+                .containsExactly(span("2025-11-02 05:30:00", "2025-11-02 06:00:00"), span("2025-11-02 06:30:00", null));
+    }
 }
