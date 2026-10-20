@@ -1,0 +1,7 @@
+# Deliberate differences between the posts module's save steps and WordPress 7.1.3's functions.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the posts README's "Differences from WordPress"
+# table. A line that no longer covers a difference fails the run.
+# SaveParityTest gives a comparison one of the aspects below only after checking that the text differs in nothing but
+# the documented difference (BlockDifferences): any other difference fails the run under the plain aspect.
+* *_save_pre:lib7 D20 the block-attribute filter of lib-wp-kses keeps big integers exact, writes {} and numeric-key objects as objects, and writes a number that overflows to infinity as null (lib-wp-kses #7, lib-wp-blocks D10 to D13)
+* *_save_pre:lib11 D20 lib-wp-kses neutralizes the block delimiters after a block opener that its less-than filter escaped, which WordPress leaves live (lib-wp-kses #11)

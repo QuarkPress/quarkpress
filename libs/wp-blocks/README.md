@@ -54,6 +54,7 @@ String wordpress = WpBlocks.serializeCanonical(blocks); // what serialize_blocks
 boolean usesBlocks = WpBlocks.hasBlocks(postContent);           // has_blocks
 boolean hasGallery = WpBlocks.hasBlock(postContent, "gallery"); // has_block
 String shortName = WpBlocks.stripCoreNamespace("core/gallery"); // "gallery"
+String withoutCss = WpBlocks.stripCustomCss(postContent);      // wp_strip_custom_css_from_blocks
 
 Block edited = blocks.get(0).withAttributes(newAttrs);   // re-serializes from the node
 Block rewired = blocks.get(0).withInnerBlocks(children); // one null chunk per child
@@ -165,6 +166,11 @@ its audit item.
 | D13 | `{}` inside attributes stays `{}` | written as `[]` | same meaning |
 | D20 | attributes of any size parse in linear time | PCRE limits turn the whole document into one freeform block | robustness |
 | (limit) | the text repeated into recovered copies is bounded by the larger of `maxRecoveredChars` (default 8 000 000) and `recoveredCharsPerInputChar` (default 16) times the input length; exceeding it throws `BlockParseException` | builds the tree, bounded only by PHP's `memory_limit` | each block left open at the end repeats the rest of the document, so 1024 unclosed openers before 1 MB of text would copy about 1 GB |
+
+D10 to D13 concern `serialize` and `serializeCanonical`. `stripCustomCss` writes the attributes it changes as
+WordPress does: integers beyond 64 bits become floats, `{}` and numeric-key objects become lists, and an attribute
+number that overflows to infinity removes all attributes of that block. Its comparison with WordPress lives in the
+posts module (`SaveParityTest`), not in this module's parity tests.
 
 ## Conformance
 

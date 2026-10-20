@@ -86,6 +86,16 @@ public final class WpBlocks {
     }
 
     /**
+     * Removes block custom CSS from markup as WordPress does when it saves content for a user who may not edit CSS:
+     * the {@code css} entry of each opening or void block's {@code style} attribute, an emptied {@code style}, and
+     * attributes left empty. Other text is unchanged; content without blocks is returned as it is.
+     */
+    public static String stripCustomCss(String content) {
+        Objects.requireNonNull(content, "content");
+        return CustomCss.strip(content);
+    }
+
+    /**
      * WordPress's {@code has_block}: false when {@link #hasBlocks} is; otherwise whether the text contains {@code
      * "<!-- wp:"} followed by the qualified name ({@code core/} added when {@code name} has no slash) and a space,
      * or, for a core block, by its short name and a space. A substring test like WordPress's; names are compared
