@@ -26,6 +26,7 @@ import org.quarkpress.core.deployment.spi.PostStatusBuildItem;
 import org.quarkpress.core.deployment.spi.PostTypeBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
+import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostType;
 import org.quarkpress.posts.PostTypes;
@@ -49,7 +50,7 @@ class PostsProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(PostCapabilityFacts.class);
+        return UnremovableBeanBuildItem.beanTypes(PostCapabilityFacts.class, PostMeta.class);
     }
 
     @BuildStep
