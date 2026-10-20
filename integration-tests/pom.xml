@@ -30,6 +30,7 @@
     <module>feature-extension</module>
     <module>content</module>
     <module>multisite</module>
+    <module>security</module>
     <module>host-coexistence</module>
   </modules>
 

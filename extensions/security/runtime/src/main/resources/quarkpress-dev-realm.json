@@ -4,6 +4,14 @@
   "enabled": true,
   "sslRequired": "none",
   "accessTokenLifespan": 3600,
+  "roles": {
+    "realm": [
+      {
+        "name": "administrator",
+        "description": "A realm role named like WordPress's administrator, held by bob: QuarkPress must never carry it into a site's roles"
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "quarkus-app",
@@ -80,6 +88,7 @@
       "firstName": "Bob",
       "lastName": "Baker",
       "email": "bob@quarkpress.test",
+      "realmRoles": ["administrator"],
       "credentials": [{"type": "password", "value": "bob", "temporary": false}]
     },
     {

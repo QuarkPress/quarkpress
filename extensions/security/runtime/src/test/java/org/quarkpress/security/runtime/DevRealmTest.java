@@ -53,6 +53,24 @@ class DevRealmTest {
     }
 
     @Test
+    void bobAloneHoldsTheRealmRoleNamedLikeWordPresssAdministrator() throws Exception {
+        JsonNode realm = realm();
+        List<String> roles = new ArrayList<>();
+        for (JsonNode role : realm.get("roles").get("realm")) {
+            roles.add(role.get("name").asText());
+        }
+        assertThat(roles).containsExactly("administrator");
+        for (JsonNode user : realm.get("users")) {
+            if (user.get("username").asText().equals("bob")) {
+                assertThat(user.get("realmRoles")).hasSize(1);
+                assertThat(user.get("realmRoles").get(0).asText()).isEqualTo("administrator");
+            } else {
+                assertThat(user.get("realmRoles")).isNull();
+            }
+        }
+    }
+
+    @Test
     void devServicesImportTheRealm() throws Exception {
         Properties properties = new Properties();
         try (InputStream in =
