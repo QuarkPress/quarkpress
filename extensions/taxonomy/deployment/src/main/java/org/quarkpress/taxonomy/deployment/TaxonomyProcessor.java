@@ -27,6 +27,7 @@ import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.Taxonomy;
 import org.quarkpress.taxonomy.Terms;
 import org.quarkpress.taxonomy.runtime.BuiltInTaxonomies;
+import org.quarkpress.taxonomy.runtime.DefaultTerms;
 import org.quarkpress.taxonomy.runtime.JpaTerms;
 import org.quarkpress.taxonomy.runtime.TaxonomyJson;
 import org.quarkpress.taxonomy.runtime.TaxonomyRecorder;
@@ -52,6 +53,7 @@ class TaxonomyProcessor {
                 TermLookups.class,
                 TermAssignments.class,
                 TermCounts.class,
+                DefaultTerms.class,
                 Terms.class,
                 JpaTerms.class);
     }

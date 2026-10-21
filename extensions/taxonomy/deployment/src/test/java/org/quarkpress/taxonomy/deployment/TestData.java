@@ -41,11 +41,8 @@ public final class TestData {
                 roles);
     }
 
-    /**
-     * A new site on its own domain, with the options WordPress gives a new site and its Uncategorized category named by
-     * {@code default_category}, as a site created through the multisite module has them.
-     */
-    public static SiteId site(AgroalDataSource dataSource) {
+    /** A new site with the options WordPress gives a new site and no terms ({@code default_category} is 0). */
+    public static SiteId bareSite(AgroalDataSource dataSource) {
         String domain = "terms-" + UUID.randomUUID() + ".test";
         Jdbc.update(dataSource, "insert into qp_site (domain, path, name) values (?, '/', 'terms')", domain);
         SiteId site = SiteId.of(Jdbc.count(dataSource, "select id from qp_site where domain = ?", domain));
@@ -53,6 +50,15 @@ public final class TestData {
                 SiteDefaults.forNewSite("terms").entrySet()) {
             siteOption(dataSource, site, option.getKey(), option.getValue().toString());
         }
+        return site;
+    }
+
+    /**
+     * A new site on its own domain, with the options WordPress gives a new site and its Uncategorized category named by
+     * {@code default_category}, as a site created through the multisite module has them.
+     */
+    public static SiteId site(AgroalDataSource dataSource) {
+        SiteId site = bareSite(dataSource);
         TermId uncategorized = term(dataSource, site, "category", "Uncategorized", "uncategorized", null);
         siteOption(dataSource, site, "default_category", Long.toString(uncategorized.value()));
         return site;
