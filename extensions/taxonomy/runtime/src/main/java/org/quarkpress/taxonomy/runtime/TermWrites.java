@@ -4,6 +4,7 @@ import io.quarkus.arc.All;
 import io.quarkus.arc.InstanceHandle;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -13,10 +14,12 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.function.Supplier;
 import org.quarkpress.core.Filters;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.core.TermId;
+import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.runtime.Acting;
 import org.quarkpress.taxonomy.TermChanges;
 import org.quarkpress.taxonomy.TermDraft;
@@ -26,9 +29,9 @@ import org.quarkpress.taxonomy.TermWriteContext;
 import org.quarkpress.taxonomy.TermWriteFilter;
 
 /**
- * WordPress's term saves, without capability checks (the service checks before it calls them): the caller holds the
- * site's post lock. Input refusals come before the first write; once a call writes, any failure marks the transaction
- * for rollback.
+ * WordPress's term saves and deletes, without capability checks (the service checks before it calls them): the caller
+ * holds the site's post lock. Input refusals come before the first write; once a call writes, any failure marks the
+ * transaction for rollback.
  */
 @ApplicationScoped
 public class TermWrites {
@@ -157,6 +160,76 @@ public class TermWrites {
             events.updated(site, now, before, after);
             return after;
         });
+    }
+
+    @Inject
+    TermAssignments assignments;
+
+    @Inject
+    TermAssignmentRepository assignmentRows;
+
+    @Inject
+    DefaultTerms defaults;
+
+    /**
+     * Deletes the locked term: WordPress's {@code wp_delete_term} after its checks. Children are handed on, posts
+     * reassigned (counts and announcements follow), the row removed, and the delete announced. Any failure marks the
+     * transaction for rollback, so a failed delete changes nothing.
+     */
+    public TermSnapshot delete(SiteId site, TaxonomyDefinition taxonomy, TermEntity row) {
+        Instant now = clock.now().truncatedTo(ChronoUnit.MICROS);
+        TermSnapshot before = row.toSnapshot();
+        Optional<TermId> replacement = replacement(site, taxonomy, before.id());
+        return written(() -> {
+            releaseChildren(site, taxonomy, before);
+            for (PostId post : assignmentRows.postsOf(site, before.id())) {
+                List<TermId> held = assignments.termsOf(site, post, taxonomy.key());
+                List<TermId> next = held.size() == 1 && replacement.isPresent()
+                        ? List.of(replacement.get())
+                        : held.stream().filter(id -> !id.equals(before.id())).toList();
+                assignments.set(site, post, taxonomy, next, false);
+            }
+            terms.delete(row);
+            terms.flush();
+            events.deleted(site, now, before);
+            return before;
+        });
+    }
+
+    /**
+     * The term that posts left without a term of the taxonomy get: its current default term, unless that is the term
+     * being deleted. The caller is bound to {@code site}.
+     */
+    public Optional<TermId> replacement(SiteId site, TaxonomyDefinition taxonomy, TermId deleted) {
+        return defaults.current(site, taxonomy).filter(id -> !id.equals(deleted));
+    }
+
+    /**
+     * The children of a term being deleted, locked in id order: in a hierarchical taxonomy they get its parent; in a
+     * flat one they are left without parent (the cascading key would otherwise delete them). Only the parent changes,
+     * not their version. The site condition is defence in depth: the composite parent key keeps children on their
+     * parent's site.
+     */
+    private void releaseChildren(SiteId site, TaxonomyDefinition taxonomy, TermSnapshot term) {
+        Object siteParam = TenantIds.param(site);
+        List<TermEntity> children = terms.find(
+                        "siteId = ?1 and parentId = ?2 and id <> ?2 order by id",
+                        siteParam,
+                        term.id().value())
+                .withLock(LockModeType.PESSIMISTIC_WRITE)
+                .list();
+        if (children.isEmpty()) {
+            return;
+        }
+        List<Long> ids = children.stream().map(child -> child.id).toList();
+        Long handedDown =
+                taxonomy.hierarchical() ? term.parent().map(TermId::value).orElse(null) : null;
+        if (handedDown == null) {
+            terms.update("parentId = null where siteId = ?1 and id in ?2", siteParam, ids);
+        } else {
+            terms.update("parentId = ?1 where siteId = ?2 and id in ?3", handedDown, siteParam, ids);
+        }
+        children.forEach(child -> terms.getEntityManager().refresh(child));
     }
 
     /** Leaves each member of a loop further up without parent, in WordPress's order, announcing each as updated. */

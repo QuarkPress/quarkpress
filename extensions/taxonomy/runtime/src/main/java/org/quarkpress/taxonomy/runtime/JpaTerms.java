@@ -100,6 +100,31 @@ public class JpaTerms implements Terms {
         return writes.update(siteId, definition, row, changes);
     }
 
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<TermSnapshot> delete(TermId term, String taxonomy) {
+        Objects.requireNonNull(term, "term");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        SiteId siteId = site.siteId();
+        Optional<TaxonomyDefinition> definition = taxonomies.find(taxonomy);
+        if (definition.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<TermSnapshot> unlocked = lookups.find(siteId, term, taxonomy).map(TermEntity::toSnapshot);
+        if (unlocked.isEmpty()) {
+            return Optional.empty();
+        }
+        acting.require(siteId, "delete_term", Optional.of(facts.of(unlocked.get())));
+        locks.lock(siteId);
+        Optional<TermEntity> row = terms.lockTerm(siteId, term).filter(locked -> locked.taxonomy.equals(taxonomy));
+        if (row.isEmpty()) {
+            return Optional.empty();
+        }
+        acting.require(siteId, "delete_term", Optional.of(facts.of(row.get().toSnapshot())));
+        return Optional.of(writes.delete(siteId, definition.get(), row.get()));
+    }
+
     /**
      * The stored term of the taxonomy, locked for the write: read and checked without locks (a missing term, or one of
      * another site or taxonomy, is {@code invalid_term}), then the site's post lock is taken and the term is read again

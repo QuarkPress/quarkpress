@@ -10,6 +10,7 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TermId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.taxonomy.TermCreated;
+import org.quarkpress.taxonomy.TermDeleted;
 import org.quarkpress.taxonomy.TermSnapshot;
 import org.quarkpress.taxonomy.TermUpdated;
 import org.quarkpress.taxonomy.TermsAssigned;
@@ -44,5 +45,12 @@ public class TermEvents {
     public void assigned(
             SiteId site, Instant at, PostId post, String taxonomy, List<TermId> before, List<TermId> after) {
         transactions.publish(assignedEvent, new TermsAssigned(site, at, post, taxonomy, before, after));
+    }
+
+    @Inject
+    Event<TermDeleted> deletedEvent;
+
+    public void deleted(SiteId site, Instant at, TermSnapshot term) {
+        transactions.publish(deletedEvent, new TermDeleted(site, at, term));
     }
 }

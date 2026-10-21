@@ -1,6 +1,7 @@
 package org.quarkpress.taxonomy;
 
 import java.util.List;
+import java.util.Optional;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.TermId;
 
@@ -68,4 +69,15 @@ public interface Terms {
      * queryable, hold its {@code assign_terms}.
      */
     List<TermSnapshot> postTerms(PostId post, String taxonomy);
+
+    /**
+     * Deletes a term (WordPress's {@code wp_delete_term}). Empty, without any check, when the taxonomy is unknown or
+     * the term is missing, of another site or of another taxonomy. Needs {@code delete_term} on the term, which nobody
+     * holds for the taxonomy's default term (the default category, or a custom default term). In a hierarchical
+     * taxonomy the term's children get its parent; other children are left without parent. A post whose only term of
+     * the taxonomy it was gets the taxonomy's default term, when it has one; other posts just lose it; counts follow
+     * and each change is announced with {@link TermsAssigned}. Then {@link TermDeleted} is fired. Returns the term as
+     * it was.
+     */
+    Optional<TermSnapshot> delete(TermId term, String taxonomy);
 }
