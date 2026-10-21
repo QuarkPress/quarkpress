@@ -11,7 +11,10 @@ import io.quarkus.arc.InjectableContext.ContextState;
 import io.quarkus.arc.ManagedContext;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.inject.Inject;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -121,6 +124,7 @@ abstract class ScenarioParityBase {
             for (Scenario scenario : scenarios) {
                 Outcome wordpressSide = WordPressOutcomes.normalize(scenario, oracle.run(scenario));
                 Outcome quarkpressSide = runOnQuarkPress(scenario);
+                dumpOutcomes(scenario.caseId(), wordpressSide, quarkpressSide);
                 if (scenario.generated()) {
                     run.generated(scenario.caseId(), ScenarioJson.write(scenario));
                 }
@@ -130,6 +134,33 @@ abstract class ScenarioParityBase {
         System.out.println(library + ": " + scenarios.size() + " scenarios, " + run.comparisons() + " comparisons, "
                 + run.mismatches().size() + " differences");
         run.assertParity(minimum);
+    }
+
+    /**
+     * With the system property {@code wp.scenario.outcomes} naming a file, appends every fact of both sides to it, one
+     * line each ({@code case, key, WordPress, QuarkPress}, tab-separated): the comparison itself keeps only the
+     * differences, and this shows what agreed.
+     */
+    private static void dumpOutcomes(String caseId, Outcome wordpressSide, Outcome quarkpressSide) throws Exception {
+        String file = System.getProperty("wp.scenario.outcomes", "");
+        if (file.isEmpty()) {
+            return;
+        }
+        StringBuilder lines = new StringBuilder();
+        Map<String, String> keys = new LinkedHashMap<>(wordpressSide.facts());
+        quarkpressSide.facts().forEach(keys::putIfAbsent);
+        for (String key : keys.keySet()) {
+            lines.append(caseId)
+                    .append('\t')
+                    .append(key)
+                    .append('\t')
+                    .append(wordpressSide.facts().get(key))
+                    .append('\t')
+                    .append(quarkpressSide.facts().get(key))
+                    .append('\n');
+        }
+        Files.writeString(
+                Path.of(file), lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
     /**
