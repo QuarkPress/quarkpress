@@ -11,6 +11,9 @@ import org.quarkpress.core.SiteId;
  * it sanitizes (the given slug, or the title when none was given), a {@link PostSlugFilter} gets the sanitized slug as
  * it was before it was made unique. {@code parent} depends on the step too: on an update, a {@link SlugSanitizer} sees
  * the requested parent, before the parent loop check, and a {@link PostSlugFilter} sees the parent after it.
+ *
+ * <p>The taxonomy module sanitizes term slugs with the same {@link SlugSanitizer}: for a term, {@code post} and
+ * {@code parent} are empty, {@code type} is the term's taxonomy and {@code status} is empty.
  */
 public record SlugContext(
         SiteId site, Optional<PostId> post, String type, String status, Optional<PostId> parent, String original) {

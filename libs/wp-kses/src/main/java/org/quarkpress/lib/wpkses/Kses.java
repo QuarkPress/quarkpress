@@ -180,6 +180,24 @@ public final class Kses {
         return EntityNormalizer.normalize(TextUtils.wellFormed(text), false);
     }
 
+    /**
+     * wp_pre_kses_less_than: each '<' with the text after it, up to the next '<' (not included), the next '>'
+     * (included) or the end, is HTML-escaped when it holds no '>'.
+     */
+    public static String lessThan(String text) {
+        Objects.requireNonNull(text, "text");
+        return PreFilters.lessThan(TextUtils.wellFormed(text));
+    }
+
+    /**
+     * _wp_specialchars with its defaults: '&', '<' and '>' become entities, an '&' that starts a character reference is
+     * not encoded again (after normalizing references as kses does), and quotes are kept.
+     */
+    public static String specialChars(String text) {
+        Objects.requireNonNull(text, "text");
+        return HtmlEscaper.specialChars(TextUtils.wellFormed(text));
+    }
+
     /** Configures a {@link Kses}; every option has WordPress's default. */
     public static final class Builder {
 
