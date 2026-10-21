@@ -25,7 +25,9 @@ import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.core.deployment.spi.TaxonomyBuildItem;
 import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.Taxonomy;
+import org.quarkpress.taxonomy.Terms;
 import org.quarkpress.taxonomy.runtime.BuiltInTaxonomies;
+import org.quarkpress.taxonomy.runtime.JpaTerms;
 import org.quarkpress.taxonomy.runtime.TaxonomyJson;
 import org.quarkpress.taxonomy.runtime.TaxonomyRecorder;
 import org.quarkpress.taxonomy.runtime.TermCapabilityFacts;
@@ -43,7 +45,8 @@ class TaxonomyProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(TermCapabilityFacts.class, TermLookups.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                TermCapabilityFacts.class, TermLookups.class, Terms.class, JpaTerms.class);
     }
 
     @BuildStep
