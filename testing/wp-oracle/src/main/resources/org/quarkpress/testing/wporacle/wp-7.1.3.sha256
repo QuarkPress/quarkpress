@@ -41,3 +41,6 @@ a446ddd76ce401fc8173bfee4e79a98f8c3567ed3ba7560c2f167ca85e6976b0  wp-admin/inclu
 f6c85fc833545d80d1c389709ac0881600b15a5211f6538471fa317d09584da7  wp-includes/class-wp-post-type.php
 083ef446b34a63cbb811a980185b63dc931325bfba60b922b2093a4821418808  wp-includes/block-supports/custom-css.php
 34b5b13f7c41d83a7c888cd8506513f661259949b27acab271faf39eb53c20c2  wp-includes/class-wp-query.php
+055b2da70596c7d78efb51892b6e078940a35e6c9f0963a16eb43915f87a0805  wp-includes/class-wp-taxonomy.php
+281f7aa456cb28bd09b1476b61ee7d9614db78de013f31667141a42c07e31c7b  wp-includes/taxonomy.php
+af18376c0aa11cac728190fac6dfe59770a1827fcfeda13ec95b53e4a8c70fbf  wp-includes/class-wp-term-query.php
