@@ -5,7 +5,7 @@
 none - D1 domains and paths are stored lower-cased; WordPress keeps their case and compares through its collation (WordPress's stored domains and paths are lower-cased before comparing)
 none - D4 a request that matches no site is served without a site; WordPress redirects or reports "not installed" (both become "none")
 none - D9 option values keep their JSON types; WordPress reads every stored scalar back as text (values are compared as text)
-ms13-defaults@* op3:read_options:default_category D7 default_category is 0 until a module creates the default category; WordPress stores 1
+ms13-defaults@* op3:read_options:default_category D7 default_category names the site's Uncategorized term, whose id is unique across the network; WordPress's is 1
 ms2-dot-segments@* op2:lookup D10 a raw path with . or .. segments is served without a site; WordPress compares the segments as written
 ms3-zero-site@subdirectory op1:create_site D16 a site path no request can reach (a "0" segment, dot segments, interior //) is refused at creation; WordPress creates a site no request then reaches
 ms3-zero-site@subdirectory site#1 D16 a site path no request can reach (a "0" segment, dot segments, interior //) is refused at creation; WordPress creates a site no request then reaches

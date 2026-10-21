@@ -66,6 +66,8 @@ final class PostScenarioRunner {
     private final Map<String, Optional<JsonNode>> changed = new LinkedHashMap<>();
     /** The inserted posts a trash or delete of this run removed for good. */
     private final Set<PostId> deleted = new HashSet<>();
+    /** The runner of the scenario's term operations, attached by {@link #terms}. */
+    private TermScenarioRunner termRunner;
 
     PostScenarioRunner(Posts posts, SiteScope scope, OptionStore store, Options options, boolean guids) {
         this.posts = posts;
@@ -73,6 +75,11 @@ final class PostScenarioRunner {
         this.store = store;
         this.options = options;
         this.guids = guids;
+    }
+
+    /** Attaches the runner of the scenario's term operations, which this runner hands them to. */
+    void terms(TermScenarioRunner runner) {
+        this.termRunner = runner;
     }
 
     void run(int op, ScenarioOp.PostOp step, Outcome outcome, List<UserId> users) throws Exception {
@@ -188,8 +195,7 @@ final class PostScenarioRunner {
                     outcome.observed("op" + op + ":read_post", observe(post.get(), users, null));
                 }
             }
-            case ScenarioOp.TermOp term ->
-                throw new UnsupportedOperationException("term operations arrive with the term runner");
+            case ScenarioOp.TermOp term -> termRunner.run(op, term, outcome, users);
         }
     }
 
@@ -281,7 +287,7 @@ final class PostScenarioRunner {
     }
 
     /** Runs {@code work} bound to the main site as scenario user {@code user} (0: the system identity). */
-    private <T> T as(int user, List<UserId> users, Callable<T> work) throws Exception {
+    <T> T as(int user, List<UserId> users, Callable<T> work) throws Exception {
         SecurityIdentity identity = user == 0
                 ? Arc.container().instance(SystemIdentity.class).get().identity()
                 : identityOf(users.get(user - 1));
@@ -307,7 +313,7 @@ final class PostScenarioRunner {
                 .build();
     }
 
-    private Optional<PostId> post(int index) {
+    Optional<PostId> post(int index) {
         return index < 1 || index > inserted.size() ? Optional.empty() : Optional.ofNullable(inserted.get(index - 1));
     }
 

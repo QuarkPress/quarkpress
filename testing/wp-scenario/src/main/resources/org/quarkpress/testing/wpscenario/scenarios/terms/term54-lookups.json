@@ -1,0 +1,18 @@
+{"id": "term54-lookups", "rule": "TAX56", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "Headlines", "slug": "news"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "1005"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "World"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "Child", "parent": "t3"}},
+  {"op": "get_term", "term": "t1", "taxonomy": ""},
+  {"op": "get_term", "term": "t1", "taxonomy": "category"},
+  {"op": "get_term", "term": "default", "taxonomy": "genre"},
+  {"op": "term_exists", "taxonomy": "post_tag", "value": "News!"},
+  {"op": "term_exists", "taxonomy": "post_tag", "value": "headlines"},
+  {"op": "term_exists", "taxonomy": "post_tag", "value": "1005"},
+  {"op": "term_exists", "taxonomy": "post_tag", "value": "   "},
+  {"op": "term_exists", "taxonomy": "category", "value": "Child", "parent": "none"},
+  {"op": "term_exists", "taxonomy": "category", "value": "Child", "parent": "t3"},
+  {"op": "term_exists", "taxonomy": "category", "value": "Uncategorized"}
+]}

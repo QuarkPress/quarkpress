@@ -1,0 +1,11 @@
+# Hand-written term scenarios, one or more per behaviour-reference rule.
+term11-insert.json
+term16-duplicates.json
+term17-unique-slugs.json
+term21-update.json
+term31-delete.json
+term35-assign.json
+term43-defaults.json
+term50-counts.json
+term54-lookups.json
+term57-queries.json

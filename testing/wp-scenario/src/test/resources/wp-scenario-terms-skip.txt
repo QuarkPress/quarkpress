@@ -1,0 +1,10 @@
+# Deliberate differences between the taxonomy module and WordPress 7.1.3 in the term scenarios.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the taxonomy README's "Differences from
+# WordPress" table. A line that no longer covers a difference fails the run.
+# The records of the scenarios' posts use the posts README's labels, as the post scenarios' skip list does.
+term31-delete@subdirectory post#3:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+term31-delete@subdirectory post#3:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+term43-defaults@subdirectory post#1:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+term43-defaults@subdirectory post#1:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+term57-queries@subdirectory post#3:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+term57-queries@subdirectory post#3:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update

@@ -1,0 +1,23 @@
+{"id": "term43-defaults", "rule": "TAX43", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Draft", "status": "draft"}},
+  {"op": "post_terms", "post": 1, "taxonomy": "category"},
+  {"op": "post_terms", "post": 1, "taxonomy": "genre"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Auto", "status": "auto-draft"}},
+  {"op": "post_terms", "post": 2, "taxonomy": "category"},
+  {"op": "update_post", "as": 1, "post": 2, "fields": {"status": "draft"}, "edit_date": false},
+  {"op": "post_terms", "post": 2, "taxonomy": "category"},
+  {"op": "post_terms", "post": 2, "taxonomy": "genre"},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Page", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "post_terms", "post": 3, "taxonomy": "category"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Cleared", "status": "publish", "date": "2020-01-02 10:00:00"}},
+  {"op": "set_post_terms", "as": 1, "post": 4, "taxonomy": "category", "terms": [], "append": false},
+  {"op": "post_terms", "post": 4, "taxonomy": "category"},
+  {"op": "update_post", "as": 1, "post": 4, "fields": {"title": "Cleared again"}, "edit_date": false},
+  {"op": "post_terms", "post": 4, "taxonomy": "category"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Later", "status": "future", "date_gmt": "2090-01-01 10:00:00"}},
+  {"op": "set_post_terms", "as": 1, "post": 5, "taxonomy": "category", "terms": [], "append": false},
+  {"op": "publish_post", "post": 5},
+  {"op": "post_terms", "post": 5, "taxonomy": "category"}
+]}

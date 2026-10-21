@@ -47,6 +47,8 @@ import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserTarget;
 import org.quarkpress.security.runtime.SiteRoleTables;
 import org.quarkpress.security.runtime.UserProfileRepository;
+import org.quarkpress.taxonomy.Terms;
+import org.quarkpress.taxonomy.runtime.TermRepository;
 import org.quarkpress.testing.wporacle.ParityRun;
 import org.quarkpress.testing.wporacle.ParitySkipList;
 
@@ -102,6 +104,12 @@ abstract class ScenarioParityBase {
     @Inject
     Posts posts;
 
+    @Inject
+    Terms termService;
+
+    @Inject
+    TermRepository termRows;
+
     /** Compares every scenario; fails on a difference, a stale skip entry, or fewer comparisons than {@code minimum}. */
     void compareWithWordPress(String library, List<Scenario> scenarios, Path skips, int minimum) throws Exception {
         assumeTrue(ScenarioDatabase.runtimeAvailable(), "ASSUMPTION: no container runtime");
@@ -155,6 +163,9 @@ abstract class ScenarioParityBase {
         boolean postScenario = scenario.ops().stream().anyMatch(ScenarioOp.PostOp.class::isInstance);
         PostScenarioRunner postRunner =
                 new PostScenarioRunner(posts, scope, store, options, PostRecords.includeGuid(scenario));
+        boolean termScenario = scenario.ops().stream().anyMatch(ScenarioOp.TermOp.class::isInstance);
+        TermScenarioRunner termRunner = new TermScenarioRunner(termService, termRows, scope, store, postRunner);
+        postRunner.terms(termRunner);
         // WordPress's installation has a user named admin (nicename admin); mirror it so nicenames collide alike.
         UserProfile[] installer = new UserProfile[1];
         Throwable failure = null;
@@ -168,6 +179,9 @@ abstract class ScenarioParityBase {
                         + " with tierb- from the QuarkPress test database and run again");
             }
             sites.update(MAIN, SiteChanges.none().withDomain(variant.domain()).withPath(variant.path()));
+            if (termScenario) {
+                termRunner.start();
+            }
             int op = 0;
             for (ScenarioOp step : scenario.ops()) {
                 op++;
@@ -263,11 +277,18 @@ abstract class ScenarioParityBase {
             if (postScenario) {
                 postRunner.record(outcome, users, installer[0].id());
             }
+            if (termScenario) {
+                termRunner.record(outcome);
+            }
         } catch (Throwable t) {
             failure = t;
         }
         // Every cleanup step runs, whatever failed before: the original error is kept, later ones are suppressed.
         failure = attempt(failure, postRunner::cleanUp);
+        // posts first, so the counts are back to zero before the terms go
+        if (termScenario) {
+            failure = attempt(failure, termRunner::cleanUp);
+        }
         for (UserId user : users) {
             failure = attempt(failure, () -> deleteProfile(user));
         }

@@ -1,0 +1,21 @@
+{"id": "term11-insert", "rule": "TAX11", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "  Rock & Roll  "}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "a < b"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "<b>Bold</b> name"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "Tom's \"best\""}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "x &amp; y"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "news\tline\nbreak"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "%41%42 octets"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "<script>alert(1)</script>"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "   "}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "0"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "!!!"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "Given", "slug": "My Slug!"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "Described",
+    "description": "<p>Hi <a href=\"http://x\" rel=\"nofollow\" target=\"_blank\" onclick=\"x\">l</a> <strong>s</strong><img src=x></p>"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "Scripted",
+    "description": "<script>x</script><b>b</b> <a href=\"javascript:alert(1)\">j</a> &copy;"}},
+  {"op": "get_term", "term": "t1", "taxonomy": "post_tag"}
+]}

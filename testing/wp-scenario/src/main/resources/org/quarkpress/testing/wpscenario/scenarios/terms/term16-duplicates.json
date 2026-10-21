@@ -1,0 +1,17 @@
+{"id": "term16-duplicates", "rule": "TAX16", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "News"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "news"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "News", "slug": "news-alt"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "NEWS", "slug": "news-alt"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "News"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "news"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "Daily", "slug": "headlines"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "daily"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "Daily"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "World"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "News", "parent": "t6"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "category", "fields": {"name": "News", "parent": "t6"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "genre", "fields": {"name": "general"}}
+]}

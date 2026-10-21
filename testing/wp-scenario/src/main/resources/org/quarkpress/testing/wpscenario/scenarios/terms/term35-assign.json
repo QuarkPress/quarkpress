@@ -1,0 +1,21 @@
+{"id": "term35-assign", "rule": "TAX35", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Tagged", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "Alpha"}},
+  {"op": "insert_term", "as": 1, "taxonomy": "post_tag", "fields": {"name": "beta"}},
+  {"op": "set_post_terms", "as": 1, "post": 1, "taxonomy": "post_tag", "terms": [{"term": "t1"}, {"term": "t2"}, {"term": "t1"}], "append": false},
+  {"op": "set_post_terms", "as": 1, "post": 1, "taxonomy": "post_tag", "terms": [{"name": "zeta"}, {"name": "Alpha"}, {"name": "  "}, {"name": "1005"}], "append": true},
+  {"op": "post_terms", "post": 1, "taxonomy": "post_tag"},
+  {"op": "set_post_terms", "as": 1, "post": 1, "taxonomy": "post_tag", "terms": [{"term": "t2"}], "append": false},
+  {"op": "post_terms", "post": 1, "taxonomy": "post_tag"},
+  {"op": "delete_term", "as": 1, "term": "t3", "taxonomy": "post_tag"},
+  {"op": "set_post_terms", "as": 1, "post": 1, "taxonomy": "post_tag", "terms": [{"term": "t3"}], "append": true},
+  {"op": "set_post_terms", "as": 1, "post": 1, "taxonomy": "category", "terms": [{"name": "Travel"}], "append": false},
+  {"op": "post_terms", "post": 1, "taxonomy": "category"},
+  {"op": "remove_post_terms", "as": 1, "post": 1, "taxonomy": "post_tag", "terms": [{"name": "beta"}, {"name": "zzz"}]},
+  {"op": "remove_post_terms", "as": 1, "post": 1, "taxonomy": "post_tag", "terms": [{"name": "zzz"}]},
+  {"op": "post_terms", "post": 1, "taxonomy": "post_tag"},
+  {"op": "set_post_terms", "as": 1, "post": 1, "taxonomy": "category", "terms": [], "append": false},
+  {"op": "post_terms", "post": 1, "taxonomy": "category"}
+]}
