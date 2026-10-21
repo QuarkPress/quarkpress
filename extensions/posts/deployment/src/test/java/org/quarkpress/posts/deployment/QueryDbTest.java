@@ -620,6 +620,35 @@ class QueryDbTest {
     }
 
     @Test
+    void titleNameAndTypeOrderByCodePointOnBothDatabases() throws Exception {
+        PostSnapshot dash =
+                post(PostChanges.builder().title("a-c").slug("a-c").type("a-c").status("publish"), 1);
+        PostSnapshot plain =
+                post(PostChanges.builder().title("ab").slug("ab").type("ab").status("publish"), 2);
+        PostSnapshot zebra = post(
+                PostChanges.builder().title("Zebra").slug("zebra").type("zebra").status("publish"), 3);
+        PostSnapshot accented = post(
+                PostChanges.builder()
+                        .title("\u00c9clair")
+                        .slug("\u65e5clair")
+                        .type("post")
+                        .status("publish"),
+                4);
+        assertThat(accented.slug()).isEqualTo("%e6%97%a5clair");
+        PostQuery.Builder all = PostQuery.builder().types("a-c", "ab", "zebra", "post");
+        assertThat(ids(Identities.system(), all.orderBy(OrderKey.TITLE, true)))
+                .containsExactly(dash.id(), plain.id(), zebra.id(), accented.id());
+        assertThat(ids(
+                        Identities.system(),
+                        PostQuery.builder().types("a-c", "ab", "zebra", "post").orderBy(OrderKey.NAME, true)))
+                .containsExactly(accented.id(), dash.id(), plain.id(), zebra.id());
+        assertThat(ids(
+                        Identities.system(),
+                        PostQuery.builder().types("a-c", "ab", "zebra", "post").orderBy(OrderKey.TYPE, false)))
+                .containsExactly(zebra.id(), accented.id(), plain.id(), dash.id());
+    }
+
+    @Test
     void parentAndTypeKeysCountAMissingParentAsZero() throws Exception {
         PostSnapshot top = post(PostChanges.builder().title("Top").type("page").status("publish"), 1);
         PostSnapshot second =

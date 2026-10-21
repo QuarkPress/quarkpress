@@ -148,24 +148,52 @@ class StickyDbTest {
     }
 
     @Test
-    void stickingNeedsEditOthersPostsAndPublishPosts() throws Exception {
+    void stickingNeedsEditPostThenEditOthersPostsAndPublishPosts() throws Exception {
         UserId author = TestData.memberOfMain(dataSource, "author");
         UserId contributor = TestData.memberOfMain(dataSource, "contributor");
         PostSnapshot own = as(
                 author,
                 () -> posts.create(
                         PostChanges.builder().title("Own").status("publish").build()));
-        String lacks = "the caller lacks the capability edit_others_posts on site " + site.value();
         assertThatThrownBy(() -> as(author, () -> posts.stick(own.id())))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage(lacks);
+                .hasMessage(lacks("edit_others_posts"));
         assertThatThrownBy(() -> as(contributor, () -> posts.unstick(own.id())))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage(lacks);
+                .hasMessage(lacks("edit_post"));
         assertThatThrownBy(() -> Identities.onSite(site, Identities.anonymous(), () -> posts.stick(own.id())))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessage(lacks);
+                .hasMessage(lacks("edit_post"));
         assertThat(stuck(own)).isFalse();
+    }
+
+    @Test
+    void stickingAnotherUsersPrivatePostNeedsEditPostOnIt() throws Exception {
+        UserId othersEditor = TestData.profile(dataSource, "others-editor");
+        Jdbc.update(
+                dataSource,
+                "insert into qp_site_membership (site_id, user_id, roles, capabilities) values (?, ?, " + TestDb.json()
+                        + ", " + TestDb.json() + ")",
+                TestData.MAIN.value(),
+                othersEditor.value(),
+                "[\"author\"]",
+                "{\"edit_others_posts\": true}");
+        PostSnapshot hidden = create(PostChanges.builder().title("Hidden").status("private"));
+        PostSnapshot published = create(PostChanges.builder().title("Published").status("publish"));
+        assertThatThrownBy(() -> as(othersEditor, () -> posts.stick(hidden.id())))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage(lacks("edit_post"));
+        assertThat(stuck(hidden)).isFalse();
+        assertThat(as(othersEditor, () -> posts.stick(published.id()))).isTrue();
+        as(editor, () -> posts.stick(hidden.id()));
+        assertThatThrownBy(() -> as(othersEditor, () -> posts.unstick(hidden.id())))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage(lacks("edit_post"));
+        assertThat(stuck(hidden)).isTrue();
+    }
+
+    private String lacks(String capability) {
+        return "the caller lacks the capability " + capability + " on site " + site.value();
     }
 
     @Test
@@ -173,7 +201,7 @@ class StickyDbTest {
         UserId author = TestData.memberOfMain(dataSource, "author");
         PostSnapshot post = create(PostChanges.builder().title("Plain").status("publish"));
         as(editor, () -> posts.stick(post.id()));
-        String lacks = "the caller lacks the capability edit_others_posts on site " + site.value();
+        String lacks = lacks("edit_post");
         Identities.onSite(site, Identities.user(author), () -> {
             assertThatThrownBy(() -> posts.stick(post.id()))
                     .isInstanceOf(ForbiddenException.class)

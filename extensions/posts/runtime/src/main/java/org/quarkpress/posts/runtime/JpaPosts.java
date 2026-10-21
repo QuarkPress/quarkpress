@@ -100,11 +100,19 @@ public class JpaPosts implements Posts {
             acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
             String type = changes.type().map(PostRules::type).orElse(stored.type());
             PostTypeCapabilities names = types.capabilitiesOrPost(type);
-            if (!type.equals(stored.type())) {
+            boolean retyped = !type.equals(stored.type());
+            if (retyped) {
                 acting.require(siteId, names.createPosts(), Optional.empty());
             }
-            requirePublishing(siteId, changes.status(), names);
-            requireAuthor(siteId, changes.author(), names);
+            // a post moved to another type is checked as if created there: its resulting status and author count
+            requirePublishing(
+                    siteId, retyped ? Optional.of(changes.status().orElse(stored.status())) : changes.status(), names);
+            requireAuthor(
+                    siteId,
+                    retyped && changes.author().isEmpty()
+                            ? OptionalLong.of(stored.author().map(UserId::value).orElse(0L))
+                            : changes.author(),
+                    names);
         });
         if (changes.expectedVersion().isPresent() && changes.expectedVersion().getAsInt() != row.version) {
             throw new OptimisticLockException("post " + post.value() + " changed since version "
@@ -218,6 +226,7 @@ public class JpaPosts implements Posts {
         SiteId siteId = site.siteId();
         PostTypeCapabilities names = types.capabilitiesOrPost("post");
         PostEntity row = lockedRow(siteId, post, OptionalLong.empty(), stored -> {
+            acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
             acting.require(siteId, names.editOthersPosts(), Optional.empty());
             acting.require(siteId, names.publishPosts(), Optional.empty());
         });

@@ -46,7 +46,8 @@ import org.quarkpress.core.UserId;
  * appear in the title, the excerpt or the content, and a term starting with a hyphen in none of them. Matching ignores
  * case but not accents, and {@code %} and {@code _} match themselves. A caller that is not logged in (the system
  * included) finds no password-protected post. Without types, a query given a search (even an empty or over-long one)
- * that does not look for one post by id or slug covers every searchable type. With no order, or
+ * that does not look for one post by id or slug covers every searchable type; both are judged before the query filters
+ * run, which can still give types. With no order, or
  * {@code RELEVANCE} first, results are ranked as WordPress ranks them, then ordered by date (newest first unless the
  * relevance key is ascending) and id; see {@link OrderKey}.
  *

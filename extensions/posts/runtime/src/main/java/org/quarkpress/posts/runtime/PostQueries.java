@@ -25,6 +25,7 @@ import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.core.WordPressKeys;
+import org.quarkpress.persistence.runtime.Dialects;
 import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.DateColumn;
 import org.quarkpress.posts.DateCondition;
@@ -128,7 +129,7 @@ public class PostQueries {
                 requested,
                 (filter, value) -> filter.apply(value, new QueryContext(siteId, acting.user())));
         Where where = new Where(siteId);
-        List<String> queriedTypes = queriedTypes(query);
+        List<String> queriedTypes = queriedTypes(requested, query);
         where.and(queriedTypes.isEmpty() ? "1 = 0" : "p.type in " + where.param(queriedTypes));
         statusCondition(siteId, query, queriedTypes, where);
         authorCondition(query, where);
@@ -236,14 +237,15 @@ public class PostQueries {
     }
 
     /**
-     * The types the query covers: when none is given, the searchable types for a query given a search (even an empty
-     * or over-long one) that does not look for one post, and post otherwise; the searchable types for a lone {@code
-     * any}; else the given ones sanitized as keys (an {@code any} among others stays a type name that matches nothing,
-     * as in WordPress).
+     * The types the filtered query covers: when none is given, the searchable types for a query given a search (even
+     * an empty or over-long one) that does not look for one post, and post otherwise, both read from the query as
+     * requested, before the query filters ran, as WordPress decides it before {@code pre_get_posts}; the searchable
+     * types for a lone {@code any}; else the given ones sanitized as keys (an {@code any} among others stays a type
+     * name that matches nothing, as in WordPress).
      */
-    List<String> queriedTypes(PostQuery query) {
+    List<String> queriedTypes(PostQuery requested, PostQuery query) {
         if (query.types().isEmpty()) {
-            return query.search().isPresent() && !query.singular() ? types.searchable() : List.of("post");
+            return requested.search().isPresent() && !requested.singular() ? types.searchable() : List.of("post");
         }
         if (query.types().size() == 1
                 && WordPressKeys.sanitize(query.types().get(0)).equals("any")) {
@@ -657,7 +659,7 @@ public class PostQueries {
             parts.add(
                     order.key() == OrderKey.POST_IN
                             ? postInPosition(query.postIn(), where)
-                            : expression(order.key()) + direction(order.ascending()));
+                            : codePointOrdered(order.key()) + direction(order.ascending()));
         }
         PostOrder first = orders.get(0);
         if (first.key() != OrderKey.POST_IN) {
@@ -707,6 +709,20 @@ public class PostQueries {
             return Optional.empty();
         }
         return Optional.of("case" + rank + " else 6 end");
+    }
+
+    /**
+     * The expression a key orders by, with title, name and type ordered by code point on both databases: MySQL's
+     * columns already compare that way ({@code utf8mb4_bin}), and on PostgreSQL the expression is compared under
+     * {@code ucs_basic} instead of the database's collation, which would skip punctuation and group accented letters
+     * with their base letters.
+     */
+    private String codePointOrdered(OrderKey key) {
+        String expression = expression(key);
+        boolean text = key == OrderKey.TITLE || key == OrderKey.NAME || key == OrderKey.TYPE;
+        return text && Dialects.postgresql(posts.getSession())
+                ? "collate(" + expression + " as ucs_basic)"
+                : expression;
     }
 
     static String direction(boolean ascending) {

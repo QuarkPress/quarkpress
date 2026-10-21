@@ -9,13 +9,17 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Decides whether a difference between WordPress's and QuarkPress's filtered text is only one that lib-wp-kses and
  * lib-wp-blocks document: block attribute JSON written after the PHP round trip (big integers become floats, {@code {}}
  * and numeric-key objects become lists, and a number that overflows to infinity removes all attributes), and block
  * delimiters that lib-wp-kses neutralizes ({@code &lt;!--} for {@code <!--}, {@code --&gt;} for {@code -->}). Both
- * texts are cut into plain text and block delimiters; the plain text must be equal byte for byte.
+ * texts are cut into plain text and block delimiters; the plain text must be equal byte for byte. A delimiter whose
+ * attributes WordPress dropped is accepted only for an input holding an overflowing number and only when QuarkPress's
+ * attributes hold such a number or the {@code null} written for one. Attributes count as rewritten only when they
+ * differ as values, not when they differ only in how the text is written or in what kses does to a comment.
  */
 final class BlockDifferences {
 
@@ -55,15 +59,15 @@ final class BlockDifferences {
                 }
                 boolean newlyNeutral = y.neutralized() && !x.neutralized();
                 neutralized |= newlyNeutral;
-                if (x.neutralized() && !java.util.Objects.equals(x.json(), y.json())) {
+                if (x.neutralized() && !Objects.equals(x.json(), y.json())) {
                     return Verdict.REJECTED;
                 }
                 if (x.json() == null ? y.json() != null : !sameJson(x.json(), y.json(), newlyNeutral)) {
-                    if (!(allowOverflow && x.json() == null)) {
+                    if (!(allowOverflow && x.json() == null && overflowWritten(y.json()))) {
                         return Verdict.REJECTED;
                     }
                 }
-                rewritten |= !java.util.Objects.equals(x.json(), y.json());
+                rewritten |= differentValues(x.json(), y.json());
             } else {
                 return Verdict.REJECTED;
             }
@@ -181,9 +185,9 @@ final class BlockDifferences {
     }
 
     /**
-     * The same attributes. A delimiter that WordPress leaves live is a comment to kses, which strips backslashes from
-     * it and shortens runs of dashes; QuarkPress's neutralized copy is text and keeps both. For such a delimiter, a
-     * difference that disappears once backslashes are removed and dash runs are shortened is accepted.
+     * The same attributes. A delimiter that WordPress leaves live is a comment to kses, which removes the backslash
+     * before a double quote and shortens runs of dashes; QuarkPress's neutralized copy is text and keeps both. For
+     * such a delimiter, a difference that disappears once those two changes are made is accepted.
      */
     private static boolean sameJson(String wordpress, String quarkpress, boolean newlyNeutral) {
         if (wordpress.equals(quarkpress)) {
@@ -195,12 +199,57 @@ final class BlockDifferences {
         return newlyNeutral && commentText(wordpress).equals(commentText(quarkpress));
     }
 
+    /** What kses's comment handling does to the text: {@code \"} becomes {@code "}, and dash runs one dash. */
     private static String commentText(String json) {
-        String text = json.replace("\\", "");
+        String text = json.replace("\\\"", "\"");
         while (text.contains("--")) {
             text = text.replace("--", "-");
         }
         return text;
+    }
+
+    /**
+     * Whether attributes that WordPress dropped are the ones lib-wp-blocks writes for an overflowing number: they hold
+     * a number that overflows to infinity (an integer kept exact) or the {@code null} written for one.
+     */
+    private static boolean overflowWritten(String json) {
+        try {
+            JsonNode tree = MAPPER.readTree(json);
+            return infinite(tree) || holdsNull(tree);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean holdsNull(JsonNode node) {
+        if (node.isNull()) {
+            return true;
+        }
+        for (JsonNode child : node) {
+            if (holdsNull(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether QuarkPress wrote other attribute values than WordPress: attributes WordPress dropped, or attributes that
+     * both parse and differ as values. Text that differs only in spacing or escaping, or only as kses changes a
+     * comment, is not a rewrite.
+     */
+    private static boolean differentValues(String wordpress, String quarkpress) {
+        if (Objects.equals(wordpress, quarkpress)) {
+            return false;
+        }
+        if (wordpress == null || quarkpress == null) {
+            return true;
+        }
+        try {
+            return !MAPPER.readTree(wordpress).equals(MAPPER.readTree(quarkpress));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean parses(String json) {

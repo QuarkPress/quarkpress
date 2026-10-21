@@ -17,13 +17,17 @@ import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.runtime.HeldLocks;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostSnapshot;
+import org.quarkpress.posts.PostType;
 import org.quarkpress.posts.Posts;
 
 /** Updating checks what WordPress's REST layer checks, before the site's post lock is taken. */
 class UpdateCapabilityDbTest {
 
+    @PostType(key = "book", capabilityType = "book", mapMetaCap = true)
+    static class Book {}
+
     @RegisterExtension
-    static final QuarkusExtensionTest app = PostsApp.with(UpdateCapabilityDbTest.class);
+    static final QuarkusExtensionTest app = PostsApp.with(UpdateCapabilityDbTest.class, Book.class);
 
     @Inject
     @DataSource("quarkpress")
@@ -122,6 +126,45 @@ class UpdateCapabilityDbTest {
         PostSnapshot own = as(editor, PostChanges.builder().title("Editors"));
         assertThat(update(editor, own, PostChanges.builder().type("page")).type())
                 .isEqualTo("page");
+    }
+
+    @Test
+    void changingTheTypeAppliesTheNewTypesPublishAndEditOthersRulesToTheResultingPost() throws Exception {
+        UserId bookWriter = TestData.profile(dataSource, "book-writer");
+        Jdbc.update(
+                dataSource,
+                "insert into qp_site_membership (site_id, user_id, roles, capabilities) values (?, ?, " + TestDb.json()
+                        + ", " + TestDb.json() + ")",
+                TestData.MAIN.value(),
+                bookWriter.value(),
+                "[\"author\"]",
+                "{\"edit_books\": true, \"edit_others_posts\": true}");
+        PostSnapshot published =
+                as(bookWriter, PostChanges.builder().title("Published").status("publish"));
+        assertThatThrownBy(() ->
+                        update(bookWriter, published, PostChanges.builder().type("book")))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage(lacks("publish_books"));
+        PostSnapshot editors = as(editor, PostChanges.builder().title("Editors draft"));
+        assertThatThrownBy(
+                        () -> update(bookWriter, editors, PostChanges.builder().type("book")))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage(lacks("edit_others_books"));
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select type from qp_post where id in (?, ?)",
+                        published.id().value(),
+                        editors.id().value()))
+                .containsExactly("post", "post");
+        assertThat(update(
+                                bookWriter,
+                                published,
+                                PostChanges.builder().type("book").status("draft"))
+                        .type())
+                .isEqualTo("book");
+        PostSnapshot draft = as(bookWriter, PostChanges.builder().title("Own draft"));
+        assertThat(update(bookWriter, draft, PostChanges.builder().type("book")).type())
+                .isEqualTo("book");
     }
 
     @Test

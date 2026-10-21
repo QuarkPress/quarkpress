@@ -163,8 +163,8 @@ class SaveParityTest {
     /**
      * Values that lib-wp-kses writes differently with its block-attribute filter, because lib-wp-blocks keeps big
      * integers exact, writes {@code {}} and numeric-key objects as objects, and writes a number that overflows to
-     * infinity as {@code null} (lib-wp-kses difference 7, lib-wp-blocks D10 to D13). A save of an input holding one is
-     * compared under a {@code lib7-} case id.
+     * infinity as {@code null} (see the Differences sections of the lib-wp-kses and lib-wp-blocks READMEs). A save of
+     * an input holding one is compared under a {@code lib7-} case id.
      */
     private static final String[] KSES_REWRITTEN_VALUES = {
         "{}",

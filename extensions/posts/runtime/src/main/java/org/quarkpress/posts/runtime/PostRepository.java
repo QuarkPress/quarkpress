@@ -32,8 +32,13 @@ public class PostRepository implements PanacheRepositoryBase<PostEntity, Long> {
 
     /** The ids of the site's sticky posts, ascending. */
     public List<PostId> stickyIds(SiteId site) {
-        return list("siteId = ?1 and sticky = true order by id", TenantIds.param(site)).stream()
-                .map(row -> PostId.of(row.id))
+        return getEntityManager()
+                .createQuery(
+                        "select p.id from PostEntity p where p.siteId = :site and p.sticky = true order by p.id",
+                        Long.class)
+                .setParameter("site", TenantIds.param(site))
+                .getResultStream()
+                .map(PostId::of)
                 .toList();
     }
 }

@@ -532,6 +532,28 @@ class TrashDbTest {
     }
 
     @Test
+    void trashingAStickyFrontPageResetsTheReadingSettingsBeforeAnnouncingTheUnstick() throws Exception {
+        PostSnapshot post = create(PostChanges.builder().title("Front").status("publish"));
+        as(() -> posts.stick(post.id()));
+        as(() -> posts.update(post.id(), PostChanges.builder().type("page").build()));
+        TestData.siteOption(dataSource, site, "show_on_front", "\"page\"");
+        TestData.siteOption(
+                dataSource, site, "page_on_front", Long.toString(post.id().value()));
+        recorder.seen().clear();
+        as(() -> posts.trash(post.id()));
+        long id = post.id().value();
+        assertThat(recorder.seen())
+                .containsExactly(
+                        "option show_on_front",
+                        "option page_on_front",
+                        "sticky " + id + " false",
+                        "status " + id + " publish>trash",
+                        "trashed " + id + " trash");
+        assertThat(option("page_on_front")).containsExactly("0");
+        assertThat(find(post.id()).sticky()).isFalse();
+    }
+
+    @Test
     void trashingThePrivacyPageLeavesItsSetting() throws Exception {
         PostSnapshot privacy =
                 create(PostChanges.builder().type("page").title("Privacy").status("publish"));

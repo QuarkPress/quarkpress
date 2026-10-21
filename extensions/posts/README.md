@@ -46,10 +46,10 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   guaranteed to be WordPress's.
 - A refused capability check throws Quarkus's `UnauthorizedException` when nobody is authenticated and
   `ForbiddenException` otherwise.
-- **Transactions.** `Posts` checks capabilities and input before it writes. A capability refusal, an input refusal
-  raised before the first write and a stale version leave the caller's transaction usable. Once a call has written,
-  any failure marks the transaction for rollback before it propagates, so a failed call changes nothing. A refused lock
-  (see [Locks](#locks)) also marks it.
+- **Transactions.** `Posts` and `PostMeta` check capabilities and input before they write. A capability refusal, an
+  input refusal raised before the first write and a stale version leave the caller's transaction usable. Once a call
+  has written, any failure marks the transaction for rollback before it propagates, so a failed call changes nothing.
+  A refused lock (see [Locks](#locks)) also marks it.
 
 ### Capabilities
 
@@ -58,12 +58,12 @@ Checks follow WordPress's REST API (wp-admin's for restoring from the trash):
 | Call | Needs |
 |---|---|
 | `create` | the type's `create_posts`; a status of `publish`, `future` or `private` also needs `publish_posts`; an author other than the caller (none included) needs `edit_others_posts` |
-| `update` | `edit_post` on the stored post, then the status and author rules of `create` with the capabilities of the type the post will have; changing the type also needs the new type's `create_posts` |
+| `update` | `edit_post` on the stored post, then the status and author rules of `create` with the capabilities of the type the post will have; changing the type also needs the new type's `create_posts`, and its `publish_posts` and `edit_others_posts` rules apply to the status and author the post will have, given or stored |
 | `publish` | `publish_post` |
 | `trash`, `untrash`, `delete` | `delete_post` |
 | `find`, `ancestors`, `uri`, meta reads | nothing for a post whose effective status is public; `read_post` otherwise |
 | meta writes | `edit_post`; a key whose first printable-ASCII character is `_` is protected and written only by the system identity |
-| `stick`, `unstick` | the `post` type's `edit_others_posts` and `publish_posts` |
+| `stick`, `unstick` | `edit_post` on the post, then the `post` type's `edit_others_posts` and `publish_posts` |
 | `query` | statuses other than `publish` need every queried type's `edit_posts`; what each caller then sees is described on `PostQuery` |
 
 A type that is not registered is checked with the `post` type's capability names. Every save sanitizes the title,
@@ -99,7 +99,7 @@ A save follows `wp_insert_post` and `wp_update_post`:
 
 `publish` changes only the status, as WordPress's scheduled publishing (`wp_publish_post`) does; it returns false for a
 published post. `trash` records the previous status and time in `_wp_trash_meta_status` and `_wp_trash_meta_time`,
-unsticks the post, stops a page being the front page or posts page, and saves it as `trash` with the `__trashed`
+stops a page being the front page or posts page, unsticks the post, and saves it as `trash` with the `__trashed`
 suffix (its slug kept in `_wp_desired_post_slug`); its children keep it as parent. `untrash` restores a post as a
 draft (an attachment as `inherit`) with its slug back. `delete` without `force` trashes a post or page that is not in
 the trash yet; everything else is deleted for good. Deleting hands the post's parent down to its same-type children
@@ -242,13 +242,13 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 
 | Label | Difference |
 |---|---|
-| D1 | Capabilities are checked as WordPress's REST API checks them (wp-admin's `delete_post` for restoring from the trash); WordPress's `wp_insert_post` and friends check nothing. Changing a post's type, which REST cannot do, also needs the new type's `create_posts`. |
+| D1 | Capabilities are checked as WordPress's REST API checks them (wp-admin's `delete_post` for restoring from the trash); WordPress's `wp_insert_post` and friends check nothing. Changing a post's type, which REST cannot do, also needs the new type's `create_posts`, with its publish and edit-others rules applied to the status and author the post will have. |
 | D2 | A parent must be a post of the same site, and deleting a post clears the parent of children it does not hand its parent down to; WordPress accepts any id and leaves those children pointing at the deleted post. A stray `qp_post` row of type `revision` naming the deleted post loses its parent too, where WordPress deletes the post's revisions. |
 | D3 | A post date is stored once: given both, the GMT date wins and the local date is derived from it; given only a local date, it is converted with the site's zone when saved. WordPress stores both texts as given. A consequence: updating a published post with only a later local date recomputes its GMT date and can make it `future`, where WordPress keeps the old GMT date and the post stays published. A second consequence: after the site's time zone changes, local dates are shown in the new zone, where WordPress keeps the local text it wrote under the old one. |
 | D4 | A floating draft given only a local date with `editDate` stays floating; its local date shows its modification time. WordPress stores that local date with a zero GMT date. |
 | D5 | A new post whose date floats (a draft, pending or auto-draft without a GMT date) has a real GMT modification date (its save time, or the local date it was given, in GMT); WordPress copies the zero GMT post date into the GMT modification date until the post is next updated. |
 | D6 | Dates are typed (`LocalDateTime`/`Instant`), so a time such as `24:00:00`, `25:00:00` or a minute of 60 cannot be given, and years outside 1000–9999 are refused with `invalid_date`; WordPress checks only the calendar part and stores any text MySQL accepts. |
-| D7 | Search, the exact-title condition and ordering by title ignore case and not accents, on both databases; WordPress follows the database collation (on MySQL's defaults it ignores accents too). On PostgreSQL, case is ignored through `lower()`, which follows the database's locale: under the `C` locale only ASCII capitals are lowered. |
+| D7 | Search, the exact-title condition and ordering by title ignore case and not accents, on both databases, and ordering by title, name or type follows code points on both (PostgreSQL compares those under `ucs_basic`, MySQL's columns are `utf8mb4_bin`); WordPress follows the database collation (on MySQL's defaults it ignores accents too). On PostgreSQL, case is ignored through `lower()`, which follows the database's locale: under the `C` locale only ASCII capitals are lowered. |
 | D8 | Only type `post` can be sticky, never a password-protected post; `stickyPosts` lists ids in id order. WordPress's `stick_post` accepts any id and keeps insertion order. |
 | D9 | A post type or status registered twice fails the build; WordPress replaces the earlier registration. Status names longer than 20 characters are refused when registered, as type keys are; WordPress fails only when a post is saved with one. |
 | D10 | The built-in types are `post`, `page`, `attachment` and `wp_block`; WordPress's other built-in types come with the modules that use them. |
@@ -271,9 +271,9 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 | D27 | A single-post query whose post the caller may not see reports `found` 0; WordPress counts it (1) and returns no post. |
 | D28 | In a list query that names statuses, an attachment whose parent is trashed is judged against the parent's `trash` status; WordPress's REST layer judges it by the status the parent had before it was trashed, so an author may miss other users' attachments under a trashed published post. |
 | D29 | Ordering by relevance a search made only of excluded terms orders by date; WordPress builds an invalid SQL statement for it. |
-| D30 | `PostDeleting` observers run before the delete resets the reading settings, the privacy policy page setting and the stickiness, and those options change after the row is gone (option rows come last in the lock order); in WordPress, `before_delete_post` observers registered after its own defaults run after those resets. Trashing a sticky post announces the unstick before the reading settings are reset; WordPress resets them first (visible only for a sticky page, possible only after a type change). |
+| D30 | `PostDeleting` observers run before the delete resets the reading settings, the privacy policy page setting and the stickiness, and those options change after the row is gone (option rows come last in the lock order); in WordPress, `before_delete_post` observers registered after its own defaults run after those resets. |
 | D31 | The fields of a date bound are typed: a year outside 0–9999 or another field outside 0–99 is refused with `IllegalArgumentException`; WordPress accepts such values (it makes a negative one positive). |
-| D32 | `PostQueryFilter`s (`pre_get_posts`) do not run on the fetch of the sticky posts that `stickyFirst` adds; WordPress runs them on that inner query. The types a query without types covers (the searchable ones when it is given a search) are decided from the filtered query; WordPress decides whether the query is a search before the filters run. |
+| D32 | `PostQueryFilter`s (`pre_get_posts`) do not run on the fetch of the sticky posts that `stickyFirst` adds; WordPress runs them on that inner query. |
 | D33 | `stickyFirst` stays on for a query with only paging arguments while the site shows a static front page; WordPress answers that query with the static front page itself (and so with no sticky posts). `types` has no one-element list form: one type with an archive always counts as that type's archive (no sticky posts first), as WordPress's `post_type => 'book'` does, where `post_type => ['book']` keeps them. |
 | D34 | The system identity holds every capability but `unfiltered_html`, the type's publish capability included, so a pending post it saves keeps its typed slug; WordPress's user 0 can publish nothing, so its pending posts lose the typed slug. |
 

@@ -16,6 +16,9 @@ public final class PostRules {
     private static final int MAX_KEY = 20;
     private static final int MAX_TEXT = 255;
 
+    /** The bytes a {@code text} column holds (the title and the excerpt), as MySQL counts them in UTF-8. */
+    static final int MAX_TEXT_BYTES = 65_535;
+
     private PostRules() {}
 
     /** PHP's {@code empty()} for text: "" and "0". */
@@ -106,6 +109,8 @@ public final class PostRules {
             String type,
             String status,
             String slug,
+            String title,
+            String excerpt,
             String commentStatus,
             String pingStatus,
             String password,
@@ -120,6 +125,25 @@ public final class PostRules {
         if (Slugs.byteLength(slug) > Slugs.MAX_BYTES) {
             throw PostException.dbError(update, "the slug is longer than " + Slugs.MAX_BYTES + " bytes");
         }
+        checkBytes(title, "title", update);
+        checkBytes(excerpt, "excerpt", update);
+    }
+
+    private static void checkBytes(String value, String column, boolean update) {
+        if (utf8Length(value) > MAX_TEXT_BYTES) {
+            throw PostException.dbError(update, "the " + column + " is longer than " + MAX_TEXT_BYTES + " bytes");
+        }
+    }
+
+    /** The length of the text's UTF-8 form, without encoding it. */
+    static long utf8Length(String text) {
+        long bytes = 0;
+        for (int i = 0; i < text.length(); ) {
+            int codePoint = text.codePointAt(i);
+            bytes += codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+            i += Character.charCount(codePoint);
+        }
+        return bytes;
     }
 
     private static void check(String value, int max, String column, boolean update) {

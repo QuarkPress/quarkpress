@@ -2,6 +2,8 @@ package org.quarkpress.posts.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.security.ForbiddenException;
+import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -19,7 +21,9 @@ import org.quarkpress.posts.PostMeta;
 
 /**
  * Post meta on the post row's meta object, written under the site's post lock and the row lock. A write checks the
- * caller first, then takes the locks and checks again on the locked row.
+ * caller first, then takes the locks and checks again on the locked row; it changes the row only after every check.
+ * Refusals (a missing post, invalid input, a refused capability or protected key) come before any change, for reads
+ * and writes alike, so they throw without marking the caller's transaction for rollback. A refused lock does mark it.
  */
 @ApplicationScoped
 public class JpaPostMeta implements PostMeta {
@@ -40,40 +44,46 @@ public class JpaPostMeta implements PostMeta {
     PostCapabilityFacts facts;
 
     @Override
-    @Transactional
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public List<JsonNode> get(PostId post, String key) {
         Objects.requireNonNull(key, "key");
         return MetaRows.values(readable(post).meta, key);
     }
 
     @Override
-    @Transactional
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public Map<String, List<JsonNode>> all(PostId post) {
         return readable(post).toSnapshot().meta();
     }
 
     @Override
-    @Transactional(dontRollbackOn = IllegalArgumentException.class)
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public boolean add(PostId post, String key, JsonNode value, boolean unique) {
         JsonNode stored = JsonValues.requireStorable(Objects.requireNonNull(value, "value"));
         return write(post, key, meta -> MetaRows.add(meta, key, stored, unique));
     }
 
     @Override
-    @Transactional(dontRollbackOn = IllegalArgumentException.class)
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public boolean update(PostId post, String key, JsonNode value) {
         JsonNode stored = JsonValues.requireStorable(Objects.requireNonNull(value, "value"));
         return write(post, key, meta -> MetaRows.update(meta, key, stored));
     }
 
     @Override
-    @Transactional(dontRollbackOn = IllegalArgumentException.class)
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public boolean delete(PostId post, String key) {
         return write(post, key, meta -> MetaRows.delete(meta, key));
     }
 
     @Override
-    @Transactional(dontRollbackOn = IllegalArgumentException.class)
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public boolean delete(PostId post, String key, JsonNode value) {
         return write(post, key, meta -> MetaRows.delete(meta, key, value));
     }

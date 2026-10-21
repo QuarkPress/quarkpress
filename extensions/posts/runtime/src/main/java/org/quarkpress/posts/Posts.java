@@ -26,7 +26,8 @@ public interface Posts {
      * Updates a post (WordPress's {@code wp_update_post}): the stored post merged with the changes, saved again by
      * every rule of a save, so every text field is filtered with the caller's settings. Needs {@code edit_post} on
      * the stored post; the status and author rules of {@link #create} apply too, with the capabilities of the type
-     * the post will have, and changing the type needs the new type's {@code create_posts}. A draft, pending or
+     * the post will have, and changing the type needs the new type's {@code create_posts} and its publish and
+     * edit-others rules for the status and author the post will have, given or stored. A draft, pending or
      * auto-draft post without a GMT date is dated now unless {@code editDate} is set; a local date given alone is
      * converted with the site's zone; dates not given are kept. The parent must be a post of the site (else
      * {@code invalid_parent}). On every update, for every type, the parent (given or stored) goes through WordPress's
@@ -51,7 +52,7 @@ public interface Posts {
 
     /**
      * Moves a post to the trash (WordPress's {@code wp_trash_post}); needs {@code delete_post}. Any type can be trashed
-     * this way. The post is unstuck, a page named by the front page or posts page setting is no longer named there,
+     * this way. A page named by the front page or posts page setting is no longer named there, the post is unstuck,
      * the status it had and the time are recorded in its meta ({@code _wp_trash_meta_status}, {@code
      * _wp_trash_meta_time}), and it is saved with status trash by every rule of an update: its slug gets the trashed
      * suffix (the slug it had is kept in {@code _wp_desired_post_slug}) and a draft whose date floats is dated now.
@@ -74,10 +75,10 @@ public interface Posts {
      * observers can clean up what they keep about the post. Then same-type children of a hierarchical type get its
      * parent, as do attachments (except for a deleted attachment, which, as in WordPress, hands nothing down); every
      * other child is left without parent, where WordPress would leave it naming the missing post. Only the children's
-     * parent changes, not their version or modification date. The row goes with its meta; its revisions and term
-     * assignments go by the foreign-key cascade. In WordPress's order, a page named by the front page or posts page
-     * setting is no longer named there, a sticky post is announced as unstuck, and a page named by the privacy policy
-     * page setting is no longer named there; then {@code PostDeleted} is fired. Comments are not deleted yet.
+     * parent changes, not their version or modification date. The row goes with its meta. In WordPress's order, a page
+     * named by the front page or posts page setting is no longer named there, a sticky post is announced as unstuck,
+     * and a page named by the privacy policy page setting is no longer named there; then {@code PostDeleted} is fired.
+     * Comments are not deleted yet.
      *
      * <p>Returns the post as it was before (for a post trashed instead, what {@link #trash} returns). A missing post,
      * or one of another site, is {@code invalid_post}. A failed delete changes nothing: a failure after the first
@@ -115,9 +116,9 @@ public interface Posts {
 
     /**
      * Sticks a post to the front of the site (WordPress's {@code stick_post}, as its REST layer allows it): only a post
-     * of type {@code post}, and not one with a password (else {@code rest_invalid_field}); needs {@code
-     * edit_others_posts} and {@code publish_posts}. False when it was sticky already; a change is announced with
-     * {@code StickyChanged}.
+     * of type {@code post}, and not one with a password (else {@code rest_invalid_field}); needs {@code edit_post} on
+     * the post and the {@code post} type's {@code edit_others_posts} and {@code publish_posts}. False when it was
+     * sticky already; a change is announced with {@code StickyChanged}.
      */
     boolean stick(PostId post);
 

@@ -508,6 +508,7 @@ public class PostWrites {
     Optional<PostSnapshot> trash(SiteId siteId, PostEntity row) {
         PostSnapshot before = row.toSnapshot();
         Instant now = PostDates.now(clock);
+        boolean[] unstuck = new boolean[1];
         return unlessRefused(() -> update(
                         siteId,
                         row,
@@ -515,17 +516,22 @@ public class PostWrites {
                         stored -> {
                             if (stored.sticky) {
                                 stored.sticky = false;
-                                posts.flush();
-                                events.sticky(siteId, now, before.id(), false);
+                                unstuck[0] = true;
                             }
                             ObjectNode meta = MetaRows.copy(stored.meta);
                             MetaRows.add(meta, "_wp_trash_meta_status", TextNode.valueOf(before.status()), false);
                             MetaRows.add(meta, "_wp_trash_meta_time", LongNode.valueOf(now.getEpochSecond()), false);
                             stored.meta = meta;
                         },
-                        // the reading settings are reset before the save is announced, as in WordPress, but after
-                        // the post row is written: option rows come last in the lock order
-                        () -> frontPages.forget(before)))
+                        // as in WordPress, the reading settings are reset, then the unstick is announced, before the
+                        // save is; both come after the post row is written, since option rows come last in the lock
+                        // order
+                        () -> {
+                            frontPages.forget(before);
+                            if (unstuck[0]) {
+                                events.sticky(siteId, now, before.id(), false);
+                            }
+                        }))
                 .map(after -> written(() -> {
                     events.trashed(siteId, now, after);
                     return before;
@@ -562,12 +568,12 @@ public class PostWrites {
 
     /**
      * Deletes a post for good: WordPress's {@code wp_delete_post} after its checks ({@code wp_delete_attachment} for an
-     * attachment). The caller holds the site's post lock and the row lock and has checked the capability. The delete
-     * is announced before anything changes; then its children are handed down or let go, the row goes (its meta with
-     * it; its revisions and term assignments by the foreign-key cascade), and, in WordPress's order, the reading
-     * settings naming the page are reset, a sticky post is announced as unstuck (its flag went with the row) and the
-     * privacy policy page setting naming the page is reset; option rows come last in the lock order. Then the delete
-     * is announced as done. Any failure marks the transaction for rollback, so a failed delete changes nothing.
+     * attachment). The caller holds the site's post lock and the row lock and has checked the capability. The delete is
+     * announced before anything changes; then its children are handed down or let go, the row goes with its meta, and,
+     * in WordPress's order, the reading settings naming the page are reset, a sticky post is announced as unstuck (its
+     * flag went with the row) and the privacy policy page setting naming the page is reset; option rows come last in
+     * the lock order. Then the delete is announced as done. Any failure marks the transaction for rollback, so a failed
+     * delete changes nothing.
      */
     void delete(SiteId siteId, PostEntity row) {
         Instant now = PostDates.now(clock);
@@ -730,6 +736,8 @@ public class PostWrites {
                 result.type(),
                 result.status(),
                 result.slug(),
+                result.title(),
+                result.excerpt(),
                 result.commentStatus(),
                 result.pingStatus(),
                 result.password(),

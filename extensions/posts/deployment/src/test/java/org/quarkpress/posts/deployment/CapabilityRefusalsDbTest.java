@@ -3,6 +3,7 @@ package org.quarkpress.posts.deployment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
 import io.quarkus.arc.Arc;
@@ -25,6 +26,8 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.runtime.HeldLocks;
 import org.quarkpress.posts.PostChanges;
+import org.quarkpress.posts.PostException;
+import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
@@ -44,6 +47,9 @@ class CapabilityRefusalsDbTest {
 
     @Inject
     Posts posts;
+
+    @Inject
+    PostMeta meta;
 
     @Inject
     TransactionManager transactions;
@@ -202,6 +208,71 @@ class CapabilityRefusalsDbTest {
             posts.update(hidden.id(), PostChanges.builder().title("Kept").build());
         });
         assertThat(column("title", hidden)).isEqualTo("Kept");
+    }
+
+    @Test
+    void aRefusedMetaReadLeavesTheTransactionUsable() throws Exception {
+        PostSnapshot draft = create(editor, PostChanges.builder().title("Draft"));
+        refusedThenAllowed(subscriber, "read_post", () -> meta.get(draft.id(), "color"), () -> {
+            assertThat(meta.get(draft.id(), "color")).isEmpty();
+            posts.update(draft.id(), PostChanges.builder().title("Kept").build());
+        });
+        refusedThenAllowed(subscriber, "read_post", () -> meta.all(draft.id()), () -> {
+            assertThat(meta.all(draft.id())).doesNotContainKey("color");
+            posts.update(draft.id(), PostChanges.builder().title("Kept again").build());
+        });
+        assertThat(column("title", draft)).isEqualTo("Kept again");
+    }
+
+    @Test
+    void aRefusedMetaWriteLeavesTheTransactionUsable() throws Exception {
+        PostSnapshot post = create(editor, PostChanges.builder().title("Theirs").status("publish"));
+        refusedThenAllowed(
+                contributor,
+                "edit_post",
+                () -> meta.add(post.id(), "color", TextNode.valueOf("refused"), false),
+                () -> meta.add(post.id(), "color", TextNode.valueOf("kept"), false));
+        refusedThenAllowed(
+                contributor,
+                "edit_post",
+                () -> meta.update(post.id(), "color", TextNode.valueOf("refused")),
+                () -> meta.update(post.id(), "size", TextNode.valueOf("kept")));
+        refusedThenAllowed(
+                contributor,
+                "edit_post",
+                () -> meta.delete(post.id(), "color"),
+                () -> meta.delete(post.id(), "size", TextNode.valueOf("kept")));
+        assertThat(Identities.onSite(site, Identities.user(editor), () -> meta.get(post.id(), "color")))
+                .containsExactly(TextNode.valueOf("kept"));
+        assertThat(Identities.onSite(site, Identities.user(editor), () -> meta.get(post.id(), "size")))
+                .isEmpty();
+    }
+
+    @Test
+    void aMissingPostOrAProtectedKeyLeavesTheTransactionUsableForMeta() throws Exception {
+        PostSnapshot post = create(editor, PostChanges.builder().title("Post"));
+        PostId missing = PostId.of(Long.MAX_VALUE);
+        Identities.onSite(site, Identities.user(editor), () -> {
+            List<ThrowingCallable> invalid = List.of(
+                    () -> meta.get(missing, "color"),
+                    () -> meta.all(missing),
+                    () -> meta.add(missing, "color", TextNode.valueOf("x"), false),
+                    () -> meta.update(missing, "color", TextNode.valueOf("x")),
+                    () -> meta.delete(missing, "color"));
+            for (ThrowingCallable call : invalid) {
+                assertThatThrownBy(call)
+                        .isInstanceOfSatisfying(
+                                PostException.class, e -> assertThat(e.code()).isEqualTo("invalid_post"));
+                assertThat(transactions.getStatus()).isEqualTo(Status.STATUS_ACTIVE);
+            }
+            assertThatThrownBy(() -> meta.add(post.id(), "_hidden", TextNode.valueOf("x"), false))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("the meta key _hidden is protected");
+            assertThat(transactions.getStatus()).isEqualTo(Status.STATUS_ACTIVE);
+            posts.update(post.id(), PostChanges.builder().title("Kept").build());
+            return null;
+        });
+        assertThat(column("title", post)).isEqualTo("Kept");
     }
 
     @Test

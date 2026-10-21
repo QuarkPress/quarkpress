@@ -358,6 +358,39 @@ class CreateDbTest {
     }
 
     @Test
+    void titlesAndExcerptsOverATextColumnAreRefusedAlikeOnBothDatabases() throws Exception {
+        String fits = "a".repeat(65_535);
+        String over = cp(0xE9).repeat(32_768);
+        PostSnapshot stored = create(editor, PostChanges.builder().title(fits).excerpt(fits));
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select title from qp_post where id = ?",
+                        stored.id().value()))
+                .containsExactly(fits);
+        assertThatThrownBy(() -> create(editor, PostChanges.builder().title(over)))
+                .isInstanceOfSatisfying(PostException.class, e -> {
+                    assertThat(e.code()).isEqualTo("db_insert_error");
+                    assertThat(e.detail()).isEqualTo("the title is longer than 65535 bytes");
+                });
+        assertThatThrownBy(() -> Identities.onSite(
+                        site,
+                        Identities.user(editor),
+                        () -> posts.update(
+                                stored.id(), PostChanges.builder().excerpt(over).build())))
+                .isInstanceOfSatisfying(PostException.class, e -> {
+                    assertThat(e.code()).isEqualTo("db_update_error");
+                    assertThat(e.detail()).isEqualTo("the excerpt is longer than 65535 bytes");
+                });
+        assertThat(Jdbc.count(dataSource, "select count(*) from qp_post where site_id = ?", site.value()))
+                .isEqualTo(1);
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select excerpt from qp_post where id = ?",
+                        stored.id().value()))
+                .containsExactly(fits);
+    }
+
+    @Test
     void multibyteTitlesGiveWordPressSlugsOnBothDatabases() throws Exception {
         String party = cp(0x1F389) + " Party";
         PostSnapshot emoji = create(editor, PostChanges.builder().title(party).status("publish"));

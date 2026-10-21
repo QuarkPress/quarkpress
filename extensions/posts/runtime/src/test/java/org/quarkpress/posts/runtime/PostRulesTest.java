@@ -84,18 +84,18 @@ class PostRulesTest {
     @Test
     void valuesLongerThanTheirColumnsFailAsWordPressDatabaseWritesDo() {
         assertThatThrownBy(() -> PostRules.requireStorable(
-                        "a_type_name_longer_than_20", "draft", "", "open", "open", "", "g", false))
+                        "a_type_name_longer_than_20", "draft", "", "", "", "open", "open", "", "g", false))
                 .isInstanceOfSatisfying(PostException.class, e -> {
                     assertThat(e.code()).isEqualTo("db_insert_error");
                     assertThat(e.detail()).contains("type");
                 });
-        assertThatThrownBy(() ->
-                        PostRules.requireStorable("post", "draft", "a".repeat(201), "open", "open", "", "g", true))
+        assertThatThrownBy(() -> PostRules.requireStorable(
+                        "post", "draft", "a".repeat(201), "", "", "open", "open", "", "g", true))
                 .isInstanceOfSatisfying(PostException.class, e -> {
                     assertThat(e.code()).isEqualTo("db_update_error");
                     assertThat(e.detail()).contains("slug");
                 });
-        PostRules.requireStorable("post", "draft", "%e6%97%a5".repeat(22), "open", "open", "", "g", false);
+        PostRules.requireStorable("post", "draft", "%e6%97%a5".repeat(22), "", "", "open", "open", "", "g", false);
     }
 
     @Test
@@ -133,8 +133,9 @@ class PostRulesTest {
         String astral20 = new String(Character.toChars(0x1F600)).repeat(20);
         String max = "a".repeat(20);
         String over = "a".repeat(21);
-        PostRules.requireStorable(astral20, astral20, "", astral20, astral20, "p".repeat(255), "g".repeat(255), false);
-        PostRules.requireStorable(max, max, "a".repeat(200), max, max, "", "", true);
+        PostRules.requireStorable(
+                astral20, astral20, "", "", "", astral20, astral20, "p".repeat(255), "g".repeat(255), false);
+        PostRules.requireStorable(max, max, "a".repeat(200), "", "", max, max, "", "", true);
         assertTooLong(over, "draft", "", "open", "open", "", "", "type");
         assertTooLong("post", over, "", "open", "open", "", "", "status");
         assertTooLong("post", "draft", "", over, "open", "", "", "comment_status");
@@ -142,6 +143,27 @@ class PostRulesTest {
         assertTooLong("post", "draft", "", "open", "open", "p".repeat(256), "", "password");
         assertTooLong("post", "draft", "", "open", "open", "", "g".repeat(256), "guid");
         assertTooLong("post", "draft", "a".repeat(201), "open", "open", "", "", "slug");
+    }
+
+    @Test
+    void titlesAndExcerptsHoldTheBytesOfATextColumn() {
+        String fits = "\u00e9".repeat(32_767) + "a";
+        PostRules.requireStorable("post", "draft", "", fits, fits, "open", "open", "", "", false);
+        for (String column : new String[] {"title", "excerpt"}) {
+            String over = fits + "b";
+            String title = column.equals("title") ? over : "";
+            String excerpt = column.equals("excerpt") ? over : "";
+            for (boolean update : new boolean[] {false, true}) {
+                assertThatThrownBy(() -> PostRules.requireStorable(
+                                "post", "draft", "", title, excerpt, "open", "open", "", "", update))
+                        .isInstanceOfSatisfying(PostException.class, e -> {
+                            assertThat(e.code()).isEqualTo(update ? "db_update_error" : "db_insert_error");
+                            assertThat(e.detail()).isEqualTo("the " + column + " is longer than 65535 bytes");
+                        });
+            }
+        }
+        assertThat(PostRules.utf8Length("a\u00e9\u65e5" + new String(Character.toChars(0x1F600))))
+                .isEqualTo(10);
     }
 
     private static void assertTooLong(
@@ -153,7 +175,8 @@ class PostRulesTest {
             String password,
             String guid,
             String column) {
-        assertThatThrownBy(() -> PostRules.requireStorable(type, status, slug, comment, ping, password, guid, false))
+        assertThatThrownBy(() ->
+                        PostRules.requireStorable(type, status, slug, "", "", comment, ping, password, guid, false))
                 .isInstanceOfSatisfying(PostException.class, e -> {
                     assertThat(e.code()).isEqualTo("db_insert_error");
                     assertThat(e.detail()).contains(column);
