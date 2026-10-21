@@ -27,6 +27,7 @@
     <module>multisite</module>
     <module>security</module>
     <module>posts</module>
+    <module>taxonomy</module>
   </modules>
 
   <dependencyManagement>
