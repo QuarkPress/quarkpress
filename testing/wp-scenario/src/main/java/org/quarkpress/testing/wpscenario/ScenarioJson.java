@@ -26,8 +26,10 @@ import org.quarkpress.testing.wporacle.OracleJson;
  * visitor in {@code can}, and a target of 0 is no user. Post operations on the main site ({@code site_option},
  * {@code front_page}, {@code insert_post}, {@code update_post}, {@code publish_post}, {@code trash_post},
  * {@code untrash_post}, {@code delete_post}, {@code stick}, {@code query_posts}, {@code page_uri} and
- * {@code read_post}) are read and written by {@link PostScenarioJson}. Unknown keys, duplicate keys and trailing
- * content are refused.
+ * {@code read_post}) are read and written by {@link PostScenarioJson}, and term operations on the main site
+ * ({@code insert_term}, {@code update_term}, {@code delete_term}, {@code set_post_terms}, {@code remove_post_terms},
+ * {@code post_terms}, {@code query_terms}, {@code get_term} and {@code term_exists}) by {@link TermScenarioJson}.
+ * Unknown keys, duplicate keys and trailing content are refused.
  */
 public final class ScenarioJson {
 
@@ -159,6 +161,9 @@ public final class ScenarioJson {
             throw new IllegalArgumentException("scenario " + id + ": every op must be an object");
         }
         String kind = text(op, "op", id);
+        if (TermScenarioJson.KINDS.contains(kind)) {
+            return TermScenarioJson.read(kind, op, id);
+        }
         if (PostScenarioJson.KINDS.contains(kind)) {
             return PostScenarioJson.read(kind, op, id);
         }

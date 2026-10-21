@@ -49,6 +49,19 @@ import java.util.Map;
  * GMT one within the run; each local date's offset from its GMT date is compared in minutes, so a zone slip still
  * shows. Id-shaped slugs, page paths and slug meta name their post ({@code #self}, {@code #p<k>});
  * {@code page_on_front} and {@code page_for_posts} name their post; a query ordered by {@code none} is a sorted set.
+ *
+ * <p>Term operations answer {@code insert_term} {@code {"id"}}; {@code update_term} {@code {"ok"}};
+ * {@code delete_term} {@code {"result": "deleted" | "nothing" | "kept"}} (true, false, or 0 for a default term);
+ * {@code set_post_terms} {@code {"ids"}}; {@code remove_post_terms} {@code {"removed"}}; {@code post_terms} and
+ * {@code query_terms} {@code {"ids", "counts"}} (compared as {@code <ref>=<count>}); {@code get_term}
+ * {@code {"term": <record> | null}};
+ * {@code term_exists} {@code {"id"}} (0 for none); any of them {@code {"error": <code>}} or {@code {"missing": true}}
+ * as post operations do. A scenario with term operations also reads {@code terms}, the created terms in creation
+ * order ({@code [{"index", "id", "term"}]}, deleted ones as {@code {"deleted": true}}), and {@code term_defaults}
+ * ({@code {"category": {"id", "term"}, "genre": {"id", "term"}}}). A term record holds {@code id, taxonomy, name,
+ * slug, description, parent, count}. Terms are named by creation order ({@code t<k>}) or as a default term
+ * ({@code default-category}, {@code default-genre}); a slug that is the term's own id, with any {@code -<digits>}
+ * suffixes, shows as {@code #self}.
  */
 public final class WordPressOutcomes {
 
@@ -87,6 +100,8 @@ public final class WordPressOutcomes {
                                         field(out, "finished", where).asLong())),
                         PostRecords.includeGuid(scenario))
                 : null;
+        TermOutcomes.TermContext terms =
+                ops.stream().anyMatch(ScenarioOp.TermOp.class::isInstance) ? TermOutcomes.context(out, where) : null;
         int inserted = 0;
         for (int i = 0; i < ops.size(); i++) {
             int op = i + 1;
@@ -172,7 +187,7 @@ public final class WordPressOutcomes {
                             postIndex.put(result.get("id").asLong(), inserted);
                         }
                     }
-                    postResult(outcome, op, post, result, at, context);
+                    postResult(outcome, op, post, result, at, context, terms);
                 }
             }
         }
@@ -203,6 +218,9 @@ public final class WordPressOutcomes {
                         "post#" + field(entry, "index", at).asInt(), record(field(entry, "post", at), context, at));
             }
         }
+        if (terms != null) {
+            TermOutcomes.records(outcome, out, terms);
+        }
         return outcome;
     }
 
@@ -216,7 +234,17 @@ public final class WordPressOutcomes {
             boolean guids) {}
 
     private static void postResult(
-            Outcome outcome, int op, ScenarioOp.PostOp post, JsonNode result, String at, PostContext context) {
+            Outcome outcome,
+            int op,
+            ScenarioOp.PostOp post,
+            JsonNode result,
+            String at,
+            PostContext context,
+            TermOutcomes.TermContext terms) {
+        if (post instanceof ScenarioOp.TermOp term) {
+            TermOutcomes.result(outcome, op, term, result, terms);
+            return;
+        }
         if (result.path("missing").asBoolean()) {
             outcome.done(op, post.kind(), "missing");
             return;
@@ -255,6 +283,7 @@ public final class WordPressOutcomes {
                         PostRecords.pageUri(field(result, "uri", at).asText(), context.postIndex()));
             case ScenarioOp.ReadPost read ->
                 outcome.observed("op" + op + ":read_post", record(field(result, "post", at), context, at));
+            case ScenarioOp.TermOp term -> throw new IllegalStateException("term results are normalized above");
         }
     }
 

@@ -650,8 +650,307 @@ function qp_post_op(array $op, array $users, array &$posts): array
     }
 }
 
+/**
+ * Driver-applied rule: the custom hierarchical taxonomy genre, on post, with the default term General, registered as a
+ * plugin registers its taxonomies (QuarkPress registers the same taxonomy with @Taxonomy). A plugin registers it on
+ * every request; the driver registers it once per run, before the first operation. The two differ only when General
+ * loses both its name and its slug (the next request would make a new default term), which scenarios do not do.
+ */
+function qp_register_genre(): void
+{
+    register_taxonomy('genre', 'post', ['hierarchical' => true, 'default_term' => 'General', 'show_in_rest' => true]);
+}
+
+/** The ids of the main site's terms created after $baseline, in creation order; deleted ones stay listed. */
+function qp_track_terms(int $baseline, array &$created): void
+{
+    global $wpdb;
+    $ids = $wpdb->get_col($wpdb->prepare("SELECT term_id FROM {$wpdb->terms} WHERE term_id > %d ORDER BY term_id",
+        $baseline));
+    foreach ($ids as $id) {
+        if (!in_array((int) $id, $created, true)) {
+            $created[] = (int) $id;
+        }
+    }
+}
+
+/** The default terms by taxonomy: the default category and genre's default term. */
+function qp_term_defaults(): array
+{
+    return ['category' => (int) get_option('default_category'), 'genre' => (int) get_option('default_term_genre')];
+}
+
+/** A term reference as an id (0 for none), or null when it names a term that does not exist (yet). */
+function qp_term_id(string $ref, string $taxonomy, array $created): ?int
+{
+    if ('none' === $ref) {
+        return 0;
+    }
+    if ('default' === $ref) {
+        $id = qp_term_defaults()[$taxonomy] ?? 0;
+        return 0 === $id ? null : $id;
+    }
+    return $created[((int) substr($ref, 1)) - 1] ?? null;
+}
+
+/** A term as the comparison reads it, or {deleted: true}. */
+function qp_term_record(int $id): array
+{
+    clean_term_cache($id);
+    $term = get_term($id);
+    return $term instanceof WP_Term ? qp_term_fields($term) : ['deleted' => true];
+}
+
+/** The fields of a term WordPress returned, as the comparison reads them. */
+function qp_term_fields(WP_Term $term): array
+{
+    return ['id' => (int) $term->term_id, 'taxonomy' => $term->taxonomy, 'name' => $term->name,
+        'slug' => $term->slug, 'description' => $term->description, 'parent' => (int) $term->parent,
+        'count' => (int) $term->count];
+}
+
+/** wp_insert_term / wp_update_term arguments of scenario fields (slashed, as the REST layer passes them). */
+function qp_term_args(array $fields, string $taxonomy, array $created): ?array
+{
+    $args = [];
+    foreach (['name', 'slug', 'description'] as $key) {
+        if (array_key_exists($key, $fields)) {
+            $args[$key] = wp_slash($fields[$key]);
+        }
+    }
+    if (array_key_exists('parent', $fields)) {
+        $parent = qp_term_id($fields['parent'], $taxonomy, $created);
+        if (null === $parent) {
+            return null;
+        }
+        $args['parent'] = $parent;
+    }
+    return $args;
+}
+
+/** Assignment items: an id (an integer) for a reference, slashed text for a name; null for a missing reference. */
+function qp_term_items(array $items, string $taxonomy, array $created): ?array
+{
+    $terms = [];
+    foreach ($items as $item) {
+        if (array_key_exists('term', $item)) {
+            $id = qp_term_id($item['term'], $taxonomy, $created);
+            if (null === $id) {
+                return null;
+            }
+            $terms[] = $id;
+        } else {
+            $terms[] = wp_slash($item['name']);
+        }
+    }
+    return $terms;
+}
+
+/**
+ * Driver-applied rule: WordPress leaves terms that tie on the order key to the database; the driver appends the term
+ * id in the query's direction, as QuarkPress breaks ties. Queries without order are compared as sets.
+ */
+function qp_term_tie(array $clauses): array
+{
+    if ('' !== trim($clauses['orderby']) && '' !== trim($clauses['order'])) {
+        $clauses['order'] = $clauses['order'] . ', t.term_id ' . $clauses['order'];
+    }
+    return $clauses;
+}
+
+/** Runs the term list a query_terms or post_terms op compares with qp_term_tie applied, and only that. */
+function qp_with_term_tie(callable $query)
+{
+    add_filter('terms_clauses', 'qp_term_tie');
+    try {
+        return $query();
+    } finally {
+        remove_filter('terms_clauses', 'qp_term_tie');
+    }
+}
+
+/** get_terms arguments of scenario query args; null when a reference names a term or post that does not exist. */
+function qp_term_query_args(array $args, array $posts, array $created): ?array
+{
+    $taxonomy = $args['taxonomies'][0] ?? 'category';
+    $query = ['fields' => 'all'];
+    if (isset($args['taxonomies'])) {
+        $query['taxonomy'] = $args['taxonomies'];
+    }
+    foreach (['orderby' => 'orderby', 'order' => 'order', 'search' => 'search', 'name_like' => 'name__like',
+                 'description_like' => 'description__like', 'number' => 'number', 'offset' => 'offset',
+                 'hide_empty' => 'hide_empty', 'hierarchical' => 'hierarchical', 'pad_counts' => 'pad_counts',
+                 'childless' => 'childless', 'slugs' => 'slug'] as $key => $name) {
+        if (array_key_exists($key, $args)) {
+            $query[$name] = $args[$key];
+        }
+    }
+    if (!empty($args['get_all'])) {
+        $query['get'] = 'all';
+    }
+    if (isset($args['names'])) {
+        $query['name'] = array_map('wp_slash', $args['names']);
+    }
+    foreach (['include' => 'include', 'exclude' => 'exclude', 'exclude_tree' => 'exclude_tree'] as $key => $name) {
+        if (isset($args[$key])) {
+            $ids = [];
+            foreach ($args[$key] as $ref) {
+                $id = qp_term_id($ref, $taxonomy, $created);
+                if (null === $id) {
+                    return null;
+                }
+                $ids[] = $id;
+            }
+            $query[$name] = $ids;
+        }
+    }
+    foreach (['parent' => 'parent', 'child_of' => 'child_of'] as $key => $name) {
+        if (isset($args[$key])) {
+            $id = qp_term_id($args[$key], $taxonomy, $created);
+            if (null === $id) {
+                return null;
+            }
+            $query[$name] = $id;
+        }
+    }
+    if (isset($args['posts'])) {
+        $ids = [];
+        foreach ($args['posts'] as $index) {
+            if (null === ($posts[$index] ?? null)) {
+                return null;
+            }
+            $ids[] = $posts[$index];
+        }
+        $query['object_ids'] = $ids;
+    }
+    return $query;
+}
+
+/** The ids, and counts, of a list of terms. */
+function qp_term_list(array $terms): array
+{
+    return ['ids' => array_map(static fn($t) => (int) $t->term_id, array_values($terms)),
+        'counts' => array_map(static fn($t) => (int) $t->count, array_values($terms))];
+}
+
+/** A term operation on the main site, as the op's user ("as"; 0 is WordPress's user 0). */
+function qp_term_op(array $op, array $users, array $posts, array &$created): array
+{
+    $user = static fn(int $index): ?int => 0 === $index ? 0 : ($users[$index] ?? null);
+    $kind = $op['op'];
+    switch_to_blog(get_main_site_id());
+    try {
+        $as = $user($op['as'] ?? 0);
+        if (null === $as) {
+            return ['op' => $kind, 'missing' => true];
+        }
+        qp_act_as($as);
+        switch ($kind) {
+            case 'insert_term':
+                $args = qp_term_args($op['fields'], $op['taxonomy'], $created);
+                if (null === $args) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                $name = $args['name'];
+                unset($args['name']);
+                $result = wp_insert_term($name, $op['taxonomy'], $args);
+                return is_wp_error($result)
+                    ? ['op' => $kind, 'error' => $result->get_error_code()]
+                    : ['op' => $kind, 'id' => (int) $result['term_id']];
+            case 'update_term':
+                $id = qp_term_id($op['term'], $op['taxonomy'], $created);
+                $args = qp_term_args($op['fields'], $op['taxonomy'], $created);
+                if (null === $id || null === $args) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                $result = wp_update_term($id, $op['taxonomy'], $args);
+                return is_wp_error($result)
+                    ? ['op' => $kind, 'error' => $result->get_error_code()]
+                    : ['op' => $kind, 'ok' => true];
+            case 'delete_term':
+                $id = qp_term_id($op['term'], $op['taxonomy'], $created);
+                if (null === $id) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                $result = wp_delete_term($id, $op['taxonomy']);
+                if (is_wp_error($result)) {
+                    return ['op' => $kind, 'error' => $result->get_error_code()];
+                }
+                return ['op' => $kind, 'result' => true === $result ? 'deleted' : (0 === $result ? 'kept' : 'nothing')];
+            case 'set_post_terms':
+            case 'remove_post_terms':
+                $post = $posts[$op['post']] ?? null;
+                $terms = qp_term_items($op['terms'], $op['taxonomy'], $created);
+                if (null === $post || null === $terms) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                if ('remove_post_terms' === $kind) {
+                    $removed = wp_remove_object_terms($post, $terms, $op['taxonomy']);
+                    return is_wp_error($removed)
+                        ? ['op' => $kind, 'error' => $removed->get_error_code()]
+                        : ['op' => $kind, 'removed' => true === $removed];
+                }
+                $tt_ids = wp_set_object_terms($post, $terms, $op['taxonomy'], (bool) $op['append']);
+                if (is_wp_error($tt_ids)) {
+                    return ['op' => $kind, 'error' => $tt_ids->get_error_code()];
+                }
+                $ids = [];
+                foreach ($tt_ids as $tt_id) {
+                    $ids[] = (int) get_term_by('term_taxonomy_id', (int) $tt_id)->term_id;
+                }
+                return ['op' => $kind, 'ids' => $ids];
+            case 'post_terms':
+                $post = $posts[$op['post']] ?? null;
+                if (null === $post) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                $terms = qp_with_term_tie(static fn() => wp_get_object_terms($post, $op['taxonomy']));
+                return is_wp_error($terms)
+                    ? ['op' => $kind, 'error' => $terms->get_error_code()]
+                    : ['op' => $kind] + qp_term_list($terms);
+            case 'query_terms':
+                $args = qp_term_query_args($op['args'], $posts, $created);
+                if (null === $args) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                $terms = qp_with_term_tie(static fn() => get_terms($args));
+                return is_wp_error($terms)
+                    ? ['op' => $kind, 'error' => $terms->get_error_code()]
+                    : ['op' => $kind] + qp_term_list($terms);
+            case 'get_term':
+                $taxonomy = '' === $op['taxonomy'] ? 'category' : $op['taxonomy'];
+                $id = qp_term_id($op['term'], $taxonomy, $created);
+                if (null === $id) {
+                    return ['op' => $kind, 'missing' => true];
+                }
+                $term = '' === $op['taxonomy'] ? get_term($id) : get_term($id, $op['taxonomy']);
+                if (is_wp_error($term)) {
+                    return ['op' => $kind, 'error' => $term->get_error_code()];
+                }
+                // What get_term returned, as it returned it: re-reading would clean the term caches mid-scenario.
+                return ['op' => $kind, 'term' => $term instanceof WP_Term ? qp_term_fields($term) : null];
+            case 'term_exists':
+                $parent = null;
+                if (isset($op['parent'])) {
+                    $parent = qp_term_id($op['parent'], $op['taxonomy'], $created);
+                    if (null === $parent) {
+                        return ['op' => $kind, 'missing' => true];
+                    }
+                }
+                $found = term_exists(wp_slash($op['value']), $op['taxonomy'], $parent);
+                return ['op' => $kind, 'id' => is_array($found) ? (int) $found['term_id'] : 0];
+            default:
+                throw new InvalidArgumentException('unknown op ' . $kind);
+        }
+    } finally {
+        restore_current_blog();
+        qp_act_as(0);
+    }
+}
+
 function qp_run_scenario(array $scenario, array $variant): array
 {
+    global $wpdb;
     $segments = (int) $variant['path_segments'];
     if ($segments > 1) {
         // QuarkPress's path-segments counts segments the way WordPress's own count of 1 does (after the network path
@@ -661,6 +960,15 @@ function qp_run_scenario(array $scenario, array $variant): array
     $created = [];
     $users = [];
     $posts = [];
+    $term_ops = ['insert_term', 'update_term', 'delete_term', 'set_post_terms', 'remove_post_terms', 'post_terms',
+        'query_terms', 'get_term', 'term_exists'];
+    $qp_term_scenario = [] !== array_intersect(array_column($scenario['ops'], 'op'), $term_ops);
+    // Driver-applied rule (qp_register_genre): every run registers genre, as QuarkPress always has the taxonomy.
+    switch_to_blog(get_main_site_id());
+    qp_register_genre();
+    $term_baseline = (int) $wpdb->get_var("SELECT MAX(term_id) FROM {$wpdb->terms}");
+    restore_current_blog();
+    $created_terms = [];
     $started = time();
     $results = [];
     foreach ($scenario['ops'] as $op) {
@@ -675,8 +983,16 @@ function qp_run_scenario(array $scenario, array $variant): array
             'site_option', 'front_page', 'insert_post', 'update_post', 'publish_post', 'trash_post',
             'untrash_post', 'delete_post', 'stick', 'query_posts', 'page_uri', 'read_post'
                 => qp_post_op($op, $users, $posts),
+            'insert_term', 'update_term', 'delete_term', 'set_post_terms', 'remove_post_terms', 'post_terms',
+            'query_terms', 'get_term', 'term_exists' => qp_term_op($op, $users, $posts, $created_terms),
             default => throw new InvalidArgumentException('unknown op ' . $op['op']),
         };
+        if ($qp_term_scenario) {
+            // Terms are named by creation order, those an assignment creates by name included.
+            switch_to_blog(get_main_site_id());
+            qp_track_terms($term_baseline, $created_terms);
+            restore_current_blog();
+        }
     }
     $sites = [];
     foreach ($created as $index => $id) {
@@ -708,9 +1024,24 @@ function qp_run_scenario(array $scenario, array $variant): array
     restore_current_blog();
     // The installation's user: wp_install created it with the login admin.
     $installer = get_user_by('login', 'admin');
-    return ['main' => get_main_site_id(), 'results' => $results, 'sites' => $sites, 'posts' => $records,
+    $out = ['main' => get_main_site_id(), 'results' => $results, 'sites' => $sites, 'posts' => $records,
         'started' => $started, 'finished' => time(), 'home' => $home,
         'installer' => false === $installer ? 0 : (int) $installer->ID];
+    if ($qp_term_scenario) {
+        switch_to_blog(get_main_site_id());
+        $terms_out = [];
+        foreach ($created_terms as $index => $id) {
+            $terms_out[] = ['index' => $index + 1, 'id' => $id, 'term' => qp_term_record($id)];
+        }
+        $defaults_out = [];
+        foreach (qp_term_defaults() as $taxonomy => $id) {
+            $defaults_out[$taxonomy] = ['id' => $id, 'term' => qp_term_record($id)];
+        }
+        restore_current_blog();
+        $out['terms'] = $terms_out;
+        $out['term_defaults'] = $defaults_out;
+    }
+    return $out;
 }
 
 $qp_input = json_decode((string) file_get_contents($qp_input_file), true, 512, JSON_THROW_ON_ERROR);

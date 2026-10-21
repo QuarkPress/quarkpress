@@ -73,10 +73,12 @@ public record Scenario(String id, String rule, NetworkVariant variant, List<Scen
 
     /**
      * Post operations run on the subdirectory network, act as users created before them (or user 0) and name posts
-     * inserted before them; an insertion counts even when it fails, as a user creation does.
+     * inserted before them; an insertion counts even when it fails, as a user creation does. Term operations name
+     * only terms that may have been created before them ({@code t<k>}).
      */
     private static void requirePostReferences(String id, NetworkVariant variant, List<ScenarioOp> ops) {
         int inserted = 0;
+        int mayHaveCreated = 0;
         int users = 0;
         for (int i = 0; i < ops.size(); i++) {
             ScenarioOp op = ops.get(i);
@@ -108,6 +110,15 @@ public record Scenario(String id, String rule, NetworkVariant variant, List<Scen
                     throw new IllegalArgumentException(at + " refers to post #" + reference + ", but only " + inserted
                             + " posts were inserted before it");
                 }
+            }
+            if (post instanceof ScenarioOp.TermOp term) {
+                for (int k : TermScenarioJson.termRefs(term)) {
+                    if (k > mayHaveCreated) {
+                        throw new IllegalArgumentException(at + " refers to term t" + k + ", but at most "
+                                + mayHaveCreated + " terms were created before it");
+                    }
+                }
+                mayHaveCreated += TermScenarioJson.mayCreate(term);
             }
             if (post instanceof ScenarioOp.InsertPost) {
                 inserted++;

@@ -115,6 +115,7 @@ final class PostScenarioJson {
             }
             case ScenarioOp.PageUri uri -> out.put("post", uri.post());
             case ScenarioOp.ReadPost read -> out.put("post", read.post());
+            case ScenarioOp.TermOp term -> TermScenarioJson.write(term, out);
         }
     }
 
@@ -133,6 +134,10 @@ final class PostScenarioJson {
             case ScenarioOp.Stick stick -> 0;
             case ScenarioOp.PageUri uri -> 0;
             case ScenarioOp.ReadPost read -> 0;
+            case ScenarioOp.TermOp term ->
+                TermScenarioJson.actors(term).isEmpty()
+                        ? 0
+                        : TermScenarioJson.actors(term).get(0);
         };
         return as == 0 ? List.of() : List.of(as);
     }
@@ -156,6 +161,7 @@ final class PostScenarioJson {
             case ScenarioOp.Stick stick -> {}
             case ScenarioOp.PageUri uri -> {}
             case ScenarioOp.ReadPost read -> {}
+            case ScenarioOp.TermOp term -> {}
         }
         users.removeIf(user -> user == 0);
         return users;
@@ -184,6 +190,7 @@ final class PostScenarioJson {
             case ScenarioOp.PageUri uri -> posts.add(uri.post());
             case ScenarioOp.ReadPost read -> posts.add(read.post());
             case ScenarioOp.SiteOption option -> {}
+            case ScenarioOp.TermOp term -> posts.addAll(TermScenarioJson.posts(term));
         }
         posts.removeIf(reference -> reference == 0);
         return posts;

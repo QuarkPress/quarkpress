@@ -188,6 +188,8 @@ final class PostScenarioRunner {
                     outcome.observed("op" + op + ":read_post", observe(post.get(), users, null));
                 }
             }
+            case ScenarioOp.TermOp term ->
+                throw new UnsupportedOperationException("term operations arrive with the term runner");
         }
     }
 

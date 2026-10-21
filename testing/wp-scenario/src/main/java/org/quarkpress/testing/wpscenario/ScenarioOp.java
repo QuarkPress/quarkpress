@@ -3,6 +3,7 @@ package org.quarkpress.testing.wpscenario;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /** One operation of a scenario. Sites are referenced by creation order: 0 is the main site, k the k-th created. */
 public sealed interface ScenarioOp {
@@ -403,6 +404,171 @@ public sealed interface ScenarioOp {
         @Override
         public String kind() {
             return "read_post";
+        }
+    }
+
+    /**
+     * An operation on the main site's terms (a post operation: it names users and posts the same way). Terms are named
+     * {@code t<k>}, the k-th term created on the site during the scenario (by insert_term or by a name in
+     * set_post_terms), or {@code default}, the taxonomy's default term; {@code none} is no parent. A scenario performs
+     * only what WordPress's REST layer would allow the acting user.
+     */
+    sealed interface TermOp extends PostOp {}
+
+    record InsertTerm(int as, String taxonomy, TermFields fields) implements TermOp {
+        public InsertTerm {
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            Objects.requireNonNull(fields, "fields");
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+            if (fields.name().isEmpty()) {
+                throw new IllegalArgumentException("insert_term gives a name");
+            }
+            ScenarioRules.requireTermParent(taxonomy, fields.parent());
+        }
+
+        @Override
+        public String kind() {
+            return "insert_term";
+        }
+    }
+
+    record UpdateTerm(int as, String term, String taxonomy, TermFields fields) implements TermOp {
+        public UpdateTerm {
+            Objects.requireNonNull(term, "term");
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            Objects.requireNonNull(fields, "fields");
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requireTermRef(term, false);
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+            ScenarioRules.requireDefaultIn(taxonomy, term);
+            ScenarioRules.requireTermParent(taxonomy, fields.parent());
+            if (term.equals("default")
+                    && taxonomy.equals("genre")
+                    && fields.name().isPresent()
+                    && fields.slug().isPresent()) {
+                throw new IllegalArgumentException("a scenario does not change both the name and the slug of genre's"
+                        + " default term: WordPress registers genre on every request and would then make a new"
+                        + " default term, which the driver, registering it once per run, does not");
+            }
+        }
+
+        @Override
+        public String kind() {
+            return "update_term";
+        }
+    }
+
+    record DeleteTerm(int as, String term, String taxonomy) implements TermOp {
+        public DeleteTerm {
+            Objects.requireNonNull(term, "term");
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requireTermRef(term, false);
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+            ScenarioRules.requireDefaultIn(taxonomy, term);
+        }
+
+        @Override
+        public String kind() {
+            return "delete_term";
+        }
+    }
+
+    record SetPostTerms(int as, int post, String taxonomy, List<TermItem> terms, boolean append) implements TermOp {
+        public SetPostTerms {
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            terms = List.copyOf(terms);
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+            terms.forEach(item -> item.term().ifPresent(ref -> ScenarioRules.requireDefaultIn(taxonomy, ref)));
+        }
+
+        @Override
+        public String kind() {
+            return "set_post_terms";
+        }
+    }
+
+    record RemovePostTerms(int as, int post, String taxonomy, List<TermItem> terms) implements TermOp {
+        public RemovePostTerms {
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            terms = List.copyOf(terms);
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+            terms.forEach(item -> item.term().ifPresent(ref -> ScenarioRules.requireDefaultIn(taxonomy, ref)));
+        }
+
+        @Override
+        public String kind() {
+            return "remove_post_terms";
+        }
+    }
+
+    /** A post's terms of a taxonomy, in WordPress's order (by name). */
+    record PostTerms(int post, String taxonomy) implements TermOp {
+        public PostTerms {
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            ScenarioRules.requirePost(post);
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+        }
+
+        @Override
+        public String kind() {
+            return "post_terms";
+        }
+    }
+
+    record QueryTerms(int as, TermQueryArgs args) implements TermOp {
+        public QueryTerms {
+            Objects.requireNonNull(args, "args");
+            ScenarioRules.requireReference(as);
+        }
+
+        @Override
+        public String kind() {
+            return "query_terms";
+        }
+    }
+
+    /**
+     * A term by reference; an empty taxonomy looks it up in every taxonomy ({@code default} then names the default
+     * category).
+     */
+    record GetTerm(String term, String taxonomy) implements TermOp {
+        public GetTerm {
+            Objects.requireNonNull(term, "term");
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            ScenarioRules.requireTermRef(term, false);
+            if (!taxonomy.isEmpty()) {
+                ScenarioRules.requireTermTaxonomy(taxonomy);
+                ScenarioRules.requireDefaultIn(taxonomy, term);
+            }
+        }
+
+        @Override
+        public String kind() {
+            return "get_term";
+        }
+    }
+
+    /** WordPress's term_exists for text, optionally under a parent ({@code none}: the top level). */
+    record TermExists(String taxonomy, String value, Optional<String> parent) implements TermOp {
+        public TermExists {
+            Objects.requireNonNull(taxonomy, "taxonomy");
+            Objects.requireNonNull(value, "value");
+            Objects.requireNonNull(parent, "parent");
+            ScenarioRules.requireTermTaxonomy(taxonomy);
+            ScenarioRules.requireTermName(value);
+            parent.ifPresent(ref -> ScenarioRules.requireTermRef(ref, true));
+            parent.ifPresent(ref -> ScenarioRules.requireDefaultIn(taxonomy, ref));
+        }
+
+        @Override
+        public String kind() {
+            return "term_exists";
         }
     }
 

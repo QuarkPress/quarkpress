@@ -10,7 +10,9 @@ import java.util.Map;
  * Aspects are {@code op<n>:<kind>} (and {@code op<n>:read_options:<name>}) for the n-th operation, and
  * {@code site#<k>} for the final record of the k-th created site. Sites are named by creation order: {@code #0} is the
  * main site. Post scenarios add {@code op<n>:read_post:<field>} and {@code post#<k>:<field>}, the final record of the
- * k-th inserted post; posts are named {@code p<k>} by insertion order.
+ * k-th inserted post; posts are named {@code p<k>} by insertion order. Term scenarios add
+ * {@code op<n>:get_term:<field>} and {@code term#<ref>:<field>}, the final record of a created term ({@code t<k>}) or a
+ * default term ({@code default-category}, {@code default-genre}).
  */
 public final class Outcome {
 
@@ -108,6 +110,24 @@ public final class Outcome {
     /** A post record: one aspect per field, named {@code <prefix>:<field>}. */
     public void observed(String prefix, ObservedPost post) {
         post.fields().forEach((field, value) -> put(prefix + ":" + field, value));
+    }
+
+    /** A term created, named by creation order. */
+    public void termCreated(int op, String ref) {
+        put("op" + op + ":insert_term", "created " + ref);
+    }
+
+    /**
+     * Terms an op answered, by reference ({@code <ref>=<count>} where the op reports counts: post_terms and
+     * query_terms); none show as {@code (none)}.
+     */
+    public void termRefs(int op, String kind, List<String> refs) {
+        put("op" + op + ":" + kind, refs.isEmpty() ? "(none)" : String.join(",", refs));
+    }
+
+    /** A term record: one aspect per field, named {@code <prefix>:<field>}. */
+    public void observedTerm(String prefix, ObservedTerm term) {
+        term.fields().forEach((field, value) -> put(prefix + ":" + field, value));
     }
 
     public Map<String, String> facts() {

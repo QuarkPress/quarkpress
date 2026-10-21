@@ -3,6 +3,7 @@ package org.quarkpress.testing.wpscenario;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * What a scenario may contain: inputs both sides can be compared on. WordPress's bootstrap would prepare a request's
@@ -254,6 +255,137 @@ final class ScenarioRules {
         if (post < 1) {
             throw new IllegalArgumentException("a scenario post operation names a post: 1 or more, not " + post);
         }
+    }
+
+    /** The taxonomies term scenarios use; genre is the custom one both sides register. */
+    static final List<String> TERM_TAXONOMIES = List.of("category", "post_tag", "genre");
+
+    /** The hierarchical ones among them: only these take a parent. */
+    static final List<String> HIERARCHICAL_TAXONOMIES = List.of("category", "genre");
+
+    static void requireTermTaxonomy(String taxonomy) {
+        if (!TERM_TAXONOMIES.contains(taxonomy)) {
+            throw new IllegalArgumentException(
+                    "a scenario's taxonomy is one of " + String.join(", ", TERM_TAXONOMIES) + ": " + taxonomy);
+        }
+    }
+
+    /** {@code t<k>} (k from 1), {@code default}, and, where a parent is meant, {@code none}. */
+    static void requireTermRef(String ref, boolean noneAllowed) {
+        if (ref.equals("default") || (noneAllowed && ref.equals("none")) || termIndex(ref) > 0) {
+            return;
+        }
+        throw new IllegalArgumentException("a scenario term reference is t<k> (k from 1) or default"
+                + (noneAllowed ? " or none" : "") + ": " + ref);
+    }
+
+    /** The k of a {@code t<k>} reference; 0 for any other text. */
+    static int termIndex(String ref) {
+        if (ref.length() < 2 || ref.length() > 6 || ref.charAt(0) != 't' || ref.charAt(1) == '0') {
+            return 0;
+        }
+        int k = 0;
+        for (int i = 1; i < ref.length(); i++) {
+            char c = ref.charAt(i);
+            if (c < '0' || c > '9') {
+                return 0;
+            }
+            k = k * 10 + (c - '0');
+        }
+        return k;
+    }
+
+    /**
+     * Term text both sides store alike, within what the main suite compares: printable ASCII, tab and line feed, no
+     * backslash (so slashing never matters), at most 300 characters; a text that is a number is 1000 or more.
+     */
+    static void requireTermText(String text) {
+        if (text.length() > 300) {
+            throw new IllegalArgumentException("a scenario's term text has at most 300 characters");
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            boolean printable = (c >= 0x20 && c <= 0x7E) || c == '\t' || c == '\n';
+            if (!printable || c == '\\') {
+                throw new IllegalArgumentException(
+                        "a scenario's term text is printable ASCII, tab or line feed, without backslashes");
+            }
+        }
+        long number = PostRecords.idNumber(text.trim());
+        if (number >= 0 && number < 1000) {
+            throw new IllegalArgumentException(
+                    "a scenario term name or slug that is a number is 1000 or more: " + text);
+        }
+    }
+
+    /**
+     * A term name or slug (or a text compared with them): term text whose slug form does not start with a number below
+     * 1000. WordPress numbers the main site's terms from a few, and a slug such as {@code 3-days} would read as the
+     * slug of term 3 on one side only.
+     */
+    static void requireTermName(String text) {
+        requireTermText(text);
+        int digits = leadingDigitsOfSlug(text);
+        if (digits > 0 && digits < 4) {
+            throw new IllegalArgumentException(
+                    "a scenario term name or slug that starts with a number starts with 1000 or more: " + text);
+        }
+    }
+
+    /**
+     * The length of the digit run that starts a text's slug form, 0 when the slug form starts with a letter, with 0 or
+     * is empty. The slug form drops tags, entities, percent-octets and other punctuation before the first letter or
+     * digit.
+     */
+    private static int leadingDigitsOfSlug(String text) {
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            int skip = c == '<' ? text.indexOf('>', i) : c == '&' ? text.indexOf(';', i) : -1;
+            if (skip > i) {
+                i = skip + 1;
+            } else if (c == '%' && i + 2 < text.length() && isHex(text.charAt(i + 1)) && isHex(text.charAt(i + 2))) {
+                i += 3;
+            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                return 0;
+            } else if (c >= '0' && c <= '9') {
+                if (c == '0') {
+                    return 0;
+                }
+                int end = i;
+                while (end < text.length() && text.charAt(end) >= '0' && text.charAt(end) <= '9') {
+                    end++;
+                }
+                return end - i;
+            } else {
+                i++;
+            }
+        }
+        return 0;
+    }
+
+    private static boolean isHex(char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    }
+
+    /** The taxonomies with a default term: only these resolve the reference {@code default}. */
+    static final List<String> DEFAULT_TERM_TAXONOMIES = List.of("category", "genre");
+
+    /** {@code default} only where the taxonomy it resolves in has a default term. */
+    static void requireDefaultIn(String taxonomy, String ref) {
+        if (ref.equals("default") && !DEFAULT_TERM_TAXONOMIES.contains(taxonomy)) {
+            throw new IllegalArgumentException("a scenario names default only in a taxonomy with a default term ("
+                    + String.join(", ", DEFAULT_TERM_TAXONOMIES) + "): " + taxonomy);
+        }
+    }
+
+    /** A parent only in a hierarchical taxonomy. */
+    static void requireTermParent(String taxonomy, Optional<String> parent) {
+        if (parent.isPresent() && !HIERARCHICAL_TAXONOMIES.contains(taxonomy)) {
+            throw new IllegalArgumentException("a scenario gives a parent only in a hierarchical taxonomy ("
+                    + String.join(", ", HIERARCHICAL_TAXONOMIES) + "): " + taxonomy);
+        }
+        parent.ifPresent(ref -> requireTermRef(ref, true));
     }
 
     static String lowerAscii(String text) {
