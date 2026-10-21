@@ -40,8 +40,9 @@ class TermRulesTest {
     }
 
     @Test
-    void aNulIsRefusedInNamesAndDescriptions() {
+    void aNulIsRefusedInNamesSlugsAndDescriptions() {
         refused("a" + (char) 0, "a", "", "the name holds a NUL character");
+        refused("a", "s" + (char) 0, "", "the slug holds a NUL character");
         refused("a", "a", "d" + (char) 0, "the description holds a NUL character");
     }
 

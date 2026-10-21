@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -107,6 +108,72 @@ public class TermWrites {
     }
 
     /**
+     * Updates the locked term: WordPress's {@code wp_update_term}. Every refusal comes before the first write; the
+     * loop members a new parent cuts are written with the term, so a refused update writes nothing.
+     */
+    public TermSnapshot update(SiteId site, TaxonomyDefinition taxonomy, TermEntity row, TermChanges changes) {
+        Instant now = clock.now().truncatedTo(ChronoUnit.MICROS);
+        TermSnapshot before = row.toSnapshot();
+        Optional<TermId> requested =
+                changes.parent().isPresent() ? requireParent(site, taxonomy, changes.parent()) : before.parent();
+        String name = TermText.name(changes.name().orElse(row.name));
+        if (TermText.blank(name)) {
+            throw TermException.emptyName();
+        }
+        String description = TermText.description(changes.description().orElse(row.description));
+        TermHierarchy.Decision hierarchy =
+                TermHierarchy.check(before.id(), requested, id -> lookups.storedParent(site, taxonomy.key(), id));
+        String sanitized = slugs.sanitize(site, taxonomy.key(), changes.slug().orElse(row.slug));
+        boolean regenerated = TermRules.phpEmpty(sanitized);
+        String slug = regenerated ? slugs.generate(site, taxonomy.key(), name) : sanitized;
+        Optional<TermEntity> holder =
+                lookups.bySlug(site, taxonomy.key(), slug).filter(other -> !other.id.equals(row.id));
+        if (holder.isPresent()) {
+            if (regenerated || !hierarchy.parent().equals(before.parent())) {
+                slug = UniqueTermSlugs.unique(
+                        slug,
+                        taxonomy.hierarchical(),
+                        requested,
+                        Optional.of(before.id()),
+                        lookups.uniqueLookup(site, taxonomy.key()));
+            } else {
+                throw TermException.duplicateSlug(slug);
+            }
+        }
+        TermDraft draft = filtered(
+                site,
+                taxonomy,
+                new TermDraft(name, slug, description, hierarchy.parent()),
+                new TermWriteContext(site, taxonomy.key(), Optional.of(before), acting.user(), true));
+        return written(() -> {
+            cutLoop(site, now, hierarchy.cut());
+            apply(row, draft);
+            terms.flush();
+            if (row.slug.isEmpty()) {
+                row.slug = idSlug(site, taxonomy, row);
+                terms.flush();
+            }
+            TermSnapshot after = row.toSnapshot();
+            events.updated(site, now, before, after);
+            return after;
+        });
+    }
+
+    /** Leaves each member of a loop further up without parent, in WordPress's order, announcing each as updated. */
+    private void cutLoop(SiteId site, Instant now, List<TermId> members) {
+        for (TermId member : new ArrayList<>(members)) {
+            Optional<TermEntity> locked = terms.lockTerm(site, member);
+            if (locked.isEmpty() || locked.get().parentId == null) {
+                continue;
+            }
+            TermSnapshot memberBefore = locked.get().toSnapshot();
+            locked.get().parentId = null;
+            terms.flush();
+            events.updated(site, now, memberBefore, locked.get().toSnapshot());
+        }
+    }
+
+    /**
      * The parent a write asks for, checked as WordPress's REST layer checks it: none for 0 or less; refused for a flat
      * taxonomy; it must be a term of the taxonomy on this site.
      */
@@ -137,6 +204,7 @@ public class TermWrites {
                     taxonomy,
                     OptionalLong.of(result.parent().map(TermId::value).orElse(0L)));
         }
+        TermRules.requireStorable(result.name(), result.slug(), result.description(), context.update());
         if (!result.slug().equals(draft.slug())) {
             Optional<TermEntity> holder = lookups.bySlug(site, taxonomy.key(), result.slug());
             Optional<TermId> self = context.before().map(TermSnapshot::id);
@@ -145,7 +213,6 @@ public class TermWrites {
                 throw TermException.duplicateSlug(result.slug());
             }
         }
-        TermRules.requireStorable(result.name(), result.slug(), result.description(), context.update());
         return result;
     }
 

@@ -8,6 +8,7 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.taxonomy.TermCreated;
 import org.quarkpress.taxonomy.TermSnapshot;
+import org.quarkpress.taxonomy.TermUpdated;
 
 /**
  * Fires the taxonomy module's events. Synchronous observers run inside the transaction; one that throws marks it for
@@ -24,5 +25,12 @@ public class TermEvents {
 
     public void created(SiteId site, Instant at, TermSnapshot term) {
         transactions.publish(createdEvent, new TermCreated(site, at, term));
+    }
+
+    @Inject
+    Event<TermUpdated> updatedEvent;
+
+    public void updated(SiteId site, Instant at, TermSnapshot before, TermSnapshot after) {
+        transactions.publish(updatedEvent, new TermUpdated(site, at, before, after));
     }
 }

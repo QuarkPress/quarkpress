@@ -30,8 +30,8 @@ public final class TermRules {
 
     /**
      * Refuses values the columns cannot hold, as WordPress's failed database write reports them: a name or slug longer
-     * than 200 characters, and a NUL in the name or the description (PostgreSQL cannot store one; it is refused on
-     * both databases alike).
+     * than 200 characters, and a NUL in the name, the slug or the description (PostgreSQL cannot store one; it is
+     * refused on both databases alike).
      */
     public static void requireStorable(String name, String slug, String description, boolean update) {
         if (name.codePointCount(0, name.length()) > MAX_NAME) {
@@ -42,6 +42,9 @@ public final class TermRules {
         }
         if (TermText.hasNul(name)) {
             throw fail(update, "the name holds a NUL character");
+        }
+        if (TermText.hasNul(slug)) {
+            throw fail(update, "the slug holds a NUL character");
         }
         if (TermText.hasNul(description)) {
             throw fail(update, "the description holds a NUL character");

@@ -77,8 +77,8 @@ class CreateEventsDbTest {
     }
 
     /**
-     * Runs first: renames "shout", moves "taken" onto an existing slug, makes "long" too long and gives "adopt" the
-     * parent in {@link #adopted}.
+     * Runs first: renames "shout", moves "taken" onto an existing slug, makes "long" too long, puts a NUL into the
+     * slug of "nul slug" and gives "adopt" the parent in {@link #adopted}.
      */
     @ApplicationScoped
     @Priority(20)
@@ -96,6 +96,9 @@ class CreateEventsDbTest {
             }
             if (draft.name().equals("taken")) {
                 return new TermDraft(draft.name(), "occupied", draft.description(), draft.parent());
+            }
+            if (draft.name().equals("nul slug")) {
+                return new TermDraft(draft.name(), "s" + (char) 0, draft.description(), draft.parent());
             }
             if (draft.name().equals("long")) {
                 return new TermDraft("x".repeat(201), draft.slug(), draft.description(), draft.parent());
@@ -188,6 +191,25 @@ class CreateEventsDbTest {
         assertThat(shout.name()).isEqualTo("SHOUT");
         assertThat(shout.slug()).isEqualTo("shout-filtered");
         assertThat(second.contexts()).containsExactly("post_tag update=false before=false name=SHOUT");
+    }
+
+    @Test
+    void aNulSlugFromAFilterIsRefusedAndTheTransactionStaysUsable() throws Exception {
+        TermSnapshot after = Identities.onSite(site, Identities.system(), () -> {
+            assertThatThrownBy(() -> terms.create(
+                            "post_tag", TermChanges.builder().name("nul slug").build()))
+                    .isInstanceOfSatisfying(TermException.class, refused -> {
+                        assertThat(refused.code()).isEqualTo("db_insert_error");
+                        assertThat(refused.detail()).isEqualTo("the slug holds a NUL character");
+                    });
+            return terms.create(
+                    "post_tag", TermChanges.builder().name("after nul").build());
+        });
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select slug from qp_term where site_id = ? and taxonomy = 'post_tag' order by id",
+                        site.value()))
+                .containsExactly(after.slug());
     }
 
     @Test
