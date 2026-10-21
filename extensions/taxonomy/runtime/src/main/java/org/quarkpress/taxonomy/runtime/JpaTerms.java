@@ -28,6 +28,7 @@ import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.TermChanges;
 import org.quarkpress.taxonomy.TermException;
+import org.quarkpress.taxonomy.TermField;
 import org.quarkpress.taxonomy.TermRef;
 import org.quarkpress.taxonomy.TermSnapshot;
 import org.quarkpress.taxonomy.Terms;
@@ -238,9 +239,114 @@ public class JpaTerms implements Terms {
                 .toList();
     }
 
+    @Inject
+    TermSlugs slugs;
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<TermSnapshot> find(TermId term) {
+        Objects.requireNonNull(term, "term");
+        SiteId siteId = site.siteId();
+        Optional<TermSnapshot> found = terms.findTerm(siteId, term).map(TermEntity::toSnapshot);
+        if (found.isEmpty()) {
+            return found;
+        }
+        Optional<TaxonomyDefinition> definition = taxonomies.find(found.get().taxonomy());
+        if (definition.isEmpty()) {
+            return Optional.empty();
+        }
+        requireReadable(siteId, definition.get());
+        return found;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<TermSnapshot> find(TermId term, String taxonomy) {
+        Objects.requireNonNull(term, "term");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        SiteId siteId = site.siteId();
+        TaxonomyDefinition definition = taxonomies.require(taxonomy);
+        requireReadable(siteId, definition);
+        return lookups.find(siteId, term, definition.key()).map(TermEntity::toSnapshot);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<TermSnapshot> findBy(String taxonomy, TermField field, String value) {
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        Objects.requireNonNull(field, "field");
+        Objects.requireNonNull(value, "value");
+        SiteId siteId = site.siteId();
+        Optional<TaxonomyDefinition> definition = taxonomies.find(taxonomy);
+        if (definition.isEmpty() || TermRules.phpEmpty(value)) {
+            return Optional.empty();
+        }
+        requireReadable(siteId, definition.get());
+        String key = definition.get().key();
+        Optional<TermEntity> found =
+                switch (field) {
+                    case ID -> TermId.parse(value).flatMap(id -> lookups.find(siteId, id, key));
+                    case SLUG -> lookups.bySlug(siteId, key, slugs.sanitize(siteId, key, value));
+                    case NAME -> lookups.byName(siteId, key, value);
+                };
+        return found.map(TermEntity::toSnapshot);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<TermSnapshot> exists(String taxonomy, String value, OptionalLong parent) {
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(parent, "parent");
+        SiteId siteId = site.siteId();
+        Optional<TaxonomyDefinition> definition = taxonomies.find(taxonomy);
+        if (definition.isEmpty()) {
+            return Optional.empty();
+        }
+        requireReadable(siteId, definition.get());
+        return lookups.exists(siteId, definition.get().key(), value, parent).map(TermEntity::toSnapshot);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<TermId> ancestors(TermId term, String taxonomy) {
+        Objects.requireNonNull(term, "term");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        SiteId siteId = site.siteId();
+        TaxonomyDefinition definition = taxonomies.require(taxonomy);
+        requireReadable(siteId, definition);
+        if (!definition.hierarchical()) {
+            return List.of();
+        }
+        return TermHierarchy.ancestors(term, id -> lookups.storedParent(siteId, definition.key(), id));
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<TermId> children(TermId term, String taxonomy) {
+        Objects.requireNonNull(term, "term");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        SiteId siteId = site.siteId();
+        TaxonomyDefinition definition = taxonomies.require(taxonomy);
+        requireReadable(siteId, definition);
+        return TermHierarchy.children(term, lookups.children(siteId, definition));
+    }
+
+    /** Whether the caller may read the taxonomy's terms: it is publicly queryable, or the caller may assign them. */
+    boolean canRead(SiteId siteId, TaxonomyDefinition taxonomy) {
+        return taxonomy.publiclyQueryable()
+                || acting.can(siteId, taxonomy.capability("assign_terms"), Optional.empty());
+    }
+
     /** A taxonomy that is not publicly queryable is read only by callers that may assign its terms. */
     void requireReadable(SiteId siteId, TaxonomyDefinition taxonomy) {
-        if (!taxonomy.publiclyQueryable()) {
+        if (!canRead(siteId, taxonomy)) {
             acting.require(siteId, taxonomy.capability("assign_terms"), Optional.empty());
         }
     }

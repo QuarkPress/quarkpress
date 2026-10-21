@@ -2,6 +2,7 @@ package org.quarkpress.taxonomy;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.TermId;
 
@@ -80,4 +81,38 @@ public interface Terms {
      * it was.
      */
     Optional<TermSnapshot> delete(TermId term, String taxonomy);
+
+    /**
+     * The term with this id on the current site (WordPress's {@code get_term} without taxonomy); empty for a term of a
+     * taxonomy that is not registered. A taxonomy that is not publicly queryable needs its {@code assign_terms}.
+     */
+    Optional<TermSnapshot> find(TermId term);
+
+    /** The term with this id in the taxonomy ({@code invalid_taxonomy} when it is unknown); same read rule. */
+    Optional<TermSnapshot> find(TermId term, String taxonomy);
+
+    /**
+     * A term of the taxonomy by a field (WordPress's {@code get_term_by}); empty for an unknown taxonomy, an empty
+     * value, or no match. Several terms of one name under different parents give the one with the lowest id.
+     */
+    Optional<TermSnapshot> findBy(String taxonomy, TermField field, String value);
+
+    /**
+     * WordPress's {@code term_exists} for text: the trimmed text looked up as a slug, then as a name (a number is a
+     * name, never an id); with {@code parent} (0: the top level) only terms with that parent; the lowest id wins.
+     * Empty for an unknown taxonomy or blank text.
+     */
+    Optional<TermSnapshot> exists(String taxonomy, String value, OptionalLong parent);
+
+    /**
+     * The term's ancestors, nearest first (WordPress's {@code get_ancestors}); empty for a flat taxonomy, a top-level
+     * term, or a missing term. An unknown taxonomy is {@code invalid_taxonomy}.
+     */
+    List<TermId> ancestors(TermId term, String taxonomy);
+
+    /**
+     * The term's descendants (WordPress's {@code get_term_children}): its children by ascending id, then the
+     * descendants of each child in turn; empty for a flat taxonomy. An unknown taxonomy is {@code invalid_taxonomy}.
+     */
+    List<TermId> children(TermId term, String taxonomy);
 }
