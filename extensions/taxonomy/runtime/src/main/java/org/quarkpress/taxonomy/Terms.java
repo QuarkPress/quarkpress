@@ -1,5 +1,7 @@
 package org.quarkpress.taxonomy;
 
+import java.util.List;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.TermId;
 
 /**
@@ -39,4 +41,31 @@ public interface Terms {
      * {@link TermUpdated}.
      */
     TermSnapshot update(TermId term, String taxonomy, TermChanges changes);
+
+    /**
+     * Sets a post's terms of a taxonomy (WordPress's {@code wp_set_object_terms}). Needs {@code edit_post} on the
+     * post, {@code assign_term} on every existing term named, and the creating capability of {@link #create} when a
+     * name creates a term. Without {@code append}, the post's other terms of the taxonomy are removed. A taxonomy
+     * registered with {@code sort} keeps the order of a replace. Returns the ids of the requested terms in input order,
+     * duplicates included, skipped ones left out. A post that is missing, or of another site, is the posts module's
+     * {@code invalid_post}; a name that would create a term but sanitizes to nothing is {@code invalid_term_name},
+     * before anything is written. Counts of added and removed terms are recomputed; announced with
+     * {@link TermsAssigned}.
+     */
+    List<TermId> setPostTerms(PostId post, String taxonomy, List<TermRef> terms, boolean append);
+
+    /**
+     * Removes terms from a post (WordPress's {@code wp_remove_object_terms}); names are looked up, never created, and
+     * unknown ones are ignored (WordPress would still announce the removal). Needs {@code edit_post} on the post and
+     * {@code assign_term} on every term named. True when an assignment was removed; then counts are recomputed and
+     * {@link TermsAssigned} announces it.
+     */
+    boolean removePostTerms(PostId post, String taxonomy, List<TermRef> terms);
+
+    /**
+     * A post's terms of a taxonomy (WordPress's {@code wp_get_object_terms}), by name, ignoring case and ordered by
+     * code point, then id. The caller must be able to read the post, and, for a taxonomy that is not publicly
+     * queryable, hold its {@code assign_terms}.
+     */
+    List<TermSnapshot> postTerms(PostId post, String taxonomy);
 }

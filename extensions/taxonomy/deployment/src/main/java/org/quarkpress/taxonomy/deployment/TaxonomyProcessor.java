@@ -30,7 +30,9 @@ import org.quarkpress.taxonomy.runtime.BuiltInTaxonomies;
 import org.quarkpress.taxonomy.runtime.JpaTerms;
 import org.quarkpress.taxonomy.runtime.TaxonomyJson;
 import org.quarkpress.taxonomy.runtime.TaxonomyRecorder;
+import org.quarkpress.taxonomy.runtime.TermAssignments;
 import org.quarkpress.taxonomy.runtime.TermCapabilityFacts;
+import org.quarkpress.taxonomy.runtime.TermCounts;
 import org.quarkpress.taxonomy.runtime.TermLookups;
 
 class TaxonomyProcessor {
@@ -46,7 +48,12 @@ class TaxonomyProcessor {
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
         return UnremovableBeanBuildItem.beanTypes(
-                TermCapabilityFacts.class, TermLookups.class, Terms.class, JpaTerms.class);
+                TermCapabilityFacts.class,
+                TermLookups.class,
+                TermAssignments.class,
+                TermCounts.class,
+                Terms.class,
+                JpaTerms.class);
     }
 
     @BuildStep

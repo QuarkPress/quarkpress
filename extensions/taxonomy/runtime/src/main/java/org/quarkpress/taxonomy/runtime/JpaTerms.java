@@ -6,18 +6,29 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.transaction.Transactional;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.Consumer;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.core.TermId;
+import org.quarkpress.persistence.runtime.TenantIds;
+import org.quarkpress.posts.PostException;
+import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.runtime.Acting;
+import org.quarkpress.posts.runtime.PostCapabilityFacts;
+import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostLocks;
+import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.TermChanges;
 import org.quarkpress.taxonomy.TermException;
+import org.quarkpress.taxonomy.TermRef;
 import org.quarkpress.taxonomy.TermSnapshot;
 import org.quarkpress.taxonomy.Terms;
 
@@ -110,5 +121,161 @@ public class JpaTerms implements Terms {
     /** Creating a term needs the taxonomy's edit_terms when it is hierarchical, its assign_terms when it is flat. */
     static String createCapability(TaxonomyDefinition taxonomy) {
         return taxonomy.capability(taxonomy.hierarchical() ? "edit_terms" : "assign_terms");
+    }
+
+    @Inject
+    PostRepository posts;
+
+    @Inject
+    PostCapabilityFacts postFacts;
+
+    @Inject
+    TermAssignments assignments;
+
+    /** One element of an assignment, resolved: an existing term, a name to create, or nothing. */
+    private record Resolved(Optional<TermEntity> term, Optional<String> create) {}
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<TermId> setPostTerms(PostId post, String taxonomy, List<TermRef> refs, boolean append) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        List<TermRef> given = List.copyOf(refs);
+        SiteId siteId = site.siteId();
+        TaxonomyDefinition definition = taxonomies.require(taxonomy);
+        checkAssignment(siteId, definition, post, resolve(siteId, definition, given, true));
+        locks.lock(siteId);
+        checkAssignment(siteId, definition, post, resolve(siteId, definition, given, true));
+        return writes.written(() -> {
+            List<TermId> requested = new ArrayList<>();
+            for (TermRef ref : given) {
+                // resolved again one by one: a name may find the term an earlier name of this call created
+                Resolved resolved = resolveOne(siteId, definition, ref, true);
+                if (resolved.term().isPresent()) {
+                    requested.add(TermId.of(resolved.term().get().id));
+                } else if (resolved.create().isPresent()) {
+                    requested.add(writes.insert(
+                                    siteId,
+                                    definition,
+                                    TermChanges.builder()
+                                            .name(resolved.create().get())
+                                            .build())
+                            .id());
+                }
+            }
+            assignments.set(siteId, post, definition, requested, append);
+            return List.copyOf(requested);
+        });
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public boolean removePostTerms(PostId post, String taxonomy, List<TermRef> refs) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        List<TermRef> given = List.copyOf(refs);
+        SiteId siteId = site.siteId();
+        TaxonomyDefinition definition = taxonomies.require(taxonomy);
+        checkAssignment(siteId, definition, post, resolve(siteId, definition, given, false));
+        locks.lock(siteId);
+        List<Resolved> resolved = resolve(siteId, definition, given, false);
+        checkAssignment(siteId, definition, post, resolved);
+        List<TermId> named = resolved.stream()
+                .flatMap(entry -> entry.term().stream())
+                .map(term -> TermId.of(term.id))
+                .toList();
+        return writes.written(() -> assignments.remove(siteId, post, definition.key(), named));
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<TermSnapshot> postTerms(PostId post, String taxonomy) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(taxonomy, "taxonomy");
+        SiteId siteId = site.siteId();
+        TaxonomyDefinition definition = taxonomies.require(taxonomy);
+        acting.requireReadable(siteId, postFacts.of(storedPost(siteId, post)));
+        requireReadable(siteId, definition);
+        return terms.getEntityManager()
+                .createQuery(
+                        "select t from TermEntity t, TermAssignmentEntity a where t.siteId = :site"
+                                + " and a.siteId = :site and a.termId = t.id and a.postId = :post"
+                                + " and t.taxonomy = :taxonomy order by " + lookups.nameOrder("t") + ", t.id",
+                        TermEntity.class)
+                .setParameter("site", TenantIds.param(siteId))
+                .setParameter("post", post.value())
+                .setParameter("taxonomy", definition.key())
+                .getResultStream()
+                .map(TermEntity::toSnapshot)
+                .toList();
+    }
+
+    /** A taxonomy that is not publicly queryable is read only by callers that may assign its terms. */
+    void requireReadable(SiteId siteId, TaxonomyDefinition taxonomy) {
+        if (!taxonomy.publiclyQueryable()) {
+            acting.require(siteId, taxonomy.capability("assign_terms"), Optional.empty());
+        }
+    }
+
+    /** The stored post of this site; a missing post, or one of another site, is {@code invalid_post}. */
+    private PostSnapshot storedPost(SiteId siteId, PostId post) {
+        return posts.findPost(siteId, post)
+                .map(PostEntity::toSnapshot)
+                .orElseThrow(() -> PostException.invalidPost(post));
+    }
+
+    private List<Resolved> resolve(SiteId siteId, TaxonomyDefinition taxonomy, List<TermRef> refs, boolean create) {
+        List<Resolved> resolved = new ArrayList<>();
+        for (TermRef ref : refs) {
+            resolved.add(resolveOne(siteId, taxonomy, ref, create));
+        }
+        return resolved;
+    }
+
+    /**
+     * An id is a term of the taxonomy on this site or nothing; a name is found as a slug then as a name, or, when
+     * {@code create} is set, is a name to create (a blank name is nothing).
+     */
+    private Resolved resolveOne(SiteId siteId, TaxonomyDefinition taxonomy, TermRef ref, boolean create) {
+        return switch (ref) {
+            case TermRef.Id id -> new Resolved(lookups.find(siteId, id.term(), taxonomy.key()), Optional.empty());
+            case TermRef.Name name -> {
+                if (TermText.blank(name.name())) {
+                    yield new Resolved(Optional.empty(), Optional.empty());
+                }
+                Optional<TermEntity> found = lookups.exists(siteId, taxonomy.key(), name.name(), OptionalLong.empty());
+                yield new Resolved(found, found.isEmpty() && create ? Optional.of(name.name()) : Optional.empty());
+            }
+        };
+    }
+
+    /**
+     * The checks of an assignment, all before anything is written: the post exists on this site and the caller may
+     * edit it; the caller may assign each existing term; a name to create needs the creating capability and must not
+     * sanitize to nothing.
+     */
+    private void checkAssignment(SiteId siteId, TaxonomyDefinition taxonomy, PostId post, List<Resolved> resolved) {
+        acting.require(siteId, "edit_post", Optional.of(postFacts.of(storedPost(siteId, post))));
+        boolean creates = false;
+        for (Resolved entry : resolved) {
+            if (entry.term().isPresent()) {
+                acting.require(
+                        siteId,
+                        "assign_term",
+                        Optional.of(facts.of(entry.term().get().toSnapshot())));
+            }
+            if (entry.create().isPresent()) {
+                creates = true;
+                if (TermText.name(entry.create().get()).isEmpty()) {
+                    throw TermException.invalidName();
+                }
+            }
+        }
+        if (creates) {
+            acting.require(siteId, createCapability(taxonomy), Optional.empty());
+        }
     }
 }

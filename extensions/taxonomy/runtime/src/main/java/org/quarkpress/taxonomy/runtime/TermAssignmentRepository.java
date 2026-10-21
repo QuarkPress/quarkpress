@@ -3,6 +3,7 @@ package org.quarkpress.taxonomy.runtime;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
+import java.util.Optional;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TermId;
@@ -29,5 +30,11 @@ public class TermAssignmentRepository implements PanacheRepositoryBase<TermAssig
                 .getResultStream()
                 .map(PostId::of)
                 .toList();
+    }
+
+    /** The post's assignment to the term. */
+    public Optional<TermAssignmentEntity> find(SiteId site, PostId post, TermId term) {
+        return find("siteId = ?1 and postId = ?2 and termId = ?3", TenantIds.param(site), post.value(), term.value())
+                .firstResultOptional();
     }
 }
