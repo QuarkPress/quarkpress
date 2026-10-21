@@ -63,6 +63,21 @@ public final class TermText {
         return KSES.sanitize(text, KsesContext.PRE_TERM_DESCRIPTION);
     }
 
+    /**
+     * A name as WordPress's lookups by name filter it: the text is not slashed first, so a backslash is dropped (kses
+     * unslashes it) and keeps the next character, and the result is unslashed once more. Use it for probes, and
+     * {@link #name} for stored names.
+     */
+    public static String probeName(String text) {
+        String slashed = addSlashes(KSES.sanitize(stripSlashes(textField(text)), NAME));
+        return stripSlashes(Kses.specialChars(slashed));
+    }
+
+    /** PHP's {@code trim} of text that is not slashed: spaces, tabs, line breaks, vertical tabs and NUL. */
+    public static String trimmed(String text) {
+        return trim(text, true);
+    }
+
     /** PHP's {@code addslashes}: a backslash before each quote, double quote and backslash; NUL as backslash, zero. */
     static String addSlashes(String text) {
         StringBuilder out = new StringBuilder(text.length() + 8);

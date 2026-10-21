@@ -11,16 +11,30 @@ public final class TaxonomyApp {
     private TaxonomyApp() {}
 
     public static QuarkusExtensionTest with(Class<?>... classes) {
+        return app(false, classes);
+    }
+
+    /** As {@link #with}, with security in multisite mode ({@link TestMultisiteMode}): checks name their site. */
+    public static QuarkusExtensionTest multisite(Class<?>... classes) {
+        return app(true, classes);
+    }
+
+    private static QuarkusExtensionTest app(boolean multisite, Class<?>... classes) {
         return new QuarkusExtensionTest()
-                .withApplicationRoot(jar -> jar.addClasses(classes)
-                        .addClasses(
-                                TestDb.class,
-                                TaxonomyApp.class,
-                                Races.class,
-                                Jdbc.class,
-                                Failures.class,
-                                Identities.class,
-                                TestData.class))
+                .withApplicationRoot(jar -> {
+                    jar.addClasses(classes)
+                            .addClasses(
+                                    TestDb.class,
+                                    TaxonomyApp.class,
+                                    Races.class,
+                                    Jdbc.class,
+                                    Failures.class,
+                                    Identities.class,
+                                    TestData.class);
+                    if (multisite) {
+                        jar.addClasses(TestMultisiteMode.class);
+                    }
+                })
                 .overrideConfigKey("quarkus.datasource.\"quarkpress\".db-kind", TestDb.kind())
                 .overrideConfigKey("quarkus.datasource.devservices.enabled", "false")
                 .overrideConfigKey("quarkus.keycloak.devservices.enabled", "false")

@@ -1,6 +1,7 @@
 package org.quarkpress.taxonomy.deployment;
 
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
+import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
@@ -27,6 +28,8 @@ import org.quarkpress.taxonomy.Taxonomy;
 import org.quarkpress.taxonomy.runtime.BuiltInTaxonomies;
 import org.quarkpress.taxonomy.runtime.TaxonomyJson;
 import org.quarkpress.taxonomy.runtime.TaxonomyRecorder;
+import org.quarkpress.taxonomy.runtime.TermCapabilityFacts;
+import org.quarkpress.taxonomy.runtime.TermLookups;
 
 class TaxonomyProcessor {
 
@@ -36,6 +39,11 @@ class TaxonomyProcessor {
     @BuildStep
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
+    }
+
+    @BuildStep
+    UnremovableBeanBuildItem unremovable() {
+        return UnremovableBeanBuildItem.beanTypes(TermCapabilityFacts.class, TermLookups.class);
     }
 
     @BuildStep
