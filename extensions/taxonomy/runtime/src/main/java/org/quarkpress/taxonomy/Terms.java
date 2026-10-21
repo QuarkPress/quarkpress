@@ -115,4 +115,21 @@ public interface Terms {
      * descendants of each child in turn; empty for a flat taxonomy. An unknown taxonomy is {@code invalid_taxonomy}.
      */
     List<TermId> children(TermId term, String taxonomy);
+
+    /**
+     * Terms matching {@code query} (WordPress's {@code get_terms}), with the API's defaults described on
+     * {@link TermQuery}. A named taxonomy must be registered ({@code invalid_taxonomy}) and readable by the caller
+     * (see {@link #find(TermId)}); without taxonomies the query covers those the caller may read. Ties are broken by id
+     * in the query's direction.
+     */
+    List<TermSnapshot> query(TermQuery query);
+
+    /**
+     * How many terms match (WordPress's {@code wp_count_terms}): the query's conditions, with empty terms hidden only
+     * when the caller turns {@code hideEmpty} on (it is off when not set), without hierarchy, {@code number},
+     * {@code offset}, {@code childOf} (beyond its empty answer for a term without children) and {@code padCounts}
+     * ignored. With {@code posts}, each assignment of a matching term to one of those posts counts once, so a term on
+     * two of the posts counts twice, as in WordPress.
+     */
+    long count(TermQuery query);
 }

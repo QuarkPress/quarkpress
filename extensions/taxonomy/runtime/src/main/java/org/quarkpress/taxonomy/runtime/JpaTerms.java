@@ -29,6 +29,7 @@ import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.TermChanges;
 import org.quarkpress.taxonomy.TermException;
 import org.quarkpress.taxonomy.TermField;
+import org.quarkpress.taxonomy.TermQuery;
 import org.quarkpress.taxonomy.TermRef;
 import org.quarkpress.taxonomy.TermSnapshot;
 import org.quarkpress.taxonomy.Terms;
@@ -286,12 +287,11 @@ public class JpaTerms implements Terms {
         }
         requireReadable(siteId, definition.get());
         String key = definition.get().key();
-        Optional<TermEntity> found =
-                switch (field) {
-                    case ID -> TermId.parse(value).flatMap(id -> lookups.find(siteId, id, key));
-                    case SLUG -> lookups.bySlug(siteId, key, slugs.sanitize(siteId, key, value));
-                    case NAME -> lookups.byName(siteId, key, value);
-                };
+        Optional<TermEntity> found = switch (field) {
+            case ID -> TermId.parse(value).flatMap(id -> lookups.find(siteId, id, key));
+            case SLUG -> lookups.bySlug(siteId, key, slugs.sanitize(siteId, key, value));
+            case NAME -> lookups.byName(siteId, key, value);
+        };
         return found.map(TermEntity::toSnapshot);
     }
 
@@ -336,6 +336,45 @@ public class JpaTerms implements Terms {
         TaxonomyDefinition definition = taxonomies.require(taxonomy);
         requireReadable(siteId, definition);
         return TermHierarchy.children(term, lookups.children(siteId, definition));
+    }
+
+    @Inject
+    TermQueries queries;
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<TermSnapshot> query(TermQuery query) {
+        Objects.requireNonNull(query, "query");
+        SiteId siteId = site.siteId();
+        return queries.run(siteId, queried(siteId, query), !query.taxonomies().isEmpty(), query);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public long count(TermQuery query) {
+        Objects.requireNonNull(query, "query");
+        SiteId siteId = site.siteId();
+        return queries.count(siteId, queried(siteId, query), !query.taxonomies().isEmpty(), query);
+    }
+
+    /**
+     * The named taxonomies, each registered and readable; without names, every registered one the caller may read.
+     */
+    private List<TaxonomyDefinition> queried(SiteId siteId, TermQuery query) {
+        if (query.taxonomies().isEmpty()) {
+            return taxonomies.all().stream()
+                    .filter(taxonomy -> canRead(siteId, taxonomy))
+                    .toList();
+        }
+        List<TaxonomyDefinition> named = new ArrayList<>();
+        for (String key : query.taxonomies()) {
+            TaxonomyDefinition taxonomy = taxonomies.require(key);
+            requireReadable(siteId, taxonomy);
+            named.add(taxonomy);
+        }
+        return named;
     }
 
     /** Whether the caller may read the taxonomy's terms: it is publicly queryable, or the caller may assign them. */
