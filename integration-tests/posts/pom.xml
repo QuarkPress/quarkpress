@@ -11,7 +11,7 @@
   <artifactId>quarkpress-it-posts</artifactId>
 
   <name>QuarkPress :: Integration tests :: Posts</name>
-  <description>A single-site application with WordPress posts, roles and capabilities, tested over HTTP with Keycloak tokens in JVM mode and as a native executable.</description>
+  <description>A single-site application with WordPress posts, categories and tags, roles and capabilities, tested over HTTP with Keycloak tokens in JVM mode and as a native executable.</description>
 
   <properties>
     <automatic.module.name>org.quarkpress.it.posts</automatic.module.name>
@@ -26,6 +26,11 @@
     <dependency>
       <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-security</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-taxonomy</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -103,6 +108,19 @@
     <dependency>
       <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-security-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-taxonomy-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
