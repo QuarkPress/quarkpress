@@ -9,7 +9,7 @@ import org.quarkpress.core.TermId;
  * invalid_term} (no such term in the taxonomy on this site), {@code empty_term_name}, {@code invalid_term_name} (a
  * name that sanitizes to nothing), {@code term_exists} (a duplicate name; {@link #existing()} names the term),
  * {@code duplicate_term_slug}, {@code missing_parent}, {@code rest_taxonomy_not_hierarchical} (a parent in a flat
- * taxonomy), or {@code db_insert_error} (a value its column cannot hold). The messages are
+ * taxonomy), or {@code db_insert_error} / {@code db_update_error} (a value its column cannot hold). The messages are
  * WordPress's English ones.
  */
 public class TermException extends IllegalArgumentException {
@@ -91,5 +91,10 @@ public class TermException extends IllegalArgumentException {
     public static TermException dbError(String detail) {
         return new TermException(
                 "db_insert_error", "Could not insert term into the database.", detail, Optional.empty());
+    }
+
+    /** A value that does not fit its column on an update, as WordPress's failed database write reports it. */
+    public static TermException dbUpdateError(String detail) {
+        return new TermException("db_update_error", "Could not update term in the database.", detail, Optional.empty());
     }
 }
