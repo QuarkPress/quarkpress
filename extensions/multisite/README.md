@@ -137,10 +137,10 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 - A new site gets WordPress's default options, with the JSON type of the value WordPress stores: `blogname` (the
   title; `Site <id>` when the title is empty), `blogdescription` `""`, `timezone_string` `""`, `gmt_offset` `"0"`,
   `date_format` `"F j, Y"`, `time_format` `"g:i a"`, `start_of_week` `1`, `posts_per_page` `10`,
-  `default_category` `0`, `show_on_front` `"posts"`, `page_on_front` `0`, `page_for_posts` `0`,
-  `default_comment_status` `"open"`, `default_ping_status` `"open"`, and `qp_features` (the switches passed in
-  `NewSite.withFeatures`, else `{}`; features not set follow the network defaults). `NewSite.of` creates a public
-  site (public 1), as the Add Site screen does.
+  `default_category` (the site's Uncategorized term with the taxonomy module, else `0`), `show_on_front` `"posts"`,
+  `page_on_front` `0`, `page_for_posts` `0`, `default_comment_status` `"open"`, `default_ping_status` `"open"`, and
+  `qp_features` (the switches passed in `NewSite.withFeatures`, else `{}`; features not set follow the network
+  defaults). `NewSite.of` creates a public site (public 1), as the Add Site screen does.
 - Events: `SiteCreated` (preceded by `SiteFlagsChanged` when the new site's public value is not 1, as WordPress fires
   its status transitions on insert, before the site's options exist), `SiteUpdated`, `SiteFlagsChanged` (after
   `SiteUpdated` when a flag or the public value changed) and `SiteDeleted`, fired inside the transaction (an observer
@@ -184,7 +184,7 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 | D4 | A request that matches no site is served without a site; WordPress redirects (to the network, or to the signup page in subdomain installs) or, on the network host, shows its database-error page ("not installed"). The scenario oracle maps all three to "none". |
 | D5 | Domain aliases with an optional redirect are a QuarkPress addition; WordPress maps a domain by setting the site's own domain. |
 | D6 | The main site's domain and path can change through `Sites`; WordPress's site settings screen does not allow it. |
-| D7 | `default_category` is 0 until a module creates the default category; WordPress stores 1. `home`, `siteurl` and `blog_public` are not options. |
+| D7 | `default_category` names the site's Uncategorized term when the taxonomy module is installed (else 0), whose id is unique across the network; WordPress's is 1. `home`, `siteurl` and `blog_public` are not options. |
 | D8 | WordPress's front-end signup rules (lowercase letters and digits only, so no upper case and no hyphens; at least 4 characters; not all digits; `illegal_names`) are not applied: `Sites.create` is the network administrator's "Add Site". |
 | D9 | Option values keep their JSON types (`posts_per_page` is the number 10); WordPress stores option values as text and reads every scalar back as text (`"10"`). |
 | D10 | A raw request path with `.` or `..` segments is served without a site; WordPress compares such segments as written. |

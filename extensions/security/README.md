@@ -127,7 +127,8 @@ Meta capabilities about an object take a `CapObject`:
   page, the page for posts and the privacy policy page). The posts module (`quarkpress-posts`) builds them from stored
   posts (`PostCapabilityFacts`) and gives the meta capability names of the custom post types that map meta
   capabilities (a `MetaCapabilityNames` bean), so a type's `edit_book` maps as `edit_post` does;
-- terms: `TermFacts` with the taxonomy's `TaxonomyCapabilities`; the taxonomy's default term cannot be deleted;
+- terms: `TermFacts` with the taxonomy's `TaxonomyCapabilities`; the taxonomy's default term cannot be deleted. The
+  taxonomy module (`quarkpress-taxonomy`) builds them from stored terms (`TermCapabilityFacts`);
 - users: `UserTarget` for `edit_user`, `promote_user`, `remove_user`, `delete_user`;
 - `MissingObject` for an id that resolves to nothing: refused.
 

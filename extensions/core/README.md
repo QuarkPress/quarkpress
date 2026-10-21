@@ -212,6 +212,15 @@ first). An extension registers them with `PostTypeBuildItem` and `PostStatusBuil
 `quarkpress-core-deployment-spi`); the posts module collects them and fails the build on a key registered twice.
 `WordPressKeys.sanitize` is WordPress's `sanitize_key`.
 
+### Taxonomies
+
+`TaxonomyDefinition` describes what WordPress's `register_taxonomy` registers. Its builder applies WordPress's
+defaults: a taxonomy is public unless told otherwise, its interface flags follow `public` and each other, its four
+capability names default to `manage_categories` (managing, editing, deleting terms) and `edit_posts` (assigning them),
+and its labels are derived from its names and its hierarchical flag. A key is used as given and holds 1 to 32 bytes.
+An extension registers taxonomies with `TaxonomyBuildItem` (in `quarkpress-core-deployment-spi`); the taxonomy module
+collects them and fails the build on a key registered twice.
+
 ## Typed ids
 
 `SiteId`, `UserId`, `PostId`, `TermId` and `RevisionId` wrap positive 64-bit ids, so one kind of id cannot be passed

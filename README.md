@@ -28,9 +28,10 @@ Project home: <https://quarkpress.org>
 | `extensions/multisite/` | `quarkpress-multisite`: several sites per network, site resolution by domain, subdomain and path, domain aliases, network administration |
 | `extensions/security/` | `quarkpress-security`: user profiles from OIDC, site memberships, network administrators, WordPress roles and capability checks |
 | `extensions/posts/` | `quarkpress-posts`: WordPress posts with their types and statuses, saving rules, trash, sticky posts, meta and queries |
-| `testing/wp-oracle/` | Tier A oracle (test only): runs pinned WordPress 7.1.3 PHP code to compare it with QuarkPress libraries, multisite, security and posts functions |
+| `extensions/taxonomy/` | `quarkpress-taxonomy`: categories, tags and custom taxonomies, terms with WordPress's saving rules, assignments, counts, default categories and queries |
+| `testing/wp-oracle/` | Tier A oracle (test only): runs pinned WordPress 7.1.3 PHP code to compare it with QuarkPress libraries, multisite, security, posts and taxonomy functions |
 | `testing/wp-scenario/` | Tier B oracle (test only): a full WordPress 7.1.3 install in a MySQL container, compared with QuarkPress on JSON scenarios |
-| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI); `integration-tests/posts` is a single site with posts, tested over HTTP with Keycloak tokens |
+| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI); `integration-tests/posts` is a single site with posts, categories and tags, tested over HTTP with Keycloak tokens |
 | `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |
 | `docs/` | Specification and planning documents |
 

@@ -159,6 +159,9 @@ Saves of attachments by `create` and `update` fire none of the save events (Word
 events of their own, which come with the media module); `publish` fires `PostStatusChanged`, `PostPublished` and
 `PostSaved` for every type, attachments included, and never `PostUpdated`.
 
+The taxonomy module observes `PostStatusChanged` and `PostDeleting` inside the saving transaction: it gives saved posts
+their default terms, keeps term counts, and removes a deleted post's assignments.
+
 ### Filters and replaceable beans
 
 Filters are beans; a higher `@Priority` runs first, the opposite of WordPress. A filter returns a value (changed or
@@ -255,7 +258,7 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 | D11 | The guid is always the plain permalink on the site's `http` home; WordPress uses the pretty permalink for posts published while pretty permalinks are on. |
 | D12 | Post ids are unique across the network; WordPress numbers posts per site. |
 | D13 | No pingback or enclosure markers (`_pingme`, `_encloseme`) are written, and nothing about comments happens yet (deleting a post deletes no comments). |
-| D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` and `meta_input` are not stored; global styles are not filtered on save. |
+| D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` (the taxonomy module assigns terms after the save) and `meta_input` are not stored; global styles are not filtered on save. |
 | D15 | `PostMeta` checks `edit_post` for meta writes, as WordPress's REST API maps the post meta capabilities; protected keys (leading `_`) are written only by the system identity; meta values are JSON values, so numbers and booleans keep their types. The meta capability names themselves (`edit_post_meta`, `add_post_meta`, `delete_post_meta`) are not mapped for direct checks. |
 | D16 | The trash is not emptied after `empty-trash-days`, old auto-drafts are not removed and scheduled posts are not published when due (`publish` does it when called): scheduled jobs come later. |
 | D17 | Queries leave out calendar arguments other than date conditions, `rand`, `comment_count`, meta and taxonomy queries; ties are broken by id (WordPress leaves them in database order); when every ordering key is skipped the query orders newest first (WordPress orders nothing when the keys come as a list); statuses other than `publish` need `edit_posts`, and such a query by a caller other than the system identity leaves out the posts the caller may not read, with `found` counting only what it returns (`WP_Query` returns and counts them; the REST API drops them item by item but still counts them in `X-WP-Total`); without statuses the system identity counts as logged out. |

@@ -14,7 +14,9 @@ mvn -pl testing/wp-scenario -am verify -Pwp-parity -DtestDb=postgresql
 It needs PHP 8.4 with `mysqli` (`-Dwp.php=/path/to/php` selects another binary), network access for the first
 download, and a container runtime (Docker, or Podman through `DOCKER_HOST`). Without a container runtime the tests
 report `ASSUMPTION: no container runtime` and are skipped; without `-Pwp-parity` they do not run at all. The driver
-uses only what WordPress itself requires (`json`, `hash`) besides `mysqli`.
+uses only what WordPress itself requires (`json`, `hash`) besides `mysqli`. `-Dwp.scenario.outcomes=<file>` appends
+every fact both sides observed to that file, one tab-separated line each (case, key, WordPress, QuarkPress), so what
+agreed can be read too; the comparison itself reports only differences.
 
 ## How it works
 
@@ -32,8 +34,9 @@ uses only what WordPress itself requires (`json`, `hash`) besides `mysqli`.
 - **Comparison.** Sites are named by creation order (`#0` is the main site). Each operation and each created site's
   final record is one compared aspect. `testing/wp-oracle`'s `ParityRun` compares them, with a skip list per test
   class (`src/test/resources/wp-scenario*-skip.txt`, items from the multisite README's "Differences from WordPress",
-  and, for the capability scenarios, from the security README's table: D5, D6 and D20) and a minimum number of
-  comparisons, so an empty corpus cannot pass.
+  for the capability scenarios from the security README's table (D5, D6 and D20), for the post scenarios from the
+  posts README's and for the term scenarios from the taxonomy README's) and a minimum number of comparisons, so an
+  empty corpus cannot pass.
 
 ## Scenario format
 
@@ -100,8 +103,42 @@ becomes `closed`. A `timezone_string` is not checked against WordPress's zone li
 Generated post scenarios come from `test-gen` with fixed seeds (`PostScenarios.generated`): users insert, update,
 publish, trash, restore, delete and stick posts, some under a drawn time zone, and query, read and resolve them.
 
+### Term scenarios
+
+Term operations act on the main site like post operations: `insert_term {as, taxonomy, fields}`, `update_term {as,
+term, taxonomy, fields}`, `delete_term {as, term, taxonomy}`, `set_post_terms {as, post, taxonomy, terms, append}`,
+`remove_post_terms {as, post, taxonomy, terms}`, `post_terms {post, taxonomy}`, `query_terms {as, args}`, `get_term
+{term, taxonomy}` (an empty taxonomy reads the term without one) and `term_exists {taxonomy, value, parent}`
+(`TermScenarioJson` lists the keys of `fields`, `terms` and `args`). `as` names a user as in post operations.
+Taxonomies are `category`, `post_tag` and `genre`, a hierarchical taxonomy on `post` with the default term General
+that the driver registers on every run and the QuarkPress side with `@Taxonomy` (`TierBTaxonomies`). Terms are named
+`t<k>` by creation order on the site during the scenario (implicit creations by name included, deleted terms still
+counted), `default` is the taxonomy's default term (in `category` and `genre` only) and `none` no parent. Every created
+term's final record and the default terms' are compared field by field (`term#t<k>:<field>`,
+`term#default-category:<field>`, `term#default-genre:<field>`); a slug that is the term's own id shows as `#self`,
+followed by its `-<n>` suffixes if it has any (`#self-2`). `post_terms` and `query_terms` record each term with its
+count (`t<k>=<count>`, the padded count when the query pads), so counts are compared wherever terms are listed.
+Deleting a default term, which QuarkPress refuses for everyone, is recorded as WordPress's answer (`kept`), as the
+taxonomy README's D1 describes.
+Term text is printable ASCII, tab and line feed without backslashes (so slashing never matters), at most 300
+characters, and a name or slug that reads as a number, or whose slug starts with one, is 1000 or more: WordPress
+numbers the main site's terms from a few. WordPress leaves terms that tie on the order key to the database; the driver
+appends the term id in the query's direction, and a query ordered by `none` is compared as a sorted set. The scenarios
+live in `scenarios/terms/` (hand-written, one or more per behaviour-reference rule, listed in `index.txt`) and
+`TermScenarios` (generated with `test-gen` from the fixed seeds `20261021-terms-1` and `20261021-terms-2`, 20 each:
+an editor, three to five posts, four to eight terms of the three taxonomies, assignments and removals, a rename, slug
+change, re-parenting or slug-and-parent update, post status changes through saves, `publish_post`, trash and untrash,
+a deleted post and a deleted term, an assignment naming the deleted term's id, names made of digits, then reads,
+lookups and queries with `exclude` and `exclude_tree`; every scenario ends with `post_terms` reads of each remaining
+post in all three taxonomies, so what the operations did to unpublished posts is compared too).
+`TermScenarioParityDbTest` runs all 50 and requires at least 4150 comparisons (half of the first green run's 8393).
+Deliberate differences are in `wp-scenario-terms-skip.txt`, labelled with the taxonomy README's table; the records of
+the scenarios' posts use the posts README's labels with the prefix `posts README:` in the reason (today every line is
+the posts README's D5, a new draft's GMT modification date, which `publish_post` leaves as it is).
+
 ## Adding scenarios
 
 Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for a
 deliberate difference, add an item to the multisite README's differences table (the security README's for capability
-scenarios) and a skip-list line naming it. A skip-list line that no longer covers a difference fails the run.
+scenarios, the posts README's for post scenarios, the taxonomy README's for term scenarios) and a skip-list line naming
+it. A skip-list line that no longer covers a difference fails the run.
