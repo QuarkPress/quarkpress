@@ -93,6 +93,12 @@ compared as a sorted set and must not be paged (`per_page` -1, no `page` or `off
 every post is inserted under plain permalinks (a `permalink_structure` of `""`): WordPress's network setup gives the
 main site a pretty structure, under which a published post's guid is its pretty link. Post text holds no control
 characters but tab and line feed and no characters outside the Basic Multilingual Plane, so Tier B has no emoji.
+QuarkPress's site options are stored as given, so the runner applies WordPress's option sanitizing on the QuarkPress
+side: `posts_per_page` is cast as PHP casts an integer (0 becomes 1, below -1 its absolute value), `gmt_offset` keeps a
+number's digits, colons, dots and minus signs and is otherwise empty, and an empty or `0` default comment or ping status
+becomes `closed`. A `timezone_string` is not checked against WordPress's zone list, so scenarios name only valid zones.
+Generated post scenarios come from `test-gen` with fixed seeds (`PostScenarios.generated`): users insert, update,
+publish, trash, restore, delete and stick posts, some under a drawn time zone, and query, read and resolve them.
 
 ## Adding scenarios
 
