@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.Callable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.SiteId;
@@ -206,7 +207,7 @@ class TermLookupsDbTest {
                 .isFalse();
     }
 
-    private <T> T on(SiteId site, java.util.concurrent.Callable<T> action) throws Exception {
+    private <T> T on(SiteId site, Callable<T> action) throws Exception {
         return Identities.onSite(site, Identities.system(), action);
     }
 
@@ -236,8 +237,12 @@ class TermLookupsDbTest {
         assertThat(on(site, () -> lookups.sameLength(site, "category", Optional.empty(), cp(0x1F600) + "AB")).stream()
                         .map(DuplicateNames.Stored::id))
                 .containsExactly(smile);
-        TermId first = TestData.term(dataSource, site, "post_tag", "Qq", "x1", null);
-        TestData.term(dataSource, site, "post_tag", "qQ", "x2", null);
+        // the lower id holds the name that MySQL's binary index puts second
+        TermId first = TestData.term(dataSource, site, "post_tag", "qQ", "x1", null);
+        TermId second = TestData.term(dataSource, site, "post_tag", "Qq", "x2", null);
+        assertThat(on(site, () -> lookups.sameLength(site, "post_tag", Optional.empty(), "QQ")).stream()
+                        .map(DuplicateNames.Stored::id))
+                .containsExactly(first, second);
         assertThat(on(site, () -> lookups.byName(site, "post_tag", "QQ").map(term -> term.id)))
                 .contains(first.value());
         assertThat(on(
@@ -306,9 +311,16 @@ class TermLookupsDbTest {
                 .isEmpty();
         assertThat(on(site, () -> lookups.exists(site, "post_tag", "Odd Child", OptionalLong.of(tag.value()))))
                 .isEmpty();
-        assertThat(on(site, () -> lookups.exists(site, "post_tag", "Odd Child", OptionalLong.empty())))
+        assertThat(on(
+                        site,
+                        () -> lookups.exists(site, "post_tag", "Odd Child", OptionalLong.empty())
+                                .map(term -> term.id)))
                 .isPresent();
-        assertThat(top.value()).isPositive();
+        assertThat(on(
+                        site,
+                        () -> lookups.exists(site, "category", "Top", OptionalLong.empty())
+                                .map(term -> term.id)))
+                .contains(top.value());
     }
 
     @Test

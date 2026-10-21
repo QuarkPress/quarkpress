@@ -22,6 +22,7 @@ import org.quarkpress.core.TermId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.core.deployment.spi.TaxonomyBuildItem;
 import org.quarkpress.taxonomy.Taxonomy;
+import org.quarkpress.taxonomy.TermException;
 import org.quarkpress.taxonomy.TermRef;
 import org.quarkpress.taxonomy.Terms;
 
@@ -127,6 +128,35 @@ class AssignCapabilityDbTest {
                 .isTrue();
         assertThat(Jdbc.count(dataSource, "select count(*) from qp_term_assignment where post_id = ?", own.value()))
                 .isZero();
+    }
+
+    @Test
+    void refusedAssignmentsLeaveTheCallersTransactionUsable() throws Exception {
+        SiteId site = TestData.site(dataSource);
+        UserId author = TestData.profile(dataSource, "author");
+        TestData.member(dataSource, site, author, "[\"author\"]");
+        PostId own = postBy(site, author, "draft");
+        TermId kept = TestData.term(dataSource, site, "guarded", "Kept", "kept", null);
+        Identities.onSite(
+                site, Identities.system(), () -> terms.setPostTerms(own, "guarded", List.of(TermRef.id(kept)), false));
+        List<TermId> written = Identities.onSite(site, Identities.user(author), () -> {
+            assertThatThrownBy(() -> terms.setPostTerms(own, "guarded", List.of(TermRef.id(kept)), true))
+                    .isInstanceOf(ForbiddenException.class);
+            assertThatThrownBy(() -> terms.removePostTerms(own, "guarded", List.of(TermRef.id(kept))))
+                    .isInstanceOf(ForbiddenException.class);
+            assertThatThrownBy(() -> terms.setPostTerms(own, "post_tag", List.of(TermRef.name("<b></b>")), true))
+                    .isInstanceOfSatisfying(
+                            TermException.class,
+                            refused -> assertThat(refused.code()).isEqualTo("invalid_term_name"));
+            return terms.setPostTerms(own, "post_tag", List.of(TermRef.name("Usable")), true);
+        });
+        assertThat(written).hasSize(1);
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select t.slug from qp_term_assignment a join qp_term t on t.id = a.term_id"
+                                + " where a.post_id = ? order by t.slug",
+                        own.value()))
+                .containsExactly("kept", "usable");
     }
 
     @Test

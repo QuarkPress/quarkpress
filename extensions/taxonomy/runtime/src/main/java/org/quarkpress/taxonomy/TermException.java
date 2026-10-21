@@ -88,7 +88,7 @@ public class TermException extends IllegalArgumentException {
     }
 
     /** A value that does not fit its column, as WordPress's failed database write reports it. */
-    public static TermException dbError(String detail) {
+    public static TermException dbInsertError(String detail) {
         return new TermException(
                 "db_insert_error", "Could not insert term into the database.", detail, Optional.empty());
     }

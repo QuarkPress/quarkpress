@@ -39,12 +39,12 @@ class PostTermsDbTest {
     @Taxonomy(key = "medium", objectTypes = "attachment")
     static class Medium {}
 
-    /** A taxonomy whose default term only editors may assign. */
     @RegisterExtension
     static final QuarkusExtensionTest app = TaxonomyApp.multisite(PostTermsDbTest.class, Genre.class, Medium.class)
             .addBuildChainCustomizer(chain -> chain.addBuildStep(new BuildStep() {
                         @Override
                         public void execute(BuildContext context) {
+                            // a taxonomy whose default term only editors may assign
                             context.produce(new TaxonomyBuildItem(TaxonomyDefinition.builder("mood", List.of("post"))
                                     .defaultTerm("Calm")
                                     .capabilities(Map.of("assign_terms", "manage_categories"))
@@ -274,6 +274,24 @@ class PostTermsDbTest {
         Identities.onSite(site, Identities.user(editor), () -> posts.publish(byContributor.id()));
         assertThat(slugs(byContributor.id(), "mood")).containsExactly("calm");
         assertThat(count(defaultTermOf("mood"))).isEqualTo(1);
+    }
+
+    @Test
+    void theDefaultCategoryGoesToCallersWhoCannotAssignCategories() throws Exception {
+        // only this test's site has the role: it may publish posts but not edit them (category's assign_terms)
+        TestData.siteOption(
+                dataSource,
+                site,
+                "qp_user_roles",
+                "{\"publisher\":{\"name\":\"Publisher\","
+                        + "\"capabilities\":{\"read\":true,\"publish_posts\":true}}}");
+        UserId publisher = TestData.profile(dataSource, "publisher");
+        TestData.member(dataSource, site, publisher, "[\"publisher\"]");
+        PostId post = TestData.post(dataSource, site, "post", "draft", "p", "P");
+        assertThat(Identities.onSite(site, Identities.user(publisher), () -> posts.publish(post)))
+                .isTrue();
+        assertThat(slugs(post, "category")).containsExactly("uncategorized");
+        assertThat(slugs(post, "genre")).isEmpty();
     }
 
     @Test

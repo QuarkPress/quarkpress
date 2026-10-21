@@ -64,12 +64,15 @@ public class TermQueries {
             return List.of();
         }
         Effective effective = effective(taxonomies, taxonomiesGiven, query, false);
-        Map<String, Map<TermId, List<TermId>>> hierarchy = hierarchy(site, taxonomies, effective, query);
-        if (noChildren(effective, query, hierarchy)) {
+        Map<String, Map<TermId, List<TermId>>> hierarchy =
+                hierarchy(site, taxonomies, taxonomiesGiven, effective, query);
+        List<TaxonomyDefinition> named = taxonomiesGiven ? taxonomies : List.of();
+        Map<String, Map<TermId, List<TermId>>> steps = taxonomiesGiven ? hierarchy : Map.of();
+        if (noChildren(effective, query, steps)) {
             return List.of();
         }
         List<String> slugList = sanitizedSlugs(site, taxonomies, query);
-        Where where = where(site, taxonomies, query, effective, hierarchy, slugList);
+        Where where = where(site, taxonomies, named, query, effective, steps, slugList);
         boolean ascending = TermOrders.ascending(query.order());
         int number = absolute(query.number());
         int offset = absolute(query.offset());
@@ -89,15 +92,15 @@ public class TermQueries {
         List<TermSnapshot> results =
                 select.getResultStream().map(TermEntity::toSnapshot).toList();
         if (effective.childOf() > 0) {
-            for (TaxonomyDefinition taxonomy : taxonomies) {
-                Map<TermId, List<TermId>> children = hierarchy.getOrDefault(taxonomy.key(), Map.of());
+            for (TaxonomyDefinition taxonomy : named) {
+                Map<TermId, List<TermId>> children = steps.getOrDefault(taxonomy.key(), Map.of());
                 if (!children.isEmpty()) {
                     results = descendants(TermId.of(effective.childOf()), results, children);
                 }
             }
         }
         if (effective.padCounts()) {
-            results = padded(site, taxonomies, results, hierarchy);
+            results = padded(site, named, results, steps);
         }
         if (effective.hierarchical() && effective.hideEmpty()) {
             results = keepCounted(site, results, hierarchy);
@@ -115,11 +118,19 @@ public class TermQueries {
             return 0;
         }
         Effective effective = effective(taxonomies, taxonomiesGiven, query, true);
-        Map<String, Map<TermId, List<TermId>>> hierarchy = hierarchy(site, taxonomies, effective, query);
-        if (noChildren(effective, query, hierarchy)) {
+        Map<String, Map<TermId, List<TermId>>> steps =
+                taxonomiesGiven ? hierarchy(site, taxonomies, true, effective, query) : Map.of();
+        if (noChildren(effective, query, steps)) {
             return 0;
         }
-        Where where = where(site, taxonomies, query, effective, hierarchy, sanitizedSlugs(site, taxonomies, query));
+        Where where = where(
+                site,
+                taxonomies,
+                taxonomiesGiven ? taxonomies : List.of(),
+                query,
+                effective,
+                steps,
+                sanitizedSlugs(site, taxonomies, query));
         // with posts, WordPress counts the term-post pairs among those posts, not the terms
         String select = query.posts().isEmpty()
                 ? "select count(t) from TermEntity t where " + where.text
@@ -152,17 +163,22 @@ public class TermQueries {
     }
 
     /**
-     * Each queried hierarchical taxonomy's children by parent, read only when a step of the query needs them (a parent
-     * or childOf probe, exclude_tree, childless, padding, or hiding in a hierarchical query); otherwise none.
+     * Each queried hierarchical taxonomy's children by parent, read only when a step of the query needs them; otherwise
+     * none. The parent or childOf probe, exclude_tree, childless and padding walk only the taxonomies the query names
+     * (WordPress walks none for a query without taxonomies); hiding in a hierarchical query walks each term's own.
      */
     private Map<String, Map<TermId, List<TermId>>> hierarchy(
-            SiteId site, List<TaxonomyDefinition> taxonomies, Effective effective, TermQuery query) {
+            SiteId site,
+            List<TaxonomyDefinition> taxonomies,
+            boolean taxonomiesGiven,
+            Effective effective,
+            TermQuery query) {
         Map<String, Map<TermId, List<TermId>>> hierarchy = new HashMap<>();
-        boolean needed = probe(effective, query) > 0
+        boolean steps = probe(effective, query) > 0
                 || (query.include().isEmpty() && !query.excludeTree().isEmpty())
                 || effective.childless()
-                || effective.padCounts()
-                || (effective.hierarchical() && effective.hideEmpty());
+                || effective.padCounts();
+        boolean needed = (taxonomiesGiven && steps) || (effective.hierarchical() && effective.hideEmpty());
         if (!needed) {
             return hierarchy;
         }
@@ -178,8 +194,8 @@ public class TermQueries {
     }
 
     /**
-     * A childOf or parent that is nobody's parent in the queried taxonomies answers nothing at once; a negative one is
-     * nobody's parent.
+     * A childOf or parent that is nobody's parent in the named taxonomies answers nothing at once (so any positive one
+     * does when the query names none); a negative one is nobody's parent.
      */
     private static boolean noChildren(
             Effective effective, TermQuery query, Map<String, Map<TermId, List<TermId>>> hierarchy) {
@@ -202,9 +218,14 @@ public class TermQueries {
                 .toList();
     }
 
+    /**
+     * The query's conditions. exclude_tree takes the descendants from the first named taxonomy (none when the query
+     * names none, so only the trunks are excluded); childless excludes the parents of the named taxonomies.
+     */
     private Where where(
             SiteId site,
             List<TaxonomyDefinition> taxonomies,
+            List<TaxonomyDefinition> named,
             TermQuery query,
             Effective effective,
             Map<String, Map<TermId, List<TermId>>> hierarchy,
@@ -217,9 +238,10 @@ public class TermQueries {
         if (!query.include().isEmpty()) {
             where.and("t.id in " + where.param(ids(query.include())));
         } else {
-            if (!query.excludeTree().isEmpty() && !taxonomies.isEmpty()) {
-                Map<TermId, List<TermId>> first =
-                        hierarchy.getOrDefault(taxonomies.get(0).key(), Map.of());
+            if (!query.excludeTree().isEmpty()) {
+                Map<TermId, List<TermId>> first = named.isEmpty()
+                        ? Map.of()
+                        : hierarchy.getOrDefault(named.get(0).key(), Map.of());
                 for (TermId trunk : query.excludeTree()) {
                     exclusions.add(trunk.value());
                     TermHierarchy.children(trunk, first).forEach(id -> exclusions.add(id.value()));
@@ -352,9 +374,9 @@ public class TermQueries {
     }
 
     /**
-     * WordPress's padded counts for the results of each hierarchical taxonomy with a hierarchy: a result term's count
-     * becomes the number of distinct published posts of the taxonomy's types in it or in a result term below it. A term
-     * no such post touches keeps its stored count.
+     * WordPress's padded counts: for each hierarchical taxonomy with a hierarchy in turn, every result term's count
+     * becomes the number of distinct published posts of that taxonomy's types in it or in a result term below it. A term
+     * no such post touches keeps the count it had, so a later taxonomy's pass overrides an earlier one's.
      */
     private List<TermSnapshot> padded(
             SiteId site,
@@ -364,16 +386,12 @@ public class TermQueries {
         Map<TermId, Integer> counts = new HashMap<>();
         Map<TermId, TermSnapshot> byId = new HashMap<>();
         results.forEach(term -> byId.put(term.id(), term));
+        List<Long> ids = results.stream().map(term -> term.id().value()).toList();
         for (TaxonomyDefinition taxonomy : taxonomies) {
             if (!taxonomy.hierarchical()
-                    || hierarchy.getOrDefault(taxonomy.key(), Map.of()).isEmpty()) {
-                continue;
-            }
-            List<Long> ids = results.stream()
-                    .filter(term -> term.taxonomy().equals(taxonomy.key()))
-                    .map(term -> term.id().value())
-                    .toList();
-            if (ids.isEmpty() || taxonomy.objectTypes().isEmpty()) {
+                    || hierarchy.getOrDefault(taxonomy.key(), Map.of()).isEmpty()
+                    || ids.isEmpty()
+                    || taxonomy.objectTypes().isEmpty()) {
                 continue;
             }
             Map<TermId, Set<Long>> items = new HashMap<>();

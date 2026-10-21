@@ -458,7 +458,7 @@ class TermScenariosTest {
                         held |= j != k
                                 && live.get(j - 1)
                                 && taxonomy.get(j - 1).equals(update.taxonomy())
-                                && slug.get(j - 1).equals(newSlug);
+                                && newSlug.equals(slug.get(j - 1));
                     }
                     assertThat(held)
                             .as(where() + " takes another term's slug " + newSlug)

@@ -49,13 +49,25 @@ public class TermCounts {
         terms.flush();
     }
 
+    /**
+     * The taxonomy's object types as WordPress counts them: an {@code attachment:<mime>} type counts as
+     * {@code attachment}, each type once.
+     */
+    static List<String> countedTypes(TaxonomyDefinition taxonomy) {
+        LinkedHashSet<String> types = new LinkedHashSet<>();
+        for (String type : taxonomy.objectTypes()) {
+            types.add(type.startsWith("attachment:") ? "attachment" : type);
+        }
+        return List.copyOf(types);
+    }
+
     /** What the term's count should be. */
     public int count(SiteId site, TermEntity term) {
         Optional<TaxonomyDefinition> taxonomy = taxonomies.find(term.taxonomy);
         if (taxonomy.isEmpty()) {
             return term.termCount;
         }
-        List<String> types = taxonomy.get().objectTypes();
+        List<String> types = countedTypes(taxonomy.get());
         if (!types.stream().allMatch(postTypes::registered)) {
             return Math.toIntExact(terms.getEntityManager()
                     .createQuery(

@@ -1,5 +1,6 @@
 package org.quarkpress.taxonomy.runtime;
 
+import java.math.BigInteger;
 import java.util.Optional;
 import java.util.OptionalLong;
 import org.quarkpress.core.TermId;
@@ -19,6 +20,65 @@ public final class TermRules {
     /** PHP's {@code empty()} for text: "" and "0". */
     public static boolean phpEmpty(String text) {
         return text.isEmpty() || text.equals("0");
+    }
+
+    /**
+     * PHP's {@code (int)} cast of text: leading whitespace skipped, then the longest leading number (an optional sign,
+     * digits, a fraction and an exponent); 0 when there is none. An integer beyond the range saturates; a number with a
+     * fraction or exponent is read as a double and truncated, saturating, and an infinite one is 0.
+     */
+    public static long phpInt(String text) {
+        int n = text.length();
+        int i = 0;
+        while (i < n && " \t\n\r\u000B\f".indexOf(text.charAt(i)) >= 0) {
+            i++;
+        }
+        int start = i;
+        if (i < n && (text.charAt(i) == '-' || text.charAt(i) == '+')) {
+            i++;
+        }
+        int digits = i;
+        while (i < n && digit(text.charAt(i))) {
+            i++;
+        }
+        boolean whole = i > digits;
+        boolean fractional = false;
+        if (i < n && text.charAt(i) == '.' && (whole || (i + 1 < n && digit(text.charAt(i + 1))))) {
+            fractional = true;
+            i++;
+            while (i < n && digit(text.charAt(i))) {
+                i++;
+            }
+        } else if (!whole) {
+            return 0;
+        }
+        if (i < n && (text.charAt(i) == 'e' || text.charAt(i) == 'E')) {
+            int exponent = i + 1;
+            if (exponent < n && (text.charAt(exponent) == '-' || text.charAt(exponent) == '+')) {
+                exponent++;
+            }
+            if (exponent < n && digit(text.charAt(exponent))) {
+                fractional = true;
+                i = exponent;
+                while (i < n && digit(text.charAt(i))) {
+                    i++;
+                }
+            }
+        }
+        String number = text.substring(start, i);
+        if (!fractional) {
+            BigInteger value = new BigInteger(number);
+            if (value.bitLength() < Long.SIZE) {
+                return value.longValue();
+            }
+            return value.signum() > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+        double value = Double.parseDouble(number);
+        return Double.isInfinite(value) ? 0 : (long) value;
+    }
+
+    private static boolean digit(char c) {
+        return c >= '0' && c <= '9';
     }
 
     /** The parent a caller gives: absent, 0 and negative ids mean none, as WordPress casts them. */
@@ -52,6 +112,6 @@ public final class TermRules {
     }
 
     private static TermException fail(boolean update, String detail) {
-        return update ? TermException.dbUpdateError(detail) : TermException.dbError(detail);
+        return update ? TermException.dbUpdateError(detail) : TermException.dbInsertError(detail);
     }
 }

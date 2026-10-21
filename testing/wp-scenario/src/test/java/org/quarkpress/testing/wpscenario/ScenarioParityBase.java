@@ -20,7 +20,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.quarkpress.core.OptionStore;
 import org.quarkpress.core.SiteId;
@@ -136,10 +138,13 @@ abstract class ScenarioParityBase {
         run.assertParity(minimum);
     }
 
+    /** The outcome files this run has written to: each is emptied at its first write of the run. */
+    private static final Set<String> STARTED_DUMPS = ConcurrentHashMap.newKeySet();
+
     /**
      * With the system property {@code wp.scenario.outcomes} naming a file, appends every fact of both sides to it, one
      * line each ({@code case, key, WordPress, QuarkPress}, tab-separated): the comparison itself keeps only the
-     * differences, and this shows what agreed.
+     * differences, and this shows what agreed. The file is emptied at the run's first write, so runs do not mix.
      */
     private static void dumpOutcomes(String caseId, Outcome wordpressSide, Outcome quarkpressSide) throws Exception {
         String file = System.getProperty("wp.scenario.outcomes", "");
@@ -159,8 +164,9 @@ abstract class ScenarioParityBase {
                     .append(quarkpressSide.facts().get(key))
                     .append('\n');
         }
-        Files.writeString(
-                Path.of(file), lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        StandardOpenOption mode =
+                STARTED_DUMPS.add(file) ? StandardOpenOption.TRUNCATE_EXISTING : StandardOpenOption.APPEND;
+        Files.writeString(Path.of(file), lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, mode);
     }
 
     /**

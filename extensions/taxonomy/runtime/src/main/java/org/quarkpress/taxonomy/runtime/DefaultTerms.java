@@ -9,9 +9,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.interceptor.Interceptor;
+import jakarta.transaction.TransactionSynchronizationRegistry;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import org.jboss.logging.Logger;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteCreated;
 import org.quarkpress.core.SiteId;
@@ -23,17 +25,25 @@ import org.quarkpress.persistence.runtime.SiteRepository;
 import org.quarkpress.posts.runtime.PostLocks;
 import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.TermChanges;
+import org.quarkpress.taxonomy.TermException;
 
 /**
  * The default terms every site has. A new site gets WordPress's default category, Uncategorized, inside the transaction
- * that creates it, written without an event as WordPress's installer writes it, and named by its
- * {@code default_category} option. Every taxonomy registered with a default term has it on every site: at startup for
- * each existing site, and when a site is created, the term is looked up by name (as a slug, then as a name), created
- * when missing, and named by the option {@code default_term_<taxonomy>}. WordPress makes that check on every request;
- * a default term renamed while the application runs is therefore looked up again only at the next startup.
+ * that creates it, written as WordPress's installer writes it: the term fires no {@code TermCreated}, while the write of
+ * its {@code default_category} option fires the persistence module's {@code OptionChanged}. Every taxonomy registered
+ * with a default term has it on every site: at startup for each existing site (archived and deleted ones included, each
+ * under its post lock), and when a site is created, the term is looked up by name (as a slug, then as a name), created
+ * when missing, and named by the option {@code default_term_<taxonomy>}. A refused insert is logged and leaves the
+ * option unset, as WordPress ignores it. WordPress makes that check on every request; a default term renamed while the
+ * application runs is therefore looked up again only at the next startup.
  */
 @ApplicationScoped
 public class DefaultTerms {
+
+    private static final Logger LOG = Logger.getLogger(DefaultTerms.class);
+
+    /** The option naming a site's default category. */
+    static final String DEFAULT_CATEGORY = "default_category";
 
     @Inject
     Taxonomies taxonomies;
@@ -62,6 +72,9 @@ public class DefaultTerms {
     @Inject
     SiteContext context;
 
+    @Inject
+    TransactionSynchronizationRegistry registry;
+
     /**
      * The name of the option that holds a taxonomy's default term: {@code default_category} for categories,
      * {@code default_term_<key>} for another taxonomy with a default term, and null for a taxonomy without one. This is
@@ -69,7 +82,7 @@ public class DefaultTerms {
      */
     public static String optionOf(TaxonomyDefinition taxonomy) {
         if (taxonomy.key().equals("category")) {
-            return "default_category";
+            return DEFAULT_CATEGORY;
         }
         return taxonomy.defaultTerm().isPresent() ? "default_term_" + taxonomy.key() : null;
     }
@@ -104,7 +117,7 @@ public class DefaultTerms {
         uncategorized.slug = "uncategorized";
         terms.persist(uncategorized);
         terms.flush();
-        options.set(site, "default_category", LongNode.valueOf(uncategorized.id), null);
+        options.set(site, DEFAULT_CATEGORY, LongNode.valueOf(uncategorized.id), null);
         for (TaxonomyDefinition taxonomy : taxonomies.all()) {
             if (taxonomy.defaultTerm().isPresent()) {
                 ensure(site, taxonomy);
@@ -114,6 +127,14 @@ public class DefaultTerms {
 
     /** At startup, every existing site gets the default terms of the taxonomies that have one. */
     void started(@Observes @Priority(Interceptor.Priority.LIBRARY_AFTER) StartupEvent start) {
+        ensureEverySite();
+    }
+
+    /**
+     * Every existing site, archived and deleted ones included, gets the default terms of the taxonomies that have one:
+     * each site in a transaction of its own, under its post lock. Called outside any site scope.
+     */
+    public void ensureEverySite() {
         List<TaxonomyDefinition> withDefaults = taxonomies.all().stream()
                 .filter(taxonomy -> taxonomy.defaultTerm().isPresent())
                 .toList();
@@ -134,14 +155,21 @@ public class DefaultTerms {
 
     /**
      * The taxonomy's default term on {@code site}: found by name, or created; the option naming it is set when it named
-     * another id. The caller is bound to the site (holding its post lock) or to the network while the site is created.
+     * another id. An insert refused before it writes (a name the save filters empty, a value too long for its column, a
+     * {@code TermWriteFilter}'s refusal) is logged and leaves the option as it was, as WordPress ignores the failure;
+     * then the answer is empty. A failure after the first write propagates. The caller is bound to the site (holding its
+     * post lock) or to the network while the site is created.
      */
-    public TermId ensure(SiteId site, TaxonomyDefinition taxonomy) {
+    public Optional<TermId> ensure(SiteId site, TaxonomyDefinition taxonomy) {
         TaxonomyDefinition.DefaultTerm term = taxonomy.defaultTerm()
                 .orElseThrow(() -> new IllegalArgumentException("taxonomy " + taxonomy.key() + " has no default term"));
         Optional<TermEntity> found = lookups.exists(site, taxonomy.key(), term.name(), OptionalLong.empty());
-        TermId id = found.map(row -> TermId.of(row.id))
-                .orElseGet(() -> writes.insert(
+        TermId id;
+        if (found.isPresent()) {
+            id = TermId.of(found.get().id);
+        } else {
+            try {
+                id = writes.insert(
                                 site,
                                 taxonomy,
                                 TermChanges.builder()
@@ -149,8 +177,19 @@ public class DefaultTerms {
                                         .slug(term.slug())
                                         .description(term.description())
                                         .build())
-                        .id());
+                        .id();
+            } catch (TermException refused) {
+                if (registry.getRollbackOnly()) {
+                    // refused after the first write: the transaction is already marked, so the failure stands
+                    throw refused;
+                }
+                LOG.warnf(
+                        "the default term '%s' of taxonomy %s was not created on site %d: %s (%s)",
+                        term.name(), taxonomy.key(), site.value(), refused.getMessage(), refused.code());
+                return Optional.empty();
+            }
+        }
         options.set(site, optionOf(taxonomy), LongNode.valueOf(id.value()), null);
-        return id;
+        return Optional.of(id);
     }
 }

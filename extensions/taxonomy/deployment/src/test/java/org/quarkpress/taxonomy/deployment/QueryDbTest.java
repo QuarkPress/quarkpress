@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TermId;
+import org.quarkpress.posts.PostException;
 import org.quarkpress.taxonomy.Taxonomy;
 import org.quarkpress.taxonomy.TermException;
 import org.quarkpress.taxonomy.TermOrder;
@@ -30,8 +31,12 @@ class QueryDbTest {
     @Taxonomy(key = "region", objectTypes = "post", hierarchical = true)
     static class Region {}
 
+    @Taxonomy(key = "shelf", objectTypes = "page", hierarchical = true)
+    static class Shelf {}
+
     @RegisterExtension
-    static final QuarkusExtensionTest app = TaxonomyApp.with(QueryDbTest.class, Secret.class, Region.class);
+    static final QuarkusExtensionTest app =
+            TaxonomyApp.with(QueryDbTest.class, Secret.class, Region.class, Shelf.class);
 
     @Inject
     @DataSource("quarkpress")
@@ -268,6 +273,122 @@ class QueryDbTest {
                         .build()));
         assertThat(padded).extracting(TermSnapshot::name).containsExactly("A", "B");
         assertThat(padded).extracting(TermSnapshot::count).containsExactly(1, 1);
+    }
+
+    @Test
+    void aQueryWithoutTaxonomiesWalksNoHierarchy() throws Exception {
+        TermId world = term("category", "World", null, 0);
+        TermId europe = term("category", "Europe", world, 0);
+        TermId paris = term("category", "Paris", europe, 1);
+        PostId post = TestData.post(dataSource, site, "post", "publish", "p", "P");
+        TestData.assign(dataSource, site, post, paris);
+        // a positive parent or childOf finds nothing, in a query and in a count
+        assertThat(names(TermQuery.builder().hideEmpty(false).parent(world.value())))
+                .isEmpty();
+        assertThat(names(TermQuery.builder()
+                        .taxonomies("category")
+                        .hideEmpty(false)
+                        .parent(world.value())))
+                .containsExactly("Europe");
+        assertThat(names(TermQuery.builder().hideEmpty(false).childOf(world.value())))
+                .isEmpty();
+        assertThat(count(TermQuery.builder().parent(world.value()))).isZero();
+        assertThat(count(TermQuery.builder().childOf(world.value()))).isZero();
+        // a named one counts as if childOf were not given, as WordPress's count does
+        assertThat(count(TermQuery.builder().taxonomies("category").childOf(world.value())))
+                .isEqualTo(4);
+        // childless excludes nothing
+        assertThat(names(TermQuery.builder().hideEmpty(false).childless(true)))
+                .containsExactly("Europe", "Paris", "Uncategorized", "World");
+        assertThat(count(TermQuery.builder().childless(true))).isEqualTo(4);
+        assertThat(count(TermQuery.builder().taxonomies("category").childless(true)))
+                .isEqualTo(2);
+        // exclude_tree excludes only the terms it names
+        assertThat(names(TermQuery.builder().hideEmpty(false).excludeTree(world)))
+                .containsExactly("Europe", "Paris", "Uncategorized");
+        // padding pads nothing; hiding still looks below each term in its own taxonomy
+        List<TermSnapshot> unpadded = Identities.onSite(
+                site,
+                Identities.system(),
+                () -> terms.query(TermQuery.builder().padCounts(true).build()));
+        assertThat(unpadded).extracting(TermSnapshot::name).containsExactly("Europe", "Paris", "World");
+        assertThat(unpadded).extracting(TermSnapshot::count).containsExactly(0, 1, 0);
+        List<TermSnapshot> padded = Identities.onSite(
+                site,
+                Identities.system(),
+                () -> terms.query(TermQuery.builder()
+                        .taxonomies("category")
+                        .padCounts(true)
+                        .build()));
+        assertThat(padded).extracting(TermSnapshot::count).containsExactly(1, 1, 1);
+    }
+
+    @Test
+    void paddedCountsOverSeveralTaxonomiesAreComputedPerResultTaxonomyByTaxonomy() throws Exception {
+        TermId a = term("category", "A", null, 1);
+        TermId b = term("category", "B", a, 1);
+        TermId top = term("shelf", "Top", null, 1);
+        TermId low = term("shelf", "Low", top, 1);
+        PostId post = TestData.post(dataSource, site, "post", "publish", "post", "Post");
+        PostId page = TestData.post(dataSource, site, "page", "publish", "page", "Page");
+        PostId other = TestData.post(dataSource, site, "page", "publish", "other", "Other");
+        TestData.assign(dataSource, site, post, b);
+        TestData.assign(dataSource, site, page, b);
+        TestData.assign(dataSource, site, other, b);
+        TestData.assign(dataSource, site, page, low);
+        // each hierarchical taxonomy in turn recounts every result term with its own types; the last one wins
+        assertThat(padded("category", "shelf")).containsExactly("A=2", "B=2", "Low=1", "Top=1");
+        assertThat(padded("shelf", "category")).containsExactly("A=1", "B=1", "Low=1", "Top=1");
+    }
+
+    private List<String> padded(String... taxonomies) throws Exception {
+        return Identities.onSite(
+                        site,
+                        Identities.system(),
+                        () -> terms.query(TermQuery.builder()
+                                .taxonomies(taxonomies)
+                                .hideEmpty(false)
+                                .padCounts(true)
+                                .build()))
+                .stream()
+                .filter(term -> !term.name().equals("Uncategorized"))
+                .map(term -> term.name() + "=" + term.count())
+                .toList();
+    }
+
+    @Test
+    void queriesAndCountsWithPostsNeedEachPostToExistAndBeReadable() throws Exception {
+        TermId tag = term("post_tag", "Tagged", null, 1);
+        PostId published = TestData.post(dataSource, site, "post", "publish", "pub", "Published");
+        PostId draft = TestData.post(dataSource, site, "post", "draft", "", "Draft");
+        TestData.assign(dataSource, site, published, tag);
+        TestData.assign(dataSource, site, draft, tag);
+        PostId missing = PostId.of(999_999_999L);
+        List<String> read = Identities.onSite(site, Identities.anonymous(), () -> {
+            assertThatThrownBy(() -> terms.query(
+                            TermQuery.builder().posts(published, draft).build()))
+                    .isInstanceOf(UnauthorizedException.class);
+            assertThatThrownBy(
+                            () -> terms.count(TermQuery.builder().posts(draft).build()))
+                    .isInstanceOf(UnauthorizedException.class);
+            assertThatThrownBy(
+                            () -> terms.query(TermQuery.builder().posts(missing).build()))
+                    .isInstanceOfSatisfying(
+                            PostException.class,
+                            refused -> assertThat(refused.code()).isEqualTo("invalid_post"));
+            assertThatThrownBy(
+                            () -> terms.count(TermQuery.builder().posts(missing).build()))
+                    .isInstanceOf(PostException.class);
+            // the refusals leave the transaction usable
+            return terms.query(TermQuery.builder().posts(published).build()).stream()
+                    .map(TermSnapshot::name)
+                    .toList();
+        });
+        assertThat(read).containsExactly("Tagged");
+        assertThat(count(TermQuery.builder().posts(published, draft))).isEqualTo(2);
+        SiteId other = TestData.site(dataSource);
+        PostId elsewhere = TestData.post(dataSource, other, "post", "publish", "far", "Far");
+        assertThatThrownBy(() -> names(TermQuery.builder().posts(elsewhere))).isInstanceOf(PostException.class);
     }
 
     @Test

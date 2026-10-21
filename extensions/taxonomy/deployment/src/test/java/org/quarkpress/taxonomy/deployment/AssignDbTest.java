@@ -38,6 +38,11 @@ class AssignDbTest {
             objectTypes = {"post", "attachment"})
     static class Gallery {}
 
+    @Taxonomy(
+            key = "photo",
+            objectTypes = {"post", "attachment:image", "attachment:video"})
+    static class Photo {}
+
     @ApplicationScoped
     static class Recorder {
         final List<String> seen = new CopyOnWriteArrayList<>();
@@ -57,7 +62,7 @@ class AssignDbTest {
 
     @RegisterExtension
     static final QuarkusExtensionTest app =
-            TaxonomyApp.with(AssignDbTest.class, Series.class, Shelf.class, Gallery.class, Recorder.class);
+            TaxonomyApp.with(AssignDbTest.class, Series.class, Shelf.class, Gallery.class, Photo.class, Recorder.class);
 
     @Inject
     @DataSource("quarkpress")
@@ -223,6 +228,53 @@ class AssignDbTest {
             set(object, "gallery", false, TermRef.id(term));
         }
         assertThat(count(term)).isEqualTo(3);
+    }
+
+    @Test
+    void anAttachmentMimeTypeCountsAsAttachment() throws Exception {
+        TermId term = TestData.term(dataSource, site, "photo", "p", "p", null);
+        PostId published = TestData.post(dataSource, site, "post", "publish", "pub", "Published");
+        PostId draft = TestData.post(dataSource, site, "post", "draft", "", "Draft");
+        List<PostId> objects = List.of(
+                published,
+                draft,
+                attachment(published, "inherit"),
+                attachment(draft, "inherit"),
+                attachment(null, "inherit"),
+                attachment(published, "private"),
+                attachment(null, "publish"));
+        for (PostId object : objects) {
+            set(object, "photo", false, TermRef.id(term));
+        }
+        assertThat(count(term)).isEqualTo(3);
+    }
+
+    @Test
+    void aTermGivenTwiceInASortedReplaceKeepsItsLastPosition() throws Exception {
+        PostId post = TestData.post(dataSource, site, "post", "publish", "p", "P");
+        TermId a = TestData.term(dataSource, site, "series", "a", "a", null);
+        TermId b = TestData.term(dataSource, site, "series", "b", "b", null);
+        TermId c = TestData.term(dataSource, site, "series", "c", "c", null);
+        set(post, "series", false, TermRef.id(a), TermRef.id(b), TermRef.id(c));
+        set(post, "series", false, TermRef.id(c), TermRef.id(a), TermRef.id(c), TermRef.id(b));
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select concat(term_id, ':', term_order) from qp_term_assignment"
+                                + " where post_id = ? order by term_order",
+                        post.value()))
+                .containsExactly(a.value() + ":2", c.value() + ":3", b.value() + ":4");
+    }
+
+    @Test
+    void aPostsTermsOfOneNameIgnoringCaseComeInIdOrder() throws Exception {
+        PostId post = TestData.post(dataSource, site, "post", "publish", "p", "P");
+        // the lower id holds the name that MySQL's binary collation puts second
+        TermId first = TestData.term(dataSource, site, "post_tag", "qQ", "x1", null);
+        TermId second = TestData.term(dataSource, site, "post_tag", "Qq", "x2", null);
+        set(post, "post_tag", false, TermRef.id(second), TermRef.id(first));
+        assertThat(Identities.onSite(site, Identities.system(), () -> terms.postTerms(post, "post_tag")).stream()
+                        .map(TermSnapshot::id))
+                .containsExactly(first, second);
     }
 
     private PostId attachment(PostId parent, String status) {

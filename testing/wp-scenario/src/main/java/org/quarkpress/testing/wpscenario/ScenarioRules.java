@@ -334,14 +334,16 @@ final class ScenarioRules {
 
     /**
      * The length of the digit run that starts a text's slug form, 0 when the slug form starts with a letter, with 0 or
-     * is empty. The slug form drops tags, entities, percent-octets and other punctuation before the first letter or
-     * digit.
+     * is empty. The slug form drops tags (not a {@code <} that whitespace follows), entities, percent-octets and other
+     * punctuation before the first letter or digit.
      */
     private static int leadingDigitsOfSlug(String text) {
         int i = 0;
         while (i < text.length()) {
             char c = text.charAt(i);
-            int skip = c == '<' ? text.indexOf('>', i) : c == '&' ? text.indexOf(';', i) : -1;
+            // strip_tags keeps a '<' that whitespace follows as text
+            boolean tag = c == '<' && i + 1 < text.length() && " \t\n\u000B\f\r".indexOf(text.charAt(i + 1)) < 0;
+            int skip = tag ? text.indexOf('>', i) : c == '&' ? text.indexOf(';', i) : -1;
             if (skip > i) {
                 i = skip + 1;
             } else if (c == '%' && i + 2 < text.length() && isHex(text.charAt(i + 1)) && isHex(text.charAt(i + 2))) {

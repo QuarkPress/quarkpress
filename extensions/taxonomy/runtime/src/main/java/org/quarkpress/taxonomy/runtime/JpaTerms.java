@@ -57,6 +57,30 @@ public class JpaTerms implements Terms {
     @Inject
     TermWrites writes;
 
+    @Inject
+    TermRepository terms;
+
+    @Inject
+    TermLookups lookups;
+
+    @Inject
+    TermCapabilityFacts facts;
+
+    @Inject
+    PostRepository posts;
+
+    @Inject
+    PostCapabilityFacts postFacts;
+
+    @Inject
+    TermAssignments assignments;
+
+    @Inject
+    TermSlugs slugs;
+
+    @Inject
+    TermQueries queries;
+
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
@@ -69,15 +93,6 @@ public class JpaTerms implements Terms {
         locks.lock(siteId);
         return writes.insert(siteId, definition, changes);
     }
-
-    @Inject
-    TermRepository terms;
-
-    @Inject
-    TermLookups lookups;
-
-    @Inject
-    TermCapabilityFacts facts;
 
     @Override
     @Transactional(
@@ -149,15 +164,6 @@ public class JpaTerms implements Terms {
     static String createCapability(TaxonomyDefinition taxonomy) {
         return taxonomy.capability(taxonomy.hierarchical() ? "edit_terms" : "assign_terms");
     }
-
-    @Inject
-    PostRepository posts;
-
-    @Inject
-    PostCapabilityFacts postFacts;
-
-    @Inject
-    TermAssignments assignments;
 
     /** One element of an assignment, resolved: an existing term, a name to create, or nothing. */
     private record Resolved(Optional<TermEntity> term, Optional<String> create) {}
@@ -240,9 +246,6 @@ public class JpaTerms implements Terms {
                 .toList();
     }
 
-    @Inject
-    TermSlugs slugs;
-
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
@@ -282,13 +285,16 @@ public class JpaTerms implements Terms {
         Objects.requireNonNull(value, "value");
         SiteId siteId = site.siteId();
         Optional<TaxonomyDefinition> definition = taxonomies.find(taxonomy);
-        if (definition.isEmpty() || TermRules.phpEmpty(value)) {
+        if (definition.isEmpty() || value.isEmpty()) {
             return Optional.empty();
         }
         requireReadable(siteId, definition.get());
         String key = definition.get().key();
         Optional<TermEntity> found = switch (field) {
-            case ID -> TermId.parse(value).flatMap(id -> lookups.find(siteId, id, key));
+            case ID -> {
+                long id = TermRules.phpInt(value);
+                yield id > 0 ? lookups.find(siteId, TermId.of(id), key) : Optional.empty();
+            }
             case SLUG -> lookups.bySlug(siteId, key, slugs.sanitize(siteId, key, value));
             case NAME -> lookups.byName(siteId, key, value);
         };
@@ -338,16 +344,15 @@ public class JpaTerms implements Terms {
         return TermHierarchy.children(term, lookups.children(siteId, definition));
     }
 
-    @Inject
-    TermQueries queries;
-
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public List<TermSnapshot> query(TermQuery query) {
         Objects.requireNonNull(query, "query");
         SiteId siteId = site.siteId();
-        return queries.run(siteId, queried(siteId, query), !query.taxonomies().isEmpty(), query);
+        List<TaxonomyDefinition> queried = queried(siteId, query);
+        requireReadablePosts(siteId, query);
+        return queries.run(siteId, queried, !query.taxonomies().isEmpty(), query);
     }
 
     @Override
@@ -356,7 +361,9 @@ public class JpaTerms implements Terms {
     public long count(TermQuery query) {
         Objects.requireNonNull(query, "query");
         SiteId siteId = site.siteId();
-        return queries.count(siteId, queried(siteId, query), !query.taxonomies().isEmpty(), query);
+        List<TaxonomyDefinition> queried = queried(siteId, query);
+        requireReadablePosts(siteId, query);
+        return queries.count(siteId, queried, !query.taxonomies().isEmpty(), query);
     }
 
     /**
@@ -375,6 +382,16 @@ public class JpaTerms implements Terms {
             named.add(taxonomy);
         }
         return named;
+    }
+
+    /**
+     * Each post a query names exists on this site ({@code invalid_post}) and is readable by the caller, as WordPress's
+     * REST layer requires before it lists a post's terms.
+     */
+    private void requireReadablePosts(SiteId siteId, TermQuery query) {
+        for (PostId post : query.posts()) {
+            acting.requireReadable(siteId, postFacts.of(storedPost(siteId, post)));
+        }
     }
 
     /** Whether the caller may read the taxonomy's terms: it is publicly queryable, or the caller may assign them. */

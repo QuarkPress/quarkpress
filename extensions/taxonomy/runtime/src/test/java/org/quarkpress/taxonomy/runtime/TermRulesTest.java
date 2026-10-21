@@ -14,6 +14,26 @@ class TermRulesTest {
         return new String(codePoints, 0, codePoints.length);
     }
 
+    @Test
+    void textIsCastToAnIntegerAsPhpCastsIt() {
+        assertThat(TermRules.phpInt("42")).isEqualTo(42);
+        assertThat(TermRules.phpInt(" \t\n42abc")).isEqualTo(42);
+        assertThat(TermRules.phpInt("+7")).isEqualTo(7);
+        assertThat(TermRules.phpInt("-7")).isEqualTo(-7);
+        assertThat(TermRules.phpInt("1e3")).isEqualTo(1000);
+        assertThat(TermRules.phpInt("1.9")).isEqualTo(1);
+        assertThat(TermRules.phpInt(".5e1")).isEqualTo(5);
+        assertThat(TermRules.phpInt("5e")).isEqualTo(5);
+        assertThat(TermRules.phpInt("0x1A")).isZero();
+        assertThat(TermRules.phpInt("abc")).isZero();
+        assertThat(TermRules.phpInt("")).isZero();
+        assertThat(TermRules.phpInt("-")).isZero();
+        assertThat(TermRules.phpInt(".")).isZero();
+        assertThat(TermRules.phpInt("99999999999999999999")).isEqualTo(Long.MAX_VALUE);
+        assertThat(TermRules.phpInt("-99999999999999999999")).isEqualTo(Long.MIN_VALUE);
+        assertThat(TermRules.phpInt("1e400")).isZero();
+    }
+
     private static void refused(String name, String slug, String description, String detail) {
         for (boolean update : new boolean[] {false, true}) {
             assertThatThrownBy(() -> TermRules.requireStorable(name, slug, description, update))

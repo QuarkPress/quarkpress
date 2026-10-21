@@ -36,7 +36,8 @@ public interface Terms {
      * generated or the parent changes, in which case it is made unique. The parent follows the rules of
      * {@link #create}; a parent that would make the term its own ancestor is dropped (the term goes to the top level,
      * without error), and a loop further up the parent's chain is cut by leaving each of its terms without parent
-     * (each announced as updated). A value its column cannot hold is refused with {@code db_update_error} (WordPress
+     * (each announced as updated); the cut is written only with a successful update, so a refused update leaves the loop
+     * as it was, and each member only loses its parent. A value its column cannot hold is refused with {@code db_update_error} (WordPress
      * would keep the old name and slug and save the rest). With {@code expectedVersion}, a term that changed since
      * that version is refused with {@code jakarta.persistence.OptimisticLockException} before any write, leaving the
      * caller's transaction usable; a change of the term's count does not change its version. Announced with
@@ -75,7 +76,8 @@ public interface Terms {
      * Deletes a term (WordPress's {@code wp_delete_term}). Empty, without any check, when the taxonomy is unknown or
      * the term is missing, of another site or of another taxonomy. Needs {@code delete_term} on the term, which nobody
      * holds for the taxonomy's default term (the default category, or a custom default term). In a hierarchical
-     * taxonomy the term's children get its parent; other children are left without parent. A post whose only term of
+     * taxonomy the term's children of that taxonomy get its parent; other children (all of a flat term's, and any of
+     * another taxonomy) are left without parent. A post whose only term of
      * the taxonomy it was gets the taxonomy's default term, when it has one; other posts just lose it; counts follow
      * and each change is announced with {@link TermsAssigned}. Then {@link TermDeleted} is fired. Returns the term as
      * it was.
@@ -93,7 +95,8 @@ public interface Terms {
 
     /**
      * A term of the taxonomy by a field (WordPress's {@code get_term_by}); empty for an unknown taxonomy, an empty
-     * value, or no match. Several terms of one name under different parents give the one with the lowest id.
+     * value, or no match ("0" is a name or slug like any other). An id is read as PHP casts text to an integer, so
+     * "5abc" and " 5" name term 5. Several terms of one name under different parents give the one with the lowest id.
      */
     Optional<TermSnapshot> findBy(String taxonomy, TermField field, String value);
 
@@ -119,8 +122,11 @@ public interface Terms {
     /**
      * Terms matching {@code query} (WordPress's {@code get_terms}), with the API's defaults described on
      * {@link TermQuery}. A named taxonomy must be registered ({@code invalid_taxonomy}) and readable by the caller
-     * (see {@link #find(TermId)}); without taxonomies the query covers those the caller may read. Ties are broken by id
-     * in the query's direction.
+     * (see {@link #find(TermId)}); without taxonomies the query covers those the caller may read but, as in WordPress,
+     * walks no hierarchy: a positive {@code parent} or {@code childOf} matches nothing, {@code childless} and
+     * {@code padCounts} change nothing, and {@code excludeTree} excludes only the terms it names. Each post of
+     * {@code posts} must exist on this site (the posts module's {@code invalid_post}) and be readable by the caller.
+     * Ties are broken by id in the query's direction.
      */
     List<TermSnapshot> query(TermQuery query);
 
@@ -129,7 +135,7 @@ public interface Terms {
      * when the caller turns {@code hideEmpty} on (it is off when not set), without hierarchy, {@code number},
      * {@code offset}, {@code childOf} (beyond its empty answer for a term without children) and {@code padCounts}
      * ignored. With {@code posts}, each assignment of a matching term to one of those posts counts once, so a term on
-     * two of the posts counts twice, as in WordPress.
+     * two of the posts counts twice, as in WordPress. Taxonomies and posts are checked as for {@link #query}.
      */
     long count(TermQuery query);
 }

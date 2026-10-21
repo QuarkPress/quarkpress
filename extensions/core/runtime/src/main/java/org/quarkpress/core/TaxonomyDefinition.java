@@ -15,8 +15,9 @@ import java.util.Optional;
  * {@link #builder(String, List)}, which applies WordPress's defaults: a taxonomy is public unless told otherwise, the
  * interface flags follow {@code public} and each other as WordPress derives them, the four capability names default to
  * {@code manage_categories} (managing, editing and deleting terms) and {@code edit_posts} (assigning them), and labels
- * are derived from the names. The key is not sanitized; it must be 1 to 32 bytes long. Rewrite rules, query variables
- * and meta boxes are not kept.
+ * are derived from the names. The key is not sanitized; it must be 1 to 32 bytes long and not "0" (which PHP reads as
+ * empty). A default term whose name is "" or "0" is no default term, as WordPress ignores an empty one. Rewrite rules,
+ * query variables and meta boxes are not kept.
  */
 public record TaxonomyDefinition(
         String key,
@@ -61,6 +62,7 @@ public record TaxonomyDefinition(
         Objects.requireNonNull(restBase, "restBase");
         Objects.requireNonNull(defaultTerm, "defaultTerm");
         requireKey(key);
+        defaultTerm = defaultTerm.filter(term -> !empty(term.name()));
         objectTypes = List.copyOf(new LinkedHashSet<>(objectTypes));
         labels = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(labels, "labels")));
         capabilities =
@@ -93,9 +95,14 @@ public record TaxonomyDefinition(
         return new Builder(key, objectTypes);
     }
 
+    /** PHP's {@code empty()} for text: "" and "0". */
+    private static boolean empty(String text) {
+        return text.isEmpty() || text.equals("0");
+    }
+
     private static void requireKey(String key) {
         int bytes = key.getBytes(StandardCharsets.UTF_8).length;
-        if (bytes == 0 || bytes > MAX_KEY_BYTES) {
+        if (empty(key) || bytes > MAX_KEY_BYTES) {
             throw new IllegalArgumentException(
                     "taxonomy '" + key + "': Taxonomy names must be between 1 and 32 characters in length.");
         }
@@ -215,13 +222,18 @@ public record TaxonomyDefinition(
             return this;
         }
 
-        /** A default term given by name only, as WordPress turns a text {@code default_term} into one. */
+        /**
+         * A default term given by name only, as WordPress turns a text {@code default_term} into one; "" or "0" gives
+         * none.
+         */
         public Builder defaultTerm(String name) {
             return defaultTerm(name, "", "");
         }
 
+        /** A default term; a name of "" or "0" gives none (and removes one given before). */
         public Builder defaultTerm(String name, String slug, String description) {
-            this.defaultTerm = new DefaultTerm(name, slug, description);
+            DefaultTerm term = new DefaultTerm(name, slug, description);
+            this.defaultTerm = empty(name) ? null : term;
             return this;
         }
 

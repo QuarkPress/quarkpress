@@ -61,6 +61,15 @@ public class TermWrites {
     @Inject
     TransactionSynchronizationRegistry registry;
 
+    @Inject
+    TermAssignments assignments;
+
+    @Inject
+    TermAssignmentRepository assignmentRows;
+
+    @Inject
+    DefaultTerms defaults;
+
     /** Inserts a term: WordPress's {@code wp_insert_term}. */
     public TermSnapshot insert(SiteId site, TaxonomyDefinition taxonomy, TermChanges changes) {
         Instant now = clock.now().truncatedTo(ChronoUnit.MICROS);
@@ -112,7 +121,8 @@ public class TermWrites {
 
     /**
      * Updates the locked term: WordPress's {@code wp_update_term}. Every refusal comes before the first write; the
-     * loop members a new parent cuts are written with the term, so a refused update writes nothing.
+     * loop members a new parent cuts are written with the term, so a loop further up is cut only when the update
+     * succeeds, and a refused update leaves it as it was. Each member of the loop only loses its parent.
      */
     public TermSnapshot update(SiteId site, TaxonomyDefinition taxonomy, TermEntity row, TermChanges changes) {
         Instant now = clock.now().truncatedTo(ChronoUnit.MICROS);
@@ -162,15 +172,6 @@ public class TermWrites {
         });
     }
 
-    @Inject
-    TermAssignments assignments;
-
-    @Inject
-    TermAssignmentRepository assignmentRows;
-
-    @Inject
-    DefaultTerms defaults;
-
     /**
      * Deletes the locked term: WordPress's {@code wp_delete_term} after its checks. Children are handed on, posts
      * reassigned (counts and announcements follow), the row removed, and the delete announced. Any failure marks the
@@ -205,10 +206,10 @@ public class TermWrites {
     }
 
     /**
-     * The children of a term being deleted, locked in id order: in a hierarchical taxonomy they get its parent; in a
-     * flat one they are left without parent (the cascading key would otherwise delete them). Only the parent changes,
-     * not their version. The site condition is defence in depth: the composite parent key keeps children on their
-     * parent's site.
+     * The children of a term being deleted, locked in id order: in a hierarchical taxonomy those of its taxonomy get its
+     * parent; children of a flat term, and children of other taxonomies, are left without parent (the cascading key
+     * would otherwise delete them). Only the parent changes, not their version. The site condition is defence in depth:
+     * the composite parent key keeps children on their parent's site.
      */
     private void releaseChildren(SiteId site, TaxonomyDefinition taxonomy, TermSnapshot term) {
         Object siteParam = TenantIds.param(site);
@@ -221,13 +222,18 @@ public class TermWrites {
         if (children.isEmpty()) {
             return;
         }
-        List<Long> ids = children.stream().map(child -> child.id).toList();
         Long handedDown =
                 taxonomy.hierarchical() ? term.parent().map(TermId::value).orElse(null) : null;
-        if (handedDown == null) {
-            terms.update("parentId = null where siteId = ?1 and id in ?2", siteParam, ids);
-        } else {
-            terms.update("parentId = ?1 where siteId = ?2 and id in ?3", handedDown, siteParam, ids);
+        List<Long> heirs = new ArrayList<>();
+        List<Long> orphans = new ArrayList<>();
+        for (TermEntity child : children) {
+            (handedDown != null && child.taxonomy.equals(term.taxonomy()) ? heirs : orphans).add(child.id);
+        }
+        if (!orphans.isEmpty()) {
+            terms.update("parentId = null where siteId = ?1 and id in ?2", siteParam, orphans);
+        }
+        if (!heirs.isEmpty()) {
+            terms.update("parentId = ?1 where siteId = ?2 and id in ?3", handedDown, siteParam, heirs);
         }
         children.forEach(child -> terms.getEntityManager().refresh(child));
     }
@@ -318,8 +324,10 @@ public class TermWrites {
     }
 
     /**
-     * Runs the part of a save that writes: any exception marks the transaction for rollback before it propagates, so a
-     * refusal after the first write never leaves a partly saved term for the caller to commit.
+     * Runs the part of a save that writes: an exception marks the transaction for rollback before it propagates, so a
+     * failure after the first write never leaves a partly saved term for the caller to commit. The mark matters for
+     * failures of the persistence calls (persist, flush, bulk updates) and of the helpers they run in; an observer that
+     * throws has already marked the transaction when the event was published.
      */
     public <T> T written(Supplier<T> work) {
         try {

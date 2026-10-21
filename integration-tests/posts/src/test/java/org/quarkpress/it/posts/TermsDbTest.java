@@ -144,6 +144,56 @@ class TermsDbTest {
     }
 
     @Test
+    void emptyBodiesChangeNothingAndNeverAnswerAServerError() {
+        role("bob", "editor");
+        JsonPath refused = as("bob")
+                .contentType(ContentType.JSON)
+                .post("/it/terms/post_tag")
+                .then()
+                .statusCode(400)
+                .extract()
+                .jsonPath();
+        assertThat(refused.getString("code")).isEqualTo("empty_term_name");
+        String name = token();
+        long id = as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", name))
+                .post("/it/terms/category")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+        JsonPath kept = as("bob")
+                .contentType(ContentType.JSON)
+                .put("/it/terms/category/" + id)
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath();
+        assertThat(kept.getString("name")).isEqualTo(name);
+        long post = post("bob", Map.of("title", token(), "status", "publish")).getLong("id");
+        String tag = token();
+        as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("names", List.of(tag)))
+                .put("/it/posts/" + post + "/terms/post_tag")
+                .then()
+                .statusCode(200);
+        assertThat(slugs("bob", post, "post_tag")).containsExactly(tag);
+        List<Long> assigned = as("bob")
+                .contentType(ContentType.JSON)
+                .put("/it/posts/" + post + "/terms/post_tag")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getList("", Long.class);
+        assertThat(assigned).isEmpty();
+        assertThat(slugs("bob", post, "post_tag")).isEmpty();
+    }
+
+    @Test
     void anEditorRenamesAndReslugsACategory() {
         role("bob", "editor");
         long id = as("bob")

@@ -148,7 +148,8 @@ class TermScenarioFormatTest {
 
     @Test
     void namesAndSlugsWhoseSlugFormStartsWithASmallNumberAreRefused() {
-        for (String name : List.of("3 Days", "12!", "!3-x", "<b>7</b> up", "&amp;9 lives", "%2F5 five", "999x")) {
+        for (String name :
+                List.of("3 Days", "12!", "!3-x", "<b>7</b> up", "&amp;9 lives", "%2F5 five", "999x", "< 3 >", "<\t5")) {
             assertThatThrownBy(() -> TermFields.builder().name(name).build())
                     .as(name)
                     .isInstanceOf(IllegalArgumentException.class)
@@ -164,10 +165,12 @@ class TermScenarioFormatTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("a scenario term name or slug that starts with a number starts with 1000 or more: 4 x");
         assertThatThrownBy(() -> TermQueryArgs.builder().slugs(List.of("6-a")).build())
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("a scenario term name or slug that starts with a number starts with 1000 or more: 6-a");
         assertThatThrownBy(() -> TermQueryArgs.builder().names(List.of("6 a")).build())
-                .isInstanceOf(IllegalArgumentException.class);
-        for (String name : List.of("Days 3", "1000 days", "007", "0 days", "a1", "")) {
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("a scenario term name or slug that starts with a number starts with 1000 or more: 6 a");
+        for (String name : List.of("Days 3", "1000 days", "007", "0 days", "a1", "", "<b 3>x")) {
             assertThat(TermFields.builder().name(name).build().name()).contains(name);
         }
         assertThat(TermFields.builder().description("3 apples").build().description())

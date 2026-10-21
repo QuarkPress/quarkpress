@@ -8,7 +8,7 @@ class TermExceptionTest {
 
     @Test
     void insertAndUpdateRefusalsCarryTheirOwnCodesAndMessages() {
-        assertThat(TermException.dbError("x"))
+        assertThat(TermException.dbInsertError("x"))
                 .hasMessage("Could not insert term into the database.")
                 .extracting(TermException::code)
                 .isEqualTo("db_insert_error");

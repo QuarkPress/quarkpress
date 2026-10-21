@@ -14,5 +14,6 @@
   {"op": "term_exists", "taxonomy": "post_tag", "value": "   "},
   {"op": "term_exists", "taxonomy": "category", "value": "Child", "parent": "none"},
   {"op": "term_exists", "taxonomy": "category", "value": "Child", "parent": "t3"},
-  {"op": "term_exists", "taxonomy": "category", "value": "Uncategorized"}
+  {"op": "term_exists", "taxonomy": "category", "value": "Uncategorized"},
+  {"op": "term_exists", "taxonomy": "category", "value": "World", "parent": "none"}
 ]}

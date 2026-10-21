@@ -133,7 +133,7 @@ class TaxonomyDefinitionTest {
                 .isEqualTo("Mood Tag");
         assertThat(TaxonomyDefinition.builder("x".repeat(32), List.of()).build().key())
                 .hasSize(32);
-        for (String key : List.of("", "x".repeat(33), cp(0xE9).repeat(17))) {
+        for (String key : List.of("", "0", "x".repeat(33), cp(0xE9).repeat(17))) {
             assertThatThrownBy(() -> TaxonomyDefinition.builder(key, List.of()).build())
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageEndingWith("Taxonomy names must be between 1 and 32 characters in length.");
@@ -166,6 +166,49 @@ class TaxonomyDefinitionTest {
                         .build()
                         .defaultTerm())
                 .contains(new TaxonomyDefinition.DefaultTerm("General", "gen", "All of it"));
+    }
+
+    @Test
+    void aDefaultTermNamedEmptyOrZeroIsNone() {
+        for (String name : List.of("", "0")) {
+            assertThat(TaxonomyDefinition.builder("g", List.of())
+                            .defaultTerm(name)
+                            .build()
+                            .defaultTerm())
+                    .as(name)
+                    .isEmpty();
+            assertThat(TaxonomyDefinition.builder("g", List.of())
+                            .defaultTerm("General")
+                            .defaultTerm(name, "gen", "All of it")
+                            .build()
+                            .defaultTerm())
+                    .as(name)
+                    .isEmpty();
+        }
+        TaxonomyDefinition kept =
+                TaxonomyDefinition.builder("g", List.of()).defaultTerm("00").build();
+        assertThat(kept.defaultTerm()).contains(new TaxonomyDefinition.DefaultTerm("00", "", ""));
+        TaxonomyDefinition direct = new TaxonomyDefinition(
+                kept.key(),
+                kept.objectTypes(),
+                kept.labels(),
+                kept.description(),
+                kept.publicly(),
+                kept.publiclyQueryable(),
+                kept.hierarchical(),
+                kept.showUi(),
+                kept.showInMenu(),
+                kept.showInNavMenus(),
+                kept.showTagcloud(),
+                kept.showInQuickEdit(),
+                kept.showAdminColumn(),
+                kept.capabilities(),
+                kept.showInRest(),
+                kept.restBase(),
+                Optional.of(new TaxonomyDefinition.DefaultTerm("0", "zero", "")),
+                kept.sort(),
+                kept.builtIn());
+        assertThat(direct.defaultTerm()).isEmpty();
     }
 
     @Test

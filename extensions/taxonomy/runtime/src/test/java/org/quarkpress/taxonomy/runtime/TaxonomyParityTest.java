@@ -72,6 +72,41 @@ class TaxonomyParityTest {
         return new String(codePoints, 0, codePoints.length);
     }
 
+    /** Texts get_term_by casts to a term id: signs, whitespace, fractions, exponents, overflow and trailing text. */
+    static final List<String> INT_TEXTS = List.of(
+            "5",
+            " 5",
+            "\t\n\r\u000B\f12 ",
+            "5abc",
+            "0",
+            "",
+            "-5",
+            "+7",
+            "007",
+            "1e3",
+            "1E+2x",
+            "2e-1",
+            "1.9",
+            ".5e1",
+            "-.5",
+            "5.",
+            "5.e2",
+            "5e",
+            "5e+",
+            "0x1A",
+            "abc",
+            "\u0663",
+            "\u00A05",
+            "9223372036854775807",
+            "9223372036854775808",
+            "-9223372036854775808",
+            "-9223372036854775809",
+            "99999999999999999999",
+            "1e400",
+            "-1e400",
+            "9.9e18",
+            "1e18");
+
     /** The behaviour reference's examples and the edge cases of each filter step. */
     static final List<String> FIXED_TEXTS = List.of(
             "  Rock & Roll  ",
@@ -230,6 +265,8 @@ class TaxonomyParityTest {
         ObjectNode full = OracleJson.MAPPER.createObjectNode().put("show_in_rest", true);
         full.putObject("default_term").put("name", "General").put("slug", "gen").put("description", "All");
         args.add(full);
+        args.add(OracleJson.MAPPER.createObjectNode().put("default_term", "0"));
+        args.add(OracleJson.MAPPER.createObjectNode().put("default_term", ""));
         args.add(OracleJson.MAPPER
                 .createObjectNode()
                 .put("public", true)
@@ -357,6 +394,10 @@ class TaxonomyParityTest {
             cases.add(new PhpOracle.Case("generated-" + i, op("name_and_slug", "text", text)));
             cases.add(new PhpOracle.Case("text-" + i, op("text_field", "text", text)));
             cases.add(new PhpOracle.Case("lower-" + i, op("strtolower", "text", text)));
+            cases.add(new PhpOracle.Case("int-" + i, op("int_cast", "text", text)));
+        }
+        for (int i = 0; i < INT_TEXTS.size(); i++) {
+            cases.add(new PhpOracle.Case("int-fixed-" + i, op("int_cast", "text", INT_TEXTS.get(i))));
         }
         for (int i = 0; i < registrations.size(); i++) {
             cases.add(new PhpOracle.Case(
@@ -374,7 +415,8 @@ class TaxonomyParityTest {
             String text = texts.get(i);
             if (i >= FIXED_TEXTS.size()) {
                 String input = OracleJson.MAPPER.writeValueAsString(text);
-                for (String prefix : List.of("name-", "description-", "slug-", "generated-", "text-", "lower-")) {
+                for (String prefix :
+                        List.of("name-", "description-", "slug-", "generated-", "text-", "lower-", "int-")) {
                     run.generated(prefix + i, input);
                 }
             }
@@ -399,6 +441,14 @@ class TaxonomyParityTest {
                     slugs.generate(SiteId.of(1), "post_tag", name));
             run.compare("text-" + i, "sanitize_text_field", value(out, "text-" + i), TermText.sanitizeTextField(text));
             run.compare("lower-" + i, "strtolower", value(out, "lower-" + i), TermText.asciiLower(text));
+            run.compare("int-" + i, "(int)", value(out, "int-" + i), Long.toString(TermRules.phpInt(text)));
+        }
+        for (int i = 0; i < INT_TEXTS.size(); i++) {
+            run.compare(
+                    "int-fixed-" + i,
+                    "(int)",
+                    value(out, "int-fixed-" + i),
+                    Long.toString(TermRules.phpInt(INT_TEXTS.get(i))));
         }
         int fixedCount = fixedArgs().size();
         for (int i = 0; i < registrations.size(); i++) {
@@ -557,7 +607,8 @@ class TaxonomyParityTest {
         run.compare(
                 id,
                 "default_term",
-                defaultTerm.isNull()
+                // Planned normalization: an empty text default term stays as given in WordPress and means none.
+                defaultTerm.isNull() || defaultTerm.isTextual()
                         ? ""
                         : defaultTerm.get("name").asText() + "|"
                                 + defaultTerm.get("slug").asText() + "|"

@@ -160,8 +160,10 @@ class DeleteDbTest {
         TermId x = TestData.term(dataSource, site, "post_tag", "x", "x", null);
         PostId post = TestData.post(dataSource, site, "post", "publish", "p", "P");
         assign(post, "post_tag", x);
+        recorder.seen().clear();
         assertThat(delete(x, "post_tag")).isPresent();
         assertThat(slugs(post, "post_tag")).isEmpty();
+        assertThat(recorder.seen()).containsExactly("assigned " + post.value() + " post_tag", "deleted x");
     }
 
     @Test
@@ -262,6 +264,20 @@ class DeleteDbTest {
         assertThat(parent(sibling)).isEqualTo(grand.value());
         assertThat(Jdbc.count(dataSource, "select version from qp_term where id = ?", child.value()))
                 .isZero();
+    }
+
+    @Test
+    void childrenOfAnotherTaxonomyAreLeftWithoutParent() throws Exception {
+        // a parent of another taxonomy comes only from data written past QuarkPress
+        TermId top = TestData.term(dataSource, site, "category", "Top", "top", null);
+        TermId middle = TestData.term(dataSource, site, "category", "Middle", "middle", top);
+        TermId child = TestData.term(dataSource, site, "category", "Child", "child", middle);
+        TermId genre = TestData.term(dataSource, site, "genre", "Stray", "stray", middle);
+        TermId tag = TestData.term(dataSource, site, "post_tag", "Loose", "loose", middle);
+        assertThat(delete(middle, "category")).isPresent();
+        assertThat(parent(child)).isEqualTo(top.value());
+        assertThat(parent(genre)).isZero();
+        assertThat(parent(tag)).isZero();
     }
 
     @Test

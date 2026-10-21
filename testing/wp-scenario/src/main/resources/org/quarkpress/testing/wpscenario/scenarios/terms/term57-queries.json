@@ -44,5 +44,10 @@
   {"op": "query_terms", "as": 0, "args": {"taxonomies": ["post_tag"], "exclude": ["t6"], "include": ["t6", "t7"]}},
   {"op": "query_terms", "as": 0, "args": {"taxonomies": ["post_tag"], "posts": [3]}},
   {"op": "query_terms", "as": 0, "args": {"taxonomies": ["post_tag"], "get_all": true}},
-  {"op": "post_terms", "post": 1, "taxonomy": "post_tag"}
+  {"op": "post_terms", "post": 1, "taxonomy": "post_tag"},
+  {"op": "query_terms", "as": 0, "args": {"parent": "t1", "hide_empty": false}},
+  {"op": "query_terms", "as": 0, "args": {"child_of": "t1", "hide_empty": false}},
+  {"op": "query_terms", "as": 0, "args": {"childless": true, "hide_empty": false}},
+  {"op": "query_terms", "as": 0, "args": {"pad_counts": true}},
+  {"op": "query_terms", "as": 0, "args": {"taxonomies": ["category", "post_tag"], "pad_counts": true}}
 ]}

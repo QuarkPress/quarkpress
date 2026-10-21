@@ -28,27 +28,27 @@ public class TermEvents {
     @Inject
     Event<TermCreated> createdEvent;
 
+    @Inject
+    Event<TermUpdated> updatedEvent;
+
+    @Inject
+    Event<TermsAssigned> assignedEvent;
+
+    @Inject
+    Event<TermDeleted> deletedEvent;
+
     public void created(SiteId site, Instant at, TermSnapshot term) {
         transactions.publish(createdEvent, new TermCreated(site, at, term));
     }
-
-    @Inject
-    Event<TermUpdated> updatedEvent;
 
     public void updated(SiteId site, Instant at, TermSnapshot before, TermSnapshot after) {
         transactions.publish(updatedEvent, new TermUpdated(site, at, before, after));
     }
 
-    @Inject
-    Event<TermsAssigned> assignedEvent;
-
     public void assigned(
             SiteId site, Instant at, PostId post, String taxonomy, List<TermId> before, List<TermId> after) {
         transactions.publish(assignedEvent, new TermsAssigned(site, at, post, taxonomy, before, after));
     }
-
-    @Inject
-    Event<TermDeleted> deletedEvent;
 
     public void deleted(SiteId site, Instant at, TermSnapshot term) {
         transactions.publish(deletedEvent, new TermDeleted(site, at, term));

@@ -96,6 +96,29 @@ class ReadsDbTest {
     }
 
     @Test
+    void zeroIsANameOrSlugAndIdsAreReadAsPhpCastsThem() throws Exception {
+        TermId zero = TestData.term(dataSource, site, "post_tag", "0", "0", null);
+        assertThat(anonymously(() -> terms.findBy("post_tag", TermField.NAME, "0"))
+                        .map(TermSnapshot::id))
+                .contains(zero);
+        assertThat(anonymously(() -> terms.findBy("post_tag", TermField.SLUG, "0"))
+                        .map(TermSnapshot::id))
+                .contains(zero);
+        String id = Long.toString(zero.value());
+        for (String text : new String[] {" " + id, id + "abc", "+" + id, id + ".9", "\n" + id + " "}) {
+            assertThat(anonymously(() -> terms.findBy("post_tag", TermField.ID, text))
+                            .map(TermSnapshot::id))
+                    .as(text)
+                    .contains(zero);
+        }
+        for (String text : new String[] {"0", "", "-" + id, "abc" + id, "0x" + id}) {
+            assertThat(anonymously(() -> terms.findBy("post_tag", TermField.ID, text)))
+                    .as(text)
+                    .isEmpty();
+        }
+    }
+
+    @Test
     void existsLooksForASlugThenANameUnderAnOptionalParent() throws Exception {
         TermId news = TestData.term(dataSource, site, "post_tag", "Headlines", "news", null);
         TermId five = TestData.term(dataSource, site, "category", "5", "five", null);

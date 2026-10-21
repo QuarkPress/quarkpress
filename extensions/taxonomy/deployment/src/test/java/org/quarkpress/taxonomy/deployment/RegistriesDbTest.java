@@ -38,7 +38,7 @@ class RegistriesDbTest {
     @Taxonomy(key = "mood", objectTypes = "post", publicly = false, sort = true)
     static class Mood {}
 
-    @Taxonomy(key = "shade", objectTypes = "post", showUi = false)
+    @Taxonomy(key = "shade", objectTypes = "post", showUi = false, defaultTerm = "0")
     static class Shade {}
 
     @RegisterExtension
@@ -56,6 +56,12 @@ class RegistriesDbTest {
 
     @Inject
     Taxonomies taxonomies;
+
+    @Test
+    void aDefaultTermNamedZeroIsNoDefaultTerm() {
+        assertThat(taxonomies.find("shade").orElseThrow().defaultTerm()).isEmpty();
+        assertThat(taxonomies.find("genre").orElseThrow().defaultTerm()).isPresent();
+    }
 
     @Test
     void categoriesAreHierarchicalWithWordPresssArguments() {

@@ -171,6 +171,8 @@ qp_run(function (array $in): array {
             return ['value' => sanitize_text_field($in['text'])];
         case 'strtolower':
             return ['value' => strtolower($in['text'])];
+        case 'int_cast':
+            return ['value' => (string) (int) $in['text']];
         case 'parse_order':
             return ['value' => (new QpTermQuery())->order($in['order'])];
         default:

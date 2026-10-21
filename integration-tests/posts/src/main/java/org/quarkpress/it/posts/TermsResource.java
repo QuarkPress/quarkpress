@@ -80,6 +80,10 @@ public class TermsResource {
 
     private static TermChanges.Builder changes(TermRequest request) {
         TermChanges.Builder changes = TermChanges.builder();
+        if (request == null) {
+            // an empty body changes nothing
+            return changes;
+        }
         if (request.name() != null) {
             changes.name(request.name());
         }
