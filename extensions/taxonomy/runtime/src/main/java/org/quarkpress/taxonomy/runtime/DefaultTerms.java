@@ -12,6 +12,7 @@ import jakarta.interceptor.Interceptor;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteCreated;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TaxonomyDefinition;
@@ -58,6 +59,9 @@ public class DefaultTerms {
     @Inject
     PostLocks locks;
 
+    @Inject
+    SiteContext context;
+
     /**
      * The name of the option that holds a taxonomy's default term: {@code default_category} for categories,
      * {@code default_term_<key>} for another taxonomy with a default term, and null for a taxonomy without one. This is
@@ -68,6 +72,28 @@ public class DefaultTerms {
             return "default_category";
         }
         return taxonomy.defaultTerm().isPresent() ? "default_term_" + taxonomy.key() : null;
+    }
+
+    /**
+     * The taxonomy's default term on {@code site} now: the term its option names, when that is a term of the taxonomy
+     * on the site; empty for a taxonomy without default term, an option that is missing, not a positive number or names
+     * no term of the taxonomy. The option is read through the current site's options, so the caller is bound to
+     * {@code site}.
+     */
+    public Optional<TermId> current(SiteId site, TaxonomyDefinition taxonomy) {
+        String option = optionOf(taxonomy);
+        if (option == null) {
+            return Optional.empty();
+        }
+        if (!context.siteId().equals(site)) {
+            throw new IllegalStateException("the default term of site " + site.value() + " is read bound to site "
+                    + context.siteId().value());
+        }
+        long id = context.options().number(option, 0);
+        if (id <= 0) {
+            return Optional.empty();
+        }
+        return lookups.find(site, TermId.of(id), taxonomy.key()).map(term -> TermId.of(term.id));
     }
 
     /** A new site's default category and default terms, inside its creation transaction (bound to the network). */
