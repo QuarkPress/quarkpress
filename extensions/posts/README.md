@@ -163,6 +163,9 @@ events of their own, which come with the media module); `publish` fires `PostSta
 The taxonomy module observes `PostStatusChanged` and `PostDeleting` inside the saving transaction: it gives saved posts
 their default terms, keeps term counts, and removes a deleted post's assignments.
 
+The revisions module observes `PostSaved` (except for a new post) and `PostDeleting` inside the saving transaction: it
+saves a revision after every update-like save, and removes a deleted post's revisions one by one.
+
 ### Filters and replaceable beans
 
 Filters are beans; a higher `@Priority` runs first, the opposite of WordPress. A filter returns a value (changed or

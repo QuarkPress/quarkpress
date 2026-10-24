@@ -136,6 +136,34 @@ Deliberate differences are in `wp-scenario-terms-skip.txt`, labelled with the ta
 the scenarios' posts use the posts README's labels with the prefix `posts README:` in the reason (today every line is
 the posts README's D5, a new draft's GMT modification date, which `publish_post` leaves as it is).
 
+### Revision scenarios
+
+Revision operations act on the main site like post operations: `autosave {as, post, fields, meta}` (through
+WordPress's REST autosaves controller), `restore {as, revision, fields}` (with the revisions screen's checks),
+`delete_revision {revision}` (as the system), `revisions {as, post, args}`, `autosave_of {as, post, user}` and
+`revision_count {as, post}` (`RevisionScenarioJson` lists the keys of `fields`, `meta` and `args`), and the post
+operation `update_post_meta {as, post, key, value}` (key `footnotes`, with canonical values, since WordPress sanitizes
+others). `as: 0` and `author: 0` are refused in revision scenarios (the system identity is not a user there). A scenario
+may carry `revisions_keep` at the top level: the driver defines it as `WP_POST_REVISIONS` for its process and the
+QuarkPress side applies it through a filter (`TierBRevisionsKeep`). Revisions are named `r<k>` by creation order of
+revision rows on the site during the scenario (regular revisions and new autosaves; deleted ones still counted; a
+reference beyond the rows that exist is `missing` on both sides). Every created revision's final record is compared
+field by field (`revision#r<k>:<field>`: `parent`, `author`, `autosave`, `title`, `content`, `excerpt`, `footnotes`,
+`date_gmt`, the last shown as `now` inside the run's window). An autosave's answer is the autosave `r<k>`, or the post
+`p<k>` when the caller's own draft was updated.
+
+Driver rules: the driver defines `WP_RUN_CORE_TESTS` so the autosaves controller does not define `DOING_AUTOSAVE` for
+the rest of its process, and removes `wp_save_post_revision` from `post_updated` around an autosave (as the controller
+expects when it saves one); a deleted post is `invalid_post` before the capability check; the REST permission refusals
+are reported as `forbidden`. `autosave_of` without a user is asked only while at most one user autosaved the post,
+since WordPress leaves ties between autosaves of one second to the database. The scenarios live in
+`scenarios/revisions/` (hand-written, listed in `index.txt`) and `RevisionScenarios` (generated with `test-gen` from
+the fixed seeds `20261022-revisions-1` and `20261022-revisions-2`, 20 each). `RevisionScenarioParityDbTest` runs all
+49; the 9 hand-written scenarios make 1152 comparisons and at least 550 are required (the generated ones add to them).
+Deliberate differences are in `wp-scenario-revisions-skip.txt`, labelled with the revisions README's table (the posts'
+records with the prefix `posts README:`; today the posts README's D5 for a never-updated pending post, four lines, and
+the revisions README's D13, two lines).
+
 ## Adding scenarios
 
 Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for a
