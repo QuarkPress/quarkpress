@@ -2,9 +2,11 @@ package org.quarkpress.revisions;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.RevisionId;
 import org.quarkpress.core.UserId;
+import org.quarkpress.posts.PostSnapshot;
 
 /**
  * Revisions and autosaves of the current site's posts, saved as WordPress's revision API saves them and secured as
@@ -69,7 +71,22 @@ public interface Revisions {
      * meta key, when meta is given, differs from the post; returned untouched when nothing differs; or created without
      * comparison when the caller has none (fields not given stored empty, the post's revisioned meta copied, then the
      * given keys). The limit and the revisions feature play no part. A missing post, or one of another site, is
-     * {@code invalid_post}. The system's autosave has no author; the system has at most one per post, as a user has.
+     * {@code invalid_post}. The system's autosave has no author; the system writes to the newest authorless autosave of
+     * the post.
      */
     AutosaveResult autosave(PostId post, AutosaveChanges changes);
+
+    /**
+     * Restores a revision or autosave onto its post (WordPress's {@code wp_restore_post_revision} as the revisions
+     * screen allows it): needs {@code edit_post} on the post, and the post's revisions enabled unless the revision is
+     * an autosave ({@code revisions_not_enabled}). The post is updated as the caller with the revision's fields
+     * (every revisioned field of the post, or the given subset): the ordinary update, which filters the text for the
+     * caller, dates a floating draft now, fires the post's events and saves a revision of the result unless it equals
+     * the latest regular revision; then {@link RevisionRestored} fires; then the revision's revisioned meta replaces
+     * the post's (a key the revision lacks ends empty), so the revision the restore just saved still carries the
+     * post's previous meta. Returns the post afterwards. A missing revision, or one of another site, is
+     * {@code rest_post_invalid_id}. A restore refused by the update (for example {@code empty_content}) marks the
+     * caller's transaction for rollback.
+     */
+    PostSnapshot restore(RevisionId revision, Set<RevisionField> fields);
 }

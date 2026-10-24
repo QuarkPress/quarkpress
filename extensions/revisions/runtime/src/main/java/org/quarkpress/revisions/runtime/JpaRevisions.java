@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -80,6 +81,9 @@ public class JpaRevisions implements Revisions {
 
     @Inject
     QuarkPressClock clock;
+
+    @Inject
+    RevisionEvents events;
 
     @Override
     @Transactional(
@@ -201,7 +205,8 @@ public class JpaRevisions implements Revisions {
         Optional<RevisionEntity> existing = rows.autosaveOfAuthor(siteId, post, user);
         Instant now = PostDates.now(clock);
         if (existing.isEmpty()) {
-            return new AutosaveResult.Stored(writes.createAutosave(siteId, parent, user, changes, fields, now), true);
+            return new AutosaveResult.Stored(
+                    writes.createAutosave(siteId, parent, user, changes, fields, keys, now), true);
         }
         if (!RevisionRules.autosaveDiffers(fields, keys, changes, parent)) {
             return new AutosaveResult.Stored(existing.get().toSnapshot(), false);
@@ -209,6 +214,48 @@ public class JpaRevisions implements Revisions {
         RevisionEntity locked = rows.lockRevision(siteId, RevisionId.of(existing.get().id))
                 .orElseThrow(() -> RevisionException.invalidRevision());
         return new AutosaveResult.Stored(writes.updateAutosave(siteId, locked, user, changes, fields, now), true);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public PostSnapshot restore(RevisionId revision, Set<RevisionField> fields) {
+        Objects.requireNonNull(revision, "revision");
+        Objects.requireNonNull(fields, "fields");
+        SiteId siteId = site.siteId();
+        RevisionSnapshot unlocked = rows.findRevision(siteId, revision)
+                .map(RevisionEntity::toSnapshot)
+                .orElseThrow(RevisionException::invalidRevision);
+        PostEntity parent = lockedParent(siteId, unlocked.post(), stored -> {
+            acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
+            if (!unlocked.autosave() && !policy.enabled(stored)) {
+                throw RevisionException.notEnabled();
+            }
+        });
+        RevisionSnapshot locked = rows.lockRevision(siteId, revision)
+                .map(RevisionEntity::toSnapshot)
+                .orElseThrow(RevisionException::invalidRevision);
+        PostSnapshot before = parent.toSnapshot();
+        Set<RevisionField> restored = fields.isEmpty() ? policy.fields(before) : fields;
+        PostChanges.Builder changes = PostChanges.builder();
+        if (restored.contains(RevisionField.TITLE)) {
+            changes.title(locked.title());
+        }
+        if (restored.contains(RevisionField.CONTENT)) {
+            changes.content(locked.content());
+        }
+        if (restored.contains(RevisionField.EXCERPT)) {
+            changes.excerpt(locked.excerpt());
+        }
+        return writes.written(() -> {
+            posts.update(before.id(), changes.build());
+            events.restored(siteId, clock.now().truncatedTo(ChronoUnit.MICROS), before.id(), revision);
+            PostEntity row =
+                    postRows.lockPost(siteId, before.id()).orElseThrow(() -> PostException.invalidPost(before.id()));
+            writes.restoreMeta(row, policy.metaKeys(before.type()), locked);
+            postRows.flush();
+            return row.toSnapshot();
+        });
     }
 
     /** The post, which the caller must be able to edit; a missing post, or one of another site, is refused. */

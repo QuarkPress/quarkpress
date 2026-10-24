@@ -24,6 +24,8 @@ import org.quarkpress.posts.ContentSanitizer;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.runtime.Acting;
+import org.quarkpress.posts.runtime.MetaRows;
+import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.revisions.AutosaveChanges;
 import org.quarkpress.revisions.RevisionField;
 import org.quarkpress.revisions.RevisionSnapshot;
@@ -161,10 +163,10 @@ public class RevisionWrites {
             Optional<UserId> author,
             AutosaveChanges changes,
             Set<RevisionField> fields,
+            Set<String> metaKeys,
             Instant now) {
         return written(() -> {
-            Map<String, List<JsonNode>> meta =
-                    new LinkedHashMap<>(revisionedMeta(policy.metaKeys(post.type()), post.meta()));
+            Map<String, List<JsonNode>> meta = new LinkedHashMap<>(revisionedMeta(metaKeys, post.meta()));
             changes.meta().ifPresent(given -> given.forEach((key, value) -> meta.put(key, List.of(value))));
             RevisionSnapshot created = insert(
                     site,
@@ -179,6 +181,16 @@ public class RevisionWrites {
             events.autosaved(site, now(), created, false);
             return created;
         });
+    }
+
+    /** The meta object with each given key's values replaced by the one given value. */
+    static ObjectNode replaced(JsonNode meta, Map<String, JsonNode> given) {
+        ObjectNode result = MetaRows.copy(meta);
+        given.forEach((key, value) -> {
+            MetaRows.delete(result, key);
+            MetaRows.add(result, key, value, false);
+        });
+        return result;
     }
 
     private static String given(AutosaveChanges changes, Set<RevisionField> fields, RevisionField field) {
@@ -209,13 +221,7 @@ public class RevisionWrites {
             if (fields.contains(RevisionField.EXCERPT) && changes.excerpt().isPresent()) {
                 row.excerpt = sanitizer.excerpt(changes.excerpt().get(), filters);
             }
-            changes.meta().ifPresent(given -> {
-                ObjectNode meta = row.meta.isObject()
-                        ? ((ObjectNode) row.meta).deepCopy()
-                        : JsonNodeFactory.instance.objectNode();
-                given.forEach((key, value) -> meta.putArray(key).add(value.deepCopy()));
-                row.meta = meta;
-            });
+            changes.meta().ifPresent(given -> row.meta = replaced(row.meta, given));
             row.authorId = author.map(UserId::value).orElse(null);
             row.createdAt = now;
             revisions.flush();
@@ -223,6 +229,21 @@ public class RevisionWrites {
             events.autosaved(site, now(), after, true);
             return after;
         });
+    }
+
+    /**
+     * The revision's revisioned meta replaces the parent's: each of {@code keys} has its values deleted, then the
+     * revision's values of that key are added. The caller holds the site's post lock and the parent row.
+     */
+    public void restoreMeta(PostEntity parent, Set<String> keys, RevisionSnapshot revision) {
+        ObjectNode meta = MetaRows.copy(parent.meta);
+        for (String key : keys) {
+            MetaRows.delete(meta, key);
+            for (JsonNode value : revision.meta(key)) {
+                MetaRows.add(meta, key, value, false);
+            }
+        }
+        parent.meta = meta;
     }
 
     /** Removes the locked row and announces {@code RevisionDeleted}. */
