@@ -80,7 +80,8 @@ public interface Revisions {
      * Restores a revision or autosave onto its post (WordPress's {@code wp_restore_post_revision} as the revisions
      * screen allows it): needs {@code edit_post} on the post, and the post's revisions enabled unless the revision is
      * an autosave ({@code revisions_not_enabled}). The post is updated as the caller with the revision's fields
-     * (every revisioned field of the post, or the given subset): the ordinary update, which filters the text for the
+     * (every revisioned field of the post, which is what an empty set of fields means, or the given subset;
+     * WordPress takes that full set from the revision instead): the ordinary update, which filters the text for the
      * caller, dates a floating draft now, fires the post's events and saves a revision of the result unless it equals
      * the latest regular revision; then {@link RevisionRestored} fires; then the revision's revisioned meta replaces
      * the post's (a key the revision lacks ends empty), so the revision the restore just saved still carries the
@@ -89,4 +90,12 @@ public interface Revisions {
      * caller's transaction for rollback.
      */
     PostSnapshot restore(RevisionId revision, Set<RevisionField> fields);
+
+    /**
+     * Deletes a revision or autosave (WordPress's {@code wp_delete_post_revision}), announced with
+     * {@link RevisionDeleted}; the post's own records are left alone. Only the system identity may: deleting a
+     * revision is refused for every user, as WordPress refuses it. Empty for a missing revision, or one of another
+     * site, when the caller is the system.
+     */
+    Optional<RevisionSnapshot> delete(RevisionId revision);
 }

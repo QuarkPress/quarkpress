@@ -246,6 +246,16 @@ public class RevisionWrites {
         parent.meta = meta;
     }
 
+    /** Removes every revision of the post, oldest first, each announced; rows locked in id order. */
+    public void deleteAllOf(SiteId site, PostId post) {
+        written(() -> {
+            for (RevisionEntity row : revisions.lockOfPost(site, post)) {
+                delete(site, row);
+            }
+            return null;
+        });
+    }
+
     /** Removes the locked row and announces {@code RevisionDeleted}. */
     public void delete(SiteId site, RevisionEntity row) {
         RevisionSnapshot before = row.toSnapshot();

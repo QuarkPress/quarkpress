@@ -6,7 +6,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,6 +36,7 @@ import org.quarkpress.revisions.RevisionField;
 import org.quarkpress.revisions.RevisionQuery;
 import org.quarkpress.revisions.RevisionSnapshot;
 import org.quarkpress.revisions.Revisions;
+import org.quarkpress.security.MissingObject;
 
 /**
  * The revisions service: capability checks first (WordPress's REST rules), then the site's post lock, then the parent
@@ -249,13 +249,42 @@ public class JpaRevisions implements Revisions {
         }
         return writes.written(() -> {
             posts.update(before.id(), changes.build());
-            events.restored(siteId, clock.now().truncatedTo(ChronoUnit.MICROS), before.id(), revision);
+            events.restored(siteId, PostDates.now(clock), before.id(), revision);
             PostEntity row =
                     postRows.lockPost(siteId, before.id()).orElseThrow(() -> PostException.invalidPost(before.id()));
             writes.restoreMeta(row, policy.metaKeys(before.type()), locked);
             postRows.flush();
             return row.toSnapshot();
         });
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<RevisionSnapshot> delete(RevisionId revision) {
+        Objects.requireNonNull(revision, "revision");
+        SiteId siteId = site.siteId();
+        if (!acting.system()) {
+            // deleting a revision maps to do_not_allow for everyone: the check refuses with the caller's status
+            acting.require(siteId, "delete_post", Optional.of(new MissingObject(revision.value())));
+        }
+        Optional<RevisionEntity> found = rows.findRevision(siteId, revision);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        locks.lock(siteId);
+        // the parent row first, as every other write takes them: post rows, then revision rows
+        postRows.lockPost(siteId, PostId.of(found.get().postId));
+        Optional<RevisionEntity> locked = rows.lockRevision(siteId, revision);
+        if (locked.isEmpty()) {
+            return Optional.empty();
+        }
+        RevisionSnapshot before = locked.get().toSnapshot();
+        writes.written(() -> {
+            writes.delete(siteId, locked.get());
+            return null;
+        });
+        return Optional.of(before);
     }
 
     /** The post, which the caller must be able to edit; a missing post, or one of another site, is refused. */
