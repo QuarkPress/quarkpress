@@ -1050,8 +1050,9 @@ function qp_revision_op(array $op, array $users, array $posts, array &$created):
                 if (null !== $gone) {
                     return ['op' => 'autosave'] + $gone;
                 }
-                // The REST autosaves endpoint is called as a request would call it, through the post type's
-                // autosaves controller, with the fields and meta the request would carry.
+                // The post type's autosaves controller methods are called directly with a request object that
+                // carries the fields and meta; parameter validation and sanitizing (has_valid_params,
+                // sanitize_params) and the server's dispatch filters do not run.
                 rest_get_server();
                 $controller = get_post_type_object(get_post_type($id))->get_autosave_rest_controller();
                 $request = new WP_REST_Request('POST', '/wp/v2/posts/' . $id . '/autosaves');

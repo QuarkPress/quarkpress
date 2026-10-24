@@ -39,7 +39,10 @@ import org.quarkpress.persistence.NetworkOptions;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.OptionWrites;
+import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.Posts;
+import org.quarkpress.revisions.Revisions;
+import org.quarkpress.revisions.runtime.RevisionRepository;
 import org.quarkpress.security.CapObject;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Membership;
@@ -114,6 +117,15 @@ abstract class ScenarioParityBase {
 
     @Inject
     TermRepository termRows;
+
+    @Inject
+    Revisions revisionService;
+
+    @Inject
+    RevisionRepository revisionRows;
+
+    @Inject
+    PostMeta postMeta;
 
     /** Compares every scenario; fails on a difference, a stale skip entry, or fewer comparisons than {@code minimum}. */
     void compareWithWordPress(String library, List<Scenario> scenarios, Path skips, int minimum) throws Exception {
@@ -203,6 +215,11 @@ abstract class ScenarioParityBase {
         boolean termScenario = scenario.ops().stream().anyMatch(ScenarioOp.TermOp.class::isInstance);
         TermScenarioRunner termRunner = new TermScenarioRunner(termService, termRows, scope, store, postRunner);
         postRunner.terms(termRunner);
+        boolean revisionScenario = scenario.ops().stream()
+                .anyMatch(op -> op instanceof ScenarioOp.RevisionOp || op instanceof ScenarioOp.UpdatePostMeta);
+        RevisionScenarioRunner revisionRunner =
+                new RevisionScenarioRunner(revisionService, revisionRows, postMeta, scope, postRunner);
+        postRunner.revisions(revisionRunner);
         // WordPress's installation has a user named admin (nicename admin); mirror it so nicenames collide alike.
         UserProfile[] installer = new UserProfile[1];
         Throwable failure = null;
@@ -218,6 +235,9 @@ abstract class ScenarioParityBase {
             sites.update(MAIN, SiteChanges.none().withDomain(variant.domain()).withPath(variant.path()));
             if (termScenario) {
                 termRunner.start();
+            }
+            if (revisionScenario) {
+                revisionRunner.start(scenario.revisionsKeep());
             }
             int op = 0;
             for (ScenarioOp step : scenario.ops()) {
@@ -294,6 +314,10 @@ abstract class ScenarioParityBase {
                     case ScenarioOp.Can can -> runCapabilityOp(op, can, outcome, created, users);
                     case ScenarioOp.PostOp post -> postRunner.run(op, post, outcome, users);
                 }
+                if (revisionScenario) {
+                    // Revisions are named by creation order, those an update or a trim removes straight away included.
+                    revisionRunner.track();
+                }
             }
             for (int index = 1; index <= created.size(); index++) {
                 SiteId id = created.get(index - 1);
@@ -317,11 +341,17 @@ abstract class ScenarioParityBase {
             if (termScenario) {
                 termRunner.record(outcome);
             }
+            if (revisionScenario) {
+                revisionRunner.record(outcome, users, installer[0].id());
+            }
         } catch (Throwable t) {
             failure = t;
         }
         // Every cleanup step runs, whatever failed before: the original error is kept, later ones are suppressed.
         failure = attempt(failure, postRunner::cleanUp);
+        if (revisionScenario) {
+            failure = attempt(failure, revisionRunner::cleanUp);
+        }
         // posts first, so the counts are back to zero before the terms go
         if (termScenario) {
             failure = attempt(failure, termRunner::cleanUp);

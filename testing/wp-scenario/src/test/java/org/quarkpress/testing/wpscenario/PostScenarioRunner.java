@@ -68,6 +68,8 @@ final class PostScenarioRunner {
     private final Set<PostId> deleted = new HashSet<>();
     /** The runner of the scenario's term operations, attached by {@link #terms}. */
     private TermScenarioRunner termRunner;
+    /** The runner of the scenario's revision operations, attached by {@link #revisions}. */
+    private RevisionScenarioRunner revisionRunner;
 
     PostScenarioRunner(Posts posts, SiteScope scope, OptionStore store, Options options, boolean guids) {
         this.posts = posts;
@@ -80,6 +82,11 @@ final class PostScenarioRunner {
     /** Attaches the runner of the scenario's term operations, which this runner hands them to. */
     void terms(TermScenarioRunner runner) {
         this.termRunner = runner;
+    }
+
+    /** Attaches the runner of the scenario's revision operations, which this runner hands them to. */
+    void revisions(RevisionScenarioRunner runner) {
+        this.revisionRunner = runner;
     }
 
     void run(int op, ScenarioOp.PostOp step, Outcome outcome, List<UserId> users) throws Exception {
@@ -196,10 +203,8 @@ final class PostScenarioRunner {
                 }
             }
             case ScenarioOp.TermOp term -> termRunner.run(op, term, outcome, users);
-            case ScenarioOp.RevisionOp revision ->
-                throw new UnsupportedOperationException("revision operations arrive with the revision runner");
-            case ScenarioOp.UpdatePostMeta meta ->
-                throw new UnsupportedOperationException("update_post_meta arrives with the revision runner");
+            case ScenarioOp.RevisionOp revision -> revisionRunner.run(op, revision, outcome, users);
+            case ScenarioOp.UpdatePostMeta meta -> revisionRunner.run(op, meta, outcome, users);
         }
     }
 
@@ -321,7 +326,7 @@ final class PostScenarioRunner {
         return index < 1 || index > inserted.size() ? Optional.empty() : Optional.ofNullable(inserted.get(index - 1));
     }
 
-    private Map<Long, Integer> postIndex() {
+    Map<Long, Integer> postIndex() {
         Map<Long, Integer> index = new HashMap<>();
         for (int i = 0; i < inserted.size(); i++) {
             if (inserted.get(i) != null) {

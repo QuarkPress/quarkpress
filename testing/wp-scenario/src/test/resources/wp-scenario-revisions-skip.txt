@@ -1,0 +1,10 @@
+# Deliberate differences between the revisions module and WordPress 7.1.3 in the revision scenarios.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the revisions README's "Differences from
+# WordPress" table; the records of the scenarios' posts use the posts README's labels with the prefix "posts README:".
+# A line that no longer covers a difference fails the run.
+rev21-autosaves@subdirectory op14:read_post:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+rev21-autosaves@subdirectory op14:read_post:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+rev21-autosaves@subdirectory post#2:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+rev21-autosaves@subdirectory post#2:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+rev31-delete@subdirectory op14:read_post:meta:_wp_trash_meta_status D13 deleting a revision of a trashed post leaves the post's trash records (_wp_trash_meta_status and _wp_trash_meta_time); WordPress deletes them with the revision
+rev31-delete@subdirectory op14:read_post:meta:_wp_trash_meta_time D13 deleting a revision of a trashed post leaves the post's trash records (_wp_trash_meta_status and _wp_trash_meta_time); WordPress deletes them with the revision

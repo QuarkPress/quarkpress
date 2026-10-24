@@ -1,0 +1,16 @@
+{"id": "rev2-disabled", "rule": "REV2", "variant": "subdirectory", "revisions_keep": 0, "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "v1", "content": "one", "status": "publish", "date": "2020-01-01 10:00:00"}},
+  {"op": "update_post", "as": 1, "post": 1, "fields": {"title": "v2"}, "edit_date": false},
+  {"op": "revisions", "as": 1, "post": 1, "args": {}},
+  {"op": "revisions", "as": 1, "post": 1, "args": {"check_enabled": false}},
+  {"op": "revision_count", "as": 1, "post": 1},
+  {"op": "autosave", "as": 1, "post": 1, "fields": {"content": "two"}},
+  {"op": "revisions", "as": 1, "post": 1, "args": {}},
+  {"op": "revisions", "as": 1, "post": 1, "args": {"check_enabled": false}},
+  {"op": "autosave_of", "as": 1, "post": 1, "user": 1},
+  {"op": "restore", "as": 1, "revision": "r1", "fields": []},
+  {"op": "read_post", "post": 1},
+  {"op": "revisions", "as": 1, "post": 1, "args": {"check_enabled": false}}
+]}
