@@ -84,6 +84,11 @@ public final class RevisionRules {
         };
     }
 
+    /** What a new autosave stores for a field: the given value, or nothing when the field was not given. */
+    public static String autosaveField(AutosaveChanges changes, RevisionField field) {
+        return changes.field(field).orElse("");
+    }
+
     /** Whether any of the fields differs between the latest regular revision and the post, whitespace aside. */
     public static boolean fieldsChanged(Set<RevisionField> fields, RevisionSnapshot last, PostSnapshot current) {
         for (RevisionField field : fields) {

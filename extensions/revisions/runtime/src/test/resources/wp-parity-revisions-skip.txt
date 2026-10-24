@@ -1,0 +1,5 @@
+# Deliberate differences between the revisions module's pure rules and WordPress 7.1.3's functions.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the revisions README's "Differences from
+# WordPress" table. A line that no longer covers a difference fails the run.
+fields-extra-menu extra D11 revisioned fields are a fixed set (title, content, excerpt); a WordPress filter can add any column, here menu_order
+fields-extra-password extra D11 revisioned fields are a fixed set (title, content, excerpt); a WordPress filter can add any column, here post_password
