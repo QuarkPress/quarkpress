@@ -5,24 +5,34 @@ import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.quarkpress.core.PostId;
+import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.RevisionId;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
+import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostSnapshot;
+import org.quarkpress.posts.PostTypes;
+import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.Acting;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
+import org.quarkpress.posts.runtime.PostDates;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostLocks;
 import org.quarkpress.posts.runtime.PostRepository;
+import org.quarkpress.revisions.AutosaveChanges;
+import org.quarkpress.revisions.AutosaveResult;
 import org.quarkpress.revisions.RevisionCount;
 import org.quarkpress.revisions.RevisionException;
+import org.quarkpress.revisions.RevisionField;
 import org.quarkpress.revisions.RevisionQuery;
 import org.quarkpress.revisions.RevisionSnapshot;
 import org.quarkpress.revisions.Revisions;
@@ -61,6 +71,15 @@ public class JpaRevisions implements Revisions {
 
     @Inject
     RevisionPolicy policy;
+
+    @Inject
+    PostTypes types;
+
+    @Inject
+    Posts posts;
+
+    @Inject
+    QuarkPressClock clock;
 
     @Override
     @Transactional(
@@ -142,6 +161,54 @@ public class JpaRevisions implements Revisions {
             throw RevisionException.notEnabled();
         }
         return queries.latestAndCount(siteId, post);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public AutosaveResult autosave(PostId post, AutosaveChanges changes) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(changes, "changes");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedParent(siteId, post, stored -> {
+            if (!types.supports(stored.type(), "autosave")) {
+                throw RevisionException.autosaveNotSupported(stored.type());
+            }
+            acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
+            Set<String> keys = policy.metaKeys(stored.type());
+            changes.meta()
+                    .ifPresent(given -> given.keySet().forEach(key -> {
+                        if (!keys.contains(key)) {
+                            throw new IllegalArgumentException(
+                                    "the meta key " + key + " is not revisioned for posts of type " + stored.type());
+                        }
+                    }));
+        });
+        PostSnapshot parent = row.toSnapshot();
+        Optional<UserId> user = acting.user();
+        boolean ownDraft = (parent.status().equals("draft") || parent.status().equals("auto-draft"))
+                && user.isPresent()
+                && parent.author().equals(user);
+        if (ownDraft) {
+            PostChanges.Builder update = PostChanges.builder();
+            changes.title().ifPresent(update::title);
+            changes.content().ifPresent(update::content);
+            changes.excerpt().ifPresent(update::excerpt);
+            return new AutosaveResult.Draft(Autosaving.during(() -> posts.update(post, update.build())));
+        }
+        Set<RevisionField> fields = policy.fields(parent);
+        Set<String> keys = policy.metaKeys(parent.type());
+        Optional<RevisionEntity> existing = rows.autosaveOfAuthor(siteId, post, user);
+        Instant now = PostDates.now(clock);
+        if (existing.isEmpty()) {
+            return new AutosaveResult.Stored(writes.createAutosave(siteId, parent, user, changes, fields, now), true);
+        }
+        if (!RevisionRules.autosaveDiffers(fields, keys, changes, parent)) {
+            return new AutosaveResult.Stored(existing.get().toSnapshot(), false);
+        }
+        RevisionEntity locked = rows.lockRevision(siteId, RevisionId.of(existing.get().id))
+                .orElseThrow(() -> RevisionException.invalidRevision());
+        return new AutosaveResult.Stored(writes.updateAutosave(siteId, locked, user, changes, fields, now), true);
     }
 
     /** The post, which the caller must be able to edit; a missing post, or one of another site, is refused. */

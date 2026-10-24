@@ -52,7 +52,10 @@ public class RevisionRepository implements PanacheRepositoryBase<RevisionEntity,
         return oldestFirst;
     }
 
-    /** The post's autosave by {@code author}, or the one without author for an empty {@code author}. */
+    /**
+     * The post's autosave by {@code author}, or for an empty {@code author} the newest one without author (a user's
+     * deleted profile leaves its autosave authorless, so there may be several).
+     */
     public Optional<RevisionEntity> autosaveOfAuthor(SiteId site, PostId post, Optional<UserId> author) {
         return (author.isPresent()
                         ? find(
@@ -61,7 +64,8 @@ public class RevisionRepository implements PanacheRepositoryBase<RevisionEntity,
                                 post.value(),
                                 author.get().value())
                         : find(
-                                "siteId = ?1 and postId = ?2 and autosave = true and authorId is null",
+                                "siteId = ?1 and postId = ?2 and autosave = true and authorId is null"
+                                        + " order by createdAt desc, id desc",
                                 TenantIds.param(site),
                                 post.value()))
                 .firstResultOptional();

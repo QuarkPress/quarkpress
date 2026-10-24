@@ -6,6 +6,7 @@ import jakarta.inject.Inject;
 import java.time.Instant;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
+import org.quarkpress.revisions.AutosaveSaved;
 import org.quarkpress.revisions.RevisionCreated;
 import org.quarkpress.revisions.RevisionDeleted;
 import org.quarkpress.revisions.RevisionSnapshot;
@@ -26,8 +27,15 @@ public class RevisionEvents {
     @Inject
     Event<RevisionDeleted> deletedEvent;
 
+    @Inject
+    Event<AutosaveSaved> autosavedEvent;
+
     public void created(SiteId site, Instant at, RevisionSnapshot revision) {
         transactions.publish(createdEvent, new RevisionCreated(site, at, revision));
+    }
+
+    public void autosaved(SiteId site, Instant at, RevisionSnapshot autosave, boolean updated) {
+        transactions.publish(autosavedEvent, new AutosaveSaved(site, at, autosave, updated));
     }
 
     public void deleted(SiteId site, Instant at, RevisionSnapshot revision) {

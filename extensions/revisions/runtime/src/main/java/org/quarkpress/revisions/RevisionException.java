@@ -28,7 +28,8 @@ public class RevisionException extends IllegalArgumentException {
     }
 
     public static RevisionException autosaveNotSupported(String type) {
-        return new RevisionException("autosave_not_supported", "Autosaves are not supported for this post type.");
+        return new RevisionException(
+                "autosave_not_supported", "Autosaves are not supported for posts of type " + type + ".");
     }
 
     public static RevisionException invalidRevision() {

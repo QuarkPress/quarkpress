@@ -58,4 +58,18 @@ public interface Revisions {
      * revisions_not_enabled} when the post's limit is 0. Needs {@code edit_post}.
      */
     RevisionCount latestAndCount(PostId post);
+
+    /**
+     * Autosaves the post for the caller (WordPress's REST autosaves endpoint). The post's type must be autosaved
+     * ({@code autosave_not_supported}); the caller needs {@code edit_post} on the post; meta keys that are not
+     * revisioned for the type are refused with {@code IllegalArgumentException}. A draft or auto-draft of the caller's
+     * own is updated with the given fields through the full save path, creates no revision, ignores the given meta,
+     * and is the result. Otherwise the caller's autosave is updated (re-dated now; fields not given keep their
+     * values; given meta keys replace theirs) when a given field, after whitespace normalization, or any revisioned
+     * meta key, when meta is given, differs from the post; returned untouched when nothing differs; or created without
+     * comparison when the caller has none (fields not given stored empty, the post's revisioned meta copied, then the
+     * given keys). The limit and the revisions feature play no part. A missing post, or one of another site, is
+     * {@code invalid_post}. The system's autosave has no author; the system has at most one per post, as a user has.
+     */
+    AutosaveResult autosave(PostId post, AutosaveChanges changes);
 }

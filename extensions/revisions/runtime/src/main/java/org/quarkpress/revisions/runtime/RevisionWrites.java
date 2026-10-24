@@ -24,6 +24,7 @@ import org.quarkpress.posts.ContentSanitizer;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.runtime.Acting;
+import org.quarkpress.revisions.AutosaveChanges;
 import org.quarkpress.revisions.RevisionField;
 import org.quarkpress.revisions.RevisionSnapshot;
 
@@ -147,6 +148,81 @@ public class RevisionWrites {
         RevisionSnapshot snapshot = row.toSnapshot();
         events.created(site, now(), snapshot);
         return snapshot;
+    }
+
+    /**
+     * Creates the caller's first autosave of a post, without comparison: the revisioned fields given are stored (the
+     * others empty), after the post's revisioned meta, which the given meta keys then replace; announced with
+     * {@code RevisionCreated} and {@code AutosaveSaved(updated = false)}. The caller holds the site's post lock.
+     */
+    public RevisionSnapshot createAutosave(
+            SiteId site,
+            PostSnapshot post,
+            Optional<UserId> author,
+            AutosaveChanges changes,
+            Set<RevisionField> fields,
+            Instant now) {
+        return written(() -> {
+            Map<String, List<JsonNode>> meta =
+                    new LinkedHashMap<>(revisionedMeta(policy.metaKeys(post.type()), post.meta()));
+            changes.meta().ifPresent(given -> given.forEach((key, value) -> meta.put(key, List.of(value))));
+            RevisionSnapshot created = insert(
+                    site,
+                    post.id(),
+                    author,
+                    given(changes, fields, RevisionField.TITLE),
+                    given(changes, fields, RevisionField.CONTENT),
+                    given(changes, fields, RevisionField.EXCERPT),
+                    meta,
+                    true,
+                    now);
+            events.autosaved(site, now(), created, false);
+            return created;
+        });
+    }
+
+    private static String given(AutosaveChanges changes, Set<RevisionField> fields, RevisionField field) {
+        return fields.contains(field) ? RevisionRules.autosaveField(changes, field) : "";
+    }
+
+    /**
+     * Updates the caller's autosave with what the autosave gives: the given fields (those revisioned, filtered for
+     * the caller as a save filters them) replace the row's, the given meta keys replace the row's, the author and the
+     * time are set, the row is flushed and {@code AutosaveSaved(updated = true)} is announced. The caller holds the
+     * site's post lock and the row.
+     */
+    public RevisionSnapshot updateAutosave(
+            SiteId site,
+            RevisionEntity row,
+            Optional<UserId> author,
+            AutosaveChanges changes,
+            Set<RevisionField> fields,
+            Instant now) {
+        return written(() -> {
+            var filters = acting.saveFilters(site);
+            if (fields.contains(RevisionField.TITLE) && changes.title().isPresent()) {
+                row.title = sanitizer.title(changes.title().get(), filters);
+            }
+            if (fields.contains(RevisionField.CONTENT) && changes.content().isPresent()) {
+                row.content = sanitizer.content(changes.content().get(), filters);
+            }
+            if (fields.contains(RevisionField.EXCERPT) && changes.excerpt().isPresent()) {
+                row.excerpt = sanitizer.excerpt(changes.excerpt().get(), filters);
+            }
+            changes.meta().ifPresent(given -> {
+                ObjectNode meta = row.meta.isObject()
+                        ? ((ObjectNode) row.meta).deepCopy()
+                        : JsonNodeFactory.instance.objectNode();
+                given.forEach((key, value) -> meta.putArray(key).add(value.deepCopy()));
+                row.meta = meta;
+            });
+            row.authorId = author.map(UserId::value).orElse(null);
+            row.createdAt = now;
+            revisions.flush();
+            RevisionSnapshot after = row.toSnapshot();
+            events.autosaved(site, now(), after, true);
+            return after;
+        });
     }
 
     /** Removes the locked row and announces {@code RevisionDeleted}. */
