@@ -7,6 +7,7 @@ import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
+import org.quarkpress.revisions.runtime.RevisionPolicy;
 import org.quarkpress.revisions.runtime.RevisionRepository;
 import org.quarkpress.revisions.runtime.RevisionsConfig;
 
@@ -15,7 +16,7 @@ class RevisionsProcessor {
     static final String FEATURE = "quarkpress-revisions";
 
     /** The per-site switch: off, a site saves and lists no revisions (autosaves still work). */
-    static final String SITE_FEATURE = "revisions";
+    static final String SITE_FEATURE = RevisionPolicy.SITE_FEATURE;
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -24,7 +25,7 @@ class RevisionsProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(RevisionRepository.class);
+        return UnremovableBeanBuildItem.beanTypes(RevisionRepository.class, RevisionPolicy.class);
     }
 
     @BuildStep
