@@ -7,8 +7,13 @@ import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
+import org.quarkpress.revisions.Revisions;
+import org.quarkpress.revisions.runtime.JpaRevisions;
+import org.quarkpress.revisions.runtime.PostRevisionObserver;
+import org.quarkpress.revisions.runtime.RevisionEvents;
 import org.quarkpress.revisions.runtime.RevisionPolicy;
 import org.quarkpress.revisions.runtime.RevisionRepository;
+import org.quarkpress.revisions.runtime.RevisionWrites;
 import org.quarkpress.revisions.runtime.RevisionsConfig;
 
 class RevisionsProcessor {
@@ -25,7 +30,14 @@ class RevisionsProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(RevisionRepository.class, RevisionPolicy.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                Revisions.class,
+                JpaRevisions.class,
+                PostRevisionObserver.class,
+                RevisionWrites.class,
+                RevisionEvents.class,
+                RevisionRepository.class,
+                RevisionPolicy.class);
     }
 
     @BuildStep

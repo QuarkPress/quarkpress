@@ -38,4 +38,11 @@ public final class TestDb {
     public static String instantText(String iso) {
         return kind().equals("postgresql") ? iso : iso.replace("T", " ").replace("Z", "");
     }
+
+    /** The column rendered as {@code YYYY-MM-DD HH:MM:SS} in UTC, whatever the session's time zone. */
+    public static String utcText(String column) {
+        return kind().equals("postgresql")
+                ? "to_char(" + column + " at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')"
+                : "date_format(" + column + ", '%Y-%m-%d %H:%i:%s')";
+    }
 }

@@ -1,0 +1,32 @@
+package org.quarkpress.revisions;
+
+import java.util.Optional;
+import org.quarkpress.core.PostId;
+
+/**
+ * Revisions and autosaves of the current site's posts, saved as WordPress's revision API saves them and secured as
+ * its REST layer secures them. A revision is written after every update-like save of a post (an update, a trash, an
+ * untrash, a publish) by an observer inside that save, when the post's revisioned fields or meta changed since its
+ * latest regular revision; this service saves one on demand, keeps autosaves, restores and deletes revisions, and
+ * reads them. Writes require the caller's capabilities (refused with Quarkus's {@code UnauthorizedException} when
+ * nobody is authenticated, {@code ForbiddenException} otherwise) and refuse invalid input with
+ * {@link RevisionException} or, for a missing post, the posts module's {@code PostException}. A capability refusal,
+ * and an input refusal raised before anything is written, leave the caller's transaction usable; once a call has
+ * written, any failure marks the transaction for rollback, so a failed call changes nothing. Another site is reached
+ * through {@code SiteScope}, whose work runs without the caller's identity. Every write takes the site's post lock,
+ * so revision and post writes of one site apply one after the other.
+ */
+public interface Revisions {
+
+    /**
+     * Saves a revision of the post now (WordPress's {@code wp_save_post_revision}), as the save of an update would:
+     * nothing for an auto-draft, a type without revisions support, a post whose limit is 0, or a post unchanged (title,
+     * content, excerpt after whitespace normalization, and revisioned meta) since its latest regular revision; else a
+     * copy of the post's current revisioned fields, filtered for the caller as a save filters them, with the caller as
+     * author and the post's modification time as its time, announced with {@link RevisionCreated}; then the oldest
+     * revisions beyond the post's limit are removed (autosaves count but are never removed this way), each announced
+     * with {@link RevisionDeleted}. Needs {@code edit_post} on the post. A missing post, or one of another site, is
+     * {@code invalid_post}.
+     */
+    Optional<RevisionSnapshot> save(PostId post);
+}
