@@ -28,6 +28,7 @@
     <module>security</module>
     <module>posts</module>
     <module>taxonomy</module>
+    <module>revisions</module>
   </modules>
 
   <dependencyManagement>

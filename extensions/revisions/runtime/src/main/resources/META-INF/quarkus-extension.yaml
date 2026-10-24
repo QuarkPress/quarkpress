@@ -1,0 +1,11 @@
+---
+name: "QuarkPress Revisions"
+description: "Revisions and autosaves of posts with WordPress's change check, limits, restore and capability rules"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "revisions"
+  categories:
+    - "data"
+  status: "experimental"
