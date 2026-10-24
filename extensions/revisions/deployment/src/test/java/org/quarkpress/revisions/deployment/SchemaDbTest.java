@@ -153,7 +153,10 @@ class SchemaDbTest {
                     revisions.flush();
                     return row.toSnapshot();
                 }));
-        assertThat(Jdbc.count(dataSource, "select autosave_owner from qp_revision where id = ?", stored.id().value()))
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select autosave_owner from qp_revision where id = ?",
+                        stored.id().value()))
                 .isEqualTo(user.value());
         assertThat(stored.post()).isEqualTo(post);
         assertThat(stored.site()).isEqualTo(site);
