@@ -95,6 +95,7 @@ public class JpaPosts implements Posts {
     public PostSnapshot update(PostId post, PostChanges changes) {
         Objects.requireNonNull(post, "post");
         Objects.requireNonNull(changes, "changes");
+        changes.type().ifPresent(PostRules::type);
         SiteId siteId = site.siteId();
         PostEntity row = lockedRow(siteId, post, changes.author(), stored -> {
             acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));

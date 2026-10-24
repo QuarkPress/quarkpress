@@ -41,6 +41,7 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   included, except sticking and unsticking and the parent change a deleted parent hands down.
 - Invalid input throws `PostException` (an `IllegalArgumentException`) whose `code()` is WordPress's error code:
   `invalid_post` (no such post on this site), `invalid_author`, `invalid_parent`, `empty_content`, `invalid_date`,
+  `invalid_post_type` (the type `revision`),
   `db_insert_error` or `db_update_error` (a value too long for its column), and `rest_invalid_field` (sticking a post
   that is not of type `post` or has a password, or giving a password to a sticky post). The messages are not
   guaranteed to be WordPress's.
@@ -246,7 +247,7 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 | Label | Difference |
 |---|---|
 | D1 | Capabilities are checked as WordPress's REST API checks them (wp-admin's `delete_post` for restoring from the trash); WordPress's `wp_insert_post` and friends check nothing. Changing a post's type, which REST cannot do, also needs the new type's `create_posts`, with its publish and edit-others rules applied to the status and author the post will have. |
-| D2 | A parent must be a post of the same site, and deleting a post clears the parent of children it does not hand its parent down to; WordPress accepts any id and leaves those children pointing at the deleted post. A stray `qp_post` row of type `revision` naming the deleted post loses its parent too, where WordPress deletes the post's revisions. |
+| D2 | A parent must be a post of the same site, and deleting a post clears the parent of children it does not hand its parent down to; WordPress accepts any id and leaves those children pointing at the deleted post. The type `revision` is refused with `invalid_post_type` (revisions live in the revisions module's own table, which cascades a post's delete), where WordPress deletes a post's revision rows with it. |
 | D3 | A post date is stored once: given both, the GMT date wins and the local date is derived from it; given only a local date, it is converted with the site's zone when saved. WordPress stores both texts as given. A consequence: updating a published post with only a later local date recomputes its GMT date and can make it `future`, where WordPress keeps the old GMT date and the post stays published. A second consequence: after the site's time zone changes, local dates are shown in the new zone, where WordPress keeps the local text it wrote under the old one. |
 | D4 | A floating draft given only a local date with `editDate` stays floating; its local date shows its modification time. WordPress stores that local date with a zero GMT date. |
 | D5 | A new post whose date floats (a draft, pending or auto-draft without a GMT date) has a real GMT modification date (its save time, or the local date it was given, in GMT); WordPress copies the zero GMT post date into the GMT modification date until the post is next updated. |

@@ -74,6 +74,20 @@ class CreateDbTest {
     }
 
     @Test
+    void aPostOfTypeRevisionCannotBeCreated() {
+        assertThatThrownBy(() ->
+                        create(editor, PostChanges.builder().type("revision").title("Stray")))
+                .isInstanceOfSatisfying(
+                        PostException.class,
+                        refused -> assertThat(refused.code()).isEqualTo("invalid_post_type"));
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select count(*) from qp_post where site_id = ? and type = 'revision'",
+                        site.value()))
+                .isZero();
+    }
+
+    @Test
     void anInsertTakesWordPressDefaults() throws Exception {
         PostSnapshot post = create(editor, PostChanges.builder().title("Hello"));
         assertThat(post.type()).isEqualTo("post");

@@ -80,6 +80,20 @@ class UpdateDbTest {
     }
 
     @Test
+    void aPostCannotBeMovedToTheRevisionType() throws Exception {
+        PostSnapshot post = create(PostChanges.builder().title("Kept").status("publish"));
+        assertThatThrownBy(() -> update(post.id(), PostChanges.builder().type("revision")))
+                .isInstanceOfSatisfying(
+                        PostException.class,
+                        refused -> assertThat(refused.code()).isEqualTo("invalid_post_type"));
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select type from qp_post where id = ?",
+                        post.id().value()))
+                .containsExactly("post");
+    }
+
+    @Test
     void anUpdateMergesTheStoredPostAndIsModifiedNow() throws Exception {
         PostSnapshot post = create(PostChanges.builder().title("A").content("x").status("publish"));
         clock.set(NOW);

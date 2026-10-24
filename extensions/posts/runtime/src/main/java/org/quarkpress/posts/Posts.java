@@ -18,7 +18,8 @@ public interface Posts {
      * publish, future or private needs the type's {@code publish_posts}; an author other than the caller needs
      * {@code edit_others_posts}. A post that is not created in the trash takes its slug, when not empty, from trashed
      * posts of the searchable types that hold it: they get the trashed suffix and keep their slug as the one to
-     * restore.
+     * restore. The type {@code revision} is refused ({@code invalid_post_type}): revisions are kept by the revisions
+     * module.
      */
     PostSnapshot create(PostChanges changes);
 
@@ -39,7 +40,8 @@ public interface Posts {
      * posts as {@link #create} does. With {@code expectedVersion}, a post that changed since that version is refused
      * with {@code jakarta.persistence.OptimisticLockException}, before any write and without marking the caller's
      * transaction for rollback, so the caller can read the post again and retry. A failed update changes nothing:
-     * once it has written, the failure also marks the caller's transaction for rollback.
+     * once it has written, the failure also marks the caller's transaction for rollback. Changing the type to
+     * {@code revision} is refused ({@code invalid_post_type}).
      */
     PostSnapshot update(PostId post, PostChanges changes);
 

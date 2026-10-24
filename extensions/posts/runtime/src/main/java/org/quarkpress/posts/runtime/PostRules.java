@@ -29,6 +29,9 @@ public final class PostRules {
     /** The type as a key; empty after sanitizing (PHP sense) means {@code post}. */
     public static String type(String given) {
         String type = WordPressKeys.sanitize(given);
+        if (type.equals("revision")) {
+            throw PostException.invalidPostType(type);
+        }
         return phpEmpty(type) ? "post" : type;
     }
 

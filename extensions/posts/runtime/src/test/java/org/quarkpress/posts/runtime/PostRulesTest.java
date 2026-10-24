@@ -12,6 +12,22 @@ class PostRulesTest {
     static final PostTypes TYPES = new RegisteredPostTypes(BuiltInPostTypes.all());
 
     @Test
+    void theRevisionTypeIsRefusedAndOtherUnregisteredTypesAreKept() {
+        assertThatThrownBy(() -> PostRules.type("revision"))
+                .isInstanceOfSatisfying(PostException.class, refused -> {
+                    assertThat(refused.code()).isEqualTo("invalid_post_type");
+                    assertThat(refused.detail()).isEqualTo("revision");
+                })
+                .hasMessage("Invalid post type.");
+        assertThatThrownBy(() -> PostRules.type("Revision"))
+                .isInstanceOfSatisfying(
+                        PostException.class,
+                        refused -> assertThat(refused.code()).isEqualTo("invalid_post_type"));
+        assertThat(PostRules.type("book")).isEqualTo("book");
+        assertThat(PostRules.type("revisions")).isEqualTo("revisions");
+    }
+
+    @Test
     void typesAndStatusesAreSanitizedKeysWithDefaults() {
         assertThat(PostRules.type("Page ")).isEqualTo("page");
         assertThat(PostRules.type("")).isEqualTo("post");

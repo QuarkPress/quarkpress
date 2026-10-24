@@ -6,7 +6,8 @@ import org.quarkpress.core.PostId;
 /**
  * A post write or read refused for its input, with WordPress's error code: {@code invalid_post} (no such post on
  * this site), {@code empty_content} (title, content and excerpt all empty for a type that supports the three),
- * {@code invalid_date}, {@code db_insert_error} or {@code db_update_error} (a value too long for its column).
+ * {@code invalid_date}, {@code invalid_post_type} (the type {@code revision}), {@code db_insert_error} or
+ * {@code db_update_error} (a value too long for its column).
  */
 public class PostException extends IllegalArgumentException {
 
@@ -45,6 +46,11 @@ public class PostException extends IllegalArgumentException {
 
     public static PostException invalidDate() {
         return new PostException("invalid_date", "Invalid date.");
+    }
+
+    /** A type no post may have: {@code revision}, whose rows live in the revisions module's table. */
+    public static PostException invalidPostType(String type) {
+        return new PostException("invalid_post_type", "Invalid post type.", type);
     }
 
     /** A value that does not fit its column, as WordPress's failed database write reports it. */
