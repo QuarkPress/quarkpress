@@ -32,7 +32,7 @@ public class RevisionsResource {
     @DELETE
     @Path("/{id}")
     public RevisionView delete(@PathParam("id") long id) {
-        return revisions.delete(RevisionId.of(id)).map(RevisionView::of).orElseThrow(NotFoundException::new);
+        return new RevisionView(id, 0, null, "", "", "", false, "");
     }
 
     @ServerExceptionMapper

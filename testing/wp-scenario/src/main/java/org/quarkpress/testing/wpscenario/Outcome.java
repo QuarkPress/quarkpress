@@ -12,7 +12,8 @@ import java.util.Map;
  * main site. Post scenarios add {@code op<n>:read_post:<field>} and {@code post#<k>:<field>}, the final record of the
  * k-th inserted post; posts are named {@code p<k>} by insertion order. Term scenarios add
  * {@code op<n>:get_term:<field>} and {@code term#<ref>:<field>}, the final record of a created term ({@code t<k>}) or a
- * default term ({@code default-category}, {@code default-genre}).
+ * default term ({@code default-category}, {@code default-genre}). Revision scenarios add
+ * {@code revision#r<k>:<field>}, the final record of the k-th revision row created during the scenario.
  */
 public final class Outcome {
 
@@ -128,6 +129,16 @@ public final class Outcome {
     /** A term record: one aspect per field, named {@code <prefix>:<field>}. */
     public void observedTerm(String prefix, ObservedTerm term) {
         term.fields().forEach((field, value) -> put(prefix + ":" + field, value));
+    }
+
+    /** A revision record: one aspect per field, named {@code <prefix>:<field>}. */
+    public void observedRevision(String prefix, ObservedRevision revision) {
+        revision.fields().forEach((field, value) -> put(prefix + ":" + field, value));
+    }
+
+    /** Revisions an op answered, by reference; none show as {@code (none)}. */
+    public void revisionRefs(int op, String kind, List<String> refs) {
+        put("op" + op + ":" + kind, refs.isEmpty() ? "(none)" : String.join(",", refs));
     }
 
     public Map<String, String> facts() {

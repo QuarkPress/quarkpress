@@ -257,6 +257,54 @@ final class ScenarioRules {
         }
     }
 
+    static final List<String> REVISION_FIELDS = List.of("title", "content", "excerpt");
+    static final List<String> REVISION_META_KEYS = List.of("footnotes");
+    static final List<String> AUTOSAVE_MODES = List.of("include", "only", "exclude");
+
+    /** {@code r<k>} (k from 1): a revision row by creation order on the site during the scenario. */
+    static void requireRevisionRef(String ref) {
+        if (revisionIndex(ref) < 1) {
+            throw new IllegalArgumentException("a scenario revision reference is r<k> (k from 1): " + ref);
+        }
+    }
+
+    /** The k of an {@code r<k>} reference; 0 for any other text. */
+    static int revisionIndex(String ref) {
+        if (ref.length() < 2 || ref.length() > 6 || ref.charAt(0) != 'r' || ref.charAt(1) == '0') {
+            return 0;
+        }
+        int k = 0;
+        for (int i = 1; i < ref.length(); i++) {
+            char c = ref.charAt(i);
+            if (c < '0' || c > '9') {
+                return 0;
+            }
+            k = k * 10 + (c - '0');
+        }
+        return k;
+    }
+
+    static void requireRevisionField(String field) {
+        if (!REVISION_FIELDS.contains(field)) {
+            throw new IllegalArgumentException("a scenario restores title, content or excerpt: " + field);
+        }
+    }
+
+    static void requireRevisionMetaKey(String key) {
+        if (!REVISION_META_KEYS.contains(key)) {
+            throw new IllegalArgumentException("a scenario's revisioned meta key is footnotes: " + key);
+        }
+    }
+
+    /** The user of an autosave or a restore: WordPress has no system autosave, so user 0 is refused. */
+    static void requireAutosaveUser(int as) {
+        requireReference(as);
+        if (as == 0) {
+            throw new IllegalArgumentException(
+                    "a scenario autosaves and restores as a created user: WordPress has no system autosave");
+        }
+    }
+
     /** The taxonomies term scenarios use; genre is the custom one both sides register. */
     static final List<String> TERM_TAXONOMIES = List.of("category", "post_tag", "genre");
 

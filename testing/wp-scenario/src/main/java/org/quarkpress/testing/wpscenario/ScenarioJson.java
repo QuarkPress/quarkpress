@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import org.quarkpress.testing.wporacle.OracleJson;
 
@@ -26,9 +27,13 @@ import org.quarkpress.testing.wporacle.OracleJson;
  * visitor in {@code can}, and a target of 0 is no user. Post operations on the main site ({@code site_option},
  * {@code front_page}, {@code insert_post}, {@code update_post}, {@code publish_post}, {@code trash_post},
  * {@code untrash_post}, {@code delete_post}, {@code stick}, {@code query_posts}, {@code page_uri} and
- * {@code read_post}) are read and written by {@link PostScenarioJson}, and term operations on the main site
+ * {@code read_post} and {@code update_post_meta}) are read and written by {@link PostScenarioJson}, and term
+ * operations on the main site
  * ({@code insert_term}, {@code update_term}, {@code delete_term}, {@code set_post_terms}, {@code remove_post_terms},
- * {@code post_terms}, {@code query_terms}, {@code get_term} and {@code term_exists}) by {@link TermScenarioJson}.
+ * {@code post_terms}, {@code query_terms}, {@code get_term} and {@code term_exists}) by {@link TermScenarioJson}, and
+ * revision operations ({@code autosave}, {@code restore}, {@code delete_revision}, {@code revisions},
+ * {@code autosave_of} and {@code revision_count}) by {@link RevisionScenarioJson}. A scenario may carry
+ * {@code revisions_keep}, a whole number.
  * Unknown keys, duplicate keys and trailing content are refused.
  */
 public final class ScenarioJson {
@@ -56,7 +61,7 @@ public final class ScenarioJson {
             throw new IllegalArgumentException("a scenario must be a JSON object");
         }
         String id = text(node, "id", "(no id)");
-        onlyKeys(node, id, "id", "rule", "variant", "ops");
+        onlyKeys(node, id, "id", "rule", "variant", "ops", "revisions_keep");
         List<ScenarioOp> ops = new ArrayList<>();
         JsonNode list = node.path("ops");
         if (!list.isArray()) {
@@ -69,7 +74,12 @@ public final class ScenarioJson {
             throw new IllegalArgumentException("scenario " + id + " has no ops");
         }
         return new Scenario(
-                id, text(node, "rule", id), NetworkVariant.named(text(node, "variant", id)), ops, generated);
+                id,
+                text(node, "rule", id),
+                NetworkVariant.named(text(node, "variant", id)),
+                ops,
+                generated,
+                node.has("revisions_keep") ? OptionalInt.of(number(node, "revisions_keep", id)) : OptionalInt.empty());
     }
 
     public static ObjectNode toJson(Scenario scenario) {
@@ -77,6 +87,7 @@ public final class ScenarioJson {
         node.put("id", scenario.id());
         node.put("rule", scenario.rule());
         node.put("variant", scenario.variant().name());
+        scenario.revisionsKeep().ifPresent(keep -> node.put("revisions_keep", keep));
         ArrayNode ops = node.putArray("ops");
         for (ScenarioOp op : scenario.ops()) {
             ObjectNode out = ops.addObject().put("op", op.kind());
@@ -161,6 +172,9 @@ public final class ScenarioJson {
             throw new IllegalArgumentException("scenario " + id + ": every op must be an object");
         }
         String kind = text(op, "op", id);
+        if (RevisionScenarioJson.KINDS.contains(kind)) {
+            return RevisionScenarioJson.read(kind, op, id);
+        }
         if (TermScenarioJson.KINDS.contains(kind)) {
             return TermScenarioJson.read(kind, op, id);
         }

@@ -2,6 +2,7 @@ package org.quarkpress.testing.wpscenario;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -404,6 +405,128 @@ public sealed interface ScenarioOp {
         @Override
         public String kind() {
             return "read_post";
+        }
+    }
+
+    /**
+     * The revisioned meta key ({@code footnotes}) set on a post by a user, written alike on both sides so the meta
+     * rules of revisions are reachable.
+     */
+    record UpdatePostMeta(int as, int post, String key, String value) implements PostOp {
+        public UpdatePostMeta {
+            Objects.requireNonNull(key, "key");
+            Objects.requireNonNull(value, "value");
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+            ScenarioRules.requireRevisionMetaKey(key);
+            ScenarioRules.requirePostText(value);
+        }
+
+        @Override
+        public String kind() {
+            return "update_post_meta";
+        }
+    }
+
+    /**
+     * Operations on revisions and autosaves, on the main site, naming revisions {@code r<k>} by creation order of
+     * revision rows during the scenario (regular revisions and new autosaves; deleted ones still counted). A
+     * reference beyond the rows created so far is {@code missing} on both sides, so the format does not bound it.
+     */
+    sealed interface RevisionOp extends PostOp {}
+
+    /** An autosave through the REST autosaves endpoint, with the given fields and revisioned meta. */
+    record Autosave(int as, int post, AutosaveFields fields, Optional<Map<String, String>> meta) implements RevisionOp {
+        public Autosave {
+            Objects.requireNonNull(fields, "fields");
+            Objects.requireNonNull(meta, "meta");
+            ScenarioRules.requireAutosaveUser(as);
+            ScenarioRules.requirePost(post);
+            meta = meta.map(Map::copyOf);
+            meta.ifPresent(values -> values.forEach((key, value) -> {
+                ScenarioRules.requireRevisionMetaKey(key);
+                ScenarioRules.requirePostText(value);
+            }));
+        }
+
+        @Override
+        public String kind() {
+            return "autosave";
+        }
+    }
+
+    /** A restore from a revision as the revisions screen does it; no fields restores all three. */
+    record Restore(int as, String revision, List<String> fields) implements RevisionOp {
+        public Restore {
+            Objects.requireNonNull(revision, "revision");
+            fields = List.copyOf(fields);
+            ScenarioRules.requireAutosaveUser(as);
+            ScenarioRules.requireRevisionRef(revision);
+            for (int i = 0; i < fields.size(); i++) {
+                ScenarioRules.requireRevisionField(fields.get(i));
+                if (fields.indexOf(fields.get(i)) != i) {
+                    throw new IllegalArgumentException("a scenario restores a field once: " + fields.get(i));
+                }
+            }
+        }
+
+        @Override
+        public String kind() {
+            return "restore";
+        }
+    }
+
+    /** A revision deleted, as the system. */
+    record DeleteRevision(String revision) implements RevisionOp {
+        public DeleteRevision {
+            Objects.requireNonNull(revision, "revision");
+            ScenarioRules.requireRevisionRef(revision);
+        }
+
+        @Override
+        public String kind() {
+            return "delete_revision";
+        }
+    }
+
+    /** A post's revisions listed; user 0 reads without a check. */
+    record ListRevisions(int as, int post, RevisionListArgs args) implements RevisionOp {
+        public ListRevisions {
+            Objects.requireNonNull(args, "args");
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "revisions";
+        }
+    }
+
+    /** A post's autosave by a user (0: any). */
+    record AutosaveOf(int as, int post, int user) implements RevisionOp {
+        public AutosaveOf {
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+            ScenarioRules.requireReference(user);
+        }
+
+        @Override
+        public String kind() {
+            return "autosave_of";
+        }
+    }
+
+    /** A post's latest revision and its number of revisions. */
+    record CountRevisions(int as, int post) implements RevisionOp {
+        public CountRevisions {
+            ScenarioRules.requireReference(as);
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "revision_count";
         }
     }
 

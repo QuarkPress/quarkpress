@@ -73,7 +73,8 @@ function qp_clone_database(string $template, string $target): void
 }
 
 /** Defines what a WordPress bootstrap reads from wp-config.php and from the web server, for the variant's network. */
-function qp_prepare(string $wordpress, string $database, array $variant, bool $multisite): void
+function qp_prepare(string $wordpress, string $database, array $variant, bool $multisite,
+    ?int $revisionsKeep = null): void
 {
     define('ABSPATH', rtrim($wordpress, '/') . '/');
     define('DB_NAME', $database);
@@ -90,6 +91,14 @@ function qp_prepare(string $wordpress, string $database, array $variant, bool $m
     define('DISABLE_WP_CRON', true);
     define('WP_HTTP_BLOCK_EXTERNAL', true);
     define('AUTOMATIC_UPDATER_DISABLED', true);
+    // Driver-applied rule: a scenario's revisions_keep is WP_POST_REVISIONS for its process (the default, true, is
+    // every revision), as a site owner sets it in wp-config.php.
+    if (null !== $revisionsKeep) {
+        define('WP_POST_REVISIONS', $revisionsKeep);
+    }
+    // Driver-applied rule: WordPress's REST autosaves controller defines DOING_AUTOSAVE for the rest of its request
+    // unless core's tests are running; this process runs a whole scenario, so the constant must not stick to it.
+    define('WP_RUN_CORE_TESTS', true);
     if ($multisite) {
         // The constants WordPress's network setup asks for, so the lookup takes its usual path.
         define('MULTISITE', true);
@@ -641,6 +650,17 @@ function qp_post_op(array $op, array $users, array &$posts): array
                 return null === $id
                     ? ['op' => 'read_post', 'missing' => true]
                     : ['op' => 'read_post', 'post' => qp_post_record($id)];
+            case 'update_post_meta':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                if (null === $as || null === $id) {
+                    return ['op' => 'update_post_meta', 'missing' => true];
+                }
+                qp_act_as($as);
+                // update_post_meta expects slashed data; it answers false when the value is unchanged, else the
+                // meta id of a new row or true. Driver-applied rule: any answer but false counts as changed.
+                return ['op' => 'update_post_meta',
+                    'changed' => false !== update_post_meta($id, $op['key'], wp_slash($op['value']))];
             default:
                 throw new InvalidArgumentException('unknown op ' . $op['op']);
         }
@@ -948,6 +968,248 @@ function qp_term_op(array $op, array $users, array $posts, array &$created): arr
     }
 }
 
+/** The ids of the main site's revision rows created after $baseline, in creation order; deleted ones stay listed. */
+function qp_track_revisions(int $baseline, array &$created): void
+{
+    global $wpdb;
+    $ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'revision' AND ID > %d ORDER BY ID", $baseline));
+    foreach ($ids as $id) {
+        if (!in_array((int) $id, $created, true)) {
+            $created[] = (int) $id;
+        }
+    }
+}
+
+/**
+ * Driver-applied rule: a revision is named r<k>, the k-th revision row created on the site during the scenario
+ * (qp_track_revisions); the reference is an id, or null when it names a row that does not exist (yet).
+ */
+function qp_revision_id(string $ref, array $created): ?int
+{
+    return $created[((int) substr($ref, 1)) - 1] ?? null;
+}
+
+/** A revision as the comparison reads it, or {deleted: true}. */
+function qp_revision_record(int $id): array
+{
+    clean_post_cache($id);
+    $revision = wp_get_post_revision($id);
+    if (null === $revision) {
+        return ['deleted' => true];
+    }
+    return ['id' => $id, 'parent' => (int) $revision->post_parent, 'author' => (int) $revision->post_author,
+        'autosave' => false !== wp_is_post_autosave($revision), 'title' => $revision->post_title,
+        'content' => $revision->post_content, 'excerpt' => $revision->post_excerpt,
+        // get_post_meta reads the revision's own rows (it is the write functions that redirect to the parent)
+        'footnotes' => array_map('strval', get_post_meta($id, 'footnotes')), 'date_gmt' => $revision->post_date_gmt];
+}
+
+/**
+ * Driver-applied rule: the REST layer's permission refusals (rest_cannot_edit, rest_cannot_read, rest_forbidden,
+ * rest_cannot_edit_others) are one answer, forbidden, as QuarkPress's capability refusals are; other codes pass.
+ */
+function qp_rest_code(WP_Error $error): string
+{
+    $code = $error->get_error_code();
+    return in_array($code, ['rest_cannot_edit', 'rest_cannot_read', 'rest_forbidden', 'rest_cannot_edit_others'], true)
+        ? 'forbidden' : $code;
+}
+
+/**
+ * Driver-applied rule: a post that does not exist (it was deleted) is invalid_post, the answer
+ * wp_get_latest_revision_id_and_total_count gives, before any capability check: current_user_can('edit_post') of a
+ * deleted post would answer do_not_allow, which would read as forbidden.
+ */
+function qp_deleted_post(int $post): ?array
+{
+    return null === get_post($post) ? ['error' => 'invalid_post'] : null;
+}
+
+/** Driver-applied rule: the REST revisions and autosaves lists need edit_post on the post for a logged-in user. */
+function qp_may_read_revisions(int $user, int $post): bool
+{
+    return 0 === $user || current_user_can('edit_post', $post);
+}
+
+function qp_revision_op(array $op, array $users, array $posts, array &$created): array
+{
+    $user = static fn(int $index): ?int => 0 === $index ? 0 : ($users[$index] ?? null);
+    $post = static fn(int $index): ?int => $posts[$index] ?? null;
+    switch_to_blog(get_main_site_id());
+    try {
+        switch ($op['op']) {
+            case 'autosave':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                if (null === $as || null === $id) {
+                    return ['op' => 'autosave', 'missing' => true];
+                }
+                qp_act_as($as);
+                $gone = qp_deleted_post($id);
+                if (null !== $gone) {
+                    return ['op' => 'autosave'] + $gone;
+                }
+                // The REST autosaves endpoint is called as a request would call it, through the post type's
+                // autosaves controller, with the fields and meta the request would carry.
+                rest_get_server();
+                $controller = get_post_type_object(get_post_type($id))->get_autosave_rest_controller();
+                $request = new WP_REST_Request('POST', '/wp/v2/posts/' . $id . '/autosaves');
+                $request->set_param('id', $id);
+                foreach (['title', 'content', 'excerpt'] as $field) {
+                    if (array_key_exists($field, $op['fields'])) {
+                        $request->set_param($field, $op['fields'][$field]);
+                    }
+                }
+                if (array_key_exists('meta', $op)) {
+                    $request->set_param('meta', (object) $op['meta']);
+                }
+                $allowed = $controller->create_item_permissions_check($request);
+                if (is_wp_error($allowed)) {
+                    return ['op' => 'autosave', 'error' => qp_rest_code($allowed)];
+                }
+                // Driver-applied rule: what DOING_AUTOSAVE silences for one request. With WP_RUN_CORE_TESTS
+                // defined the controller never defines that constant, so an author's own draft, which the
+                // controller saves with wp_update_post, would save a regular revision through post_updated; a
+                // real request is an autosave and saves none, so the hook is off for this call only.
+                remove_action('post_updated', 'wp_save_post_revision');
+                try {
+                    $response = $controller->create_item($request);
+                } finally {
+                    add_action('post_updated', 'wp_save_post_revision', 10, 1);
+                }
+                if (is_wp_error($response)) {
+                    return ['op' => 'autosave', 'error' => qp_rest_code($response)];
+                }
+                $data = $response->get_data();
+                return ['op' => 'autosave', 'id' => (int) $data['id'], 'parent' => (int) $data['parent']];
+            case 'restore':
+                $as = $user($op['as']);
+                $id = qp_revision_id($op['revision'], $created);
+                if (null === $as || null === $id) {
+                    return ['op' => 'restore', 'missing' => true];
+                }
+                qp_act_as($as);
+                $revision = wp_get_post_revision($id);
+                if (null === $revision) {
+                    return ['op' => 'restore', 'result' => 'nothing'];
+                }
+                // Driver-applied rule: the revisions screen's checks before wp_restore_post_revision: edit_post on
+                // the parent, and revisions enabled for it unless the revision is an autosave (no lock: scenarios
+                // set none).
+                if (!current_user_can('edit_post', $revision->post_parent)) {
+                    return ['op' => 'restore', 'error' => 'forbidden'];
+                }
+                if (!wp_revisions_enabled(get_post($revision->post_parent))
+                    && false === wp_is_post_autosave($revision)) {
+                    return ['op' => 'restore', 'error' => 'revisions_not_enabled'];
+                }
+                $fields = [];
+                foreach ($op['fields'] as $field) {
+                    $fields[] = 'post_' . $field;
+                }
+                $result = wp_restore_post_revision($id, [] === $fields ? null : $fields);
+                return $result ? ['op' => 'restore', 'ok' => true] : ['op' => 'restore', 'result' => 'nothing'];
+            case 'delete_revision':
+                $id = qp_revision_id($op['revision'], $created);
+                if (null === $id) {
+                    return ['op' => 'delete_revision', 'missing' => true];
+                }
+                qp_act_as(0);
+                $deleted = wp_delete_post_revision($id);
+                return ['op' => 'delete_revision', 'result' => $deleted ? 'deleted' : 'nothing'];
+            case 'revisions':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                if (null === $as || null === $id) {
+                    return ['op' => 'revisions', 'missing' => true];
+                }
+                qp_act_as($as);
+                $gone = qp_deleted_post($id);
+                if (null !== $gone) {
+                    return ['op' => 'revisions'] + $gone;
+                }
+                if (!qp_may_read_revisions($as, $id)) {
+                    return ['op' => 'revisions', 'error' => 'forbidden'];
+                }
+                $args = [];
+                if (array_key_exists('order', $op['args'])) {
+                    $args['order'] = strtoupper($op['args']['order']);
+                }
+                if (array_key_exists('number', $op['args'])) {
+                    $args['numberposts'] = $op['args']['number'];
+                }
+                if (array_key_exists('offset', $op['args'])) {
+                    $args['offset'] = $op['args']['offset'];
+                }
+                if (array_key_exists('author', $op['args'])) {
+                    $author = $user($op['args']['author']);
+                    if (null === $author) {
+                        return ['op' => 'revisions', 'missing' => true];
+                    }
+                    $args['author'] = $author;
+                }
+                if (array_key_exists('check_enabled', $op['args'])) {
+                    $args['check_enabled'] = $op['args']['check_enabled'];
+                }
+                $ids = [];
+                foreach (wp_get_post_revisions($id, $args) as $revision) {
+                    // Driver-applied rule: the autosaves argument keeps or drops autosaves as callers of
+                    // wp_get_post_revisions do, by the revision's name.
+                    $autosave = false !== wp_is_post_autosave($revision);
+                    $mode = $op['args']['autosaves'] ?? 'include';
+                    if (('only' === $mode && !$autosave) || ('exclude' === $mode && $autosave)) {
+                        continue;
+                    }
+                    $ids[] = (int) $revision->ID;
+                }
+                return ['op' => 'revisions', 'ids' => $ids];
+            case 'autosave_of':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                $of = $user($op['user']);
+                if (null === $as || null === $id || null === $of) {
+                    return ['op' => 'autosave_of', 'missing' => true];
+                }
+                qp_act_as($as);
+                $gone = qp_deleted_post($id);
+                if (null !== $gone) {
+                    return ['op' => 'autosave_of'] + $gone;
+                }
+                if (!qp_may_read_revisions($as, $id)) {
+                    return ['op' => 'autosave_of', 'error' => 'forbidden'];
+                }
+                $autosave = wp_get_post_autosave($id, $of);
+                return ['op' => 'autosave_of', 'id' => $autosave instanceof WP_Post ? (int) $autosave->ID : 0];
+            case 'revision_count':
+                $as = $user($op['as']);
+                $id = $post($op['post']);
+                if (null === $as || null === $id) {
+                    return ['op' => 'revision_count', 'missing' => true];
+                }
+                qp_act_as($as);
+                $gone = qp_deleted_post($id);
+                if (null !== $gone) {
+                    return ['op' => 'revision_count'] + $gone;
+                }
+                if (!qp_may_read_revisions($as, $id)) {
+                    return ['op' => 'revision_count', 'error' => 'forbidden'];
+                }
+                $result = wp_get_latest_revision_id_and_total_count($id);
+                if (is_wp_error($result)) {
+                    return ['op' => 'revision_count', 'error' => $result->get_error_code()];
+                }
+                return ['op' => 'revision_count', 'latest' => (int) $result['latest_id'],
+                    'count' => (int) $result['count']];
+            default:
+                throw new InvalidArgumentException('unknown op ' . $op['op']);
+        }
+    } finally {
+        restore_current_blog();
+        qp_act_as(0);
+    }
+}
+
 function qp_run_scenario(array $scenario, array $variant): array
 {
     global $wpdb;
@@ -969,6 +1231,13 @@ function qp_run_scenario(array $scenario, array $variant): array
     $term_baseline = (int) $wpdb->get_var("SELECT MAX(term_id) FROM {$wpdb->terms}");
     restore_current_blog();
     $created_terms = [];
+    $revision_ops = ['autosave', 'restore', 'delete_revision', 'revisions', 'autosave_of', 'revision_count'];
+    $qp_revision_scenario = [] !== array_intersect(array_column($scenario['ops'], 'op'),
+        array_merge($revision_ops, ['update_post_meta']));
+    switch_to_blog(get_main_site_id());
+    $revision_baseline = (int) $wpdb->get_var("SELECT MAX(ID) FROM {$wpdb->posts}");
+    restore_current_blog();
+    $created_revisions = [];
     $started = time();
     $results = [];
     foreach ($scenario['ops'] as $op) {
@@ -981,8 +1250,10 @@ function qp_run_scenario(array $scenario, array $variant): array
             'add_user', 'remove_user', 'set_role', 'add_cap', 'super_admin', 'network_flag', 'site_setting',
             'add_role', 'role_cap', 'remove_role', 'can' => qp_capability_op($op, $created, $users),
             'site_option', 'front_page', 'insert_post', 'update_post', 'publish_post', 'trash_post',
-            'untrash_post', 'delete_post', 'stick', 'query_posts', 'page_uri', 'read_post'
+            'untrash_post', 'delete_post', 'stick', 'query_posts', 'page_uri', 'read_post', 'update_post_meta'
                 => qp_post_op($op, $users, $posts),
+            'autosave', 'restore', 'delete_revision', 'revisions', 'autosave_of', 'revision_count'
+                => qp_revision_op($op, $users, $posts, $created_revisions),
             'insert_term', 'update_term', 'delete_term', 'set_post_terms', 'remove_post_terms', 'post_terms',
             'query_terms', 'get_term', 'term_exists' => qp_term_op($op, $users, $posts, $created_terms),
             default => throw new InvalidArgumentException('unknown op ' . $op['op']),
@@ -991,6 +1262,12 @@ function qp_run_scenario(array $scenario, array $variant): array
             // Terms are named by creation order, those an assignment creates by name included.
             switch_to_blog(get_main_site_id());
             qp_track_terms($term_baseline, $created_terms);
+            restore_current_blog();
+        }
+        if ($qp_revision_scenario) {
+            // Revisions are named by creation order: regular revisions and new autosaves alike.
+            switch_to_blog(get_main_site_id());
+            qp_track_revisions($revision_baseline, $created_revisions);
             restore_current_blog();
         }
     }
@@ -1040,6 +1317,15 @@ function qp_run_scenario(array $scenario, array $variant): array
         restore_current_blog();
         $out['terms'] = $terms_out;
         $out['term_defaults'] = $defaults_out;
+    }
+    if ($qp_revision_scenario) {
+        switch_to_blog(get_main_site_id());
+        $revisions_out = [];
+        foreach ($created_revisions as $index => $id) {
+            $revisions_out[] = ['index' => $index + 1, 'id' => $id, 'revision' => qp_revision_record($id)];
+        }
+        restore_current_blog();
+        $out['revisions'] = $revisions_out;
     }
     return $out;
 }
@@ -1092,7 +1378,8 @@ try {
         ]]);
     } elseif ('run' === $qp_mode) {
         qp_clone_database($qp_input['template'], $qp_input['database']);
-        qp_prepare($qp_wordpress, $qp_input['database'], $qp_variant, true);
+        qp_prepare($qp_wordpress, $qp_input['database'], $qp_variant, true,
+            $qp_input['scenario']['revisions_keep'] ?? null);
         $table_prefix = 'wp_';
         require ABSPATH . 'wp-settings.php';
         qp_offline();

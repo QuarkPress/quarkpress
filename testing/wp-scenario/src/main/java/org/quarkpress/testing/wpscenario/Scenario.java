@@ -2,14 +2,28 @@ package org.quarkpress.testing.wpscenario;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * Operations run in order on a fresh network of one variant. {@code rule} names the behaviour-reference rule a
- * hand-written scenario checks ({@code generated} for generated ones).
+ * hand-written scenario checks ({@code generated} for generated ones). {@code revisionsKeep} is WordPress's
+ * {@code WP_POST_REVISIONS} for the run, applied on both sides; absent for the default (unlimited).
  */
-public record Scenario(String id, String rule, NetworkVariant variant, List<ScenarioOp> ops, boolean generated) {
+public record Scenario(
+        String id,
+        String rule,
+        NetworkVariant variant,
+        List<ScenarioOp> ops,
+        boolean generated,
+        OptionalInt revisionsKeep) {
+
+    /** A scenario without a revisions limit. */
+    public Scenario(String id, String rule, NetworkVariant variant, List<ScenarioOp> ops, boolean generated) {
+        this(id, rule, variant, ops, generated, OptionalInt.empty());
+    }
 
     public Scenario {
+        Objects.requireNonNull(revisionsKeep, "revisionsKeep");
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(rule, "rule");
         Objects.requireNonNull(variant, "variant");

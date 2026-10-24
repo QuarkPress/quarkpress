@@ -62,6 +62,16 @@ import java.util.Map;
  * slug, description, parent, count}. Terms are named by creation order ({@code t<k>}) or as a default term
  * ({@code default-category}, {@code default-genre}); a slug that is the term's own id, with any {@code -<digits>}
  * suffixes, shows as {@code #self}.
+ *
+ * <p>{@code update_post_meta} answers {@code {"changed"}}. Revision operations answer {@code autosave} {@code {"id",
+ * "parent"}}; {@code restore} {@code {"ok": true}} or {@code {"result": "nothing"}}; {@code delete_revision}
+ * {@code {"result": "deleted" | "nothing"}}; {@code revisions} {@code {"ids"}}; {@code autosave_of} {@code {"id"}}
+ * (0 for none); {@code revision_count} {@code {"latest", "count"}} (latest 0 for none); any of them
+ * {@code {"error": <code>}} or {@code {"missing": true}} as post operations do. A scenario with revision operations
+ * (or {@code update_post_meta}) also reads {@code revisions}, the revision rows created during the scenario in
+ * creation order ({@code [{"index", "id", "revision"}]}, deleted ones as {@code {"deleted": true}}). A revision record
+ * holds {@code id, parent, author, autosave, title, content, excerpt, footnotes} (a list of texts) and
+ * {@code date_gmt}. Revision rows are named {@code r<k>} by creation order.
  */
 public final class WordPressOutcomes {
 
@@ -102,6 +112,10 @@ public final class WordPressOutcomes {
                 : null;
         TermOutcomes.TermContext terms =
                 ops.stream().anyMatch(ScenarioOp.TermOp.class::isInstance) ? TermOutcomes.context(out, where) : null;
+        RevisionOutcomes.RevisionContext revisions = ops.stream()
+                        .anyMatch(op -> op instanceof ScenarioOp.RevisionOp || op instanceof ScenarioOp.UpdatePostMeta)
+                ? RevisionOutcomes.context(out, where)
+                : null;
         int inserted = 0;
         for (int i = 0; i < ops.size(); i++) {
             int op = i + 1;
@@ -187,7 +201,7 @@ public final class WordPressOutcomes {
                             postIndex.put(result.get("id").asLong(), inserted);
                         }
                     }
-                    postResult(outcome, op, post, result, at, context, terms);
+                    postResult(outcome, op, post, result, at, context, terms, revisions);
                 }
             }
         }
@@ -221,6 +235,10 @@ public final class WordPressOutcomes {
         if (terms != null) {
             TermOutcomes.records(outcome, out, terms);
         }
+        if (revisions != null) {
+            RevisionOutcomes.records(
+                    outcome, out, revisions, postIndex, userIndex, context.installer(), context.window());
+        }
         return outcome;
     }
 
@@ -240,9 +258,14 @@ public final class WordPressOutcomes {
             JsonNode result,
             String at,
             PostContext context,
-            TermOutcomes.TermContext terms) {
+            TermOutcomes.TermContext terms,
+            RevisionOutcomes.RevisionContext revisions) {
         if (post instanceof ScenarioOp.TermOp term) {
             TermOutcomes.result(outcome, op, term, result, terms);
+            return;
+        }
+        if (post instanceof ScenarioOp.RevisionOp revision) {
+            RevisionOutcomes.result(outcome, op, revision, result, revisions, context.postIndex());
             return;
         }
         if (result.path("missing").asBoolean()) {
@@ -283,7 +306,10 @@ public final class WordPressOutcomes {
                         PostRecords.pageUri(field(result, "uri", at).asText(), context.postIndex()));
             case ScenarioOp.ReadPost read ->
                 outcome.observed("op" + op + ":read_post", record(field(result, "post", at), context, at));
+            case ScenarioOp.UpdatePostMeta meta -> outcome.done(op, meta.kind(), changed(result, at));
             case ScenarioOp.TermOp term -> throw new IllegalStateException("term results are normalized above");
+            case ScenarioOp.RevisionOp revision ->
+                throw new IllegalStateException("revision results are normalized above");
         }
     }
 

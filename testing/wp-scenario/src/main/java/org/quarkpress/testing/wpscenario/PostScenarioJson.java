@@ -23,7 +23,8 @@ final class PostScenarioJson {
             "stick",
             "query_posts",
             "page_uri",
-            "read_post");
+            "read_post",
+            "update_post_meta");
 
     private PostScenarioJson() {}
 
@@ -86,6 +87,14 @@ final class PostScenarioJson {
                 ScenarioJson.onlyKeys(op, id, "op", "post");
                 yield new ScenarioOp.ReadPost(ScenarioJson.number(op, "post", id));
             }
+            case "update_post_meta" -> {
+                ScenarioJson.onlyKeys(op, id, "op", "as", "post", "key", "value");
+                yield new ScenarioOp.UpdatePostMeta(
+                        ScenarioJson.number(op, "as", id),
+                        ScenarioJson.number(op, "post", id),
+                        ScenarioJson.text(op, "key", id),
+                        ScenarioJson.text(op, "value", id));
+            }
             default -> throw new IllegalArgumentException("scenario " + id + ": unknown op '" + kind + "'");
         };
     }
@@ -115,7 +124,13 @@ final class PostScenarioJson {
             }
             case ScenarioOp.PageUri uri -> out.put("post", uri.post());
             case ScenarioOp.ReadPost read -> out.put("post", read.post());
+            case ScenarioOp.UpdatePostMeta meta ->
+                out.put("as", meta.as())
+                        .put("post", meta.post())
+                        .put("key", meta.key())
+                        .put("value", meta.value());
             case ScenarioOp.TermOp term -> TermScenarioJson.write(term, out);
+            case ScenarioOp.RevisionOp revision -> RevisionScenarioJson.write(revision, out);
         }
     }
 
@@ -134,10 +149,15 @@ final class PostScenarioJson {
             case ScenarioOp.Stick stick -> 0;
             case ScenarioOp.PageUri uri -> 0;
             case ScenarioOp.ReadPost read -> 0;
+            case ScenarioOp.UpdatePostMeta meta -> meta.as();
             case ScenarioOp.TermOp term ->
                 TermScenarioJson.actors(term).isEmpty()
                         ? 0
                         : TermScenarioJson.actors(term).get(0);
+            case ScenarioOp.RevisionOp revision ->
+                RevisionScenarioJson.actors(revision).isEmpty()
+                        ? 0
+                        : RevisionScenarioJson.actors(revision).get(0);
         };
         return as == 0 ? List.of() : List.of(as);
     }
@@ -161,7 +181,9 @@ final class PostScenarioJson {
             case ScenarioOp.Stick stick -> {}
             case ScenarioOp.PageUri uri -> {}
             case ScenarioOp.ReadPost read -> {}
+            case ScenarioOp.UpdatePostMeta meta -> {}
             case ScenarioOp.TermOp term -> {}
+            case ScenarioOp.RevisionOp revision -> users.addAll(RevisionScenarioJson.users(revision));
         }
         users.removeIf(user -> user == 0);
         return users;
@@ -190,7 +212,9 @@ final class PostScenarioJson {
             case ScenarioOp.PageUri uri -> posts.add(uri.post());
             case ScenarioOp.ReadPost read -> posts.add(read.post());
             case ScenarioOp.SiteOption option -> {}
+            case ScenarioOp.UpdatePostMeta meta -> posts.add(meta.post());
             case ScenarioOp.TermOp term -> posts.addAll(TermScenarioJson.posts(term));
+            case ScenarioOp.RevisionOp revision -> posts.addAll(RevisionScenarioJson.posts(revision));
         }
         posts.removeIf(reference -> reference == 0);
         return posts;

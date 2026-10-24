@@ -196,6 +196,10 @@ final class PostScenarioRunner {
                 }
             }
             case ScenarioOp.TermOp term -> termRunner.run(op, term, outcome, users);
+            case ScenarioOp.RevisionOp revision ->
+                throw new UnsupportedOperationException("revision operations arrive with the revision runner");
+            case ScenarioOp.UpdatePostMeta meta ->
+                throw new UnsupportedOperationException("update_post_meta arrives with the revision runner");
         }
     }
 
