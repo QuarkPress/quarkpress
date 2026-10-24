@@ -12,6 +12,7 @@ import org.quarkpress.revisions.runtime.JpaRevisions;
 import org.quarkpress.revisions.runtime.PostRevisionObserver;
 import org.quarkpress.revisions.runtime.RevisionEvents;
 import org.quarkpress.revisions.runtime.RevisionPolicy;
+import org.quarkpress.revisions.runtime.RevisionQueries;
 import org.quarkpress.revisions.runtime.RevisionRepository;
 import org.quarkpress.revisions.runtime.RevisionWrites;
 import org.quarkpress.revisions.runtime.RevisionsConfig;
@@ -37,6 +38,7 @@ class RevisionsProcessor {
                 RevisionWrites.class,
                 RevisionEvents.class,
                 RevisionRepository.class,
+                RevisionQueries.class,
                 RevisionPolicy.class);
     }
 

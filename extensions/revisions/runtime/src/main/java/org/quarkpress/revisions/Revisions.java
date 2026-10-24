@@ -1,7 +1,10 @@
 package org.quarkpress.revisions;
 
+import java.util.List;
 import java.util.Optional;
 import org.quarkpress.core.PostId;
+import org.quarkpress.core.RevisionId;
+import org.quarkpress.core.UserId;
 
 /**
  * Revisions and autosaves of the current site's posts, saved as WordPress's revision API saves them and secured as
@@ -29,4 +32,30 @@ public interface Revisions {
      * {@code invalid_post}.
      */
     Optional<RevisionSnapshot> save(PostId post);
+
+    /** The revision with this id on the current site, autosaves included; needs {@code edit_post} on its post. */
+    Optional<RevisionSnapshot> find(RevisionId revision);
+
+    /**
+     * The post's revisions as {@code query} asks for them (WordPress's {@code wp_get_post_revisions}); nothing for a
+     * post whose limit is 0 unless the query turns that check off. Needs {@code edit_post} on the post; a missing
+     * post, or one of another site, is {@code invalid_post}.
+     */
+    List<RevisionSnapshot> ofPost(PostId post, RevisionQuery query);
+
+    /**
+     * The post's autosave by {@code user}, or without a user the latest autosave of any user (the newest by time,
+     * then by id); an autosave older than the post's last change is still the answer (WordPress's
+     * {@code wp_get_post_autosave}). Needs {@code edit_post} on the post.
+     */
+    Optional<RevisionSnapshot> autosaveOf(PostId post, Optional<UserId> user);
+
+    /** Every user's autosaves of the post, newest first, whatever the post's limit. Needs {@code edit_post}. */
+    List<RevisionSnapshot> autosavesOf(PostId post);
+
+    /**
+     * The newest revision (an autosave counts) and the number of all revisions of the post; {@code
+     * revisions_not_enabled} when the post's limit is 0. Needs {@code edit_post}.
+     */
+    RevisionCount latestAndCount(PostId post);
 }
