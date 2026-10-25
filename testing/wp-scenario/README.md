@@ -159,7 +159,7 @@ are reported as `forbidden`. `autosave_of` without a user is asked only while at
 since WordPress leaves ties between autosaves of one second to the database. The scenarios live in
 `scenarios/revisions/` (hand-written, listed in `index.txt`) and `RevisionScenarios` (generated with `test-gen` from
 the fixed seeds `20261022-revisions-1` and `20261022-revisions-2`, 20 each). `RevisionScenarioParityDbTest` runs all
-49; the 9 hand-written scenarios make 1152 comparisons and at least 550 are required (the generated ones add to them).
+49 (9 hand-written, 40 generated); they made 8491 comparisons in the first green run and at least 4200 are required.
 Deliberate differences are in `wp-scenario-revisions-skip.txt`, labelled with the revisions README's table (the posts'
 records with the prefix `posts README:`; today the posts README's D5 for a never-updated pending post, four lines, and
 the revisions README's D13, two lines).

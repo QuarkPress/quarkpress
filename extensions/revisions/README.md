@@ -219,7 +219,6 @@ where several are locked, though trimming during a restore may lock lower ids af
 The parity tests (`-Pwp-parity`) compare the limit, the revisioned fields, a revision's row data, whitespace
 normalization and the change check with WordPress 7.1.3's functions (Tier A, `testing/wp-oracle`; 1434 comparisons, at
 least 700 required), and run revision scenarios against a full WordPress 7.1.3 multisite in a MySQL container (Tier B,
-`testing/wp-scenario`; 9 hand-written and 40 generated scenarios; the 9 hand-written ones make 1152 comparisons, at
-least 550 required, and the generated
-ones add to them). Their skip lists name the items above: Tier A cites D11, Tier B D13 and, for the posts
+`testing/wp-scenario`; 49 scenarios, 9 hand-written and 40 generated; 8491 comparisons in the first green run, at least
+4200 required). Their skip lists name the items above: Tier A cites D11, Tier B D13 and, for the posts
 module's records, the posts README's D5.
