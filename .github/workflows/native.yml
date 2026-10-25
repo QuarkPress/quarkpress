@@ -36,7 +36,7 @@ jobs:
           cache: maven
       - name: Install the modules the integration tests use
         run: mvn -B -ntp install -DskipTests -pl "$IT_MODULES" -am
-      # The posts image carries the taxonomy and revisions modules too (integration-tests/posts tests all three).
+      # The posts image carries the taxonomy, revisions and scheduling modules too; its multi-node test launches the same executable a second time.
       # One native image at a time: .mvn/maven.config's -T4 would build all six at once, which exhausts the runner.
       - name: Build native executables and run the integration tests
         run: >-

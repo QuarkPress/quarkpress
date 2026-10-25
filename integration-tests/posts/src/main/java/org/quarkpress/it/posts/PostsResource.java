@@ -16,6 +16,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,6 +176,9 @@ public class PostsResource {
         }
         if (request.version() != null) {
             changes.expectedVersion(request.version());
+        }
+        if (request.dateGmt() != null) {
+            changes.dateGmt(Instant.parse(request.dateGmt()));
         }
         return changes;
     }
