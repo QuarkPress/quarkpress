@@ -22,7 +22,10 @@ public interface SchedulingConfig {
     @WithDefault("15s")
     Duration interval();
 
-    /** How many due posts are published per site per poll; the rest wait for the next poll. */
+    /**
+     * How many due posts are published per site per poll (the rest wait for the next poll), and how many rows the
+     * housekeeping reads per page. A value below 1 counts as 1.
+     */
     @WithDefault("100")
     int batchSize();
 

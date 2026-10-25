@@ -97,7 +97,7 @@ public class PublishPoll {
                 duePosts = siteScope.call(
                         site,
                         () -> context.features().isEnabled(SchedulingFeature.KEY)
-                                ? due.duePosts(site, now, config.batchSize())
+                                ? due.duePosts(site, now, Batch.size(config.batchSize()))
                                 : List.<PostId>of());
             } catch (Exception e) {
                 LOG.warnf(

@@ -8,6 +8,7 @@ import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.scheduling.SchedulingFeature;
 import org.quarkpress.scheduling.SchedulingStatus;
 import org.quarkpress.scheduling.runtime.DuePosts;
+import org.quarkpress.scheduling.runtime.Housekeeping;
 import org.quarkpress.scheduling.runtime.PublishPoll;
 import org.quarkpress.scheduling.runtime.SchedulingConfig;
 import org.quarkpress.scheduling.runtime.SchedulingDisabled;
@@ -31,6 +32,7 @@ class SchedulingProcessor {
                 SchedulingStatus.class,
                 SchedulingStatusBean.class,
                 PublishPoll.class,
+                Housekeeping.class,
                 DuePosts.class,
                 SchedulingDisabled.class);
     }
