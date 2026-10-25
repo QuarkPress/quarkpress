@@ -40,5 +40,7 @@
   {"op": "revision_count", "as": 1, "post": 4},
   {"op": "autosave", "as": 2, "post": 4, "fields": {"title": "T", "content": "Body 3", "excerpt": "e"}},
   {"op": "revisions", "as": 1, "post": 4, "args": {"author": 2}},
-  {"op": "autosave", "as": 1, "post": 4, "fields": {"content": "Body 3"}, "meta": {"footnotes": "[{\"id\":\"a2\",\"content\":\"Two\"}]"}}
+  {"op": "autosave", "as": 1, "post": 4, "fields": {"content": "Body 3"}, "meta": {"footnotes": "[{\"id\":\"a2\",\"content\":\"Two\"}]"}},
+  {"op": "revisions", "as": 1, "post": 4, "args": {"autosaves": "exclude", "number": 1, "offset": 1}},
+  {"op": "revisions", "as": 1, "post": 4, "args": {"autosaves": "only", "number": 1, "offset": 1}}
 ]}

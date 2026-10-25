@@ -1137,10 +1137,14 @@ function qp_revision_op(array $op, array $users, array $posts, array &$created):
                 if (array_key_exists('order', $op['args'])) {
                     $args['order'] = strtoupper($op['args']['order']);
                 }
-                if (array_key_exists('number', $op['args'])) {
+                // Driver-applied rule: emulates RevisionQuery's autosave filter, which WordPress lacks; applied before
+                // the cut, so number and offset count the revisions that remain.
+                $mode = $op['args']['autosaves'] ?? 'include';
+                $cut = 'include' !== $mode;
+                if (!$cut && array_key_exists('number', $op['args'])) {
                     $args['numberposts'] = $op['args']['number'];
                 }
-                if (array_key_exists('offset', $op['args'])) {
+                if (!$cut && array_key_exists('offset', $op['args'])) {
                     $args['offset'] = $op['args']['offset'];
                 }
                 if (array_key_exists('author', $op['args'])) {
@@ -1155,14 +1159,18 @@ function qp_revision_op(array $op, array $users, array $posts, array &$created):
                 }
                 $ids = [];
                 foreach (wp_get_post_revisions($id, $args) as $revision) {
-                    // Driver-applied rule: the autosaves argument keeps or drops autosaves as callers of
-                    // wp_get_post_revisions do, by the revision's name.
                     $autosave = false !== wp_is_post_autosave($revision);
-                    $mode = $op['args']['autosaves'] ?? 'include';
                     if (('only' === $mode && !$autosave) || ('exclude' === $mode && $autosave)) {
                         continue;
                     }
                     $ids[] = (int) $revision->ID;
+                }
+                if ($cut && array_key_exists('number', $op['args'])) {
+                    // Driver-applied rule: the cut reads number as numberposts does, -1 for every row and 0 for
+                    // get_posts' default of 5.
+                    $number = $op['args']['number'];
+                    $length = $number < 0 ? null : (0 === $number ? 5 : $number);
+                    $ids = array_slice($ids, $op['args']['offset'] ?? 0, $length);
                 }
                 return ['op' => 'revisions', 'ids' => $ids];
             case 'autosave_of':
