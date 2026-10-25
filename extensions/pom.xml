@@ -29,6 +29,7 @@
     <module>posts</module>
     <module>taxonomy</module>
     <module>revisions</module>
+    <module>scheduling</module>
   </modules>
 
   <dependencyManagement>

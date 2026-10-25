@@ -132,6 +132,16 @@
         <artifactId>quarkpress-revisions-deployment</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-scheduling</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-scheduling-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>
