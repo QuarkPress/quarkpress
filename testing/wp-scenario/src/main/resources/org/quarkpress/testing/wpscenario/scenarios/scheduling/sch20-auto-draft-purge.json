@@ -1,0 +1,12 @@
+{"id": "sch20-auto-draft-purge", "rule": "SCH20", "variant": "subdirectory", "ops": [
+  {"op": "create_user", "username": "ed", "given_name": "", "family_name": ""},
+  {"op": "add_user", "user": 1, "site": 0, "role": "editor"},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Stale", "status": "auto-draft", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "New", "status": "auto-draft"}},
+  {"op": "insert_post", "as": 1, "fields": {"title": "Old draft", "status": "draft", "date": "2020-01-01 10:00:00"}},
+  {"op": "insert_post", "as": 1, "fields": {"type": "page", "title": "Stale page", "status": "auto-draft", "date": "2020-01-02 10:00:00"}},
+  {"op": "run_auto_draft_purge"},
+  {"op": "read_post", "post": 2},
+  {"op": "read_post", "post": 3},
+  {"op": "run_auto_draft_purge"}
+]}

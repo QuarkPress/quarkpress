@@ -1,0 +1,24 @@
+# Deliberate differences between the scheduling module and WordPress 7.1.3 in the scheduling scenarios.
+# Format: <case-id> <aspect> <item> <reason>. Items are the labels of the scheduling README's "Differences from
+# WordPress" table; the records of the scenarios' posts use the posts README's labels with the prefix "posts README:"
+# and the revision lists the revisions README's with "revisions README:". A line that no longer covers a difference
+# fails the run.
+sch12-publish-check@subdirectory op21:read_post:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch12-publish-check@subdirectory op21:read_post:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch12-publish-check@subdirectory post#2:modified_gmt D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch12-publish-check@subdirectory post#2:modified_offset D5 posts README: a new draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch14-cron-publication@subdirectory post#1:date D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch14-cron-publication@subdirectory post#1:date_offset D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch14-cron-publication@subdirectory post#1:modified_offset D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch14-cron-publication@subdirectory post#2:date D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch14-cron-publication@subdirectory post#2:date_offset D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch14-cron-publication@subdirectory post#2:modified D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch14-cron-publication@subdirectory post#2:modified_offset D3 posts README: after the site's time zone is reset at the scenario's end, local dates are shown in the new zone; WordPress keeps the local text it wrote under the old one
+sch20-auto-draft-purge@subdirectory op8:read_post:modified_gmt D5 posts README: a new auto-draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory op8:read_post:modified_offset D5 posts README: a new auto-draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory op9:read_post:modified_gmt D5 posts README: a dated draft's date floats and its GMT modification date is the local date it was given, in GMT; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory op9:read_post:modified_offset D5 posts README: a dated draft's date floats and its GMT modification date is the local date it was given, in GMT; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory post#2:modified_gmt D5 posts README: a new auto-draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory post#2:modified_offset D5 posts README: a new auto-draft's date floats and it has a real GMT modification date; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory post#3:modified_gmt D5 posts README: a dated draft's date floats and its GMT modification date is the local date it was given, in GMT; WordPress copies its zero GMT post date there until the next update
+sch20-auto-draft-purge@subdirectory post#3:modified_offset D5 posts README: a dated draft's date floats and its GMT modification date is the local date it was given, in GMT; WordPress copies its zero GMT post date there until the next update

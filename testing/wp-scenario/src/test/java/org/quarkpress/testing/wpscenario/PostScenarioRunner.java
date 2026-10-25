@@ -70,6 +70,8 @@ final class PostScenarioRunner {
     private TermScenarioRunner termRunner;
     /** The runner of the scenario's revision operations, attached by {@link #revisions}. */
     private RevisionScenarioRunner revisionRunner;
+    /** The runner of the scenario's scheduling operations, attached by {@link #scheduling}. */
+    private SchedulingScenarioRunner schedulingRunner;
 
     PostScenarioRunner(Posts posts, SiteScope scope, OptionStore store, Options options, boolean guids) {
         this.posts = posts;
@@ -87,6 +89,11 @@ final class PostScenarioRunner {
     /** Attaches the runner of the scenario's revision operations, which this runner hands them to. */
     void revisions(RevisionScenarioRunner runner) {
         this.revisionRunner = runner;
+    }
+
+    /** Attaches the runner of the scenario's scheduling operations, which this runner hands them to. */
+    void scheduling(SchedulingScenarioRunner runner) {
+        this.schedulingRunner = runner;
     }
 
     void run(int op, ScenarioOp.PostOp step, Outcome outcome, List<UserId> users) throws Exception {
@@ -205,8 +212,7 @@ final class PostScenarioRunner {
             case ScenarioOp.TermOp term -> termRunner.run(op, term, outcome, users);
             case ScenarioOp.RevisionOp revision -> revisionRunner.run(op, revision, outcome, users);
             case ScenarioOp.UpdatePostMeta meta -> revisionRunner.run(op, meta, outcome, users);
-            case ScenarioOp.SchedulingOp scheduling ->
-                throw new UnsupportedOperationException("scheduling operations arrive with the scheduling runner");
+            case ScenarioOp.SchedulingOp scheduling -> schedulingRunner.run(op, scheduling, outcome, users);
         }
     }
 
@@ -217,6 +223,26 @@ final class PostScenarioRunner {
                 outcome.observed("post#" + (i + 1), observe(inserted.get(i), users, installer));
             }
         }
+    }
+
+    /**
+     * The inserted posts a purge left behind, {@code p<k>} in insertion order: those {@code Posts.find} (as the
+     * system) still answers. Each one it does not answer is remembered as deleted.
+     */
+    List<String> survivors() throws Exception {
+        List<String> refs = new ArrayList<>();
+        Map<Long, Integer> index = postIndex();
+        for (PostId post : inserted) {
+            if (post == null) {
+                continue;
+            }
+            if (as(0, List.of(), () -> posts.find(post)).isPresent()) {
+                refs.add(PostRecords.postRef(post.value(), index));
+            } else {
+                deleted.add(post);
+            }
+        }
+        return refs;
     }
 
     /** An option's value as {@code read_options} compares it: a post id named by insertion index. */

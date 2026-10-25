@@ -25,6 +25,7 @@ import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostMeta;
+import org.quarkpress.posts.runtime.MetaRows;
 import org.quarkpress.revisions.AutosaveChanges;
 import org.quarkpress.revisions.AutosaveResult;
 import org.quarkpress.revisions.RevisionCount;
@@ -99,8 +100,11 @@ final class RevisionScenarioRunner {
         switch (step) {
             case ScenarioOp.UpdatePostMeta update -> {
                 PostId post = post(update.post());
-                boolean changed = posts.as(
-                        update.as(), users, () -> meta.update(post, update.key(), TextNode.valueOf(update.value())));
+                // Runner-applied rule: QuarkPress lets only the system identity write protected meta keys (posts
+                // README D15); WordPress's update_post_meta checks nothing, so the scenario's user writes it there.
+                int as = MetaRows.protectedKey(update.key()) ? 0 : update.as();
+                boolean changed =
+                        posts.as(as, users, () -> meta.update(post, update.key(), TextNode.valueOf(update.value())));
                 outcome.done(op, kind, "changed=" + changed);
             }
             case ScenarioOp.Autosave autosave -> {

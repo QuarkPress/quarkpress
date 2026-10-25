@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.agroal.api.AgroalDataSource;
+import io.quarkus.agroal.DataSource;
 import io.quarkus.arc.Arc;
 import io.quarkus.arc.InjectableContext.ContextState;
 import io.quarkus.arc.ManagedContext;
@@ -43,6 +45,7 @@ import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.revisions.Revisions;
 import org.quarkpress.revisions.runtime.RevisionRepository;
+import org.quarkpress.scheduling.runtime.Housekeeping;
 import org.quarkpress.security.CapObject;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Membership;
@@ -126,6 +129,14 @@ abstract class ScenarioParityBase {
 
     @Inject
     PostMeta postMeta;
+
+    @Inject
+    Housekeeping housekeeping;
+
+    /** For the forced-date fixture: a row write outside Hibernate. */
+    @Inject
+    @DataSource("quarkpress")
+    AgroalDataSource dataSource;
 
     /** Compares every scenario; fails on a difference, a stale skip entry, or fewer comparisons than {@code minimum}. */
     void compareWithWordPress(String library, List<Scenario> scenarios, Path skips, int minimum) throws Exception {
@@ -220,6 +231,7 @@ abstract class ScenarioParityBase {
         RevisionScenarioRunner revisionRunner =
                 new RevisionScenarioRunner(revisionService, revisionRows, postMeta, scope, postRunner);
         postRunner.revisions(revisionRunner);
+        postRunner.scheduling(new SchedulingScenarioRunner(posts, housekeeping, dataSource, postRunner));
         // WordPress's installation has a user named admin (nicename admin); mirror it so nicenames collide alike.
         UserProfile[] installer = new UserProfile[1];
         Throwable failure = null;

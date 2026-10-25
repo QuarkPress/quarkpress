@@ -1,0 +1,5 @@
+# Hand-written scheduling scenarios, one or more per behaviour-reference rule.
+sch12-publish-check.json
+sch14-cron-publication.json
+sch19-trash-purge.json
+sch20-auto-draft-purge.json
