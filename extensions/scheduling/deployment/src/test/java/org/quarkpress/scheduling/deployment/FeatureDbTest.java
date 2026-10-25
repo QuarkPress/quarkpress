@@ -83,6 +83,13 @@ class FeatureDbTest {
     }
 
     @Test
+    void aJobKeepsTheCallersContextClassLoader() {
+        ClassLoader callers = Thread.currentThread().getContextClassLoader();
+        assertThat(Jobs.detached(() -> Thread.currentThread().getContextClassLoader()))
+                .isSameAs(callers);
+    }
+
+    @Test
     void aRuntimeExceptionOfTheJobIsRethrownUnchanged() {
         RuntimeException thrown = new IllegalArgumentException("bad");
         assertThatThrownBy(() -> Jobs.detached(() -> {

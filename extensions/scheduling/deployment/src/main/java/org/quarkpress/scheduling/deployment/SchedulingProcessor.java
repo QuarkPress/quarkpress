@@ -7,7 +7,10 @@ import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.scheduling.SchedulingFeature;
 import org.quarkpress.scheduling.SchedulingStatus;
+import org.quarkpress.scheduling.runtime.DuePosts;
+import org.quarkpress.scheduling.runtime.PublishPoll;
 import org.quarkpress.scheduling.runtime.SchedulingConfig;
+import org.quarkpress.scheduling.runtime.SchedulingDisabled;
 import org.quarkpress.scheduling.runtime.SchedulingStatusBean;
 
 class SchedulingProcessor {
@@ -24,7 +27,12 @@ class SchedulingProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(SchedulingStatus.class, SchedulingStatusBean.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                SchedulingStatus.class,
+                SchedulingStatusBean.class,
+                PublishPoll.class,
+                DuePosts.class,
+                SchedulingDisabled.class);
     }
 
     @BuildStep

@@ -8,7 +8,9 @@ import java.util.concurrent.Callable;
  * Runs a scheduling job on a thread of its own, with nothing of the caller's context: no request context, no
  * transaction, no security identity, no scope binding. A job then opens its own scopes and transactions, the same
  * way whichever thread called it (the scheduler's, a test's, the Dev UI's). The thread is a fresh virtual thread
- * started without context propagation and without the caller's inheritable thread-locals.
+ * started without context propagation and without the caller's inheritable thread-locals; it keeps the caller's
+ * context class loader, which a thread without inherited thread-locals would otherwise lose (it would get the
+ * system class loader, under which the application's beans cannot be looked up).
  * <p>
  * A job is refused inside a transaction. The detached thread carries none of the spawner's lock bookkeeping that a
  * site scope carries when it moves to a thread of its own: a job called from a transaction that holds the network
@@ -45,6 +47,7 @@ public final class Jobs {
                         failure[0] = thrown;
                     }
                 });
+        worker.setContextClassLoader(Thread.currentThread().getContextClassLoader());
         worker.start();
         try {
             worker.join();
