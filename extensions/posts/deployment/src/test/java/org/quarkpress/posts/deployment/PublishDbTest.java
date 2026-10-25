@@ -7,6 +7,7 @@ import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
 import io.quarkus.narayana.jta.QuarkusTransactionException;
 import io.quarkus.security.ForbiddenException;
+import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -103,6 +104,17 @@ class PublishDbTest {
 
     private <T> T as(UserId user, Callable<T> work) throws Exception {
         return Identities.onSite(site, Identities.user(user), work);
+    }
+
+    private <T> T as(SecurityIdentity identity, Callable<T> work) throws Exception {
+        return Identities.onSite(site, identity, work);
+    }
+
+    private PostSnapshot scheduledAt(String gmt) throws Exception {
+        PostSnapshot post = create(
+                PostChanges.builder().title("scheduled").status("publish").dateGmt(Instant.parse(gmt)));
+        assertThat(post.status()).isEqualTo("future");
+        return post;
     }
 
     private PostSnapshot create(PostChanges.Builder changes) throws Exception {
@@ -255,5 +267,73 @@ class PublishDbTest {
                 .containsExactly("kept");
         assertThat(as(editor, () -> posts.find(post.id())).orElseThrow().meta("_wp_old_slug"))
                 .isEmpty();
+    }
+
+    @Test
+    void publishIfDuePublishesADueScheduledPostWithOnlyThePublishEvents() throws Exception {
+        PostSnapshot post = scheduledAt("2026-01-15T13:00:00Z");
+        clock.set(Instant.parse("2026-01-15T13:00:00Z"));
+        recorder.seen().clear();
+        assertThat(as(editor, () -> posts.publishIfDue(post.id()))).isTrue();
+        PostSnapshot published = as(editor, () -> posts.find(post.id())).orElseThrow();
+        assertThat(published.status()).isEqualTo("publish");
+        assertThat(published.publishedAt()).contains(Instant.parse("2026-01-15T13:00:00Z"));
+        assertThat(published.modifiedAt()).isEqualTo(post.modifiedAt());
+        assertThat(published.slug()).isEqualTo(post.slug());
+        assertThat(published.author()).isEqualTo(post.author());
+        assertThat(recorder.seen()).containsExactly("status future>publish", "published", "saved created=false");
+        assertThat(as(editor, () -> posts.publishIfDue(post.id()))).isFalse();
+    }
+
+    @Test
+    void publishIfDueLeavesAPostDatedLaterThanNowEvenByASecond() throws Exception {
+        PostSnapshot post = scheduledAt("2026-01-15T13:00:00Z");
+        clock.set(Instant.parse("2026-01-15T12:59:59Z"));
+        recorder.seen().clear();
+        assertThat(as(editor, () -> posts.publishIfDue(post.id()))).isFalse();
+        assertThat(as(editor, () -> posts.find(post.id())).orElseThrow().status())
+                .isEqualTo("future");
+        assertThat(recorder.seen()).isEmpty();
+        clock.set(Instant.parse("2026-01-15T13:00:00Z"));
+        assertThat(as(editor, () -> posts.publishIfDue(post.id()))).isTrue();
+    }
+
+    @Test
+    void publishIfDueDoesNothingForAPostThatIsNotScheduled() throws Exception {
+        PostSnapshot draft = create(PostChanges.builder().title("draft").status("draft"));
+        PostSnapshot live = create(PostChanges.builder().title("live").status("publish"));
+        PostSnapshot binned = scheduledAt("2026-01-15T13:00:00Z");
+        as(editor, () -> posts.trash(binned.id()));
+        clock.set(Instant.parse("2026-01-15T14:00:00Z"));
+        recorder.seen().clear();
+        assertThat(as(editor, () -> posts.publishIfDue(draft.id()))).isFalse();
+        assertThat(as(editor, () -> posts.publishIfDue(live.id()))).isFalse();
+        assertThat(as(editor, () -> posts.publishIfDue(binned.id()))).isFalse();
+        assertThat(as(editor, () -> posts.find(draft.id())).orElseThrow().status())
+                .isEqualTo("draft");
+        assertThat(as(editor, () -> posts.find(binned.id())).orElseThrow().status())
+                .isEqualTo("trash");
+        assertThat(recorder.seen()).isEmpty();
+    }
+
+    @Test
+    void publishIfDueNeedsPublishPost() throws Exception {
+        PostSnapshot post = scheduledAt("2026-01-15T13:00:00Z");
+        clock.set(Instant.parse("2026-01-15T13:00:00Z"));
+        UserId contributor = TestData.memberOfMain(dataSource, "contributor");
+        assertThatThrownBy(() -> as(contributor, () -> posts.publishIfDue(post.id())))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("the caller lacks the capability publish_post on site " + site.value());
+        assertThat(as(editor, () -> posts.find(post.id())).orElseThrow().status())
+                .isEqualTo("future");
+        assertThat(as(Identities.system(), () -> posts.publishIfDue(post.id()))).isTrue();
+    }
+
+    @Test
+    void publishIfDueOnAMissingPostIsInvalid() {
+        assertThatThrownBy(() -> as(editor, () -> posts.publishIfDue(PostId.of(Long.MAX_VALUE))))
+                .isInstanceOfSatisfying(
+                        PostException.class, e -> assertThat(e.code()).isEqualTo("invalid_post"))
+                .hasMessage("Invalid post ID.");
     }
 }

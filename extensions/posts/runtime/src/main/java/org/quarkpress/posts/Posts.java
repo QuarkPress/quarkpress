@@ -53,6 +53,17 @@ public interface Posts {
     boolean publish(PostId post);
 
     /**
+     * Publishes a scheduled post whose time has come, as WordPress's scheduled-publishing handler does
+     * ({@code check_and_publish_future_post}): under the site's post lock the post is read again; a post that is not
+     * scheduled (published, drafted, trashed or deleted meanwhile) is left alone, as is one whose date is still ahead,
+     * to the second, with no threshold; otherwise it is published as {@link #publish} publishes. Needs
+     * {@code publish_post}; the scheduling module calls it as the system identity. True when this call published the
+     * post; false when there was nothing to do, so concurrent callers (several application nodes polling one database)
+     * agree on exactly one publication and one set of events.
+     */
+    boolean publishIfDue(PostId post);
+
+    /**
      * Moves a post to the trash (WordPress's {@code wp_trash_post}); needs {@code delete_post}. Any type can be trashed
      * this way. A page named by the front page or posts page setting is no longer named there, the post is unstuck,
      * the status it had and the time are recorded in its meta ({@code _wp_trash_meta_status}, {@code

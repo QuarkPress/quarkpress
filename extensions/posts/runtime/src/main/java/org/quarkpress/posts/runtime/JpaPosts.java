@@ -13,6 +13,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Consumer;
 import org.quarkpress.core.PostId;
+import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
@@ -67,6 +68,9 @@ public class JpaPosts implements Posts {
 
     @Inject
     PostQueries queries;
+
+    @Inject
+    QuarkPressClock clock;
 
     @Override
     @Transactional(
@@ -134,6 +138,23 @@ public class JpaPosts implements Posts {
         SiteId siteId = site.siteId();
         PostEntity row = lockedRow(siteId, post, "publish_post");
         if (row.status.equals("publish")) {
+            return false;
+        }
+        writes.publish(siteId, row);
+        return true;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public boolean publishIfDue(PostId post) {
+        Objects.requireNonNull(post, "post");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedRow(siteId, post, "publish_post");
+        if (!row.status.equals("future")) {
+            return false;
+        }
+        if (row.publishedAt != null && row.publishedAt.isAfter(PostDates.now(clock))) {
             return false;
         }
         writes.publish(siteId, row);

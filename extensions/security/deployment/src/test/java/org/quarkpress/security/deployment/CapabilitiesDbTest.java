@@ -196,4 +196,23 @@ class CapabilitiesDbTest {
                 .isFalse();
         assertThat(capabilities.can(deleted, "exist", Optional.empty())).isTrue();
     }
+
+    @Test
+    void othersScheduledPostsNeedEditPostNotReadPrivatePosts() {
+        UserId author = member(MAIN, "[\"author\"]", "{}");
+        UserId otherAuthor = member(MAIN, "[\"author\"]", "{}");
+        UserId editor = member(MAIN, "[\"editor\"]", "{}");
+        UserId privateReader = member(MAIN, "[\"subscriber\"]", "{\"read_private_posts\":true}");
+        PostFacts scheduled = PostFacts.of(PostId.of(11), PostTypeCapabilities.POST, "future", Optional.of(author));
+        assertThat(capabilities.userCan(author, MAIN, "read_post", Optional.of(scheduled)))
+                .isTrue();
+        assertThat(capabilities.userCan(editor, MAIN, "read_post", Optional.of(scheduled)))
+                .isTrue();
+        assertThat(capabilities.userCan(otherAuthor, MAIN, "read_post", Optional.of(scheduled)))
+                .isFalse();
+        assertThat(capabilities.userCan(privateReader, MAIN, "read_post", Optional.of(scheduled)))
+                .isFalse();
+        assertThat(capabilities.anonymousCan(MAIN, "read_post", Optional.of(scheduled)))
+                .isFalse();
+    }
 }

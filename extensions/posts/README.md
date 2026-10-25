@@ -99,15 +99,17 @@ A save follows `wp_insert_post` and `wp_update_post`:
 - **Guid.** Set once on insert: the plain permalink on the site's `http` home.
 
 `publish` changes only the status, as WordPress's scheduled publishing (`wp_publish_post`) does; it returns false for a
-published post. `trash` records the previous status and time in `_wp_trash_meta_status` and `_wp_trash_meta_time`,
-stops a page being the front page or posts page, unsticks the post, and saves it as `trash` with the `__trashed`
-suffix (its slug kept in `_wp_desired_post_slug`); its children keep it as parent. `untrash` restores a post as a
-draft (an attachment as `inherit`) with its slug back. `delete` without `force` trashes a post or page that is not in
-the trash yet; everything else is deleted for good. Deleting hands the post's parent down to its same-type children
-(hierarchical types) and its attachments (a deleted attachment hands nothing down), clears the parent of its other
-children, stops a page being the front page, posts page or privacy policy page, and removes the row with its meta.
-`trash`, `untrash` and `delete` return the post as it was before; `trash` and `untrash` return empty when there was
-nothing to do or the save was refused before it wrote.
+published post. `publishIfDue` is the scheduled-publishing handler itself (`check_and_publish_future_post`): under the
+site's post lock it publishes a `future` post whose GMT date is now or past, to the second, and does nothing for any
+other post; the scheduling module calls it as the system identity. `trash` records the previous status and time in
+`_wp_trash_meta_status` and `_wp_trash_meta_time`, stops a page being the front page or posts page, unsticks the post,
+and saves it as `trash` with the `__trashed` suffix (its slug kept in `_wp_desired_post_slug`); its children keep it as
+parent. `untrash` restores a post as a draft (an attachment as `inherit`) with its slug back. `delete` without `force`
+trashes a post or page that is not in the trash yet; everything else is deleted for good. Deleting hands the post's
+parent down to its same-type children (hierarchical types) and its attachments (a deleted attachment hands nothing
+down), clears the parent of its other children, stops a page being the front page, posts page or privacy policy page,
+and removes the row with its meta. `trash`, `untrash` and `delete` return the post as it was before; `trash` and
+`untrash` return empty when there was nothing to do or the save was refused before it wrote.
 
 ### Post types and statuses
 
