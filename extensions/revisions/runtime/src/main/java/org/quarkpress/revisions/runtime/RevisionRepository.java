@@ -35,6 +35,15 @@ public class RevisionRepository implements PanacheRepositoryBase<RevisionEntity,
         return list("siteId = ?1 and postId = ?2 order by createdAt, id", TenantIds.param(site), post.value());
     }
 
+    /** The post's newest regular (not autosave) revision, by creation time, then id. */
+    public Optional<RevisionEntity> latestRegular(SiteId site, PostId post) {
+        return find(
+                        "siteId = ?1 and postId = ?2 and autosave = false order by createdAt desc, id desc",
+                        TenantIds.param(site),
+                        post.value())
+                .firstResultOptional();
+    }
+
     /**
      * {@link #ofPost} with every row locked, taken in ascending id order so writers never wait for each other in
      * turn.

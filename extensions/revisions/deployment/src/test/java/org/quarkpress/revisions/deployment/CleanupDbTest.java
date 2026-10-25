@@ -8,6 +8,7 @@ import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
@@ -86,7 +87,7 @@ class CleanupDbTest {
                         post.id().value()))
                 .isEqualTo(33);
         Identities.onSite(site, Identities.user(editor), () -> posts.delete(post.id(), true));
-        List<String> expected = new java.util.ArrayList<>();
+        List<String> expected = new ArrayList<>();
         for (int i = 1; i <= 30; i++) {
             expected.add("v" + i + " parent=true");
         }

@@ -26,3 +26,5 @@ create table qp_revision (
 
 create index qp_revision_post_idx on qp_revision (post_id, created_at, id);
 create unique index qp_revision_autosave_uq on qp_revision (post_id, autosave_owner);
+create index qp_revision_author_idx on qp_revision (author_id);
+create index qp_revision_owner_idx on qp_revision (autosave_owner);

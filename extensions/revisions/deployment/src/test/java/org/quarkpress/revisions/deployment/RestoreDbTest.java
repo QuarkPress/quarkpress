@@ -8,6 +8,8 @@ import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
 import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.inject.Inject;
+import jakarta.transaction.Status;
+import jakarta.transaction.TransactionManager;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -20,6 +22,7 @@ import org.quarkpress.core.RevisionId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.posts.PostChanges;
+import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
@@ -50,6 +53,9 @@ class RestoreDbTest {
 
     @Inject
     TestClock clock;
+
+    @Inject
+    TransactionManager transactions;
 
     private SiteId site;
     private UserId editor;
@@ -208,6 +214,32 @@ class RestoreDbTest {
                         .get(0)
                         .meta("footnotes"))
                 .isEmpty();
+    }
+
+    @Test
+    void aRestoreRefusedByTheUpdateForEmptyContentLeavesTheTransactionUsableAndChangesNothing() throws Exception {
+        PostSnapshot post =
+                create(editor, PostChanges.builder().title("v1").content("one").status("publish"));
+        RevisionId blank =
+                TestData.revision(dataSource, site, post.id(), admin, "", "", "", "{}", true, "2026-01-15T12:30:00Z");
+        Identities.onSite(site, Identities.user(editor), () -> {
+            assertThatThrownBy(() -> revisions.restore(blank, Set.of()))
+                    .isInstanceOfSatisfying(
+                            PostException.class,
+                            refused -> assertThat(refused.code()).isEqualTo("empty_content"));
+            assertThat(transactions.getStatus()).isEqualTo(Status.STATUS_ACTIVE);
+            return null;
+        });
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select title from qp_post where id = ?",
+                        post.id().value()))
+                .containsExactly("v1");
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select count(*) from qp_revision where post_id = ?",
+                        post.id().value()))
+                .isEqualTo(1);
     }
 
     @Test

@@ -35,7 +35,7 @@ class SaveCapabilityDbTest {
     @Inject
     TransactionManager transactions;
 
-    private UserId member(SiteId site, String role) {
+    private UserId member(String role) {
         UserId user = TestData.profile(dataSource, role);
         TestData.member(dataSource, TestData.MAIN, user, "[\"" + role + "\"]");
         return user;
@@ -44,9 +44,9 @@ class SaveCapabilityDbTest {
     @Test
     void whoMayEditThePostMaySaveARevisionOfIt() throws Exception {
         SiteId site = TestData.site(dataSource);
-        UserId author = member(site, "author");
-        UserId contributor = member(site, "contributor");
-        UserId editor = member(site, "editor");
+        UserId author = member("author");
+        UserId contributor = member("contributor");
+        UserId editor = member("editor");
         PostId published = TestData.postBy(dataSource, site, author, "post", "publish", "Mine");
         assertThat(Identities.onSite(site, Identities.user(author), () -> revisions.save(published)))
                 .isPresent();
@@ -76,8 +76,8 @@ class SaveCapabilityDbTest {
     @Test
     void aRefusalLeavesTheTransactionUsable() throws Exception {
         SiteId site = TestData.site(dataSource);
-        UserId contributor = member(site, "contributor");
-        UserId editor = member(site, "editor");
+        UserId contributor = member("contributor");
+        UserId editor = member("editor");
         PostId published = TestData.postBy(dataSource, site, editor, "post", "publish", "Theirs");
         Identities.onSite(site, Identities.user(contributor), () -> {
             assertThatThrownBy(() -> revisions.save(published)).isInstanceOf(ForbiddenException.class);

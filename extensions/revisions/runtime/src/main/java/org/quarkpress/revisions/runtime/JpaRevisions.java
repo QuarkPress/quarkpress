@@ -247,8 +247,9 @@ public class JpaRevisions implements Revisions {
         if (restored.contains(RevisionField.EXCERPT)) {
             changes.excerpt(locked.excerpt());
         }
+        // the posts module refuses its own input before writing and marks its own failures after its first write
+        posts.update(before.id(), changes.build());
         return writes.written(() -> {
-            posts.update(before.id(), changes.build());
             events.restored(siteId, PostDates.now(clock), before.id(), revision);
             PostEntity row =
                     postRows.lockPost(siteId, before.id()).orElseThrow(() -> PostException.invalidPost(before.id()));

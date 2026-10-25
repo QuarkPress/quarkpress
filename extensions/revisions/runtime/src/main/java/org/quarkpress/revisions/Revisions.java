@@ -86,8 +86,9 @@ public interface Revisions {
      * the latest regular revision; then {@link RevisionRestored} fires; then the revision's revisioned meta replaces
      * the post's (a key the revision lacks ends empty), so the revision the restore just saved still carries the
      * post's previous meta. Returns the post afterwards. A missing revision, or one of another site, is
-     * {@code rest_post_invalid_id}. A restore refused by the update (for example {@code empty_content}) marks the
-     * caller's transaction for rollback.
+     * {@code rest_post_invalid_id}. A restore refused by the update's own input check (for example
+     * {@code empty_content}) leaves the caller's transaction usable; the posts module marks its own failures after its
+     * first write.
      */
     PostSnapshot restore(RevisionId revision, Set<RevisionField> fields);
 

@@ -12,6 +12,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -120,7 +121,7 @@ final class RevisionScenarioRunner {
             case ScenarioOp.Restore restore -> {
                 RevisionId revision = revision(restore.revision());
                 Set<RevisionField> fields = EnumSet.noneOf(RevisionField.class);
-                restore.fields().forEach(field -> fields.add(RevisionField.valueOf(field.toUpperCase())));
+                restore.fields().forEach(field -> fields.add(RevisionField.valueOf(field.toUpperCase(Locale.ROOT))));
                 try {
                     posts.as(restore.as(), users, () -> revisions.restore(revision, fields));
                     outcome.done(op, kind, "ok");
@@ -180,7 +181,8 @@ final class RevisionScenarioRunner {
         args.number().ifPresent(query::limit);
         args.offset().ifPresent(query::offset);
         args.author().ifPresent(author -> query.author(users.get(author - 1)));
-        args.autosaves().ifPresent(mode -> query.autosaves(RevisionQuery.Autosaves.valueOf(mode.toUpperCase())));
+        args.autosaves()
+                .ifPresent(mode -> query.autosaves(RevisionQuery.Autosaves.valueOf(mode.toUpperCase(Locale.ROOT))));
         args.checkEnabled().ifPresent(query::checkEnabled);
         return query.build();
     }

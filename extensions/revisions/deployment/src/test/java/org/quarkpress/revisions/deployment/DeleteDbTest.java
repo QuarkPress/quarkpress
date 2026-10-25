@@ -1,6 +1,7 @@
 package org.quarkpress.revisions.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
@@ -8,6 +9,8 @@ import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import jakarta.transaction.Status;
+import jakarta.transaction.TransactionManager;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -29,6 +32,9 @@ class DeleteDbTest {
         static final List<String> seen = new CopyOnWriteArrayList<>();
 
         void deleted(@Observes RevisionDeleted event) {
+            if (event.revision().title().equals("explode")) {
+                throw new IllegalArgumentException("observer refused");
+            }
             seen.add("deleted " + event.revision().title());
         }
     }
@@ -45,6 +51,9 @@ class DeleteDbTest {
 
     @Inject
     Posts posts;
+
+    @Inject
+    TransactionManager transactions;
 
     @Test
     void theSystemDeletesARevisionAndAnnouncesIt() throws Exception {
@@ -106,5 +115,29 @@ class DeleteDbTest {
                 .contains("trash");
         assertThat(Jdbc.strings(dataSource, "select status from qp_post where id = ?", post.value()))
                 .containsExactly("draft");
+    }
+
+    @Test
+    void anObserverFailureAfterTheDeleteMarksTheTransactionAndTheRowStays() throws Exception {
+        SiteId site = TestData.site(dataSource);
+        UserId editor = TestData.profile(dataSource, "editor");
+        TestData.member(dataSource, TestData.MAIN, editor, "[\"editor\"]");
+        PostId post = TestData.postBy(dataSource, site, editor, "post", "publish", "P");
+        RevisionId revision = TestData.revision(
+                dataSource, site, post, editor, "explode", "", "", "{}", false, "2026-01-15T12:00:00Z");
+        try {
+            Identities.onSite(site, Identities.system(), () -> {
+                // IllegalArgumentException is in the call's dontRollbackOn: only the module's own mark rolls back
+                assertThatThrownBy(() -> revisions.delete(revision))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("observer refused");
+                assertThat(transactions.getStatus()).isEqualTo(Status.STATUS_MARKED_ROLLBACK);
+                return null;
+            });
+        } catch (Exception rolledBack) {
+            // the scope's transaction was marked above and rolls back when it ends; an AssertionError is not caught
+        }
+        assertThat(Jdbc.strings(dataSource, "select title from qp_revision where post_id = ?", post.value()))
+                .containsExactly("explode");
     }
 }

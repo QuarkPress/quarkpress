@@ -75,13 +75,7 @@ public class RevisionWrites {
         if (keep == 0) {
             return Optional.empty();
         }
-        List<RevisionEntity> existing = revisions.ofPost(site, post.id());
-        Optional<RevisionEntity> latestRegular = Optional.empty();
-        for (RevisionEntity row : existing) {
-            if (!row.autosave) {
-                latestRegular = Optional.of(row);
-            }
-        }
+        Optional<RevisionEntity> latestRegular = revisions.latestRegular(site, post.id());
         if (latestRegular.isPresent() && !policy.changed(latestRegular.get().toSnapshot(), post)) {
             return Optional.empty();
         }
