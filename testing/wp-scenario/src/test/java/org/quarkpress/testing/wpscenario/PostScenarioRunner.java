@@ -205,6 +205,8 @@ final class PostScenarioRunner {
             case ScenarioOp.TermOp term -> termRunner.run(op, term, outcome, users);
             case ScenarioOp.RevisionOp revision -> revisionRunner.run(op, revision, outcome, users);
             case ScenarioOp.UpdatePostMeta meta -> revisionRunner.run(op, meta, outcome, users);
+            case ScenarioOp.SchedulingOp scheduling ->
+                throw new UnsupportedOperationException("scheduling operations arrive with the scheduling runner");
         }
     }
 

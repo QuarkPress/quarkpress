@@ -131,6 +131,7 @@ final class PostScenarioJson {
                         .put("value", meta.value());
             case ScenarioOp.TermOp term -> TermScenarioJson.write(term, out);
             case ScenarioOp.RevisionOp revision -> RevisionScenarioJson.write(revision, out);
+            case ScenarioOp.SchedulingOp scheduling -> SchedulingScenarioJson.write(scheduling, out);
         }
     }
 
@@ -158,6 +159,7 @@ final class PostScenarioJson {
                 RevisionScenarioJson.actors(revision).isEmpty()
                         ? 0
                         : RevisionScenarioJson.actors(revision).get(0);
+            case ScenarioOp.SchedulingOp scheduling -> 0;
         };
         return as == 0 ? List.of() : List.of(as);
     }
@@ -184,6 +186,7 @@ final class PostScenarioJson {
             case ScenarioOp.UpdatePostMeta meta -> {}
             case ScenarioOp.TermOp term -> {}
             case ScenarioOp.RevisionOp revision -> users.addAll(RevisionScenarioJson.users(revision));
+            case ScenarioOp.SchedulingOp scheduling -> {}
         }
         users.removeIf(user -> user == 0);
         return users;
@@ -215,6 +218,7 @@ final class PostScenarioJson {
             case ScenarioOp.UpdatePostMeta meta -> posts.add(meta.post());
             case ScenarioOp.TermOp term -> posts.addAll(TermScenarioJson.posts(term));
             case ScenarioOp.RevisionOp revision -> posts.addAll(RevisionScenarioJson.posts(revision));
+            case ScenarioOp.SchedulingOp scheduling -> posts.addAll(SchedulingScenarioJson.posts(scheduling));
         }
         posts.removeIf(reference -> reference == 0);
         return posts;

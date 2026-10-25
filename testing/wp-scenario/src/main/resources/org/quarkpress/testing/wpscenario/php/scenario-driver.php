@@ -1219,6 +1219,73 @@ function qp_revision_op(array $op, array $users, array $posts, array &$created):
     }
 }
 
+/** The inserted posts (in insertion order, failed inserts skipped) that still exist: what a purge left behind. */
+function qp_survivors(array $posts): array
+{
+    $survivors = [];
+    foreach ($posts as $id) {
+        if (null === $id) {
+            continue;
+        }
+        clean_post_cache($id);
+        if (null !== get_post($id)) {
+            $survivors[] = $id;
+        }
+    }
+    return $survivors;
+}
+
+/**
+ * The scheduling operations: what the cron jobs do, called directly as cron would call them (user 0), on the main
+ * site. The purges answer with the inserted posts that survived them.
+ */
+function qp_scheduling_op(array $op, array $posts): array
+{
+    global $wpdb;
+    switch_to_blog(get_main_site_id());
+    qp_act_as(0);
+    try {
+        switch ($op['op']) {
+            case 'run_publish_check':
+                $id = $posts[$op['post']] ?? null;
+                if (null === $id) {
+                    return ['op' => 'run_publish_check', 'missing' => true];
+                }
+                // Answers nothing: publishes a scheduled post whose GMT date has passed, reschedules one that has
+                // not, and leaves any other post alone.
+                check_and_publish_future_post($id);
+                clean_post_cache($id);
+                return ['op' => 'run_publish_check', 'ok' => true];
+            case 'force_date':
+                // Test fixture, not WordPress behaviour: a direct row write of the post's dates, no hooks, no
+                // modification stamp. WordPress has no API that stores an overdue scheduled post (an update would
+                // publish it), and neither side's clock moves, so this is the only way to make a scheduled post
+                // overdue. QuarkPress's side performs the same row write.
+                $id = $posts[$op['post']] ?? null;
+                if (null === $id) {
+                    return ['op' => 'force_date', 'missing' => true];
+                }
+                $wpdb->update($wpdb->posts,
+                    ['post_date' => get_date_from_gmt($op['gmt']), 'post_date_gmt' => $op['gmt']], ['ID' => $id]);
+                clean_post_cache($id);
+                return ['op' => 'force_date', 'ok' => true];
+            case 'run_trash_purge':
+                // The trash purge: trashed posts (and comments) whose trash time is older than EMPTY_TRASH_DAYS.
+                wp_scheduled_delete();
+                return ['op' => 'run_trash_purge', 'survivors' => qp_survivors($posts)];
+            case 'run_auto_draft_purge':
+                // The auto-draft purge: auto-drafts whose local date is more than seven days old.
+                wp_delete_auto_drafts();
+                return ['op' => 'run_auto_draft_purge', 'survivors' => qp_survivors($posts)];
+            default:
+                throw new InvalidArgumentException('unknown op ' . $op['op']);
+        }
+    } finally {
+        restore_current_blog();
+        qp_act_as(0);
+    }
+}
+
 function qp_run_scenario(array $scenario, array $variant): array
 {
     global $wpdb;
@@ -1263,6 +1330,8 @@ function qp_run_scenario(array $scenario, array $variant): array
                 => qp_post_op($op, $users, $posts),
             'autosave', 'restore', 'delete_revision', 'revisions', 'autosave_of', 'revision_count'
                 => qp_revision_op($op, $users, $posts, $created_revisions),
+            'run_publish_check', 'run_trash_purge', 'run_auto_draft_purge', 'force_date'
+                => qp_scheduling_op($op, $posts),
             'insert_term', 'update_term', 'delete_term', 'set_post_terms', 'remove_post_terms', 'post_terms',
             'query_terms', 'get_term', 'term_exists' => qp_term_op($op, $users, $posts, $created_terms),
             default => throw new InvalidArgumentException('unknown op ' . $op['op']),

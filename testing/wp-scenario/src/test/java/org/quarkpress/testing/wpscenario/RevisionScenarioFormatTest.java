@@ -111,7 +111,7 @@ class RevisionScenarioFormatTest {
                         + "{\"op\": \"update_post_meta\", \"as\": 1, \"post\": 1,"
                         + " \"key\": \"color\", \"value\": \"x\"}")))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("a scenario's revisioned meta key is footnotes: color");
+                .hasMessage("a scenario's post meta key is one of footnotes, _wp_trash_meta_time: color");
     }
 
     @Test

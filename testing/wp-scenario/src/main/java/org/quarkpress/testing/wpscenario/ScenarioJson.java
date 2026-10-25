@@ -32,8 +32,9 @@ import org.quarkpress.testing.wporacle.OracleJson;
  * ({@code insert_term}, {@code update_term}, {@code delete_term}, {@code set_post_terms}, {@code remove_post_terms},
  * {@code post_terms}, {@code query_terms}, {@code get_term} and {@code term_exists}) by {@link TermScenarioJson}, and
  * revision operations ({@code autosave}, {@code restore}, {@code delete_revision}, {@code revisions},
- * {@code autosave_of} and {@code revision_count}) by {@link RevisionScenarioJson}. A scenario may carry
- * {@code revisions_keep}, a whole number.
+ * {@code autosave_of} and {@code revision_count}) by {@link RevisionScenarioJson}, and scheduling operations
+ * ({@code run_publish_check}, {@code run_trash_purge}, {@code run_auto_draft_purge} and the fixture
+ * {@code force_date}) by {@link SchedulingScenarioJson}. A scenario may carry {@code revisions_keep}, a whole number.
  * Unknown keys, duplicate keys and trailing content are refused.
  */
 public final class ScenarioJson {
@@ -172,6 +173,9 @@ public final class ScenarioJson {
             throw new IllegalArgumentException("scenario " + id + ": every op must be an object");
         }
         String kind = text(op, "op", id);
+        if (SchedulingScenarioJson.KINDS.contains(kind)) {
+            return SchedulingScenarioJson.read(kind, op, id);
+        }
         if (RevisionScenarioJson.KINDS.contains(kind)) {
             return RevisionScenarioJson.read(kind, op, id);
         }

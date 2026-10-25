@@ -409,8 +409,9 @@ public sealed interface ScenarioOp {
     }
 
     /**
-     * The revisioned meta key ({@code footnotes}) set on a post by a user, written alike on both sides so the meta
-     * rules of revisions are reachable.
+     * A post meta key set on a post by a user, written alike on both sides: the revisioned key {@code footnotes}, so
+     * the meta rules of revisions are reachable, or {@code _wp_trash_meta_time} (Unix seconds), so a trashed post can
+     * be made overdue for the trash purge.
      */
     record UpdatePostMeta(int as, int post, String key, String value) implements PostOp {
         public UpdatePostMeta {
@@ -418,13 +419,68 @@ public sealed interface ScenarioOp {
             Objects.requireNonNull(value, "value");
             ScenarioRules.requireReference(as);
             ScenarioRules.requirePost(post);
-            ScenarioRules.requireRevisionMetaKey(key);
+            ScenarioRules.requirePostMetaKey(key);
+            if (key.equals("_wp_trash_meta_time")) {
+                ScenarioRules.requireUnixSeconds(value);
+            }
             ScenarioRules.requirePostText(value);
         }
 
         @Override
         public String kind() {
             return "update_post_meta";
+        }
+    }
+
+    /**
+     * The scheduling operations: what the scheduled jobs do when they run, invoked directly on the main site as cron
+     * would (user 0), and a fixture that moves a post's dates. Purges answer with the inserted posts that survived.
+     */
+    sealed interface SchedulingOp extends PostOp {}
+
+    /** The publication check of one scheduled post: published when its GMT date has passed, left alone otherwise. */
+    record RunPublishCheck(int post) implements SchedulingOp {
+        public RunPublishCheck {
+            ScenarioRules.requirePost(post);
+        }
+
+        @Override
+        public String kind() {
+            return "run_publish_check";
+        }
+    }
+
+    /** The trash purge: trashed posts whose trash time is older than the trash retention are deleted. */
+    record RunTrashPurge() implements SchedulingOp {
+        @Override
+        public String kind() {
+            return "run_trash_purge";
+        }
+    }
+
+    /** The auto-draft purge: auto-drafts older than seven days are deleted. */
+    record RunAutoDraftPurge() implements SchedulingOp {
+        @Override
+        public String kind() {
+            return "run_auto_draft_purge";
+        }
+    }
+
+    /**
+     * A test fixture, not WordPress behaviour: a direct row write of the post's dates on both sides ({@code gmt}, a
+     * {@code Y-m-d H:i:s} UTC text, and the site-local date it converts to), bypassing every rule an update applies.
+     * It is the only way to make a scheduled post overdue when neither side's clock moves.
+     */
+    record ForceDate(int post, String gmt) implements SchedulingOp {
+        public ForceDate {
+            Objects.requireNonNull(gmt, "gmt");
+            ScenarioRules.requirePost(post);
+            ScenarioRules.requirePostDate(gmt);
+        }
+
+        @Override
+        public String kind() {
+            return "force_date";
         }
     }
 

@@ -296,6 +296,27 @@ final class ScenarioRules {
         }
     }
 
+    /** The post meta keys {@code update_post_meta} may set: the revisioned one, and the trash time of a purge. */
+    static final List<String> POST_META_KEYS = List.of("footnotes", "_wp_trash_meta_time");
+
+    static void requirePostMetaKey(String key) {
+        if (!POST_META_KEYS.contains(key)) {
+            throw new IllegalArgumentException(
+                    "a scenario's post meta key is one of " + String.join(", ", POST_META_KEYS) + ": " + key);
+        }
+    }
+
+    /** A Unix time in seconds as WordPress stores it in meta: 1 to 10 ASCII digits. */
+    static void requireUnixSeconds(String value) {
+        boolean ok = !value.isEmpty() && value.length() <= 10;
+        for (int i = 0; ok && i < value.length(); i++) {
+            ok = value.charAt(i) >= '0' && value.charAt(i) <= '9';
+        }
+        if (!ok) {
+            throw new IllegalArgumentException("a scenario's Unix time in seconds is 1 to 10 digits: " + value);
+        }
+    }
+
     /** The user of an autosave or a restore: WordPress has no system autosave, so user 0 is refused. */
     static void requireAutosaveUser(int as) {
         requireReference(as);

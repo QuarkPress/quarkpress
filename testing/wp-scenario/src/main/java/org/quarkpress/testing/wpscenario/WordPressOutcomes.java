@@ -72,6 +72,11 @@ import java.util.Map;
  * creation order ({@code [{"index", "id", "revision"}]}, deleted ones as {@code {"deleted": true}}). A revision record
  * holds {@code id, parent, author, autosave, title, content, excerpt, footnotes} (a list of texts) and
  * {@code date_gmt}. Revision rows are named {@code r<k>} by creation order.
+ *
+ * <p>Scheduling operations answer {@code run_publish_check} and {@code force_date} {@code {"ok": true}} or
+ * {@code {"missing": true}}; {@code run_trash_purge} and {@code run_auto_draft_purge} {@code {"survivors": [<id>...]}},
+ * the inserted posts (in insertion order) that still exist after the purge, compared as {@code survivors=p1,p3} or
+ * {@code survivors=(none)}.
  */
 public final class WordPressOutcomes {
 
@@ -268,6 +273,10 @@ public final class WordPressOutcomes {
             RevisionOutcomes.result(outcome, op, revision, result, revisions, context.postIndex());
             return;
         }
+        if (post instanceof ScenarioOp.SchedulingOp scheduling) {
+            SchedulingOutcomes.result(outcome, op, scheduling, result, context.postIndex());
+            return;
+        }
         if (result.path("missing").asBoolean()) {
             outcome.done(op, post.kind(), "missing");
             return;
@@ -310,6 +319,8 @@ public final class WordPressOutcomes {
             case ScenarioOp.TermOp term -> throw new IllegalStateException("term results are normalized above");
             case ScenarioOp.RevisionOp revision ->
                 throw new IllegalStateException("revision results are normalized above");
+            case ScenarioOp.SchedulingOp scheduling ->
+                throw new IllegalStateException("scheduling results are normalized above");
         }
     }
 
@@ -367,7 +378,8 @@ public final class WordPressOutcomes {
                 : "changed=" + field(result, "changed", at).asBoolean();
     }
 
-    private static String okay(JsonNode result, String at) {
+    /** {@code ok}, {@code failed} or {@code failed:<error>} from a result's {@code ok} flag; {@code missing} first. */
+    static String okay(JsonNode result, String at) {
         if (result.path("missing").asBoolean()) {
             return "missing";
         }
