@@ -78,13 +78,16 @@ others purges the trash, then the auto-drafts:
 
 The candidates of a purge are selected in one site transaction that ends before any delete, page by page of
 `batch-size` rows in id order; the trash selection reads only ids and metas, so a large trash is not loaded whole.
-Each candidate is then read again in a site scope and transaction of its own, as the system identity, as WordPress's
-handler reads a post again just before deleting it: one that is no longer in the trash, no longer overdue, no longer
-an auto-draft or no longer stale is skipped. A trashed post goes through `Posts.delete(id, false)` (already in the
-trash, it is deleted for good); an auto-draft through `Posts.delete(id, true)`. A delete fires the posts module's
-`PostDeleting` and `PostDeleted`, so the taxonomy and revisions modules clean up what they keep. A delete that fails
-is logged at WARN and recorded, and the purge goes on; a candidate already gone at the re-read is skipped silently,
-and one deleted by another node between the re-read and the delete is logged at DEBUG.
+Each candidate is then read again in a site scope and transaction of its own, as the system identity, under the
+site's post lock (the posts module's lock, which the delete takes again in the same transaction) and its row lock, as
+WordPress's handler reads a post again just before deleting it: one that is no longer in the trash, no longer overdue,
+no longer an auto-draft or no longer stale is skipped. The lock is held until the delete's transaction ends, so a
+restore or a save of the candidate either lands before it and the candidate is skipped, or waits and then finds the
+post gone; nothing lands between the check and the delete. A trashed post goes through `Posts.delete(id, false)`
+(already in the trash, it is deleted for good); an auto-draft through `Posts.delete(id, true)`. A delete fires the
+posts module's `PostDeleting` and `PostDeleted`, so the taxonomy and revisions modules clean up what they keep. A
+delete that fails is logged at WARN and recorded, and the purge goes on; a candidate already gone at the re-read is
+skipped silently.
 
 ### Several nodes
 
@@ -93,8 +96,8 @@ node sees the same due posts. The guarantee is exactly once, not work-sharing: `
 per-site post lock, reads the post again under its row lock and publishes only a post still `future` and due, so of
 two nodes publishing the same post one publishes and fires the events and the other finds it published and does
 nothing. Nodes select the same batch in the same order and none skips locked rows, so a node whose poll runs while
-another holds the locks waits on each row and may publish nothing in that poll. The purges re-read each candidate the
-same way and delete it once.
+another holds the locks waits on each row and may publish nothing in that poll. The purges re-read each candidate
+under the site's post lock the same way, check it there and delete it once.
 
 ### Configuration
 
@@ -131,9 +134,11 @@ The module takes no lock of its own. A run reads the site list in one network-wi
 reads and ends before any site scope opens; each site is then visited in a scope of its own, and each post is published
 or deleted in a scope and transaction of its own, as the system identity. Every write goes through the posts service, so
 it takes the site's post lock after its capability check and follows the posts module's lock order (network, user
-profile, membership, the site's post lock, post rows, option rows last); a write refused before the first write (a
-capability check, a lock timeout), or failing after its first write, rolls back that post's transaction alone and the
-run goes on. The jobs run on a thread of their own, so no transaction, identity or scope of the caller reaches them.
+profile, membership, the site's post lock, post rows, option rows last); the purges take that same site lock
+themselves, one call earlier, for the re-read that precedes the delete, and the delete takes it again in the same
+transaction. A write refused before the first write (a capability check, a lock timeout), or failing after its first
+write, rolls back that post's transaction alone and the run goes on. The jobs run on a thread of their own, so no
+transaction, identity or scope of the caller reaches them.
 
 ## Limits
 
@@ -143,6 +148,9 @@ run goes on. The jobs run on a thread of their own, so no transaction, identity 
   `future` status with its date is the schedule.
 - A `future` post without a GMT date is left to `publishIfDue`, which publishes it when called (the poll never
   selects it, since its date is not due).
+- A poll selects a site's earliest `batch-size` due posts, and a post whose publication fails stays due: a site with
+  at least `batch-size` persistently failing due posts (an observer that refuses them, a constraint they violate)
+  holds back its later due posts until they are fixed or re-saved. The failures are visible on the status bean.
 - The `future` to `publish` switch at save time (an overdue scheduled post re-saved becomes published) belongs to the
   posts module and ignores the feature.
 
@@ -158,8 +166,8 @@ run goes on. The jobs run on a thread of their own, so no transaction, identity 
 - The purges run from application start on an interval, every site, instead of WordPress's per-site daily events
   scheduled from an admin visit; the first run is one interval after start.
 - The multi-node guarantee is exactly once, not work-sharing: nodes do not skip each other's locked rows.
-- The trash purge re-reads each candidate in its own transaction before deleting, as WordPress's handler re-reads,
-  and selects ids and metas only.
+- The purges re-read each candidate under the site's post lock, in the delete's own transaction, as WordPress's
+  handler re-reads before deleting; the trash selection reads ids and metas only.
 
 ## Differences from WordPress
 
@@ -172,7 +180,7 @@ run goes on. The jobs run on a thread of their own, so no transaction, identity 
 | D5 | Due posts are published per site in batches of `batch-size` per poll, sites in ascending id order, posts by date then id; WordPress runs every due event of a site in one run, in timestamp order and then event insertion order. |
 | D6 | Cron's publication writes no `_pingme`, `_encloseme` or `_trackbackme` meta and queues no `do_pings`: there are no pings in this release. |
 | D7 | The trash purge and the auto-draft purge run from application start every `housekeeping-interval` (24 h by default) on every node, for every site; WordPress schedules them from the first admin visit (the trash purge) and the first "Add New" (the auto-draft purge) of each site, daily from that time of day. |
-| D8 | The trash purge examines only rows in the trash: a row carrying `_wp_trash_meta_time` that is no longer in the trash is left alone; WordPress deletes its two trash meta keys. QuarkPress's untrash removes them, and a direct database write is not a supported path. |
+| D8 | The trash purge examines only rows in the trash: a row carrying `_wp_trash_meta_time` that is no longer in the trash is left alone; WordPress deletes its two trash meta keys. QuarkPress's untrash removes them, and a direct database write is not a supported path. The trash time is read from the first value under the key only, and only when it is a JSON number or a text of 1 to 18 ASCII digits (anything else keeps the post); WordPress compares the meta text numerically in SQL (`meta_value < %d`), so a non-numeric or negative text casts to a purgeable number and any one of several values suffices. Protected meta is written only by the system, so the difference is not reachable through the service. |
 | D9 | The auto-draft purge compares the stored modification instant with now, both in UTC, over a fixed 7 days; WordPress compares the local post date text with the MySQL server's clock, with a slip of up to the site's offset. |
 | D10 | No comments are purged (no comments yet), no transients, no update checks, no other core cron events: only scheduled publishing and the two post purges have counterparts. |
 | D11 | There is no cron option, no general event queue and no API to schedule, reschedule, unschedule or inspect events; the `future` status with its date is the schedule. `PostScheduled` fires on every save ending in `future`, as `future_{type}` does; nothing fires when a schedule is cleared, as in WordPress. |

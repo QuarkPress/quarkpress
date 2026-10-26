@@ -138,17 +138,17 @@ class SchedulingCalls implements DevServicesContext.ContextAware {
                 .asString();
     }
 
-    /** When the last poll of the node listening on {@code port} ended; empty while it has not polled yet. */
-    Optional<Instant> lastPollEndedOn(int port) {
-        String ended = given().port(port)
+    /** When the last poll of the node listening on {@code port} started; empty while it has not polled yet. */
+    Optional<Instant> lastPollStartedOn(int port) {
+        String started = given().port(port)
                 .header("Host", "localhost")
                 .get("/it/scheduling/status")
                 .then()
                 .statusCode(200)
                 .extract()
                 .jsonPath()
-                .getString("lastPollEnded");
-        return ended == null ? Optional.empty() : Optional.of(Instant.parse(ended));
+                .getString("lastPollStarted");
+        return started == null ? Optional.empty() : Optional.of(Instant.parse(started));
     }
 
     /** Schedules a post for 2090 as alice and returns its id. */

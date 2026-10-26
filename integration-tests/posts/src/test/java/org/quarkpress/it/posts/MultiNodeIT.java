@@ -19,7 +19,8 @@ import org.junit.jupiter.api.Test;
  * order and neither skips locked rows, so a node whose poll runs while the other holds the locks waits for each row
  * and then finds it published; that node may answer "already published" for every post of the run. What the design
  * promises is that any number of nodes may poll and that exactly one of them publishes each post, so the test
- * asserts that, and that both nodes polled after the posts became due: the second node saw them and took none twice.
+ * asserts that, and that both nodes started a poll after the posts became due: such a poll selects every post still
+ * due, so the second node saw them (or found them published) and took none twice.
  */
 @QuarkusIntegrationTest
 class MultiNodeIT implements DevServicesContext.ContextAware {
@@ -75,10 +76,13 @@ class MultiNodeIT implements DevServicesContext.ContextAware {
         return calls.publishedOn(port).stream().filter(ids::contains).toList();
     }
 
-    /** Whether the node on {@code port} has ended a poll after {@code instant}. */
+    /**
+     * Whether the node on {@code port} has started a poll after {@code instant}: a poll started after the posts
+     * became due necessarily selected them, where one that merely ended after could have read them before.
+     */
     private boolean polledAfter(int port, Instant instant) {
-        return calls.lastPollEndedOn(port)
-                .filter(ended -> ended.isAfter(instant))
+        return calls.lastPollStartedOn(port)
+                .filter(started -> started.isAfter(instant))
                 .isPresent();
     }
 }

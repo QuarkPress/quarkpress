@@ -12,6 +12,11 @@ import jakarta.inject.Singleton;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.IntSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -25,7 +30,8 @@ import org.quarkpress.scheduling.runtime.Housekeeping;
 /**
  * A candidate that changed between its selection and its own delete, as a concurrent delete, restore, re-trash or
  * edit would make it: a gone row is skipped quietly, a restored, re-trashed or edited one is left alone; none is a
- * failure.
+ * failure. A change racing the delete itself, after its re-read, either lands first and keeps the post or waits for
+ * the delete's lock and changes nothing: never the restored post trashed again, never the saved draft deleted.
  */
 class HousekeepingGoneDbTest {
 
@@ -68,11 +74,20 @@ class HousekeepingGoneDbTest {
         volatile String touchedAt;
 
         /**
-         * The post removed right after the delete's own re-read found it still purgeable, so the posts module's own
-         * lookup no longer finds it; null removes none. The delete runs on a thread, and so a connection, of its own:
-         * on the job's thread it would join the job's transaction and be undone with it.
+         * The trashed post published again, its trash meta gone, from a connection of its own, right after the
+         * delete's own re-read found it still purgeable; null restores none. The update runs on a thread of its own
+         * (on the job's thread it would join the job's transaction) and is waited for at most {@link #LATE_WAIT}:
+         * under the lock the re-read holds it waits for the delete's transaction to end.
          */
-        volatile PostId vanishLate;
+        volatile PostId restoreLate;
+
+        /** The auto-draft saved as a draft the same way, right after the delete's own re-read; null saves none. */
+        volatile PostId promoteLate;
+
+        /** The last late update: the rows it changed, once it has run. */
+        volatile CompletableFuture<Integer> lateUpdate;
+
+        static final long LATE_WAIT = 2;
 
         @Override
         public List<Trashed> trashedAfter(SiteId site, long afterId, int limit) {
@@ -116,18 +131,40 @@ class HousekeepingGoneDbTest {
         @Override
         public Optional<PostEntity> post(SiteId site, PostId id) {
             Optional<PostEntity> found = super.post(site, id);
-            if (found.isPresent() && id.equals(vanishLate)) {
-                Thread other = Thread.ofVirtual()
-                        .unstarted(() -> Jdbc.update(dataSource, "delete from qp_post where id = ?", id.value()));
-                other.start();
-                try {
-                    other.join();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException(e);
-                }
+            if (found.isPresent() && id.equals(restoreLate)) {
+                late(() -> Jdbc.update(
+                        dataSource,
+                        "update qp_post set status = 'publish', meta = " + TestDb.json() + " where id = ?",
+                        "{}",
+                        id.value()));
+            }
+            if (found.isPresent() && id.equals(promoteLate)) {
+                late(() -> Jdbc.update(dataSource, "update qp_post set status = 'draft' where id = ?", id.value()));
             }
             return found;
+        }
+
+        /** Starts {@code update} on a thread of its own and gives it {@link #LATE_WAIT} seconds to land. */
+        private void late(IntSupplier update) {
+            CompletableFuture<Integer> result = new CompletableFuture<>();
+            lateUpdate = result;
+            Thread.ofVirtual().start(() -> {
+                try {
+                    result.complete(update.getAsInt());
+                } catch (RuntimeException e) {
+                    result.completeExceptionally(e);
+                }
+            });
+            try {
+                result.get(LATE_WAIT, TimeUnit.SECONDS);
+            } catch (TimeoutException waiting) {
+                // the update waits for a lock this transaction holds: the job goes on and ends it
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            } catch (ExecutionException e) {
+                throw new IllegalStateException(e.getCause());
+            }
         }
     }
 
@@ -161,7 +198,9 @@ class HousekeepingGoneDbTest {
         meddling.promote = null;
         meddling.retrash = null;
         meddling.touch = null;
-        meddling.vanishLate = null;
+        meddling.restoreLate = null;
+        meddling.promoteLate = null;
+        meddling.lateUpdate = null;
     }
 
     @Test
@@ -233,18 +272,51 @@ class HousekeepingGoneDbTest {
     }
 
     /**
-     * Gone after the delete's own re-read found it, so the posts module itself refuses the delete as an invalid post:
-     * skipped quietly, not a failure.
+     * Restored from a connection of its own right after the delete's own re-read: the re-read holds the site's post
+     * lock and the row, so the two are serial. Either the restore landed first and the post stays published, or the
+     * delete went first and the restore changed no row; never the restore applied and the post trashed again, as a
+     * re-read outside the lock would let happen.
      */
     @Test
-    void aCandidateGoneAfterItsReReadIsSkippedWithoutAFailure() throws Exception {
-        PostId gone = TestData.trashed(dataSource, site, "post", "gone", 1000000000L);
-        PostId fine = TestData.trashed(dataSource, site, "post", "fine", 1000000000L);
-        meddling.vanishLate = gone;
-        assertThat(housekeeping.purgeTrash(site)).isEqualTo(1);
-        assertThat(TestData.exists(dataSource, gone)).isFalse();
-        assertThat(TestData.exists(dataSource, fine)).isFalse();
+    void aRestoreRacingTheDeleteAfterItsReReadEitherKeepsThePostOrChangesNothing() throws Exception {
+        PostId restored = TestData.trashed(dataSource, site, "post", "restored", 1000000000L);
+        meddling.restoreLate = restored;
+        int purged = housekeeping.purgeTrash(site);
+        int changed = meddling.lateUpdate.get(30, TimeUnit.SECONDS);
+        if (changed == 0) {
+            assertThat(purged).as("the delete went first: the post is gone").isEqualTo(1);
+            assertThat(TestData.exists(dataSource, restored)).isFalse();
+        } else {
+            assertThat(purged).as("the restore went first: the post is kept").isZero();
+            assertThat(TestData.status(dataSource, restored)).isEqualTo("publish");
+        }
         assertThat(status.snapshot().lastFailure()).isEmpty();
         assertThat(housekeeping.purgeTrash(site)).isZero();
+        assertThat(TestData.status(dataSource, restored)).isEqualTo(changed == 0 ? "" : "publish");
+    }
+
+    /**
+     * Saved as a draft from a connection of its own right after the delete's own re-read, as the editor's first save
+     * of a stale auto-draft would: either the save landed first and the draft is kept, or the delete went first and
+     * the save changed no row; never the save applied and the draft deleted for good.
+     */
+    @Test
+    void aDraftSaveRacingTheDeleteAfterItsReReadEitherKeepsTheDraftOrChangesNothing() throws Exception {
+        PostId edited = TestData.autoDraft(dataSource, site, "post", "edited", "2020-01-01T00:00:00Z");
+        meddling.promoteLate = edited;
+        int purged = housekeeping.purgeAutoDrafts(site);
+        int changed = meddling.lateUpdate.get(30, TimeUnit.SECONDS);
+        if (changed == 0) {
+            assertThat(purged)
+                    .as("the delete went first: the auto-draft is gone")
+                    .isEqualTo(1);
+            assertThat(TestData.exists(dataSource, edited)).isFalse();
+        } else {
+            assertThat(purged).as("the save went first: the draft is kept").isZero();
+            assertThat(TestData.status(dataSource, edited)).isEqualTo("draft");
+        }
+        assertThat(status.snapshot().lastFailure()).isEmpty();
+        assertThat(housekeeping.purgeAutoDrafts(site)).isZero();
+        assertThat(TestData.status(dataSource, edited)).isEqualTo(changed == 0 ? "" : "draft");
     }
 }

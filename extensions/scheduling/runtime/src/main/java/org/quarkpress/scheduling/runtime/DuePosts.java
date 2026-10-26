@@ -85,9 +85,13 @@ public class DuePosts {
                 .toList();
     }
 
-    /** The post of {@code site} with {@code id}, as stored now; empty when it is gone. */
+    /**
+     * The post of {@code site} with {@code id}, read fresh under its row lock, held until the transaction ends; empty
+     * when it is gone. Take the site's post lock first ({@code PostLocks.lock}): the posts module locks the site
+     * before any post row, and the delete that follows takes both again.
+     */
     public Optional<PostEntity> post(SiteId site, PostId id) {
-        return posts.findPost(site, id);
+        return posts.lockPost(site, id);
     }
 
     /**

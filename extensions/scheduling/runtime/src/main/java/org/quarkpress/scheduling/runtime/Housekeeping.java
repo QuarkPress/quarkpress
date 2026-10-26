@@ -15,11 +15,11 @@ import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.NetworkScope;
 import org.quarkpress.persistence.SiteScope;
-import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.PostDates;
 import org.quarkpress.posts.runtime.PostEntity;
+import org.quarkpress.posts.runtime.PostLocks;
 import org.quarkpress.posts.runtime.PostsConfig;
 import org.quarkpress.scheduling.SchedulingFeature;
 import org.quarkpress.scheduling.SchedulingStatus.Failure;
@@ -30,9 +30,10 @@ import org.quarkpress.security.SystemIdentity;
  * site with scheduling off is skipped; else first the trash is purged (every trashed post, of any type, whose trash
  * time is strictly older than now minus the trash days), then the stale auto-drafts (every auto-draft last modified
  * more than seven days ago). The candidates of a purge are selected in one read-only site transaction, which ends
- * before any delete; each candidate is then read again and deleted in a site scope and transaction of its own, as
- * the system identity. A candidate gone, restored or edited meanwhile is skipped; a delete that fails is logged and
- * recorded, and the purge goes on with the next candidate. A trashed post without a trash time is never purged.
+ * before any delete; each candidate is then read again under the site's post lock, checked and deleted in a site
+ * scope and transaction of its own, as the system identity, so that no restore or save lands between the check and
+ * the delete. A candidate gone, restored or edited meanwhile is skipped; a delete that fails is logged and recorded,
+ * and the purge goes on with the next candidate. A trashed post without a trash time is never purged.
  */
 @ApplicationScoped
 public class Housekeeping {
@@ -73,6 +74,9 @@ public class Housekeeping {
 
     @Inject
     Posts posts;
+
+    @Inject
+    PostLocks locks;
 
     /**
      * Runs on the housekeeping interval, counted from application start: the first run is one interval after start,
@@ -188,8 +192,11 @@ public class Housekeeping {
     }
 
     /**
-     * Deletes the candidates one by one, each in a site transaction of its own; a candidate is read again there and
-     * skipped unless {@code still} holds for it, as WordPress's handler reads a post again just before deleting it.
+     * Deletes the candidates one by one, each in a site transaction of its own; a candidate is read again there under
+     * the site's post lock and skipped unless {@code still} holds for it, as WordPress's handler reads a post again
+     * just before deleting it. The delete takes the same lock again in the same transaction, so the check and the
+     * delete see one state: a restore or a save of the candidate waits for the transaction to end, or landed before
+     * the lock and the candidate is skipped.
      */
     private int deleteAll(SiteId site, List<PostId> candidates, boolean force, Predicate<PostEntity> still) {
         int deleted = 0;
@@ -206,17 +213,13 @@ public class Housekeeping {
             return siteScope
                     .call(
                             site,
-                            () -> system.call(
-                                    () -> due.post(site, post).filter(still).isPresent()
-                                            ? posts.delete(post, force)
-                                            : Optional.<PostSnapshot>empty()))
+                            () -> system.call(() -> {
+                                locks.lock(site);
+                                return due.post(site, post).filter(still).isPresent()
+                                        ? posts.delete(post, force)
+                                        : Optional.<PostSnapshot>empty();
+                            }))
                     .isPresent();
-        } catch (PostException e) {
-            if (e.code().equals("invalid_post")) {
-                LOG.debugf("post %s of site %s was gone before it could be purged", post, site);
-                return false;
-            }
-            return failed(site, post, e);
         } catch (Exception e) {
             return failed(site, post, e);
         }

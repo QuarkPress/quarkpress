@@ -75,6 +75,9 @@ public class SchedulingResource {
         SchedulingStatus.Snapshot snapshot = status.snapshot();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put(
+                "lastPollStarted",
+                snapshot.lastPollStarted().map(Instant::toString).orElse(null));
+        result.put(
                 "lastPollEnded", snapshot.lastPollEnded().map(Instant::toString).orElse(null));
         result.put(
                 "lastBatch",
