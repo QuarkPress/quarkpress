@@ -74,9 +74,14 @@ public class Housekeeping {
     @Inject
     Posts posts;
 
+    /**
+     * Runs on the housekeeping interval, counted from application start: the first run is one interval after start,
+     * not at start, so a node joining or restarting does not purge at once.
+     */
     @Scheduled(
             identity = IDENTITY,
             every = "${quarkpress.scheduling.housekeeping-interval:24h}",
+            delayed = "${quarkpress.scheduling.housekeeping-interval:24h}",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
             skipExecutionIf = SchedulingDisabled.class)
     void scheduled() {

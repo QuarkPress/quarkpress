@@ -11,18 +11,21 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
+import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.scheduling.SchedulingStatus;
 import org.quarkpress.scheduling.runtime.DuePosts;
 import org.quarkpress.scheduling.runtime.Housekeeping;
 
 /**
- * A candidate that changed between its selection and its own delete, as a concurrent delete, restore or edit would
- * make it: a gone row is skipped quietly, a restored or edited one is left alone; none is a failure.
+ * A candidate that changed between its selection and its own delete, as a concurrent delete, restore, re-trash or
+ * edit would make it: a gone row is skipped quietly, a restored, re-trashed or edited one is left alone; none is a
+ * failure.
  */
 class HousekeepingGoneDbTest {
 
@@ -48,6 +51,29 @@ class HousekeepingGoneDbTest {
         /** The auto-draft turned into a draft once it has been selected; null turns none. */
         volatile PostId promote;
 
+        /**
+         * The trashed post trashed again once it has been selected: still in the trash, with its trash time set to
+         * {@link #retrashTime} (seconds); null re-trashes none.
+         */
+        volatile PostId retrash;
+
+        volatile long retrashTime;
+
+        /**
+         * The auto-draft saved again once it has been selected, its modification time set to {@link #touchedAt} (an
+         * ISO instant); null touches none.
+         */
+        volatile PostId touch;
+
+        volatile String touchedAt;
+
+        /**
+         * The post removed right after the delete's own re-read found it still purgeable, so the posts module's own
+         * lookup no longer finds it; null removes none. The delete runs on a thread, and so a connection, of its own:
+         * on the job's thread it would join the job's transaction and be undone with it.
+         */
+        volatile PostId vanishLate;
+
         @Override
         public List<Trashed> trashedAfter(SiteId site, long afterId, int limit) {
             List<Trashed> page = super.trashedAfter(site, afterId, limit);
@@ -63,6 +89,13 @@ class HousekeepingGoneDbTest {
                         "{}",
                         back.value());
             }
+            PostId again = retrash;
+            if (again != null && page.stream().anyMatch(row -> row.id().equals(again))) {
+                TestData.setMeta(
+                        dataSource,
+                        again,
+                        "{\"_wp_trash_meta_status\":[\"publish\"],\"_wp_trash_meta_time\":[" + retrashTime + "]}");
+            }
             return page;
         }
 
@@ -73,7 +106,28 @@ class HousekeepingGoneDbTest {
             if (edited != null && page.contains(edited)) {
                 Jdbc.update(dataSource, "update qp_post set status = 'draft' where id = ?", edited.value());
             }
+            PostId saved = touch;
+            if (saved != null && page.contains(saved)) {
+                TestData.setModifiedAt(dataSource, saved, touchedAt);
+            }
             return page;
+        }
+
+        @Override
+        public Optional<PostEntity> post(SiteId site, PostId id) {
+            Optional<PostEntity> found = super.post(site, id);
+            if (found.isPresent() && id.equals(vanishLate)) {
+                Thread other = Thread.ofVirtual()
+                        .unstarted(() -> Jdbc.update(dataSource, "delete from qp_post where id = ?", id.value()));
+                other.start();
+                try {
+                    other.join();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }
+            return found;
         }
     }
 
@@ -105,6 +159,9 @@ class HousekeepingGoneDbTest {
         meddling.vanish = null;
         meddling.restore = null;
         meddling.promote = null;
+        meddling.retrash = null;
+        meddling.touch = null;
+        meddling.vanishLate = null;
     }
 
     @Test
@@ -143,5 +200,51 @@ class HousekeepingGoneDbTest {
         assertThat(status.snapshot().lastFailure()).isEmpty();
         assertThat(housekeeping.purgeAutoDrafts(site)).isZero();
         assertThat(TestData.status(dataSource, edited)).isEqualTo("draft");
+    }
+
+    /** Still in the trash, but with a trash time of now: only the re-read of the trash time keeps it. */
+    @Test
+    void aCandidateTrashedAgainWithAFreshTrashTimeBeforeItsOwnDeleteStaysInTheTrash() throws Exception {
+        PostId again = TestData.trashed(dataSource, site, "post", "again", 1000000000L);
+        PostId fine = TestData.trashed(dataSource, site, "post", "fine", 1000000000L);
+        meddling.retrash = again;
+        meddling.retrashTime = clock.now().getEpochSecond();
+        assertThat(housekeeping.purgeTrash(site)).isEqualTo(1);
+        assertThat(TestData.status(dataSource, again)).isEqualTo("trash");
+        assertThat(TestData.exists(dataSource, fine)).isFalse();
+        assertThat(status.snapshot().lastFailure()).isEmpty();
+        assertThat(housekeeping.purgeTrash(site)).isZero();
+        assertThat(TestData.status(dataSource, again)).isEqualTo("trash");
+    }
+
+    /** Still an auto-draft, but modified just now: only the re-read of the modification time keeps it. */
+    @Test
+    void anAutoDraftModifiedJustNowBeforeItsOwnDeleteStaysAnAutoDraft() throws Exception {
+        PostId saved = TestData.autoDraft(dataSource, site, "post", "saved", "2020-01-01T00:00:00Z");
+        PostId stale = TestData.autoDraft(dataSource, site, "page", "stale", "2020-01-01T00:00:00Z");
+        meddling.touch = saved;
+        meddling.touchedAt = clock.now().toString();
+        assertThat(housekeeping.purgeAutoDrafts(site)).isEqualTo(1);
+        assertThat(TestData.status(dataSource, saved)).isEqualTo("auto-draft");
+        assertThat(TestData.exists(dataSource, stale)).isFalse();
+        assertThat(status.snapshot().lastFailure()).isEmpty();
+        assertThat(housekeeping.purgeAutoDrafts(site)).isZero();
+        assertThat(TestData.status(dataSource, saved)).isEqualTo("auto-draft");
+    }
+
+    /**
+     * Gone after the delete's own re-read found it, so the posts module itself refuses the delete as an invalid post:
+     * skipped quietly, not a failure.
+     */
+    @Test
+    void aCandidateGoneAfterItsReReadIsSkippedWithoutAFailure() throws Exception {
+        PostId gone = TestData.trashed(dataSource, site, "post", "gone", 1000000000L);
+        PostId fine = TestData.trashed(dataSource, site, "post", "fine", 1000000000L);
+        meddling.vanishLate = gone;
+        assertThat(housekeeping.purgeTrash(site)).isEqualTo(1);
+        assertThat(TestData.exists(dataSource, gone)).isFalse();
+        assertThat(TestData.exists(dataSource, fine)).isFalse();
+        assertThat(status.snapshot().lastFailure()).isEmpty();
+        assertThat(housekeeping.purgeTrash(site)).isZero();
     }
 }
