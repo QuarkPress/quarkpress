@@ -168,6 +168,9 @@ their default terms, keeps term counts, and removes a deleted post's assignments
 The revisions module observes `PostSaved` (except for a new post) and `PostDeleting` inside the saving transaction: it
 saves a revision after every update-like save, and removes a deleted post's revisions one by one.
 
+The scheduling module calls `publishIfDue` as the system identity for due posts, which fires the publish events as
+`publish` does.
+
 ### Filters and replaceable beans
 
 Filters are beans; a higher `@Priority` runs first, the opposite of WordPress. A filter returns a value (changed or
@@ -266,7 +269,7 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 | D13 | No pingback or enclosure markers (`_pingme`, `_encloseme`) are written, and nothing about comments happens yet (deleting a post deletes no comments). |
 | D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` (the taxonomy module assigns terms after the save) and `meta_input` are not stored; global styles are not filtered on save. |
 | D15 | `PostMeta` checks `edit_post` for meta writes, as WordPress's REST API maps the post meta capabilities; protected keys (leading `_`) are written only by the system identity; meta values are JSON values, so numbers and booleans keep their types. The meta capability names themselves (`edit_post_meta`, `add_post_meta`, `delete_post_meta`) are not mapped for direct checks. |
-| D16 | The trash is not emptied after `empty-trash-days`, old auto-drafts are not removed and scheduled posts are not published when due (`publish` does it when called): scheduled jobs come later. |
+| D16 | The trash purge, the auto-draft purge and scheduled publishing are the scheduling module's jobs (`quarkpress-scheduling`: a poll every `quarkpress.scheduling.interval`, housekeeping every `quarkpress.scheduling.housekeeping-interval`, both gated per site by its `scheduling` feature); without that module nothing publishes a due post (`publishIfDue` and `publish` do it when called) and nothing empties the trash after `empty-trash-days`. WordPress runs the three from its page-load cron. |
 | D17 | Queries leave out calendar arguments other than date conditions, `rand`, `comment_count`, meta and taxonomy queries; ties are broken by id (WordPress leaves them in database order); when every ordering key is skipped the query orders newest first (WordPress orders nothing when the keys come as a list); statuses other than `publish` need `edit_posts`, and such a query by a caller other than the system identity leaves out the posts the caller may not read, with `found` counting only what it returns (`WP_Query` returns and counts them; the REST API drops them item by item but still counts them in `X-WP-Total`); without statuses the system identity counts as logged out. |
 | D18 | Post writes of one site are serialized; WordPress lets concurrent saves race (two saves of one title can get the same slug). |
 | D19 | An operation on a missing post, or a post of another site, throws `invalid_post` (as the REST API answers): `trash`, `untrash`, `delete`, `publish`, `stick`, `unstick`, `ancestors`, `uri` and the `PostMeta` calls. WordPress's functions return null (`wp_trash_post`, `wp_untrash_post`, `wp_delete_post`), false (`get_page_uri`) or an empty list (`get_post_ancestors`), do nothing (`wp_publish_post`, `unstick_post`) or add the id to the sticky list (`stick_post`); its meta functions read and write meta rows for the missing id. `find` returns empty. |

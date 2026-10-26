@@ -164,6 +164,35 @@ Deliberate differences are in `wp-scenario-revisions-skip.txt`, labelled with th
 records with the prefix `posts README:`; today the posts README's D5 for a never-updated pending post, four lines, and
 the revisions README's D13, two lines).
 
+### Scheduling scenarios
+
+Scheduling operations act on the main site as the system: `run_publish_check {post}` (WordPress's
+`check_and_publish_future_post`; QuarkPress's `Posts.publishIfDue` as the system identity, the poll's per-post path),
+`run_trash_purge {}` (`wp_scheduled_delete`; the housekeeping's trash purge of the main site), `run_auto_draft_purge {}`
+(`wp_delete_auto_drafts`; the housekeeping's auto-draft purge of the main site) and `force_date {post, gmt}` (`gmt` a
+`Y-m-d H:i:s` text). The publication check answers `ok` whether or not it published (`missing` for a post reference the
+scenario never created; a post deleted meanwhile is `ok` on both sides, as WordPress's handler does nothing for it); the
+two purges answer the survivors, `survivors=p1,p3` or `survivors=(none)`: the inserted posts that `Posts.find` (as the
+system) and `get_post` still answer, in insertion order, so what each purge deleted is compared. `force_date` is a test
+fixture, not WordPress behaviour: a direct row write of the post's GMT date on both sides (the driver writes
+`post_date_gmt` and the converted `post_date`; QuarkPress's side writes the stored GMT instant the local date derives
+from), with no hooks and no modification stamp, since neither side's clock moves and WordPress has no API that stores
+an overdue scheduled post. The post operation `update_post_meta` also takes the key `_wp_trash_meta_time` (a value of
+digits, Unix seconds), so a trashed post can be made overdue for the trash purge; a protected key is written as the
+system identity on QuarkPress's side (the posts README's D15), as the scenario's user on WordPress's. The scenarios live
+in `scenarios/scheduling/` (hand-written, one per behaviour-reference rule, listed in `index.txt`: the publication
+check of a scheduled post, what a cron publication changes, the trash purge and the auto-draft purge) and
+`SchedulingScenarios` (generated with `test-gen` from the fixed seeds `20261025-scheduling-1` and
+`20261025-scheduling-2`, 20 each: an editor and an author, two to four posts or pages, scheduled, published, drafts or
+dated auto-drafts; title updates, forced dates, publication checks, trash, an overdue trash time, untrash, the two
+purges and forced deletions, under a drawn revisions limit of none or zero; every scenario ends with the record of each
+post and the revisions of each surviving one). `SchedulingScenarioParityDbTest` runs all 44 (4 hand-written, 40
+generated); they made 3742 comparisons in the first green run and at least 1850 are required (`MIN_COMPARISONS`).
+Deliberate differences are in `wp-scenario-scheduling-skip.txt`, labelled with the scheduling README's table (the posts'
+records with the prefix `posts README:`, the revision lists with `revisions README:`; today every line is the posts
+README's: D5 for a new draft's or auto-draft's GMT modification date, and D3 for local dates shown in the new zone after
+a scenario resets the site's time zone).
+
 ## Adding scenarios
 
 Add a JSON file and its line in `index.txt`. A difference the comparison reports is a finding: fix QuarkPress, or, for a

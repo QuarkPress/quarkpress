@@ -30,9 +30,10 @@ Project home: <https://quarkpress.org>
 | `extensions/posts/` | `quarkpress-posts`: WordPress posts with their types and statuses, saving rules, trash, sticky posts, meta and queries |
 | `extensions/taxonomy/` | `quarkpress-taxonomy`: categories, tags and custom taxonomies, terms with WordPress's saving rules, assignments, counts, default categories and queries |
 | `extensions/revisions/` | `quarkpress-revisions`: revisions and autosaves of posts with WordPress's change check, limits, restore and capability rules, and a per-site switch |
+| `extensions/scheduling/` | `quarkpress-scheduling`: scheduled publishing of posts by a polling job, the trash and auto-draft purges, and a per-site switch |
 | `testing/wp-oracle/` | Tier A oracle (test only): runs pinned WordPress 7.1.3 PHP code to compare it with QuarkPress libraries, multisite, security, posts, taxonomy and revisions functions |
 | `testing/wp-scenario/` | Tier B oracle (test only): a full WordPress 7.1.3 install in a MySQL container, compared with QuarkPress on JSON scenarios |
-| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI); `integration-tests/posts` is a single site with posts, categories, tags and revisions, tested over HTTP with Keycloak tokens |
+| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI); `integration-tests/posts` is a single site with posts, categories, tags, revisions and scheduling, tested over HTTP with Keycloak tokens, and launched a second time on one database by its multi-node test |
 | `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |
 | `docs/` | Specification and planning documents |
 
