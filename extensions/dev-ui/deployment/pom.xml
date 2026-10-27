@@ -136,6 +136,15 @@
           </execution>
         </executions>
       </plugin>
+      <!-- Each dev-mode test restarts the application, and the code cache does not shrink between restarts:
+           a fresh JVM per test class keeps one class's restarts from filling it for the next. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <reuseForks>false</reuseForks>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
