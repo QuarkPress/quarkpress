@@ -59,4 +59,13 @@ public final class DevViews {
             migrations = List.copyOf(migrations);
         }
     }
+
+    /** What {@code createSite} answers: the new site, or the multisite module's refusal; exactly one is non-null. */
+    public record CreateSiteResult(SiteView site, String error) {}
+
+    /**
+     * What {@code setFeature} answers: the feature's effective value after the write, or the refusal of the feature
+     * toggles; exactly one is non-null.
+     */
+    public record SetFeatureResult(FeatureView feature, String error) {}
 }

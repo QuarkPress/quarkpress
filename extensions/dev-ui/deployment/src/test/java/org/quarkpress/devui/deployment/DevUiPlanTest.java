@@ -31,7 +31,7 @@ class DevUiPlanTest {
                         "qwc-quarkpress-modules.js", "qwc-quarkpress-features.js", "qwc-quarkpress-persistence.js");
         assertThat(plan.providers()).containsExactly(QuarkPressDevJsonRpc.class);
         assertThat(plan.beans()).containsExactly(DevCalls.class.getName(), AnonymousDevIdentity.class.getName());
-        assertThat(plan.methods()).containsExactly("features", "persistence");
+        assertThat(plan.methods()).containsExactly("features", "persistence", "setFeature");
     }
 
     @Test
@@ -39,7 +39,7 @@ class DevUiPlanTest {
         DevUiPlan plan = DevUiPlan.of(Set.of(DevUiPlan.PERSISTENCE, DevUiPlan.MULTISITE, DevUiPlan.SECURITY)::contains);
         assertThat(plan.providers()).containsExactly(QuarkPressDevJsonRpc.class, SitesDevJsonRpc.class);
         assertThat(plan.beans()).containsExactly(DevCalls.class.getName(), SystemDevIdentity.class.getName());
-        assertThat(plan.methods()).containsExactly("features", "persistence", "sites");
+        assertThat(plan.methods()).containsExactly("createSite", "features", "persistence", "setFeature", "sites");
         assertThat(plan.pages())
                 .extracting(DevUiPlan.PagePlan::component)
                 .containsExactly(
@@ -47,6 +47,13 @@ class DevUiPlanTest {
                         "qwc-quarkpress-sites.js",
                         "qwc-quarkpress-features.js",
                         "qwc-quarkpress-persistence.js");
+    }
+
+    @Test
+    void theWritesBelongToTheProvidersOfTheirModules() {
+        assertThat(DevUiPlan.of(DevUiPlan.PERSISTENCE::equals).methods())
+                .containsExactly("features", "persistence", "setFeature");
+        assertThat(DevUiPlan.methodsOf(List.of(SitesDevJsonRpc.class))).containsExactly("createSite", "sites");
     }
 
     @Test
