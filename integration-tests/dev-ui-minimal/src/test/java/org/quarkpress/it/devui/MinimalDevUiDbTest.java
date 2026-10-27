@@ -4,7 +4,7 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.quarkpress.it.devui.DevUiClient.texts;
+import static org.quarkpress.devui.deployment.DevUiClient.texts;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.QuarkusDevModeTest;
@@ -14,6 +14,8 @@ import org.jboss.shrinkwrap.api.asset.StringAsset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.quarkpress.devui.deployment.DevUiClient;
+import org.quarkpress.devui.deployment.TestDb;
 
 /**
  * The Dev UI of an application with only the core, persistence and dev-ui modules: the card lists those three

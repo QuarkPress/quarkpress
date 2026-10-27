@@ -113,4 +113,29 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Shares the Dev UI test client and the test database choice with the dev-ui integration test modules,
+           which therefore need this module built in the same reactor (or installed) and test jars not skipped. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test-helpers</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <includes>
+                <include>org/quarkpress/devui/deployment/DevUiClient*.class</include>
+                <include>org/quarkpress/devui/deployment/TestDb.class</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

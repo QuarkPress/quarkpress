@@ -3,7 +3,7 @@ package org.quarkpress.devui.deployment;
 /**
  * The database the container-backed tests use: {@code -DtestDb=postgresql} (default) or {@code mysql}, passed by Maven
  * as the environment variable {@code QUARKPRESS_TEST_DB}. Copied from the scheduling deployment test helper of that
- * name.
+ * name; the dev-ui integration test modules use it through this module's test jar.
  */
 public final class TestDb {
 

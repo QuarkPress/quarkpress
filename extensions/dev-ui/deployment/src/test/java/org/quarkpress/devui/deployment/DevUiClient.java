@@ -27,14 +27,16 @@ import org.eclipse.microprofile.config.ConfigProvider;
  * <p>JSON-RPC calls go through a small client of our own over the Dev UI websocket, the endpoint Quarkus's
  * {@code DevUIJsonRPCTest} uses: that helper cannot report an error answer (it waits for a result until it gives up),
  * so a refused call could not be told from one that never answered. Here a call that answers an error returns it, and
- * a call that does not answer within {@link #TIMEOUT} fails the test.
+ * a call that does not answer within ten seconds fails the test.
+ *
+ * <p>The dev-ui integration test modules use it too, through this module's test jar.
  */
 public final class DevUiClient {
 
-    static final String NAMESPACE = "quarkpress-dev-ui";
+    public static final String NAMESPACE = "quarkpress-dev-ui";
 
     /** The longest a JSON-RPC call may take to answer. */
-    static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     /** Where Quarkus registers the running application's base URI, as Dev UI's test helpers read it. */
     private static final ValueRegistry.RuntimeKey<URI> LOCAL_BASE_URI =
@@ -48,15 +50,15 @@ public final class DevUiClient {
     private URI jsonRpc;
 
     /** The error a JSON-RPC call answered: its code and message, as Dev UI wrote them. */
-    record RpcError(int code, String message) {}
+    public record RpcError(int code, String message) {}
 
     /**
      * What a JSON-RPC call answered: either its result ({@code error} is {@code null}) or its error ({@code result} is
      * {@code null}). An answer with neither fails the test.
      */
-    record RpcResponse(JsonNode result, RpcError error) {}
+    public record RpcResponse(JsonNode result, RpcError error) {}
 
-    void connect(ValueRegistry registry) {
+    public void connect(ValueRegistry registry) {
         URI base = registry.get(LOCAL_BASE_URI);
         String root = ConfigProvider.getConfig()
                 .getOptionalValue("quarkus.management.root-path", String.class)
@@ -75,12 +77,12 @@ public final class DevUiClient {
     }
 
     /** The result of {@code method}; the test fails if it answers an error. */
-    JsonNode call(String method) throws Exception {
+    public JsonNode call(String method) throws Exception {
         return call(method, Map.of());
     }
 
     /** The result of {@code method} called with {@code params}; the test fails if it answers an error. */
-    JsonNode call(String method, Map<String, Object> params) throws Exception {
+    public JsonNode call(String method, Map<String, Object> params) throws Exception {
         RpcResponse response = rpc(method, params);
         if (response.error() != null) {
             throw new AssertionError("Dev UI call " + method + params + " answered " + response.error());
@@ -90,9 +92,9 @@ public final class DevUiClient {
 
     /**
      * What {@code method} called with {@code params} answered, result or error. The test fails if no answer comes
-     * within {@link #TIMEOUT}.
+     * within ten seconds.
      */
-    RpcResponse rpc(String method, Map<String, Object> params) throws Exception {
+    public RpcResponse rpc(String method, Map<String, Object> params) throws Exception {
         if (jsonRpc == null) {
             throw new IllegalStateException("connect was not called, or the application serves no HTTP");
         }
@@ -187,17 +189,18 @@ public final class DevUiClient {
         }
     }
 
-    JsonNode data(String key) throws Exception {
+    /** The build-time data of the extension stored under {@code key}. */
+    public JsonNode data(String key) throws Exception {
         return buildTimeData.getBuildTimeData(key);
     }
 
     /** Dev UI's own description of the installed extensions, with their cards and pages. */
-    JsonNode extensions() throws Exception {
+    public JsonNode extensions() throws Exception {
         return devUiData.getBuildTimeData("extensions");
     }
 
     /** The page whose component link ends in {@code component}, searched anywhere in {@code node}. */
-    static JsonNode page(JsonNode node, String component) {
+    public static JsonNode page(JsonNode node, String component) {
         JsonNode page = findPage(node, component);
         if (page == null) {
             throw new AssertionError("no page of component " + component + " in " + node);
@@ -220,7 +223,7 @@ public final class DevUiClient {
     }
 
     /** The text of {@code field} in each element of {@code array}, in order. */
-    static List<String> texts(JsonNode array, String field) {
+    public static List<String> texts(JsonNode array, String field) {
         List<String> texts = new ArrayList<>();
         for (JsonNode element : array) {
             texts.add(element.get(field).asText());
@@ -229,7 +232,7 @@ public final class DevUiClient {
     }
 
     /** The text of each element of {@code array}, in order. */
-    static List<String> texts(JsonNode array) {
+    public static List<String> texts(JsonNode array) {
         List<String> texts = new ArrayList<>();
         for (JsonNode element : array) {
             texts.add(element.asText());
@@ -238,7 +241,7 @@ public final class DevUiClient {
     }
 
     /** The first element of {@code array} whose {@code field} has the text {@code value}. */
-    static JsonNode find(JsonNode array, String field, String value) {
+    public static JsonNode find(JsonNode array, String field, String value) {
         for (JsonNode element : array) {
             JsonNode node = element.get(field);
             if (node != null && node.asText().equals(value)) {

@@ -123,12 +123,14 @@ class CallsDbTest {
     @Test
     @Order(8)
     void setFeatureOnAnUnknownSiteWritesNothing() throws Exception {
-        int sites = devUi.call("sites").size();
         assertThat(devUi.rpc("setFeature", Map.of("siteId", 99, "key", "revisions", "enabled", false))
                         .error())
                 .isEqualTo(
                         new DevUiClient.RpcError(-32603, "Method [quarkpress-dev-ui_setFeature] failed: no site 99"));
-        assertThat(devUi.call("sites")).hasSize(sites);
+        JsonNode features = devUi.call("features", Map.of("siteId", 1));
+        assertThat(texts(features, "key")).containsExactly("revisions", "scheduling");
+        assertThat(texts(features, "source")).containsExactly("module", "module");
+        assertThat(texts(features, "enabled")).containsExactly("true", "true");
     }
 
     /**
@@ -154,6 +156,15 @@ class CallsDbTest {
 
     @Test
     @Order(10)
+    void anEmptyDomainIsRefusedWithTheServicesMessage() throws Exception {
+        JsonNode result = devUi.call("createSite", Map.of("domain", "", "path", "/", "title", "Empty"));
+        assertThat(result.has("site")).isFalse();
+        assertThat(result.get("error").asText()).isEqualTo("a site domain must not be empty");
+        assertThat(texts(devUi.call("sites"), "id")).containsExactly("1");
+    }
+
+    @Test
+    @Order(11)
     void aSiteAtAnExistingAddressInAnotherCaseIsRefusedWithTheServicesMessage() throws Exception {
         devUi.call("createSite", Map.of("domain", "three.example.test", "path", "/", "title", "Three"));
         int before = devUi.call("sites").size();

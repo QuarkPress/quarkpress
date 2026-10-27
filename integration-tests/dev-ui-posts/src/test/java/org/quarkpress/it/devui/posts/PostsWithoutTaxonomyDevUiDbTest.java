@@ -1,8 +1,8 @@
 package org.quarkpress.it.devui.posts;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.quarkpress.it.devui.posts.DevUiClient.find;
-import static org.quarkpress.it.devui.posts.DevUiClient.texts;
+import static org.quarkpress.devui.deployment.DevUiClient.find;
+import static org.quarkpress.devui.deployment.DevUiClient.texts;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.QuarkusDevModeTest;
@@ -12,6 +12,8 @@ import org.jboss.shrinkwrap.api.asset.StringAsset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.quarkpress.devui.deployment.DevUiClient;
+import org.quarkpress.devui.deployment.TestDb;
 
 /**
  * The Dev UI of an application with the posts module but without the taxonomy, revisions and scheduling modules: the
@@ -74,7 +76,21 @@ class PostsWithoutTaxonomyDevUiDbTest {
         JsonNode registries = devUi.call("registries", Map.of("siteId", 1));
         assertThat(texts(registries.get("postTypes"), "key"))
                 .containsExactlyInAnyOrder("post", "page", "attachment", "wp_block");
-        assertThat(texts(registries.get("statuses"), "name")).contains("publish", "future", "draft", "inherit");
+        // every registered status, internal ones included, in registration order
+        assertThat(texts(registries.get("statuses"), "name"))
+                .containsExactly(
+                        "publish",
+                        "future",
+                        "draft",
+                        "pending",
+                        "private",
+                        "trash",
+                        "auto-draft",
+                        "inherit",
+                        "request-pending",
+                        "request-confirmed",
+                        "request-failed",
+                        "request-completed");
         assertThat(texts(registries.get("roles"), "key"))
                 .containsExactly("administrator", "editor", "author", "contributor", "subscriber");
         assertThat(find(registries.get("roles"), "key", "subscriber")

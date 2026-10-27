@@ -57,6 +57,13 @@
     </dependency>
     <dependency>
       <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-dev-ui-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
