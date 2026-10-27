@@ -32,6 +32,8 @@
     <module>multisite</module>
     <module>security</module>
     <module>posts</module>
+    <module>dev-ui-minimal</module>
+    <module>dev-ui-posts</module>
     <module>host-coexistence</module>
   </modules>
 
