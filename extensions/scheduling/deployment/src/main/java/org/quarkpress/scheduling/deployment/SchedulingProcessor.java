@@ -5,11 +5,13 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
+import org.quarkpress.scheduling.ScheduledPosts;
 import org.quarkpress.scheduling.SchedulingFeature;
 import org.quarkpress.scheduling.SchedulingStatus;
 import org.quarkpress.scheduling.runtime.DuePosts;
 import org.quarkpress.scheduling.runtime.Housekeeping;
 import org.quarkpress.scheduling.runtime.PublishPoll;
+import org.quarkpress.scheduling.runtime.ScheduledPostsBean;
 import org.quarkpress.scheduling.runtime.SchedulingConfig;
 import org.quarkpress.scheduling.runtime.SchedulingDisabled;
 import org.quarkpress.scheduling.runtime.SchedulingStatusBean;
@@ -34,7 +36,9 @@ class SchedulingProcessor {
                 PublishPoll.class,
                 Housekeeping.class,
                 DuePosts.class,
-                SchedulingDisabled.class);
+                SchedulingDisabled.class,
+                ScheduledPosts.class,
+                ScheduledPostsBean.class);
     }
 
     @BuildStep

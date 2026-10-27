@@ -11,10 +11,12 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostRepository;
+import org.quarkpress.scheduling.ScheduledPosts;
 
 /**
  * The reads of the scheduling jobs: which sites have due posts, which posts of a site are due, which sites exist,
- * and the pages of a site's trashed posts and stale auto-drafts the housekeeping purges.
+ * the pages of a site's trashed posts and stale auto-drafts the housekeeping purges, and the next scheduled posts of
+ * every site.
  */
 @ApplicationScoped
 public class DuePosts {
@@ -52,6 +54,25 @@ public class DuePosts {
                 .setMaxResults(limit)
                 .getResultStream()
                 .map(PostId::of)
+                .toList();
+    }
+
+    /**
+     * At most {@code limit} scheduled posts with a GMT date, of every site, soonest first, then by site id, then by
+     * post id; due or not. Run it inside the network scope, where the site filter sees every site: it names no site
+     * on purpose.
+     */
+    public List<ScheduledPosts.Upcoming> nextScheduled(int limit) {
+        return posts.getEntityManager()
+                .createQuery(
+                        "select p.siteId, p.id, p.type, p.title, p.publishedAt from PostEntity p where p.status ="
+                                + " 'future' and p.publishedAt is not null order by p.publishedAt, p.siteId, p.id",
+                        Object[].class)
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(row -> new ScheduledPosts.Upcoming(
+                        SiteId.of((Long) row[0]), PostId.of((Long) row[1]), (String) row[2], (String) row[3], (Instant)
+                                row[4]))
                 .toList();
     }
 

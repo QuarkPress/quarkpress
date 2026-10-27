@@ -21,8 +21,10 @@ import org.quarkpress.devui.runtime.DevCalls;
 import org.quarkpress.devui.runtime.DevIdentity;
 import org.quarkpress.devui.runtime.QuarkPressDevJsonRpc;
 import org.quarkpress.devui.runtime.RevisionReads;
+import org.quarkpress.devui.runtime.SchedulerDevJsonRpc;
 import org.quarkpress.devui.runtime.SitesDevJsonRpc;
 import org.quarkpress.devui.runtime.TaxonomyReads;
+import org.quarkpress.devui.runtime.UsersDevJsonRpc;
 
 /**
  * A build that is not local development (here: test mode) gets nothing from the dev-ui extension: no feature, no card,
@@ -39,7 +41,9 @@ class DevOnlyDbTest {
             SitesDevJsonRpc.class,
             ContentDevJsonRpc.class,
             TaxonomyReads.class,
-            RevisionReads.class);
+            RevisionReads.class,
+            SchedulerDevJsonRpc.class,
+            UsersDevJsonRpc.class);
 
     @RegisterExtension
     static final QuarkusExtensionTest app =

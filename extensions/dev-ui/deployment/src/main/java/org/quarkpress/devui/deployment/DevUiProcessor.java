@@ -15,6 +15,8 @@ import io.quarkus.devui.spi.page.WebComponentPageBuilder;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import java.util.ArrayList;
 import java.util.List;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
@@ -62,6 +64,17 @@ class DevUiProcessor {
         card.addBuildTimeData("modules", modules);
         card.addBuildTimeData("pages", components);
         card.addBuildTimeData("methods", plan.methods());
+        Config config = ConfigProvider.getConfig();
+        String rootPath =
+                config.getOptionalValue("quarkus.http.root-path", String.class).orElse("/");
+        String nonApplicationRootPath = config.getOptionalValue("quarkus.http.non-application-root-path", String.class)
+                .orElse("q");
+        DevUiPlan.tokenPage(
+                        capabilities.isPresent(DevUiPlan.OIDC),
+                        config.getOptionalValue("quarkus.keycloak.devservices.enabled", Boolean.class)
+                                .orElse(true),
+                        path -> DevUiPlan.nonApplicationPath(rootPath, nonApplicationRootPath, path))
+                .ifPresent(page -> card.addBuildTimeData("tokenPage", page));
         for (DevUiPlan.PagePlan page : plan.pages()) {
             WebComponentPageBuilder builder = Page.webComponentPageBuilder()
                     .title(page.title())

@@ -111,4 +111,61 @@ public final class DevViews {
      * module). The maps are ordered by key.
      */
     public record Counts(Map<String, Map<String, Long>> posts, Map<String, Long> terms, Long revisions) {}
+
+    /** A scheduled post of the scheduler page; {@code publishAt} is an ISO-8601 instant. */
+    public record UpcomingView(long site, long post, String type, String title, String publishAt) {}
+
+    /** A post the polling job published. */
+    public record PublishedView(long site, long post) {}
+
+    /**
+     * A failure of a scheduling job: the site and post it concerned (null when none), its message and when it happened
+     * (an ISO-8601 instant).
+     */
+    public record FailureView(Long site, Long post, String message, String at) {}
+
+    /**
+     * The scheduler page: the next scheduled posts of every site, soonest first, and this node's scheduling status
+     * since it started. The instants are ISO-8601; each is null, as {@code lastFailure} is, until it happened.
+     */
+    public record SchedulerView(
+            List<UpcomingView> upcoming,
+            String lastPollStarted,
+            String lastPollEnded,
+            List<PublishedView> lastBatch,
+            long publishedSinceStart,
+            FailureView lastFailure,
+            String lastHousekeeping) {
+
+        public SchedulerView {
+            upcoming = List.copyOf(upcoming);
+            lastBatch = List.copyOf(lastBatch);
+        }
+    }
+
+    /** A user's roles on one site, in order. */
+    public record SiteRolesView(long site, List<String> roles) {
+
+        public SiteRolesView {
+            roles = List.copyOf(roles);
+        }
+    }
+
+    /**
+     * A user of the dev realm: its user name, its subject (the realm's user id), its realm roles, whether QuarkPress
+     * has a profile for it, whether that profile is a network administrator, and its roles per site, by site id.
+     */
+    public record DevUserView(
+            String username,
+            String subject,
+            List<String> realmRoles,
+            boolean hasProfile,
+            boolean networkAdmin,
+            List<SiteRolesView> siteRoles) {
+
+        public DevUserView {
+            realmRoles = List.copyOf(realmRoles);
+            siteRoles = List.copyOf(siteRoles);
+        }
+    }
 }

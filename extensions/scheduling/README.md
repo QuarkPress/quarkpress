@@ -126,7 +126,15 @@ the feature.
 `lastPollEnded`, `lastBatch` (the last poll's published posts, as `Published(site, post)`, in order),
 `publishedSinceStart`, `lastFailure` (a `Failure` with the site and post it concerned when it concerned one, its
 message and when it happened) and `lastHousekeeping`. It is per node and in memory: nothing is persisted or shared
-between nodes, and a restart starts from nothing. A list of the next due posts comes with the Dev UI.
+between nodes, and a restart starts from nothing.
+
+`ScheduledPosts.next(limit)` lists the scheduled posts of every site, soonest first (then by site id, then by post
+id), at most `limit` of them (1 to 100, else `IllegalArgumentException`), as `Upcoming(site, post, type, title,
+publishAt)`. Overdue posts are included: their site has scheduling off, or the poll has not reached them yet. The
+caller must hold the network capability `manage_sites` (network administrators and the system identity do), checked on
+the caller's thread before anything else; anyone else gets `CapabilityDeniedException`. The read then runs in the
+network scope as the system identity, on a thread of its own, and is refused inside a transaction as the jobs are. The
+Dev UI's scheduler page shows it with the status above.
 
 ## Transactions and locks
 

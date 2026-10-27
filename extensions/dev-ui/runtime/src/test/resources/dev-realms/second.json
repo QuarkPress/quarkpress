@@ -1,0 +1,4 @@
+{"realm": "second", "users": [
+  {"id": "s-2", "username": "zoe-again", "realmRoles": ["b"]},
+  {"id": "s-3", "username": "ann"}
+]}

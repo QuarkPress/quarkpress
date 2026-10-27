@@ -4,15 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.devui.runtime.AnonymousDevIdentity;
 import org.quarkpress.devui.runtime.ContentDevJsonRpc;
 import org.quarkpress.devui.runtime.DevCalls;
 import org.quarkpress.devui.runtime.QuarkPressDevJsonRpc;
 import org.quarkpress.devui.runtime.RevisionReadsBean;
+import org.quarkpress.devui.runtime.SchedulerDevJsonRpc;
 import org.quarkpress.devui.runtime.SitesDevJsonRpc;
 import org.quarkpress.devui.runtime.SystemDevIdentity;
 import org.quarkpress.devui.runtime.TaxonomyReadsBean;
+import org.quarkpress.devui.runtime.UsersDevJsonRpc;
 
 class DevUiPlanTest {
 
@@ -40,16 +43,19 @@ class DevUiPlanTest {
     @Test
     void multisiteAndSecurityAddTheSitesReadRunAsTheSystem() {
         DevUiPlan plan = DevUiPlan.of(Set.of(DevUiPlan.PERSISTENCE, DevUiPlan.MULTISITE, DevUiPlan.SECURITY)::contains);
-        assertThat(plan.providers()).containsExactly(QuarkPressDevJsonRpc.class, SitesDevJsonRpc.class);
+        assertThat(plan.providers())
+                .containsExactly(QuarkPressDevJsonRpc.class, SitesDevJsonRpc.class, UsersDevJsonRpc.class);
         assertThat(plan.beans()).containsExactly(DevCalls.class.getName(), SystemDevIdentity.class.getName());
-        assertThat(plan.methods()).containsExactly("createSite", "features", "persistence", "setFeature", "sites");
+        assertThat(plan.methods())
+                .containsExactly("createSite", "devUsers", "features", "persistence", "setFeature", "sites");
         assertThat(plan.pages())
                 .extracting(DevUiPlan.PagePlan::component)
                 .containsExactly(
                         "qwc-quarkpress-modules.js",
                         "qwc-quarkpress-sites.js",
                         "qwc-quarkpress-features.js",
-                        "qwc-quarkpress-persistence.js");
+                        "qwc-quarkpress-persistence.js",
+                        "qwc-quarkpress-users.js");
     }
 
     @Test
@@ -114,5 +120,31 @@ class DevUiPlanTest {
     @Test
     void theMethodsAreThePublicOnesStaticIncludedEachNameOnceSorted() {
         assertThat(DevUiPlan.methodsOf(List.of(SampleProvider.class))).containsExactly("count", "read");
+    }
+
+    @Test
+    void theTokenPageNeedsOidcAndKeycloakDevServices() {
+        UnaryOperator<String> resolve = path -> "/q/" + path;
+        assertThat(DevUiPlan.tokenPage(true, true, resolve)).contains("/q/dev-ui/quarkus-oidc/keycloak-provider");
+        assertThat(DevUiPlan.tokenPage(true, false, resolve)).isEmpty();
+        assertThat(DevUiPlan.tokenPage(false, true, resolve)).isEmpty();
+    }
+
+    @Test
+    void schedulingAndSecurityPlanTheSchedulerAndDevUsers() {
+        DevUiPlan plan =
+                DevUiPlan.of(Set.of(DevUiPlan.PERSISTENCE, DevUiPlan.SECURITY, DevUiPlan.SCHEDULING)::contains);
+        assertThat(plan.providers()).contains(SchedulerDevJsonRpc.class, UsersDevJsonRpc.class);
+        assertThat(plan.methods()).contains("scheduler", "devUsers");
+    }
+
+    @Test
+    void theNonApplicationPathFollowsQuarkusRules() {
+        assertThat(DevUiPlan.nonApplicationPath("/", "q", "dev-ui/x")).isEqualTo("/q/dev-ui/x");
+        assertThat(DevUiPlan.nonApplicationPath("/app", "q", "dev-ui/x")).isEqualTo("/app/q/dev-ui/x");
+        assertThat(DevUiPlan.nonApplicationPath("/app/", "q/", "dev-ui/x")).isEqualTo("/app/q/dev-ui/x");
+        assertThat(DevUiPlan.nonApplicationPath("/app", "/internal", "dev-ui/x"))
+                .isEqualTo("/internal/dev-ui/x");
+        assertThat(DevUiPlan.nonApplicationPath("/app", "/", "dev-ui/x")).isEqualTo("/dev-ui/x");
     }
 }
