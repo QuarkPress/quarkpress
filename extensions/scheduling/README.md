@@ -20,9 +20,10 @@ The extension brings `quarkpress-posts` (and through it persistence, security, l
 
 ## Using it
 
-There is nothing to call: the jobs run by themselves once the extension is on the classpath. Inject `SchedulingStatus`
-to read what this node's jobs did (see Status). The handler the poll calls for each due post is the posts module's
-`Posts.publishIfDue`, which any caller with `publish_post` may call too.
+There is nothing to call for the jobs themselves: they run by themselves once the extension is on the classpath.
+Inject `SchedulingStatus` to read what this node's jobs did (see Status), and `ScheduledPosts` to list the next
+scheduled posts across sites (`next(limit)`, see Status). The handler the poll calls for each due post is the posts
+module's `Posts.publishIfDue`, which any caller with `publish_post` may call too.
 
 ```java
 SchedulingStatus.Snapshot snapshot = status.snapshot();
