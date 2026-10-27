@@ -19,18 +19,41 @@ import java.util.TreeSet;
  *
  * <p>A key is the full dotted name in kebab case. A key ending in {@code []} is a list: the name itself and
  * {@code name[0]}, {@code name[1]}, and so on are accepted. Nothing else is: {@code name.x} is not.
+ *
+ * <p>Each declaration names the module that reads the keys (as in {@link MigrationLocationBuildItem}) and the prefix
+ * they live under ({@code quarkpress} itself or a name under it), so tools can show which module owns which keys.
  */
 public final class QuarkPressConfigKeysBuildItem extends MultiBuildItem {
 
+    private final String module;
+    private final String prefix;
     private final Set<String> keys;
 
-    public QuarkPressConfigKeysBuildItem(Set<String> keys) {
+    public QuarkPressConfigKeysBuildItem(String module, String prefix, Set<String> keys) {
+        if (module == null || module.isBlank()) {
+            throw new IllegalArgumentException("a configuration declaration names its module");
+        }
+        if (prefix == null || !(prefix.equals("quarkpress") || prefix.startsWith("quarkpress."))) {
+            throw new IllegalArgumentException("not a quarkpress prefix: " + prefix);
+        }
+        this.module = module;
+        this.prefix = prefix;
         this.keys = Set.copyOf(Objects.requireNonNull(keys, "keys"));
         for (String key : this.keys) {
             if (!key.startsWith("quarkpress.")) {
                 throw new IllegalArgumentException("not a quarkpress.* key: " + key);
             }
         }
+    }
+
+    /** The module that reads the keys, as named in its other build items ({@code persistence}, {@code posts}). */
+    public String module() {
+        return module;
+    }
+
+    /** The prefix the keys live under: {@code quarkpress} or a name under it. */
+    public String prefix() {
+        return prefix;
     }
 
     public Set<String> keys() {
@@ -40,12 +63,12 @@ public final class QuarkPressConfigKeysBuildItem extends MultiBuildItem {
     /**
      * The keys of a configuration mapping interface: every method, in kebab case under {@code prefix}, nested mapping
      * interfaces followed, collections as lists. {@code @WithName} is honored; maps and {@code @WithParentName} are
-     * not supported (the build fails; declare those keys by hand).
+     * not supported (the build fails; declare those keys by hand). {@code module} names the module that reads them.
      */
-    public static QuarkPressConfigKeysBuildItem of(String prefix, Class<?> mapping) {
+    public static QuarkPressConfigKeysBuildItem of(String module, String prefix, Class<?> mapping) {
         Set<String> keys = new TreeSet<>();
         collect(prefix, mapping, keys);
-        return new QuarkPressConfigKeysBuildItem(keys);
+        return new QuarkPressConfigKeysBuildItem(module, prefix, keys);
     }
 
     private static void collect(String prefix, Class<?> mapping, Set<String> keys) {

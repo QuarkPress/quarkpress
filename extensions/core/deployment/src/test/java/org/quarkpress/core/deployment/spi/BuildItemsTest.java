@@ -3,6 +3,7 @@ package org.quarkpress.core.deployment.spi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -36,5 +37,30 @@ class BuildItemsTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("module");
         assertThat(new SiteFeatureBuildItem("k", "m", true, "d").key()).isEqualTo("k");
+    }
+
+    interface SampleConfig {
+        String someKey();
+    }
+
+    @Test
+    void configKeysNameTheirModuleAndPrefix() {
+        QuarkPressConfigKeysBuildItem item =
+                QuarkPressConfigKeysBuildItem.of("sample", "quarkpress.sample", SampleConfig.class);
+        assertThat(item.module()).isEqualTo("sample");
+        assertThat(item.prefix()).isEqualTo("quarkpress.sample");
+        assertThat(item.keys()).containsExactly("quarkpress.sample.some-key");
+    }
+
+    @Test
+    void configKeysNeedAModuleAndAQuarkPressPrefix() {
+        assertThatThrownBy(() -> new QuarkPressConfigKeysBuildItem(" ", "quarkpress.x", Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("a configuration declaration names its module");
+        assertThatThrownBy(() -> new QuarkPressConfigKeysBuildItem("x", "quarkpressx", Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("not a quarkpress prefix: quarkpressx");
+        assertThat(new QuarkPressConfigKeysBuildItem("persistence", "quarkpress", Set.of()).prefix())
+                .isEqualTo("quarkpress");
     }
 }

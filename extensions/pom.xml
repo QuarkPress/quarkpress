@@ -30,6 +30,7 @@
     <module>taxonomy</module>
     <module>revisions</module>
     <module>scheduling</module>
+    <module>dev-ui</module>
   </modules>
 
   <dependencyManagement>

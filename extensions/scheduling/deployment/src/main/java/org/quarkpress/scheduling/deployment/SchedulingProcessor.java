@@ -49,6 +49,6 @@ class SchedulingProcessor {
 
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
-        return QuarkPressConfigKeysBuildItem.of("quarkpress.scheduling", SchedulingConfig.class);
+        return QuarkPressConfigKeysBuildItem.of("scheduling", "quarkpress.scheduling", SchedulingConfig.class);
     }
 }

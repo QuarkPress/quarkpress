@@ -1,0 +1,11 @@
+---
+name: "QuarkPress Dev UI"
+description: "Quarkus Dev UI pages for QuarkPress in dev mode: installed modules, sites, feature toggles, registries, content counts, scheduler, persistence and dev users"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "dev-ui"
+  categories:
+    - "data"
+  status: "experimental"

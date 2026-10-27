@@ -61,8 +61,8 @@ class SecurityProcessor {
     @BuildStep
     List<QuarkPressConfigKeysBuildItem> configKeys() {
         return List.of(
-                QuarkPressConfigKeysBuildItem.of("quarkpress.security", SecurityConfig.class),
-                QuarkPressConfigKeysBuildItem.of("quarkpress.dev", DevConfig.class));
+                QuarkPressConfigKeysBuildItem.of("security", "quarkpress.security", SecurityConfig.class),
+                QuarkPressConfigKeysBuildItem.of("security", "quarkpress.dev", DevConfig.class));
     }
 
     @BuildStep

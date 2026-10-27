@@ -67,8 +67,8 @@ class PersistenceProcessor {
     @BuildStep
     List<QuarkPressConfigKeysBuildItem> configKeys() {
         return List.of(
-                QuarkPressConfigKeysBuildItem.of("quarkpress", QuarkPressBuildTimeConfig.class),
-                QuarkPressConfigKeysBuildItem.of("quarkpress", QuarkPressRuntimeConfig.class));
+                QuarkPressConfigKeysBuildItem.of("persistence", "quarkpress", QuarkPressBuildTimeConfig.class),
+                QuarkPressConfigKeysBuildItem.of("persistence", "quarkpress", QuarkPressRuntimeConfig.class));
     }
 
     @BuildStep

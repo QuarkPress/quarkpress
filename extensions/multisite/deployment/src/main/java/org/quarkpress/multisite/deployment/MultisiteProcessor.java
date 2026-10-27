@@ -29,7 +29,7 @@ class MultisiteProcessor {
 
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
-        return QuarkPressConfigKeysBuildItem.of("quarkpress.multisite", MultisiteConfig.class);
+        return QuarkPressConfigKeysBuildItem.of("multisite", "quarkpress.multisite", MultisiteConfig.class);
     }
 
     @BuildStep

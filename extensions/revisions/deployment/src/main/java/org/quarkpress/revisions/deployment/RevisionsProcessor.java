@@ -64,6 +64,6 @@ class RevisionsProcessor {
 
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
-        return QuarkPressConfigKeysBuildItem.of("quarkpress.revisions", RevisionsConfig.class);
+        return QuarkPressConfigKeysBuildItem.of("revisions", "quarkpress.revisions", RevisionsConfig.class);
     }
 }

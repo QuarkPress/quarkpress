@@ -61,7 +61,7 @@ class PostsProcessor {
 
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
-        return QuarkPressConfigKeysBuildItem.of("quarkpress.posts", PostsConfig.class);
+        return QuarkPressConfigKeysBuildItem.of("posts", "quarkpress.posts", PostsConfig.class);
     }
 
     @BuildStep
