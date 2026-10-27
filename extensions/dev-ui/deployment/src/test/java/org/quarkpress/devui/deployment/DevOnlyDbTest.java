@@ -16,6 +16,10 @@ import java.util.List;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.quarkpress.devui.runtime.DevCalls;
+import org.quarkpress.devui.runtime.DevIdentity;
+import org.quarkpress.devui.runtime.QuarkPressDevJsonRpc;
+import org.quarkpress.devui.runtime.SitesDevJsonRpc;
 
 /**
  * A build that is not local development (here: test mode) gets nothing from the dev-ui extension: no feature, no card,
@@ -25,7 +29,8 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class DevOnlyDbTest {
 
     // Each later task that adds a JSON-RPC provider or bean adds its runtime class here.
-    static final List<Class<?>> DEV_ONLY_BEANS = List.of();
+    static final List<Class<?>> DEV_ONLY_BEANS =
+            List.of(DevCalls.class, DevIdentity.class, QuarkPressDevJsonRpc.class, SitesDevJsonRpc.class);
 
     @RegisterExtension
     static final QuarkusExtensionTest app =

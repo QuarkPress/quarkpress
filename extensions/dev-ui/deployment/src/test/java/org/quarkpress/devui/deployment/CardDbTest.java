@@ -67,8 +67,13 @@ class CardDbTest {
 
     @Test
     void theCardPublishesItsPagesAndMethodsAndCountsTheModules() throws Exception {
-        assertThat(texts(devUi.data("pages"))).containsExactly("qwc-quarkpress-modules.js");
-        assertThat(devUi.data("methods")).isEmpty();
+        assertThat(texts(devUi.data("pages")))
+                .containsExactly(
+                        "qwc-quarkpress-modules.js",
+                        "qwc-quarkpress-sites.js",
+                        "qwc-quarkpress-features.js",
+                        "qwc-quarkpress-persistence.js");
+        assertThat(texts(devUi.data("methods"))).containsExactly("features", "persistence", "sites");
         JsonNode page = DevUiClient.page(devUi.extensions(), "qwc-quarkpress-modules.js");
         // Dev UI stores the label with a leading space
         assertThat(page.get("staticLabel").asText().strip()).isEqualTo("9");

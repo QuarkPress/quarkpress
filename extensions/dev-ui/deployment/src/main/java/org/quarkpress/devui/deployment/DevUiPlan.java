@@ -6,6 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import org.quarkpress.devui.runtime.AnonymousDevIdentity;
+import org.quarkpress.devui.runtime.DevCalls;
+import org.quarkpress.devui.runtime.QuarkPressDevJsonRpc;
+import org.quarkpress.devui.runtime.SitesDevJsonRpc;
+import org.quarkpress.devui.runtime.SystemDevIdentity;
 
 /**
  * What the Dev UI of an application shows, decided from the capabilities present: the pages, the JSON-RPC provider
@@ -42,7 +47,25 @@ record DevUiPlan(List<PagePlan> pages, List<Class<?>> providers, List<String> be
         List<PagePlan> pages = new ArrayList<>();
         List<Class<?>> providers = new ArrayList<>();
         List<String> beans = new ArrayList<>();
+        boolean persistence = capabilityPresent.test(PERSISTENCE);
+        boolean multisite = persistence && capabilityPresent.test(MULTISITE);
         pages.add(new PagePlan("Modules", "font-awesome-solid:puzzle-piece", MODULES_COMPONENT));
+        if (multisite) {
+            pages.add(new PagePlan("Sites", "font-awesome-solid:sitemap", "qwc-quarkpress-sites.js"));
+        }
+        if (persistence) {
+            pages.add(new PagePlan("Features", "font-awesome-solid:toggle-on", "qwc-quarkpress-features.js"));
+            pages.add(new PagePlan("Persistence", "font-awesome-solid:database", "qwc-quarkpress-persistence.js"));
+            providers.add(QuarkPressDevJsonRpc.class);
+            beans.add(DevCalls.class.getName());
+            beans.add(
+                    capabilityPresent.test(SECURITY)
+                            ? SystemDevIdentity.class.getName()
+                            : AnonymousDevIdentity.class.getName());
+        }
+        if (multisite) {
+            providers.add(SitesDevJsonRpc.class);
+        }
         return new DevUiPlan(pages, providers, beans, methodsOf(providers));
     }
 
