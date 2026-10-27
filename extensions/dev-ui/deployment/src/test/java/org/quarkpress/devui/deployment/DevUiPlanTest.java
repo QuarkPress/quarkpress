@@ -147,4 +147,31 @@ class DevUiPlanTest {
                 .isEqualTo("/internal/dev-ui/x");
         assertThat(DevUiPlan.nonApplicationPath("/app", "/", "dev-ui/x")).isEqualTo("/dev-ui/x");
     }
+
+    @Test
+    void everyModulePresentPlansEveryPageProviderAndMethod() {
+        DevUiPlan plan = DevUiPlan.of(capability -> true);
+        assertThat(plan.pages())
+                .extracting(DevUiPlan.PagePlan::component)
+                .containsExactly(
+                        "qwc-quarkpress-modules.js",
+                        "qwc-quarkpress-sites.js",
+                        "qwc-quarkpress-features.js",
+                        "qwc-quarkpress-persistence.js",
+                        "qwc-quarkpress-registries.js",
+                        "qwc-quarkpress-counts.js",
+                        "qwc-quarkpress-scheduler.js",
+                        "qwc-quarkpress-users.js");
+        assertThat(plan.methods())
+                .containsExactly(
+                        "counts",
+                        "createSite",
+                        "devUsers",
+                        "features",
+                        "persistence",
+                        "registries",
+                        "scheduler",
+                        "setFeature",
+                        "sites");
+    }
 }

@@ -100,4 +100,15 @@ class CardDbTest {
                 .statusCode(200)
                 .body(containsString("export const modules ="));
     }
+
+    @Test
+    void everyPageIsServedByTheDevUi() throws Exception {
+        for (String component : texts(devUi.data("pages"))) {
+            String element = component.substring(0, component.length() - ".js".length());
+            given().get("/q/dev-ui/" + DevUiClient.NAMESPACE + "/" + component)
+                    .then()
+                    .statusCode(200)
+                    .body(containsString("customElements.define('" + element + "'"));
+        }
+    }
 }
