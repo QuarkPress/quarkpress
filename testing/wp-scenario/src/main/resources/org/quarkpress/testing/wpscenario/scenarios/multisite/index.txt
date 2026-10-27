@@ -1,5 +1,5 @@
-# Hand-written multisite scenarios, one file per line, in the order they run. Each cites the rule of
-# docs/superpowers/specs/2026-10-17-wp-multisite-behavior.md it checks in its "rule" field.
+# Hand-written multisite scenarios, one file per line, in the order they run. Each names the multisite
+# behaviour rule it checks in its "rule" field (see testing/wp-scenario/README.md).
 ms2-dot-segments.json
 ms3-candidate-paths.json
 ms3-zero-site.json

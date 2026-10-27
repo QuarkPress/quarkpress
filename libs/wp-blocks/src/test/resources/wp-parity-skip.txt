@@ -1,6 +1,6 @@
 # Deliberate differences between lib-wp-blocks and WordPress 7.1.3.
-# Format: <case-id-or-glob> <aspect-or-glob> <audit-item> <reason>. Audit items are those of
-# docs/superpowers/audits/2026-10-14-wp-blocks-vs-wordpress.md. An entry whose comparisons all match
+# Format: <case-id-or-glob> <aspect-or-glob> <audit-item> <reason>. Audit items are the labels of the
+# "Differences from WordPress" table in libs/wp-blocks/README.md. An entry whose comparisons all match
 # WordPress fails the build: delete it.
 audit-D5-zero-chunks tree D5 WordPress drops a text chunk equal to "0" (PHP empty()); QuarkPress keeps the text
 audit-D5-zero-chunks serialize D5 same as above
