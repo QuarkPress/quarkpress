@@ -3,6 +3,12 @@ import { JsonRpc } from 'jsonrpc';
 import { columnBodyRenderer } from '@vaadin/grid/lit.js';
 import '@vaadin/grid';
 
+/** A grid cell showing text that a narrow column may cut off, with the whole text as its tooltip. */
+function full(text) {
+    const value = text == null ? '' : String(text);
+    return html`<span title="${value}">${value}</span>`;
+}
+
 function errorText(e) {
     if (e != null && e.error != null && e.error.message != null) {
         return e.error.message;
@@ -52,8 +58,8 @@ export class QwcQuarkpressPersistence extends LitElement {
             </dl>
             <vaadin-grid .items="${v.migrations == null ? [] : v.migrations}" theme="no-border row-stripes">
                 <vaadin-grid-column header="Version" auto-width ${columnBodyRenderer(m => this._orNone(m.version), [])}></vaadin-grid-column>
-                <vaadin-grid-column header="Description" resizable ${columnBodyRenderer(m => html`${m.description}`, [])}></vaadin-grid-column>
-                <vaadin-grid-column header="Script" auto-width resizable ${columnBodyRenderer(m => html`${m.script}`, [])}></vaadin-grid-column>
+                <vaadin-grid-column header="Description" resizable ${columnBodyRenderer(m => full(m.description), [])}></vaadin-grid-column>
+                <vaadin-grid-column header="Script" auto-width resizable ${columnBodyRenderer(m => full(m.script), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Installed on" auto-width ${columnBodyRenderer(m => this._orNone(m.installedOn), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Success" auto-width ${columnBodyRenderer(m => html`${m.success ? 'yes' : 'no'}`, [])}></vaadin-grid-column>
             </vaadin-grid>`;

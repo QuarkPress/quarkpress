@@ -3,6 +3,12 @@ import { columnBodyRenderer } from '@vaadin/grid/lit.js';
 import { modules } from 'build-time-data';
 import '@vaadin/grid';
 
+/** A grid cell showing text that a narrow column may cut off, with the whole text as its tooltip. */
+function full(text) {
+    const value = text == null ? '' : String(text);
+    return html`<span title="${value}">${value}</span>`;
+}
+
 /**
  * The QuarkPress modules installed in the application: version, capability, per-site features with their defaults,
  * migration band and configuration prefixes.
@@ -26,7 +32,7 @@ export class QwcQuarkpressModules extends LitElement {
         return html`
             <vaadin-grid .items="${this._modules}" theme="no-border row-stripes">
                 <vaadin-grid-column header="Artifact" auto-width resizable
-                    ${columnBodyRenderer(m => html`${m.artifactId}`, [])}></vaadin-grid-column>
+                    ${columnBodyRenderer(m => full(m.artifactId), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Version" auto-width
                     ${columnBodyRenderer(m => html`${m.version}`, [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Capability" auto-width resizable
@@ -44,18 +50,18 @@ export class QwcQuarkpressModules extends LitElement {
         if (features == null || features.length === 0) {
             return html`<span class="none">none</span>`;
         }
-        return html`${features.map(f => `${f.key}=${f.defaultEnabled ? 'on' : 'off'}`).join(', ')}`;
+        return full(features.map(f => `${f.key}=${f.defaultEnabled ? 'on' : 'off'}`).join(', '));
     }
 
     _list(values) {
         if (values == null || values.length === 0) {
             return html`<span class="none">none</span>`;
         }
-        return html`${values.join(', ')}`;
+        return full(values.join(', '));
     }
 
     _orNone(value) {
-        return value == null ? html`<span class="none">none</span>` : html`${value}`;
+        return value == null ? html`<span class="none">none</span>` : full(value);
     }
 }
 customElements.define('qwc-quarkpress-modules', QwcQuarkpressModules);

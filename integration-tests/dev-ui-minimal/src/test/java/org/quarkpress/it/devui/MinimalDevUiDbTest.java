@@ -55,7 +55,8 @@ class MinimalDevUiDbTest {
         assertThat(texts(devUi.data("pages")))
                 .containsExactly(
                         "qwc-quarkpress-modules.js", "qwc-quarkpress-features.js", "qwc-quarkpress-persistence.js");
-        assertThat(texts(devUi.data("methods"))).containsExactly("features", "persistence", "setFeature");
+        assertThat(texts(devUi.data("methods")))
+                .containsExactly("clearFeature", "features", "persistence", "setFeature", "siteExists");
     }
 
     @Test

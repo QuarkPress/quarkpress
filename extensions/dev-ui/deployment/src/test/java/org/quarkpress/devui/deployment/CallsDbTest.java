@@ -133,12 +133,79 @@ class CallsDbTest {
         assertThat(texts(features, "enabled")).containsExactly("true", "true");
     }
 
+    @Test
+    @Order(9)
+    void clearFeatureRemovesTheSiteSwitchAndAnswersTheModuleValue() throws Exception {
+        devUi.call("setFeature", Map.of("siteId", 1, "key", "scheduling", "enabled", false));
+        JsonNode result = devUi.call("clearFeature", Map.of("siteId", 1, "key", "scheduling"));
+        assertThat(result.has("error")).isFalse();
+        assertThat(result.get("feature").get("key").asText()).isEqualTo("scheduling");
+        assertThat(result.get("feature").get("module").asText()).isEqualTo("scheduling");
+        assertThat(result.get("feature").get("enabled").asBoolean()).isTrue();
+        assertThat(result.get("feature").get("source").asText()).isEqualTo("module");
+        JsonNode scheduling = find(devUi.call("features", Map.of("siteId", 1)), "key", "scheduling");
+        assertThat(scheduling.get("enabled").asBoolean()).isTrue();
+        assertThat(scheduling.get("source").asText()).isEqualTo("module");
+    }
+
+    @Test
+    @Order(10)
+    void clearFeatureOnAnUnknownSiteWritesNothing() throws Exception {
+        devUi.call("setFeature", Map.of("siteId", 1, "key", "revisions", "enabled", false));
+        assertThat(devUi.rpc("clearFeature", Map.of("siteId", 99, "key", "revisions"))
+                        .error())
+                .isEqualTo(
+                        new DevUiClient.RpcError(-32603, "Method [quarkpress-dev-ui_clearFeature] failed: no site 99"));
+        JsonNode features = devUi.call("features", Map.of("siteId", 1));
+        assertThat(texts(features, "key")).containsExactly("revisions", "scheduling");
+        assertThat(texts(features, "source")).containsExactly("site", "module");
+        assertThat(texts(features, "enabled")).containsExactly("false", "true");
+    }
+
+    @Test
+    @Order(11)
+    void clearFeatureOfAnUnknownFeatureIsRefusedWithTheServicesMessage() throws Exception {
+        JsonNode result = devUi.call("clearFeature", Map.of("siteId", 1, "key", "nope"));
+        assertThat(result.has("feature")).isFalse();
+        assertThat(result.get("error").asText()).isEqualTo("unknown QuarkPress feature 'nope'");
+    }
+
+    @Test
+    @Order(12)
+    void clearFeatureWithoutASiteSwitchAnswersTheCurrentValue() throws Exception {
+        JsonNode result = devUi.call("clearFeature", Map.of("siteId", 1, "key", "revisions"));
+        assertThat(result.has("error")).isFalse();
+        assertThat(result.get("feature").get("key").asText()).isEqualTo("revisions");
+        assertThat(result.get("feature").get("enabled").asBoolean()).isTrue();
+        assertThat(result.get("feature").get("source").asText()).isEqualTo("module");
+        JsonNode features = devUi.call("features", Map.of("siteId", 1));
+        assertThat(texts(features, "source")).containsExactly("module", "module");
+        assertThat(texts(features, "enabled")).containsExactly("true", "true");
+    }
+
+    @Test
+    @Order(13)
+    void siteExistsAnswersWhetherASiteHasTheId() throws Exception {
+        assertThat(devUi.call("siteExists", Map.of("siteId", 1)).asBoolean()).isTrue();
+        assertThat(devUi.call("siteExists", Map.of("siteId", 99)).asBoolean()).isFalse();
+        assertThat(devUi.call("siteExists", Map.of("siteId", 0)).asBoolean()).isFalse();
+        assertThat(devUi.call("siteExists", Map.of("siteId", -3)).asBoolean()).isFalse();
+        long created = devUi.call("createSite", Map.of("domain", "exists.example.test", "path", "/", "title", "Exists"))
+                .get("site")
+                .get("id")
+                .asLong();
+        assertThat(devUi.call("siteExists", Map.of("siteId", created)).asBoolean())
+                .isTrue();
+        assertThat(devUi.call("siteExists", Map.of("siteId", created + 1)).asBoolean())
+                .isFalse();
+    }
+
     /**
      * Creating a site needs the network capability {@code create_sites}, which only the system identity holds here (no
      * user is signed in): the call succeeds only because it runs as the system.
      */
     @Test
-    @Order(9)
+    @Order(14)
     void createSiteCreatesASiteThatSitesLists() throws Exception {
         JsonNode result = devUi.call("createSite", Map.of("domain", "two.example.test", "path", "/", "title", "Two"));
         assertThat(result.has("error")).isFalse();
@@ -155,7 +222,7 @@ class CallsDbTest {
     }
 
     @Test
-    @Order(10)
+    @Order(15)
     void anEmptyDomainIsRefusedWithTheServicesMessage() throws Exception {
         JsonNode result = devUi.call("createSite", Map.of("domain", "", "path", "/", "title", "Empty"));
         assertThat(result.has("site")).isFalse();
@@ -164,7 +231,7 @@ class CallsDbTest {
     }
 
     @Test
-    @Order(11)
+    @Order(16)
     void aSiteAtAnExistingAddressInAnotherCaseIsRefusedWithTheServicesMessage() throws Exception {
         devUi.call("createSite", Map.of("domain", "three.example.test", "path", "/", "title", "Three"));
         int before = devUi.call("sites").size();

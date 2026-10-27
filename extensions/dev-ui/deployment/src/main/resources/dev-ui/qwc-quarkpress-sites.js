@@ -25,6 +25,48 @@ function keepSite(id) {
     }
 }
 
+/**
+ * The current site, checked against the sites that exist: when the kept site is gone (the dev database was recreated,
+ * say), site 1 is kept instead and the answer carries a notice saying so. When the check itself fails, the kept site
+ * stays and the page's own read reports the problem.
+ */
+async function checkedSite(jsonRpc) {
+    const site = currentSite();
+    if (site === 1) {
+        return { site: 1, notice: null };
+    }
+    try {
+        const r = await jsonRpc.siteExists({ siteId: site });
+        if (r.result === false) {
+            keepSite(1);
+            return { site: 1, notice: `Site ${site} no longer exists; showing site 1.` };
+        }
+    } catch (e) {
+        // the page's read reports the problem
+    }
+    return { site: site, notice: null };
+}
+
+/** A grid cell showing text that a narrow column may cut off, with the whole text as its tooltip. */
+function full(text) {
+    const value = text == null ? '' : String(text);
+    return html`<span title="${value}">${value}</span>`;
+}
+
+/**
+ * What a site's public setting means: 1 lets search engines index the site, 0 asks them not to, and any other value
+ * (plugins use negative ones for private sites) is shown as it is.
+ */
+function publicText(flag) {
+    if (flag === 1) {
+        return 'yes';
+    }
+    if (flag === 0) {
+        return 'no (asks search engines not to index)';
+    }
+    return `other (${flag})`;
+}
+
 function errorText(e) {
     if (e != null && e.error != null && e.error.message != null) {
         return e.error.message;
@@ -42,6 +84,7 @@ export class QwcQuarkpressSites extends LitElement {
         vaadin-grid { flex: 1; min-height: 200px; }
         .form { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
         .error { color: var(--lumo-error-text-color); }
+        .notice { color: var(--lumo-warning-text-color, var(--lumo-secondary-text-color)); }
         .current { font-weight: bold; }
     `;
 
@@ -50,6 +93,7 @@ export class QwcQuarkpressSites extends LitElement {
         _error: { state: true },
         _created: { state: true },
         _current: { state: true },
+        _notice: { state: true },
         _domain: { state: true },
         _path: { state: true },
         _title: { state: true }
@@ -63,11 +107,16 @@ export class QwcQuarkpressSites extends LitElement {
         this._domain = '';
         this._path = '/';
         this._title = '';
+        this._notice = null;
     }
 
     connectedCallback() {
         super.connectedCallback();
         this._current = currentSite();
+        checkedSite(this.jsonRpc).then(checked => {
+            this._current = checked.site;
+            this._notice = checked.notice;
+        });
         this._load();
     }
 
@@ -80,6 +129,7 @@ export class QwcQuarkpressSites extends LitElement {
 
     render() {
         return html`
+            ${this._notice == null ? '' : html`<div class="notice">${this._notice}</div>`}
             <div>Current site: <span class="current">${this._current}</span></div>
             <vaadin-grid .items="${this._sites}" theme="no-border row-stripes">
                 <vaadin-grid-column header="" auto-width
@@ -87,15 +137,15 @@ export class QwcQuarkpressSites extends LitElement {
                 <vaadin-grid-column header="Id" auto-width
                     ${columnBodyRenderer(s => html`${s.id}`, [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Domain" auto-width resizable
-                    ${columnBodyRenderer(s => html`${s.domain}`, [])}></vaadin-grid-column>
+                    ${columnBodyRenderer(s => full(s.domain), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Path" auto-width
-                    ${columnBodyRenderer(s => html`${s.path}`, [])}></vaadin-grid-column>
+                    ${columnBodyRenderer(s => full(s.path), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Name" auto-width resizable
-                    ${columnBodyRenderer(s => html`${s.name}`, [])}></vaadin-grid-column>
+                    ${columnBodyRenderer(s => full(s.name), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Status" auto-width
                     ${columnBodyRenderer(s => html`${s.status}`, [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Public" auto-width
-                    ${columnBodyRenderer(s => html`${s.publicFlag}`, [])}></vaadin-grid-column>
+                    ${columnBodyRenderer(s => html`${publicText(s.publicFlag)}`, [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Flags" auto-width
                     ${columnBodyRenderer(s => html`${this._flags(s)}`, [])}></vaadin-grid-column>
             </vaadin-grid>
@@ -121,6 +171,7 @@ export class QwcQuarkpressSites extends LitElement {
 
     _use(id) {
         this._created = null;
+        this._notice = null;
         keepSite(id);
         this._current = id;
     }

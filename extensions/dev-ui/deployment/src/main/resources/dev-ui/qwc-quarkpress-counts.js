@@ -14,6 +14,36 @@ function currentSite() {
     }
 }
 
+function keepSite(id) {
+    try {
+        localStorage.setItem(SITE_KEY, String(id));
+    } catch (e) {
+        // storage unavailable: the choice lasts until the page is left
+    }
+}
+
+/**
+ * The current site, checked against the sites that exist: when the kept site is gone (the dev database was recreated,
+ * say), site 1 is kept instead and the answer carries a notice saying so. When the check itself fails, the kept site
+ * stays and the page's own read reports the problem.
+ */
+async function checkedSite(jsonRpc) {
+    const site = currentSite();
+    if (site === 1) {
+        return { site: 1, notice: null };
+    }
+    try {
+        const r = await jsonRpc.siteExists({ siteId: site });
+        if (r.result === false) {
+            keepSite(1);
+            return { site: 1, notice: `Site ${site} no longer exists; showing site 1.` };
+        }
+    } catch (e) {
+        // the page's read reports the problem
+    }
+    return { site: site, notice: null };
+}
+
 function errorText(e) {
     if (e != null && e.error != null && e.error.message != null) {
         return e.error.message;
@@ -29,6 +59,7 @@ export class QwcQuarkpressCounts extends LitElement {
     static styles = css`
         :host { display: flex; flex-direction: column; gap: 10px; padding: 0 10px 10px 10px; }
         .error { color: var(--lumo-error-text-color); }
+        .notice { color: var(--lumo-warning-text-color, var(--lumo-secondary-text-color)); }
         .none { color: var(--lumo-contrast-50pct); }
         table { border-collapse: collapse; font-size: var(--lumo-font-size-s); }
         th, td { border: 1px solid var(--lumo-contrast-10pct); padding: 2px 8px; text-align: left; }
@@ -36,23 +67,34 @@ export class QwcQuarkpressCounts extends LitElement {
         .bar { display: flex; gap: 10px; align-items: baseline; }
     `;
 
-    static properties = { _site: { state: true }, _counts: { state: true }, _error: { state: true } };
+    static properties = {
+        _site: { state: true },
+        _notice: { state: true },
+        _counts: { state: true },
+        _error: { state: true }
+    };
 
     connectedCallback() {
         super.connectedCallback();
+        this._notice = null;
         this._refresh();
     }
 
     _refresh() {
         this._site = currentSite();
         this._error = null;
-        this.jsonRpc.counts({ siteId: this._site })
-            .then(r => { this._counts = r.result; })
-            .catch(e => { this._counts = null; this._error = errorText(e); });
+        checkedSite(this.jsonRpc).then(checked => {
+            this._site = checked.site;
+            this._notice = checked.notice;
+            this.jsonRpc.counts({ siteId: this._site })
+                .then(r => { this._counts = r.result; })
+                .catch(e => { this._counts = null; this._error = errorText(e); });
+        });
     }
 
     render() {
         return html`
+            ${this._notice == null ? '' : html`<div class="notice">${this._notice}</div>`}
             <div class="bar">
                 <span>Site ${this._site}</span>
                 <vaadin-button theme="small" @click="${() => this._refresh()}">Refresh</vaadin-button>

@@ -12,6 +12,8 @@ import org.quarkpress.core.FeatureDescriptor;
 import org.quarkpress.core.FeatureRegistry;
 import org.quarkpress.core.FeatureValue;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.SiteDirectory;
+import org.quarkpress.core.SiteId;
 import org.quarkpress.devui.runtime.DevViews.FeatureView;
 import org.quarkpress.devui.runtime.DevViews.MigrationView;
 import org.quarkpress.devui.runtime.DevViews.PersistenceView;
@@ -20,9 +22,9 @@ import org.quarkpress.persistence.FeatureToggles;
 import org.quarkpress.persistence.QuarkPressPersistence;
 
 /**
- * The Dev UI's JSON-RPC methods of the persistence module: the features of a site, switching one of them on a site,
- * and the applied migrations. Dev UI runs each call on a worker thread (its methods are blocking unless marked
- * otherwise); the call then hops to a detached thread of its own.
+ * The Dev UI's JSON-RPC methods of the persistence module: the features of a site, switching one of them on a site or
+ * clearing the site's switch, whether a site exists, and the applied migrations. Dev UI runs each call on a worker
+ * thread (its methods are blocking unless marked otherwise); the call then hops to a detached thread of its own.
  */
 public class QuarkPressDevJsonRpc {
 
@@ -37,6 +39,9 @@ public class QuarkPressDevJsonRpc {
 
     @Inject
     FeatureToggles toggles;
+
+    @Inject
+    SiteDirectory directory;
 
     @Inject
     @FlywayDataSource(QuarkPressPersistence.UNIT)
@@ -68,9 +73,34 @@ public class QuarkPressDevJsonRpc {
      *     written
      */
     public SetFeatureResult setFeature(long siteId, String key, boolean enabled) {
+        return change(siteId, key, () -> toggles.setForSite(key, enabled));
+    }
+
+    /**
+     * Removes site {@code siteId}'s own switch of feature {@code key}, so the network default or the feature's default
+     * applies again, and answers the feature's effective value afterwards, read in a scope of its own. Without a switch
+     * of the site nothing changes. An unknown feature is answered as the error of the result.
+     *
+     * @throws IllegalArgumentException when {@code siteId} is not a valid site id, or no site has it; nothing is
+     *     written
+     */
+    public SetFeatureResult clearFeature(long siteId, String key) {
+        return change(siteId, key, () -> toggles.clearForSite(key));
+    }
+
+    /** Whether a site has id {@code siteId}; false for an id that is not a valid site id. */
+    public boolean siteExists(long siteId) {
+        if (siteId <= 0) {
+            return false;
+        }
+        return calls.asSystem(() -> directory.find(SiteId.of(siteId)).isPresent());
+    }
+
+    /** Runs {@code write} on site {@code siteId}, then reads feature {@code key} there in a scope of its own. */
+    private SetFeatureResult change(long siteId, String key, Runnable write) {
         String refusal = calls.onSite(siteId, () -> {
             try {
-                toggles.setForSite(key, enabled);
+                write.run();
                 return null;
             } catch (IllegalArgumentException e) {
                 return e.getMessage();

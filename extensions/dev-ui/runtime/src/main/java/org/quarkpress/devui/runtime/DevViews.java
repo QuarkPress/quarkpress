@@ -65,8 +65,8 @@ public final class DevViews {
     public record CreateSiteResult(SiteView site, String error) {}
 
     /**
-     * What {@code setFeature} answers: the feature's effective value after the write, or the refusal of the feature
-     * toggles; exactly one is non-null.
+     * What {@code setFeature} and {@code clearFeature} answer: the feature's effective value after the write, or the
+     * refusal of the feature toggles; exactly one is non-null.
      */
     public record SetFeatureResult(FeatureView feature, String error) {}
 

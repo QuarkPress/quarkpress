@@ -61,6 +61,7 @@ class PostsWithoutTaxonomyDevUiDbTest {
                         "qwc-quarkpress-users.js");
         assertThat(texts(devUi.data("methods")))
                 .containsExactly(
+                        "clearFeature",
                         "counts",
                         "createSite",
                         "devUsers",
@@ -68,6 +69,7 @@ class PostsWithoutTaxonomyDevUiDbTest {
                         "persistence",
                         "registries",
                         "setFeature",
+                        "siteExists",
                         "sites");
     }
 

@@ -4,6 +4,12 @@ import { columnBodyRenderer } from '@vaadin/grid/lit.js';
 import '@vaadin/grid';
 import '@vaadin/button';
 
+/** A grid cell showing text that a narrow column may cut off, with the whole text as its tooltip. */
+function full(text) {
+    const value = text == null ? '' : String(text);
+    return html`<span title="${value}">${value}</span>`;
+}
+
 function errorText(e) {
     if (e != null && e.error != null && e.error.message != null) {
         return e.error.message;
@@ -49,8 +55,8 @@ export class QwcQuarkpressScheduler extends LitElement {
                 <vaadin-grid .items="${v.upcoming == null ? [] : v.upcoming}" all-rows-visible theme="no-border">
                     <vaadin-grid-column header="Site" auto-width ${columnBodyRenderer(u => html`${u.site}`, [])}></vaadin-grid-column>
                     <vaadin-grid-column header="Post" auto-width ${columnBodyRenderer(u => html`${u.post}`, [])}></vaadin-grid-column>
-                    <vaadin-grid-column header="Type" auto-width ${columnBodyRenderer(u => html`${u.type}`, [])}></vaadin-grid-column>
-                    <vaadin-grid-column header="Title" resizable ${columnBodyRenderer(u => html`${u.title}`, [])}></vaadin-grid-column>
+                    <vaadin-grid-column header="Type" auto-width ${columnBodyRenderer(u => full(u.type), [])}></vaadin-grid-column>
+                    <vaadin-grid-column header="Title" resizable ${columnBodyRenderer(u => full(u.title), [])}></vaadin-grid-column>
                     <vaadin-grid-column header="Publish at" auto-width ${columnBodyRenderer(u => html`${u.publishAt}`, [])}></vaadin-grid-column>
                 </vaadin-grid>
                 <h3>This node</h3>

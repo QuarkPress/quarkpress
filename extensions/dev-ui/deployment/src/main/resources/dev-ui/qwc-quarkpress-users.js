@@ -4,6 +4,12 @@ import { columnBodyRenderer } from '@vaadin/grid/lit.js';
 import * as buildTimeData from 'build-time-data';
 import '@vaadin/grid';
 
+/** A grid cell showing text that a narrow column may cut off, with the whole text as its tooltip. */
+function full(text) {
+    const value = text == null ? '' : String(text);
+    return html`<span title="${value}">${value}</span>`;
+}
+
 function errorText(e) {
     if (e != null && e.error != null && e.error.message != null) {
         return e.error.message;
@@ -49,8 +55,8 @@ export class QwcQuarkpressUsers extends LitElement {
             </div>
             ${this._error == null ? '' : html`<div class="error">${this._error}</div>`}
             <vaadin-grid .items="${this._users}" theme="no-border row-stripes">
-                <vaadin-grid-column header="User name" auto-width ${columnBodyRenderer(u => html`${u.username}`, [])}></vaadin-grid-column>
-                <vaadin-grid-column header="Subject" auto-width resizable ${columnBodyRenderer(u => html`${u.subject}`, [])}></vaadin-grid-column>
+                <vaadin-grid-column header="User name" auto-width ${columnBodyRenderer(u => full(u.username), [])}></vaadin-grid-column>
+                <vaadin-grid-column header="Subject" auto-width resizable ${columnBodyRenderer(u => full(u.subject), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Realm roles" auto-width ${columnBodyRenderer(u => this._list(u.realmRoles), [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Profile" auto-width ${columnBodyRenderer(u => html`${u.hasProfile ? 'yes' : 'no'}`, [])}></vaadin-grid-column>
                 <vaadin-grid-column header="Network admin" auto-width ${columnBodyRenderer(u => html`${u.networkAdmin ? 'yes' : 'no'}`, [])}></vaadin-grid-column>
@@ -62,14 +68,14 @@ export class QwcQuarkpressUsers extends LitElement {
         if (values == null || values.length === 0) {
             return html`<span class="none">none</span>`;
         }
-        return html`${values.join(', ')}`;
+        return full(values.join(', '));
     }
 
     _siteRoles(siteRoles) {
         if (siteRoles == null || siteRoles.length === 0) {
             return html`<span class="none">none</span>`;
         }
-        return html`${siteRoles.map(s => `${s.site}: ${(s.roles == null ? [] : s.roles).join(', ')}`).join('; ')}`;
+        return full(siteRoles.map(s => `${s.site}: ${(s.roles == null ? [] : s.roles).join(', ')}`).join('; '));
     }
 }
 customElements.define('qwc-quarkpress-users', QwcQuarkpressUsers);

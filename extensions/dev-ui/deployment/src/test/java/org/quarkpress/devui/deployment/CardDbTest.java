@@ -79,6 +79,7 @@ class CardDbTest {
                         "qwc-quarkpress-users.js");
         assertThat(texts(devUi.data("methods")))
                 .containsExactly(
+                        "clearFeature",
                         "counts",
                         "createSite",
                         "devUsers",
@@ -87,6 +88,7 @@ class CardDbTest {
                         "registries",
                         "scheduler",
                         "setFeature",
+                        "siteExists",
                         "sites");
         JsonNode page = DevUiClient.page(devUi.extensions(), "qwc-quarkpress-modules.js");
         // Dev UI stores the label with a leading space

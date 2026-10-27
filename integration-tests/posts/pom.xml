@@ -43,6 +43,12 @@
       <artifactId>quarkpress-scheduling</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The Dev UI pages in quarkus:dev; a test, production or native build gets nothing from it. -->
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-dev-ui</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-jdbc-postgresql</artifactId>
@@ -157,6 +163,19 @@
     <dependency>
       <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-scheduling-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-dev-ui-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>

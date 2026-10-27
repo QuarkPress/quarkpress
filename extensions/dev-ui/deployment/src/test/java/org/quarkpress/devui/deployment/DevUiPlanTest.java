@@ -37,7 +37,8 @@ class DevUiPlanTest {
                         "qwc-quarkpress-modules.js", "qwc-quarkpress-features.js", "qwc-quarkpress-persistence.js");
         assertThat(plan.providers()).containsExactly(QuarkPressDevJsonRpc.class);
         assertThat(plan.beans()).containsExactly(DevCalls.class.getName(), AnonymousDevIdentity.class.getName());
-        assertThat(plan.methods()).containsExactly("features", "persistence", "setFeature");
+        assertThat(plan.methods())
+                .containsExactly("clearFeature", "features", "persistence", "setFeature", "siteExists");
     }
 
     @Test
@@ -47,7 +48,15 @@ class DevUiPlanTest {
                 .containsExactly(QuarkPressDevJsonRpc.class, SitesDevJsonRpc.class, UsersDevJsonRpc.class);
         assertThat(plan.beans()).containsExactly(DevCalls.class.getName(), SystemDevIdentity.class.getName());
         assertThat(plan.methods())
-                .containsExactly("createSite", "devUsers", "features", "persistence", "setFeature", "sites");
+                .containsExactly(
+                        "clearFeature",
+                        "createSite",
+                        "devUsers",
+                        "features",
+                        "persistence",
+                        "setFeature",
+                        "siteExists",
+                        "sites");
         assertThat(plan.pages())
                 .extracting(DevUiPlan.PagePlan::component)
                 .containsExactly(
@@ -61,7 +70,7 @@ class DevUiPlanTest {
     @Test
     void theWritesBelongToTheProvidersOfTheirModules() {
         assertThat(DevUiPlan.of(DevUiPlan.PERSISTENCE::equals).methods())
-                .containsExactly("features", "persistence", "setFeature");
+                .containsExactly("clearFeature", "features", "persistence", "setFeature", "siteExists");
         assertThat(DevUiPlan.methodsOf(List.of(SitesDevJsonRpc.class))).containsExactly("createSite", "sites");
     }
 
@@ -164,6 +173,7 @@ class DevUiPlanTest {
                         "qwc-quarkpress-users.js");
         assertThat(plan.methods())
                 .containsExactly(
+                        "clearFeature",
                         "counts",
                         "createSite",
                         "devUsers",
@@ -172,6 +182,7 @@ class DevUiPlanTest {
                         "registries",
                         "scheduler",
                         "setFeature",
+                        "siteExists",
                         "sites");
     }
 }

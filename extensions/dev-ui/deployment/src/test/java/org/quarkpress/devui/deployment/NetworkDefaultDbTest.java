@@ -23,7 +23,7 @@ import org.quarkpress.persistence.FeatureToggles;
 /**
  * The sources of the feature values the Dev UI shows on a network whose default switches {@code revisions} off: the
  * network default until a site switch is written, then the site's own switch. The Dev UI cannot set network defaults,
- * so the application sets this one when it starts.
+ * so the application sets this one when it starts. Clearing the site's switch brings the network default back.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NetworkDefaultDbTest {
@@ -90,5 +90,18 @@ class NetworkDefaultDbTest {
                 "revisions");
         assertThat(other.get("enabled").asBoolean()).isFalse();
         assertThat(other.get("source").asText()).isEqualTo("network");
+    }
+
+    @Test
+    @Order(4)
+    void clearingTheSiteSwitchFallsBackToTheNetworkDefault() throws Exception {
+        devUi.call("setFeature", Map.of("siteId", 1, "key", "revisions", "enabled", true));
+        JsonNode result = devUi.call("clearFeature", Map.of("siteId", 1, "key", "revisions"));
+        assertThat(result.has("error")).isFalse();
+        assertThat(result.get("feature").get("enabled").asBoolean()).isFalse();
+        assertThat(result.get("feature").get("source").asText()).isEqualTo("network");
+        JsonNode revisions = find(devUi.call("features", Map.of("siteId", 1)), "key", "revisions");
+        assertThat(revisions.get("enabled").asBoolean()).isFalse();
+        assertThat(revisions.get("source").asText()).isEqualTo("network");
     }
 }
