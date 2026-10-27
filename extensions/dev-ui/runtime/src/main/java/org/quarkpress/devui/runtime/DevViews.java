@@ -2,6 +2,7 @@ package org.quarkpress.devui.runtime;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.quarkpress.core.SiteInfo;
 
 /** What the Dev UI's JSON-RPC methods answer: plain records of JDK types, serialized as they are. */
@@ -68,4 +69,46 @@ public final class DevViews {
      * toggles; exactly one is non-null.
      */
     public record SetFeatureResult(FeatureView feature, String error) {}
+
+    /** A registered post type; {@code label} is its plural name label. */
+    public record PostTypeView(
+            String key, String label, boolean hierarchical, boolean publicly, List<String> supports, boolean builtIn) {
+
+        public PostTypeView {
+            supports = List.copyOf(supports);
+        }
+    }
+
+    /** A registered post status. */
+    public record StatusView(
+            String name, String label, boolean publicly, boolean privateStatus, boolean internal, boolean builtIn) {}
+
+    /** A registered taxonomy; {@code label} is its plural name label. */
+    public record TaxonomyView(
+            String key, String label, List<String> objectTypes, boolean hierarchical, boolean builtIn) {
+
+        public TaxonomyView {
+            objectTypes = List.copyOf(objectTypes);
+        }
+    }
+
+    /** A role of a site: its key, its display name and its capabilities in order (false is a denial). */
+    public record RoleView(String key, String name, Map<String, Boolean> capabilities) {}
+
+    /**
+     * The registries of a site: post types, post statuses, taxonomies (null without the taxonomy module) and the
+     * site's roles.
+     */
+    public record Registries(
+            List<PostTypeView> postTypes,
+            List<StatusView> statuses,
+            List<TaxonomyView> taxonomies,
+            List<RoleView> roles) {}
+
+    /**
+     * The content of a site: post counts by type, then by status, only where posts exist; term counts by taxonomy
+     * (null without the taxonomy module); the number of revisions, autosaves included (null without the revisions
+     * module). The maps are ordered by key.
+     */
+    public record Counts(Map<String, Map<String, Long>> posts, Map<String, Long> terms, Long revisions) {}
 }

@@ -99,4 +99,10 @@ public interface Revisions {
      * site, when the caller is the system.
      */
     Optional<RevisionSnapshot> delete(RevisionId revision);
+
+    /**
+     * The number of revisions of the current site's posts, autosaves included. Needs {@code edit_others_posts} on the
+     * site.
+     */
+    long countAll();
 }

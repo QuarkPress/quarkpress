@@ -288,6 +288,15 @@ public class JpaRevisions implements Revisions {
         return Optional.of(before);
     }
 
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public long countAll() {
+        SiteId siteId = site.siteId();
+        acting.require(siteId, "edit_others_posts", Optional.empty());
+        return queries.countOnSite(siteId);
+    }
+
     /** The post, which the caller must be able to edit; a missing post, or one of another site, is refused. */
     PostSnapshot readableParent(SiteId siteId, PostId post) {
         Objects.requireNonNull(post, "post");

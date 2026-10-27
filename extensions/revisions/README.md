@@ -32,7 +32,8 @@ PostSnapshot restored = revisions.restore(history.get(1).id(), Set.of());
 ```
 
 - `Revisions`: `save` (a revision now, as a save would), `autosave`, `restore`, `delete`, `find`, `ofPost`,
-  `autosaveOf`, `autosavesOf`, `latestAndCount`.
+  `autosaveOf`, `autosavesOf`, `latestAndCount`, `countAll` (the number of the current site's revisions, autosaves
+  included).
 - `RevisionSnapshot` holds a revision as stored: its post, author (none for the system identity), title, content,
   excerpt, revisioned meta (key to values), whether it is an autosave, and its time: the post's modification time for a
   regular revision, the last write for an autosave.
@@ -65,10 +66,11 @@ Checks follow WordPress's REST API, and its revisions screen for restoring:
 | `save` | `edit_post` on the post (WordPress's function checks nothing) |
 | `restore` | `edit_post` on the post, and the post's revisions enabled unless the revision is an autosave |
 | `delete` | nobody but the system identity: deleting a revision maps to `do_not_allow` for every user, as in WordPress |
+| `countAll` | `edit_others_posts` on the site (the system identity passes) |
 
-Reads need `edit_post` on the parent post for every caller; the system identity passes. The security module answers
-`edit_post` and `read_post` on a revision as on its post, and `delete_post` on one as `do_not_allow`; this module asks
-it with the post's facts.
+Reads of a post's revisions need `edit_post` on the parent post for every caller; the system identity passes. The
+security module answers `edit_post` and `read_post` on a revision as on its post, and `delete_post` on one as
+`do_not_allow`; this module asks it with the post's facts.
 
 ### Saving
 

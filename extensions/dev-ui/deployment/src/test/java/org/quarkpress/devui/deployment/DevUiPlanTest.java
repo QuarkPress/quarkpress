@@ -6,10 +6,13 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.devui.runtime.AnonymousDevIdentity;
+import org.quarkpress.devui.runtime.ContentDevJsonRpc;
 import org.quarkpress.devui.runtime.DevCalls;
 import org.quarkpress.devui.runtime.QuarkPressDevJsonRpc;
+import org.quarkpress.devui.runtime.RevisionReadsBean;
 import org.quarkpress.devui.runtime.SitesDevJsonRpc;
 import org.quarkpress.devui.runtime.SystemDevIdentity;
+import org.quarkpress.devui.runtime.TaxonomyReadsBean;
 
 class DevUiPlanTest {
 
@@ -54,6 +57,22 @@ class DevUiPlanTest {
         assertThat(DevUiPlan.of(DevUiPlan.PERSISTENCE::equals).methods())
                 .containsExactly("features", "persistence", "setFeature");
         assertThat(DevUiPlan.methodsOf(List.of(SitesDevJsonRpc.class))).containsExactly("createSite", "sites");
+    }
+
+    @Test
+    void postsWithoutTaxonomyAndRevisionsPlanTheContentReadsWithoutTheirBeans() {
+        DevUiPlan plan = DevUiPlan.of(Set.of(DevUiPlan.PERSISTENCE, DevUiPlan.SECURITY, DevUiPlan.POSTS)::contains);
+        assertThat(plan.providers()).contains(ContentDevJsonRpc.class);
+        assertThat(plan.methods()).contains("counts", "registries");
+        assertThat(plan.beans()).doesNotContain(TaxonomyReadsBean.class.getName(), RevisionReadsBean.class.getName());
+        DevUiPlan full =
+                DevUiPlan.of(Set.of(
+                        DevUiPlan.PERSISTENCE,
+                        DevUiPlan.SECURITY,
+                        DevUiPlan.POSTS,
+                        DevUiPlan.TAXONOMY,
+                        DevUiPlan.REVISIONS)::contains);
+        assertThat(full.beans()).contains(TaxonomyReadsBean.class.getName(), RevisionReadsBean.class.getName());
     }
 
     @Test

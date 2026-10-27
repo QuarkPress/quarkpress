@@ -72,9 +72,12 @@ class CardDbTest {
                         "qwc-quarkpress-modules.js",
                         "qwc-quarkpress-sites.js",
                         "qwc-quarkpress-features.js",
-                        "qwc-quarkpress-persistence.js");
+                        "qwc-quarkpress-persistence.js",
+                        "qwc-quarkpress-registries.js",
+                        "qwc-quarkpress-counts.js");
         assertThat(texts(devUi.data("methods")))
-                .containsExactly("createSite", "features", "persistence", "setFeature", "sites");
+                .containsExactly(
+                        "counts", "createSite", "features", "persistence", "registries", "setFeature", "sites");
         JsonNode page = DevUiClient.page(devUi.extensions(), "qwc-quarkpress-modules.js");
         // Dev UI stores the label with a leading space
         assertThat(page.get("staticLabel").asText().strip()).isEqualTo("9");

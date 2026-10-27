@@ -56,6 +56,15 @@ public class RevisionQueries {
                 .findFirst();
     }
 
+    /** The number of the site's revisions, autosaves included. */
+    public long countOnSite(SiteId site) {
+        return revisions
+                .getEntityManager()
+                .createQuery("select count(r) from RevisionEntity r where r.siteId = :site", Long.class)
+                .setParameter("site", TenantIds.param(site))
+                .getSingleResult();
+    }
+
     /** The newest revision of any kind and the number of all revisions. */
     public RevisionCount latestAndCount(SiteId site, PostId post) {
         long count = revisions.countOfPost(site, post);

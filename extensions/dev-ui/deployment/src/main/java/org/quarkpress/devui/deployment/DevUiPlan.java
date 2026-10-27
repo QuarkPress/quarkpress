@@ -7,10 +7,13 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import org.quarkpress.devui.runtime.AnonymousDevIdentity;
+import org.quarkpress.devui.runtime.ContentDevJsonRpc;
 import org.quarkpress.devui.runtime.DevCalls;
 import org.quarkpress.devui.runtime.QuarkPressDevJsonRpc;
+import org.quarkpress.devui.runtime.RevisionReadsBean;
 import org.quarkpress.devui.runtime.SitesDevJsonRpc;
 import org.quarkpress.devui.runtime.SystemDevIdentity;
+import org.quarkpress.devui.runtime.TaxonomyReadsBean;
 
 /**
  * What the Dev UI of an application shows, decided from the capabilities present: the pages, the JSON-RPC provider
@@ -49,6 +52,7 @@ record DevUiPlan(List<PagePlan> pages, List<Class<?>> providers, List<String> be
         List<String> beans = new ArrayList<>();
         boolean persistence = capabilityPresent.test(PERSISTENCE);
         boolean multisite = persistence && capabilityPresent.test(MULTISITE);
+        boolean posts = persistence && capabilityPresent.test(POSTS);
         pages.add(new PagePlan("Modules", "font-awesome-solid:puzzle-piece", MODULES_COMPONENT));
         if (multisite) {
             pages.add(new PagePlan("Sites", "font-awesome-solid:sitemap", "qwc-quarkpress-sites.js"));
@@ -65,6 +69,18 @@ record DevUiPlan(List<PagePlan> pages, List<Class<?>> providers, List<String> be
         }
         if (multisite) {
             providers.add(SitesDevJsonRpc.class);
+        }
+        if (posts) {
+            pages.add(new PagePlan("Registries", "font-awesome-solid:list", "qwc-quarkpress-registries.js"));
+            pages.add(new PagePlan("Content counts", "font-awesome-solid:calculator", "qwc-quarkpress-counts.js"));
+            providers.add(ContentDevJsonRpc.class);
+            // the bean classes name the optional module's types, so they are named only when it is installed
+            if (capabilityPresent.test(TAXONOMY)) {
+                beans.add(TaxonomyReadsBean.class.getName());
+            }
+            if (capabilityPresent.test(REVISIONS)) {
+                beans.add(RevisionReadsBean.class.getName());
+            }
         }
         return new DevUiPlan(pages, providers, beans, methodsOf(providers));
     }
