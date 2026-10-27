@@ -62,7 +62,8 @@ The Dev users page reads the realm files named by `quarkus.keycloak.devservices.
 that is missing or unreadable adds no users (an unreadable one is logged), and a user without an id or user name is
 skipped. A user in several realms is listed once. When the OIDC extension is installed and Dev Services for Keycloak are
 enabled, the page links to the Keycloak page of the OIDC card, where a token is obtained; otherwise there is no link.
-The password of a dev user is its user name. The Dev UI mints no token itself.
+In the realm shipped with the security extension a dev user's password is its user name; a realm named by
+`quarkus.keycloak.devservices.realm-path` sets its own passwords. The Dev UI mints no token itself.
 
 ## How it runs
 

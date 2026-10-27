@@ -34,7 +34,7 @@ Project home: <https://quarkpress.org>
 | `extensions/dev-ui/` | `quarkpress-dev-ui`: Quarkus Dev UI pages for QuarkPress in dev mode: installed modules, sites, feature toggles, registries, content counts, scheduler, persistence and dev users |
 | `testing/wp-oracle/` | Tier A oracle (test only): runs pinned WordPress 7.1.3 PHP code to compare it with QuarkPress libraries, multisite, security, posts, taxonomy and revisions functions |
 | `testing/wp-scenario/` | Tier B oracle (test only): a full WordPress 7.1.3 install in a MySQL container, compared with QuarkPress on JSON scenarios |
-| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI); `integration-tests/posts` is a single site with posts, categories, tags, revisions and scheduling, tested over HTTP with Keycloak tokens, and launched a second time on one database by its multi-node test; `integration-tests/dev-ui-minimal` checks the Dev UI with only the core and persistence modules, and `integration-tests/dev-ui-posts` with posts but without taxonomy, revisions or scheduling |
+| `integration-tests/` | Applications that test the extensions end to end (JVM locally, also native in CI); `integration-tests/posts` is a single site with posts, categories, tags, revisions and scheduling, tested over HTTP with Keycloak tokens, and launched a second time on one database by its multi-node test; `integration-tests/dev-ui-minimal` checks the Dev UI with only the core and persistence modules, and `integration-tests/dev-ui-posts` with posts but without taxonomy, revisions or scheduling (both dev mode only, never native) |
 | `quarkpress-logo.svg`, `quarkpress-mark.svg` | Wordmark and square mark (SVG) |
 | `docs/` | Specification and planning documents |
 

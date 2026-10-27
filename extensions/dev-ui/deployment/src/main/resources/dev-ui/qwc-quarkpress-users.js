@@ -45,7 +45,7 @@ export class QwcQuarkpressUsers extends LitElement {
                 ${tokenPage == null
                     ? html`Tokens for these users need Keycloak Dev Services.`
                     : html`<a href="${tokenPage}">Get a token</a>`}
-                Each user's password is its user name.
+                In the shipped realm each user's password is its user name.
             </div>
             ${this._error == null ? '' : html`<div class="error">${this._error}</div>`}
             <vaadin-grid .items="${this._users}" theme="no-border row-stripes">

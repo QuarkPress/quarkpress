@@ -40,8 +40,8 @@ public final class QuarkPressConfigKeysBuildItem extends MultiBuildItem {
         this.prefix = prefix;
         this.keys = Set.copyOf(Objects.requireNonNull(keys, "keys"));
         for (String key : this.keys) {
-            if (!key.startsWith("quarkpress.")) {
-                throw new IllegalArgumentException("not a quarkpress.* key: " + key);
+            if (!key.startsWith(prefix + ".")) {
+                throw new IllegalArgumentException("not a key under " + prefix + ": " + key);
             }
         }
     }

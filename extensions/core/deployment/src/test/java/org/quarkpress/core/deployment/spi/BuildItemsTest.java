@@ -63,4 +63,23 @@ class BuildItemsTest {
         assertThat(new QuarkPressConfigKeysBuildItem("persistence", "quarkpress", Set.of()).prefix())
                 .isEqualTo("quarkpress");
     }
+
+    @Test
+    void configKeysLieUnderTheDeclaredPrefix() {
+        assertThatThrownBy(() -> new QuarkPressConfigKeysBuildItem(
+                        "revisions", "quarkpress.revisions", Set.of("quarkpress.scheduling.enabled")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("not a key under quarkpress.revisions: quarkpress.scheduling.enabled");
+        assertThatThrownBy(() -> new QuarkPressConfigKeysBuildItem(
+                        "revisions", "quarkpress.revisions", Set.of("quarkpress.revisions")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("not a key under quarkpress.revisions: quarkpress.revisions");
+        assertThatThrownBy(() -> new QuarkPressConfigKeysBuildItem("persistence", "quarkpress", Set.of("other.key")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("not a key under quarkpress: other.key");
+        assertThat(new QuarkPressConfigKeysBuildItem(
+                                "revisions", "quarkpress.revisions", Set.of("quarkpress.revisions.keep"))
+                        .keys())
+                .containsExactly("quarkpress.revisions.keep");
+    }
 }

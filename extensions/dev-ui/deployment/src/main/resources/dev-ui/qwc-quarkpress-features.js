@@ -38,6 +38,7 @@ export class QwcQuarkpressFeatures extends LitElement {
     static properties = {
         _site: { state: true },
         _features: { state: true },
+        _loaded: { state: true },
         _error: { state: true },
         _message: { state: true },
         _busy: { state: true }
@@ -46,6 +47,7 @@ export class QwcQuarkpressFeatures extends LitElement {
     constructor() {
         super();
         this._features = [];
+        this._loaded = false;
         this._error = null;
         this._message = null;
         this._busy = false;
@@ -59,7 +61,7 @@ export class QwcQuarkpressFeatures extends LitElement {
 
     _load() {
         this.jsonRpc.features({ siteId: this._site })
-            .then(r => { this._features = r.result == null ? [] : r.result; })
+            .then(r => { this._features = r.result == null ? [] : r.result; this._loaded = true; })
             .catch(e => { this._features = []; this._error = errorText(e); });
     }
 
@@ -79,6 +81,7 @@ export class QwcQuarkpressFeatures extends LitElement {
                 <vaadin-grid-column header="Source" auto-width
                     ${columnBodyRenderer(f => html`${f.source}`, [])}></vaadin-grid-column>
             </vaadin-grid>
+            ${this._loaded && this._features.length === 0 ? html`<div>No module declares a per-site feature.</div>` : ''}
             ${this._message == null ? '' : html`<div>${this._message}</div>`}
             ${this._error == null ? '' : html`<div class="error">${this._error}</div>`}`;
     }
