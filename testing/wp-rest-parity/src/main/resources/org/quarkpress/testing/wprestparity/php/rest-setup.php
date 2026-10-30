@@ -9,7 +9,12 @@
  * server from QP_DB_HOST, QP_DB_PORT, QP_DB_USER and QP_DB_PASSWORD. The answer is {"out": ...} or {"error": ...}.
  * Operations:
  *   prepare  {template, database}  clones the template network into the site's database and sets it up
- *   option   {name, value}         update_option on the main site
+ *   option   {name, value}         update_option on the main site (permalink_structure also rebuilds the rewrite rules)
+ *   revoke_passwords {user}        deletes every application password of the user
+ *   app_password {user}            creates an application password named "parity"; answers {password}
+ *   archived_site {path}           creates a site on localhost at path and marks it archived; answers {id}
+ *   outsider {login}               creates a network user who is a member of no site; answers {id}
+ *   delete_user {login}            deletes a network user (wpmu_delete_user); answers {deleted}
  * The script calls WordPress functions; every rule it applies itself is marked "Harness rule" where it happens.
  */
 
@@ -143,11 +148,76 @@ function qp_prepare_site(): array
 
 function qp_option(array $input): array
 {
+    global $wp_rewrite;
     switch_to_blog(get_main_site_id());
     update_option($input['name'], $input['value']);
+    if ('permalink_structure' === $input['name']) {
+        // Harness rule: what saving the permalink settings screen does, so the rewrite rules follow the structure.
+        $wp_rewrite->init();
+        flush_rewrite_rules();
+    }
     $value = get_option($input['name']);
     restore_current_blog();
     return ['name' => $input['name'], 'value' => $value];
+}
+
+function qp_user_id(array $input, string $key = 'user'): int
+{
+    $user = get_user_by('login', (string) $input[$key]);
+    if (false === $user) {
+        throw new InvalidArgumentException('no such user: ' . $input[$key]);
+    }
+    return $user->ID;
+}
+
+function qp_revoke_passwords(array $input): array
+{
+    $deleted = WP_Application_Passwords::delete_all_application_passwords(qp_user_id($input));
+    if (is_wp_error($deleted)) {
+        throw new RuntimeException('delete_all_application_passwords: ' . $deleted->get_error_code());
+    }
+    return ['deleted' => $deleted];
+}
+
+function qp_app_password(array $input): array
+{
+    $created = WP_Application_Passwords::create_new_application_password(qp_user_id($input), ['name' => 'parity']);
+    if (is_wp_error($created)) {
+        throw new RuntimeException('create_new_application_password: ' . $created->get_error_code());
+    }
+    return ['password' => $created[0]];
+}
+
+function qp_archived_site(array $input): array
+{
+    // Harness rule, not WordPress behaviour: a site that exists and is archived, for the 410 answer.
+    // Harness rule: alice, the super admin, is the new site's administrator.
+    $id = wpmu_create_blog('localhost', (string) $input['path'], 'Archived', qp_user_id(['user' => 'alice']));
+    if (is_wp_error($id)) {
+        throw new RuntimeException('wpmu_create_blog: ' . $id->get_error_code());
+    }
+    update_blog_status($id, 'archived', 1);
+    return ['id' => (int) $id];
+}
+
+function qp_outsider(array $input): array
+{
+    // Harness rule: a network user with no role on any site.
+    $id = wpmu_create_user((string) $input['login'], (string) $input['login'], $input['login'] . '@quarkpress.test');
+    if (false === $id) {
+        throw new RuntimeException('wpmu_create_user refused ' . $input['login']);
+    }
+    foreach (get_blogs_of_user($id, true) as $blog) {
+        remove_user_from_blog($id, (int) $blog->userblog_id);
+    }
+    return ['id' => (int) $id];
+}
+
+function qp_delete_user(array $input): array
+{
+    require_once ABSPATH . 'wp-admin/includes/admin.php';
+    $user = get_user_by('login', (string) $input['login']);
+    return ['deleted' => false !== $user && wpmu_delete_user($user->ID)];
 }
 
 $qp_input = json_decode((string) file_get_contents($qp_input_file), true, 512, JSON_THROW_ON_ERROR);
@@ -169,6 +239,11 @@ try {
     $qp_out = match ($qp_mode) {
         'prepare' => qp_prepare_site(),
         'option' => qp_option($qp_input),
+        'revoke_passwords' => qp_revoke_passwords($qp_input),
+        'app_password' => qp_app_password($qp_input),
+        'archived_site' => qp_archived_site($qp_input),
+        'outsider' => qp_outsider($qp_input),
+        'delete_user' => qp_delete_user($qp_input),
         default => throw new InvalidArgumentException("unknown operation $qp_mode"),
     };
     qp_write($qp_output_file, ['out' => $qp_out]);

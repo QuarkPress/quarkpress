@@ -67,7 +67,9 @@ public final class RestClient {
 
     /**
      * Basic authentication with the site's application passwords: a {@link WordPressRestSite#USERS} entry sends its
-     * own, {@code "invalid"} sends alice's login with a wrong password, {@code "anonymous"} sends nothing.
+     * own, {@code "invalid"} sends alice's login with a wrong password, {@code "anonymous"} sends nothing. The password
+     * is read from the site on every call, so a {@link WordPressRestSite#renewApplicationPassword renewed} one is used
+     * from then on.
      */
     public static Function<String, Optional<String>> applicationPasswords(WordPressRestSite site) {
         Objects.requireNonNull(site, "site");

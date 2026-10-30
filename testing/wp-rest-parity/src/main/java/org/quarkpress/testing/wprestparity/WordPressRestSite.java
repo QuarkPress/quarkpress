@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.quarkpress.testing.wporacle.OracleJson;
@@ -62,7 +63,7 @@ public final class WordPressRestSite implements AutoCloseable {
     private final String databaseName;
     private final Path runDir;
     private final Map<String, Long> ids = new HashMap<>();
-    private final Map<String, String> passwords = new HashMap<>();
+    private final Map<String, String> passwords = new ConcurrentHashMap<>();
     private Process server;
     private URI root;
     private int operations;
@@ -144,11 +145,29 @@ public final class WordPressRestSite implements AutoCloseable {
         return id;
     }
 
+    /** The user's current application password (the one {@link #renewApplicationPassword} made last, if any). */
     public String applicationPassword(String user) {
         String password = passwords.get(user);
         if (password == null) {
             throw new IllegalArgumentException("not a site user: " + user);
         }
+        return password;
+    }
+
+    /**
+     * Creates a new application password for the user (rest-setup.php "app_password") and uses it from then on: {@link
+     * #applicationPassword} and {@link RestClient#applicationPasswords} answer the new one.
+     */
+    public String renewApplicationPassword(String user) throws IOException, InterruptedException {
+        userId(user);
+        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+        args.put("user", user);
+        JsonNode answer = operation("app_password", args);
+        if (!answer.path("password").isTextual()) {
+            throw new IllegalStateException("rest-setup.php app_password did not answer a password: " + answer);
+        }
+        String password = answer.get("password").textValue();
+        passwords.put(user, password);
         return password;
     }
 
