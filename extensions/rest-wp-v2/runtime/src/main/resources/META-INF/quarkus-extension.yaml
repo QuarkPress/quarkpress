@@ -1,0 +1,12 @@
+---
+name: "QuarkPress REST API (WordPress v2)"
+description: "WordPress's REST API (wp/v2) for QuarkPress sites: the routes, their JSON and their errors as WordPress serves them"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "rest"
+    - "wordpress"
+  categories:
+    - "web"
+  status: "experimental"
