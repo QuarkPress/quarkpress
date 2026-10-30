@@ -23,6 +23,7 @@
     <module>test-gen</module>
     <module>wp-oracle</module>
     <module>wp-scenario</module>
+    <module>wp-rest-parity</module>
   </modules>
 
   <dependencies>
