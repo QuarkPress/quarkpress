@@ -66,6 +66,20 @@
   <build>
     <plugins>
       <plugin>
+        <!-- spotless:apply and spotless:check also cover the capture source (profile capture-har) whenever they run. -->
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <configuration>
+          <java>
+            <includes>
+              <include>src/main/java/**/*.java</include>
+              <include>src/test/java/**/*.java</include>
+              <include>src/capture/java/**/*.java</include>
+            </includes>
+          </java>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
@@ -82,4 +96,59 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <!-- Manual only, never in CI: records the block editor's network traffic against the live WordPress site as HAR
+           files in target/har (src/capture/java). Run together with wp-parity; downloads Playwright's browsers on
+           first use. Without this profile neither Playwright nor the capture source is on any path. -->
+      <id>capture-har</id>
+      <properties>
+        <har.dir>${project.build.directory}/har</har.dir>
+      </properties>
+      <dependencies>
+        <dependency>
+          <groupId>com.microsoft.playwright</groupId>
+          <artifactId>playwright</artifactId>
+          <version>1.63.0</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <version>3.6.1</version>
+            <executions>
+              <execution>
+                <id>add-capture-source</id>
+                <phase>generate-test-sources</phase>
+                <goals>
+                  <goal>add-test-source</goal>
+                </goals>
+                <configuration>
+                  <sources>
+                    <source>src/capture/java</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/EditorHarCapture.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <har.dir>${har.dir}</har.dir>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

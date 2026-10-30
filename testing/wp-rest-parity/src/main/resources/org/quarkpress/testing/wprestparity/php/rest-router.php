@@ -15,6 +15,11 @@ $_SERVER['SERVER_PORT'] = '80';
 $qp_rest_root = rtrim($_SERVER['DOCUMENT_ROOT'], '/');
 $qp_rest_path = parse_url('http://localhost' . $_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $qp_rest_file = is_string($qp_rest_path) ? realpath($qp_rest_root . rawurldecode($qp_rest_path)) : false;
+if (false !== $qp_rest_file && is_dir($qp_rest_file) && str_ends_with($qp_rest_path, '/')
+    && is_file($qp_rest_file . '/index.php')) {
+    // A directory with an index.php (/wp-admin/) runs it, as Apache's DirectoryIndex does.
+    $qp_rest_file = $qp_rest_file . '/index.php';
+}
 if (false !== $qp_rest_file && (!str_starts_with($qp_rest_file, $qp_rest_root . '/') || !is_file($qp_rest_file))) {
     $qp_rest_file = false;
 }
