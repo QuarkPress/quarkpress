@@ -5,6 +5,8 @@ import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.quarkpress.core.SiteId;
@@ -24,6 +26,12 @@ public class JpaCapabilities implements Capabilities {
 
     @Inject
     InstallMode mode;
+
+    @Inject
+    CapabilityReads reads;
+
+    @Inject
+    SiteRoleTables tables;
 
     /** The current request's identity; null (anonymous) when no request context is active. */
     public static SecurityIdentity currentIdentity() {
@@ -71,6 +79,16 @@ public class JpaCapabilities implements Capabilities {
     private Optional<SiteId> target(SiteId site) {
         Objects.requireNonNull(site, "site");
         return Optional.of(mode.multisite() ? site : checkSite.main());
+    }
+
+    @Override
+    public Map<String, Boolean> allCapabilities(UserId user, SiteId site) {
+        Objects.requireNonNull(user, "user");
+        SiteId target = target(site).orElseThrow();
+        return reads.membership(target, user)
+                .map(membership -> Collections.unmodifiableMap(
+                        AllCaps.of(tables.byKey(target), membership.roles(), membership.capabilities())))
+                .orElseGet(Map::of);
     }
 
     @Override

@@ -94,4 +94,20 @@ public interface Memberships {
 
     /** The network administrators, by id; empty on a single site. */
     List<UserId> superAdmins();
+
+    /**
+     * Members of {@code site} (users with a membership row there; on a single site, of the only site) matching every
+     * given filter, as WordPress's user query matches them. Roles and capabilities form one filter: a member matches
+     * when it stores, among its roles or as a key of its individual capabilities (whatever the value, a denial
+     * included), any of {@code roles}, any of {@code capabilities} or any role of the site that grants one of
+     * {@code capabilities}; capabilities are not evaluated. {@code search} matches a case-insensitive substring of the
+     * chosen columns ({@code ID}: equality with a digits-only term); ids in {@code include}, else not in
+     * {@code exclude} ({@code exclude} is ignored when {@code include} is given); nicenames in {@code slugs}; with
+     * {@code publishedPostTypes}, only authors of at least one post with status {@code publish} of those types on
+     * {@code site} (this filter reads the posts module's table: pass it only in an application that has the posts
+     * module). Ties in any order break by id, in the requested direction. Filtering, ordering, counting and paging all
+     * run in the database. No capability check: any identity may call it, and the caller decides who may see which
+     * filters and fields.
+     */
+    MemberPage members(SiteId site, MemberQuery query);
 }

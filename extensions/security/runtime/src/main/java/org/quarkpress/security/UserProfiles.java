@@ -1,5 +1,7 @@
 package org.quarkpress.security;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.quarkpress.core.UserId;
 
@@ -11,4 +13,7 @@ public interface UserProfiles {
     Optional<UserProfile> findBySubject(String subject);
 
     Optional<UserProfile> findByNicename(String nicename);
+
+    /** The profiles of {@code users} in the given order, each once; unknown ids are skipped. */
+    List<UserProfile> findAll(Collection<UserId> users);
 }

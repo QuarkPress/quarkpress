@@ -1,6 +1,7 @@
 package org.quarkpress.security;
 
 import io.quarkus.security.identity.SecurityIdentity;
+import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
@@ -49,4 +50,12 @@ public interface Capabilities {
      * delete users on the main site (which gives no bypass).
      */
     boolean isSuperAdmin(UserId user);
+
+    /**
+     * WordPress's {@code allcaps} of {@code user} on {@code site}: each role's capabilities in the user's role order,
+     * every role key true, then the user's individual capabilities over everything (false is a denial); empty for a
+     * user who is not a member. Network administration and the capabilities every user holds are not included. On a
+     * single site the site id is ignored.
+     */
+    Map<String, Boolean> allCapabilities(UserId user, SiteId site);
 }

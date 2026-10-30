@@ -30,6 +30,8 @@ import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.runtime.HeldLocks;
 import org.quarkpress.persistence.runtime.OptionTransactions;
 import org.quarkpress.persistence.runtime.TenantIds;
+import org.quarkpress.security.MemberPage;
+import org.quarkpress.security.MemberQuery;
 import org.quarkpress.security.Membership;
 import org.quarkpress.security.MembershipChanged;
 import org.quarkpress.security.Memberships;
@@ -103,6 +105,9 @@ public class JpaMemberships implements Memberships {
     @Inject
     NetworkAdmins networkAdmins;
 
+    @Inject
+    MemberListing listing;
+
     @Override
     public Optional<Membership> find(SiteId site, UserId user) {
         return reads.membership(target(site), user).map(JpaMemberships::toMembership);
@@ -113,6 +118,11 @@ public class JpaMemberships implements Memberships {
         return reads.memberships(user).stream()
                 .map(JpaMemberships::toMembership)
                 .toList();
+    }
+
+    @Override
+    public MemberPage members(SiteId site, MemberQuery query) {
+        return listing.list(target(site), Objects.requireNonNull(query, "query"));
     }
 
     @Override
