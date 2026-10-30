@@ -166,14 +166,33 @@ class SiteAddressesTest {
                         "wp-includes",
                         "wp-json",
                         "embed");
-        assertThat(reservedSegment("localhost", "/wp-admin/", "localhost", "/")).contains("wp-admin");
-        assertThat(reservedSegment("localhost", "/blog/x/", "localhost", "/")).contains("blog");
-        assertThat(reservedSegment("localhost", "/blogs/", "localhost", "/")).isEmpty();
-        assertThat(reservedSegment("other.example", "/blog/", "localhost", "/")).isEmpty();
-        assertThat(reservedSegment("localhost", "/", "localhost", "/")).isEmpty();
-        assertThat(reservedSegment("example.com", "/net/feed/", "example.com", "/net/"))
+        assertThat(reservedSegment("localhost", "/wp-admin/", "localhost", "/", "q"))
+                .contains("wp-admin");
+        assertThat(reservedSegment("localhost", "/blog/x/", "localhost", "/", "q"))
+                .contains("blog");
+        assertThat(reservedSegment("localhost", "/blogs/", "localhost", "/", "q"))
+                .isEmpty();
+        assertThat(reservedSegment("other.example", "/blog/", "localhost", "/", "q"))
+                .isEmpty();
+        assertThat(reservedSegment("localhost", "/", "localhost", "/", "q")).isEmpty();
+        assertThat(reservedSegment("example.com", "/net/feed/", "example.com", "/net/", "q"))
                 .contains("feed");
-        assertThat(reservedSegment("example.com", "/feed/", "example.com", "/net/"))
+        assertThat(reservedSegment("example.com", "/feed/", "example.com", "/net/", "q"))
+                .isEmpty();
+        // the extra reserved segment, below the network path only, and never when empty
+        assertThat(reservedSegment("example.com", "/net/q/", "example.com", "/net/", "q"))
+                .contains("q");
+        assertThat(reservedSegment("example.com", "/net/q/x/", "example.com", "/net/", "q"))
+                .contains("q");
+        assertThat(reservedSegment("example.com", "/net/qq/", "example.com", "/net/", "q"))
+                .isEmpty();
+        assertThat(reservedSegment("example.com", "/net/x/q/", "example.com", "/net/", "q"))
+                .isEmpty();
+        assertThat(reservedSegment("other.example", "/net/q/", "example.com", "/net/", "q"))
+                .isEmpty();
+        assertThat(reservedSegment("example.com", "/net/q/", "example.com", "/net/", ""))
+                .isEmpty();
+        assertThat(reservedSegment("example.com", "/net/", "example.com", "/net/", ""))
                 .isEmpty();
     }
 

@@ -26,6 +26,16 @@ public final class NonApplicationPath {
         return trimmed.equals("/") ? "" : trimmed + "/";
     }
 
+    /** The non-application root's first segment ({@code q} by default); empty when the root is {@code /}. */
+    public static String firstSegment() {
+        String current = prefix;
+        if (current.isEmpty()) {
+            return "";
+        }
+        int slash = current.indexOf('/', 1);
+        return current.substring(1, slash);
+    }
+
     /** Whether a normalized request path lies under the non-application root. */
     public static boolean covers(String requestPath) {
         String current = prefix;

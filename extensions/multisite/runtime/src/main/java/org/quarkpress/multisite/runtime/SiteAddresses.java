@@ -431,17 +431,20 @@ public final class SiteAddresses {
     /**
      * The reserved first segment a subdirectory-style site would use, if any: only sites on the network domain itself
      * (a {@code www.} network domain keeps its {@code www.}) below the network path are checked, as WordPress's Add
-     * Site screen checks them only in subdirectory installs. Arguments are normalized.
+     * Site screen checks them only in subdirectory installs. {@code extraReserved}, when not empty, is reserved as well
+     * (the non-application root's first segment). Arguments are normalized.
      */
     public static Optional<String> reservedSegment(
-            String domain, String path, String networkDomain, String networkPath) {
+            String domain, String path, String networkDomain, String networkPath, String extraReserved) {
         if (!domain.equals(networkDomain) || !path.startsWith(networkPath) || path.equals(networkPath)) {
             return Optional.empty();
         }
         String rest = path.substring(networkPath.length());
         int slash = rest.indexOf('/');
         String first = slash < 0 ? rest : rest.substring(0, slash);
-        return RESERVED_FIRST_SEGMENTS.contains(first) ? Optional.of(first) : Optional.empty();
+        return RESERVED_FIRST_SEGMENTS.contains(first) || (!extraReserved.isEmpty() && first.equals(extraReserved))
+                ? Optional.of(first)
+                : Optional.empty();
     }
 
     /**

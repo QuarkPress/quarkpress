@@ -38,4 +38,16 @@ class NonApplicationPathTest {
         assertThat(NonApplicationPath.covers("/q/health")).isFalse();
         assertThat(NonApplicationPath.covers("/")).isFalse();
     }
+
+    @Test
+    void theFirstSegmentIsTheRootsFirstSegment() {
+        NonApplicationPath.install("/q/");
+        assertThat(NonApplicationPath.firstSegment()).isEqualTo("q");
+        NonApplicationPath.install("/app/manage//");
+        assertThat(NonApplicationPath.firstSegment()).isEqualTo("app");
+        NonApplicationPath.install("ops");
+        assertThat(NonApplicationPath.firstSegment()).isEqualTo("ops");
+        NonApplicationPath.install("/");
+        assertThat(NonApplicationPath.firstSegment()).isEmpty();
+    }
 }

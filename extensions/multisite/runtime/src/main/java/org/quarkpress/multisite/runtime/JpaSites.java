@@ -463,11 +463,17 @@ public class JpaSites implements Sites {
     }
 
     private static void requireNotReserved(String domain, String path, SiteEntity main) {
-        SiteAddresses.reservedSegment(domain, path, main.domain, main.path).ifPresent(segment -> {
-            throw new IllegalArgumentException("the first path segment '" + segment + "' is reserved for WordPress"
-                    + " on subdirectory sites of the network; reserved: "
-                    + String.join(", ", SiteAddresses.RESERVED_FIRST_SEGMENTS));
-        });
+        String nonApplication = NonApplicationPath.firstSegment();
+        SiteAddresses.reservedSegment(domain, path, main.domain, main.path, nonApplication)
+                .ifPresent(segment -> {
+                    if (segment.equals(nonApplication)) {
+                        throw new IllegalArgumentException("the first path segment '" + segment
+                                + "' is reserved for the non-application root on subdirectory sites of the network");
+                    }
+                    throw new IllegalArgumentException("the first path segment '" + segment
+                            + "' is reserved for WordPress on subdirectory sites of the network; reserved: "
+                            + String.join(", ", SiteAddresses.RESERVED_FIRST_SEGMENTS));
+                });
     }
 
     private ObjectNode switches(Map<String, Boolean> features) {
