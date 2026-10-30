@@ -25,6 +25,7 @@ import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.core.deployment.spi.TaxonomyBuildItem;
 import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.Taxonomy;
+import org.quarkpress.taxonomy.TermPermissions;
 import org.quarkpress.taxonomy.Terms;
 import org.quarkpress.taxonomy.runtime.BuiltInTaxonomies;
 import org.quarkpress.taxonomy.runtime.DefaultTerms;
@@ -59,7 +60,8 @@ class TaxonomyProcessor {
                 PostTermObserver.class,
                 Terms.class,
                 JpaTerms.class,
-                TermQueries.class);
+                TermQueries.class,
+                TermPermissions.class);
     }
 
     @BuildStep
