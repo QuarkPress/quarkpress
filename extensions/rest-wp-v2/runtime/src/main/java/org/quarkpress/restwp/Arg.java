@@ -11,7 +11,7 @@ import java.util.function.UnaryOperator;
  * An argument of an endpoint: its JSON schema (as WordPress's {@code args} entries hold it), whether it is required,
  * its default and when it is checked.
  *
- * @param defaultValue the value used when the request has none; never validated, but sanitized
+ * @param defaultValue the value used when the request has none; checked and sanitized like any other value
  * @param sanitize the argument's own sanitizer, which replaces the schema's
  */
 public record Arg(

@@ -79,6 +79,13 @@ public final class RouteTable {
                 if (endpoints.isEmpty()) {
                     throw new IllegalArgumentException("route " + parsed.key() + " declares no endpoint");
                 }
+                shared.values().forEach(arg -> SchemaValidator.requireSupported(arg.schema()));
+                for (Endpoint endpoint : endpoints) {
+                    endpoint.args().forEach(arg -> SchemaValidator.requireSupported(arg.schema()));
+                }
+                if (schema != null) {
+                    SchemaValidator.requireSupported(schema.get());
+                }
                 List<Endpoint> merged = new ArrayList<>(endpoints.size());
                 for (Endpoint endpoint : endpoints) {
                     merged.add(withShared(endpoint));

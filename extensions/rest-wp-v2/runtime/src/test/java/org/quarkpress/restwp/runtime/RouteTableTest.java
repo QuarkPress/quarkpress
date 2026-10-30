@@ -1,8 +1,13 @@
 package org.quarkpress.restwp.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.quarkpress.restwp.Arg;
+import org.quarkpress.restwp.Endpoint;
+import org.quarkpress.restwp.RestResponse;
 
 class RouteTableTest {
 
@@ -20,5 +25,49 @@ class RouteTableTest {
         String emoji = new String(Character.toChars(0x1F600));
         assertThat(RouteTable.tooLong("/" + emoji.repeat(511) + "abc")).isFalse();
         assertThat(RouteTable.tooLong("/" + emoji.repeat(512))).isTrue();
+    }
+
+    @Test
+    void aSchemaWithPatternFailsRegistration() {
+        ObjectNode pattern = RestJson.NODES.objectNode().put("type", "string").put("pattern", "^a");
+        Arg patterned = Arg.of("a", "array").items(pattern).build();
+        assertThatThrownBy(() -> new RouteTable()
+                        .registry()
+                        .route("app/v1", "/things")
+                        .endpoint(endpoint(patterned))
+                        .register())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported schema keyword: pattern");
+        assertThatThrownBy(() -> new RouteTable()
+                        .registry()
+                        .route("app/v1", "/things")
+                        .arg(patterned)
+                        .endpoint(endpoint(Arg.of("b", "string").build()))
+                        .register())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported schema keyword: pattern");
+        ObjectNode item = RestJson.NODES.objectNode().put("type", "object");
+        item.putObject("properties").set("name", pattern);
+        RouteTable table = new RouteTable();
+        assertThatThrownBy(() -> table.registry()
+                        .route("app/v1", "/things")
+                        .schema(() -> item)
+                        .endpoint(endpoint(Arg.of("b", "string").build()))
+                        .register())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported schema keyword: pattern");
+        assertThat(table.routes()).isEmpty();
+        table.registry()
+                .route("app/v1", "/things")
+                .endpoint(endpoint(Arg.of("b", "string").format("email").build()))
+                .register();
+        assertThat(table.routes()).hasSize(1);
+    }
+
+    private static Endpoint endpoint(Arg arg) {
+        return Endpoint.of("GET")
+                .arg(arg)
+                .handler(request -> RestResponse.ok(RestJson.NODES.objectNode()))
+                .build();
     }
 }
