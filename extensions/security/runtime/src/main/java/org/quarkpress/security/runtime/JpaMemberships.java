@@ -319,39 +319,16 @@ public class JpaMemberships implements Memberships {
     }
 
     /**
-     * The user's profile, locked for update until the transaction ends, with its state read by the locking query:
-     * concurrent changes that may move the primary site apply one after the other, and on MySQL the state is not the
-     * transaction's older snapshot. A profile this transaction already loaded is detached first, as a refresh would
-     * read without the lock.
+     * The user's profile, locked for update until the transaction ends (see {@link ProfileRowLock}): concurrent changes
+     * that may move the primary site apply one after the other.
      */
     private Optional<UserProfileEntity> lockedProfile(UserId user) {
-        String lock = profileLock(user);
-        refuseIfHeldBySpawner(user);
-        UserProfileEntity loaded = profileRows.findById(user.value());
-        if (loaded == null) {
-            return Optional.empty();
-        }
-        // pending changes of the caller's transaction are written first, then read back under the lock
-        profileRows.flush();
-        profileRows.getEntityManager().detach(loaded);
-        Optional<UserProfileEntity> locked = profileRows
-                .find("id = ?1", user.value())
-                .withLock(LockModeType.PESSIMISTIC_WRITE)
-                .singleResultOptional();
-        HeldLocks.record(lock);
-        return locked;
+        return ProfileRowLock.lock(profileRows, user, CHANGE);
     }
 
-    /**
-     * Refuses a change that would wait for the user's profile row while a transaction that waits for this change holds
-     * it: the two would wait for each other until the database's lock timeout.
-     */
+    /** See {@link ProfileRowLock#refuseIfHeldBySpawner}. */
     private static void refuseIfHeldBySpawner(UserId user) {
-        if (HeldLocks.heldBySpawner(profileLock(user))) {
-            throw new IllegalStateException("the profile of user " + user.value()
-                    + " is locked by a transaction that waits for this change: change the memberships of one user on"
-                    + " several sites in separate transactions");
-        }
+        ProfileRowLock.refuseIfHeldBySpawner(user, CHANGE);
     }
 
     /** Whether the membership row exists, as this transaction sees it (no lock). */
@@ -361,8 +338,11 @@ public class JpaMemberships implements Memberships {
 
     /** The name under which a transaction records its lock on the user's profile row ({@link HeldLocks}). */
     public static String profileLock(UserId user) {
-        return "qp_user_profile:" + user.value();
+        return ProfileRowLock.name(user);
     }
+
+    private static final String CHANGE =
+            "change: change the memberships of one user on several sites in separate transactions";
 
     private static void requireRole(String role) {
         Objects.requireNonNull(role, "role");

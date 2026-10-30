@@ -45,7 +45,28 @@ class SchemaDbTest {
                                 + " order by installed_rank"))
                 .containsSubsequence(
                         "db/quarkpress/" + TestDb.kind() + "/V1_001__persistence_create_tables.sql",
-                        "db/quarkpress/" + TestDb.kind() + "/V3_001__security_create_tables.sql");
+                        "db/quarkpress/" + TestDb.kind() + "/V3_001__security_create_tables.sql",
+                        "db/quarkpress/" + TestDb.kind() + "/V3_002__security_profile_email.sql");
+    }
+
+    @Test
+    void profilesHaveANullableEmailOfAHundredCharacters() {
+        String schemaFilter =
+                TestDb.kind().equals("postgresql") ? "table_schema = current_schema()" : "table_schema = database()";
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select concat(lower(data_type), ':', character_maximum_length, ':', is_nullable)"
+                                + " from information_schema.columns where " + schemaFilter
+                                + " and table_name = 'qp_user_profile' and column_name = 'email'"))
+                .containsExactly(TestDb.kind().equals("postgresql") ? "character varying:100:YES" : "varchar:100:YES");
+        long profile = newProfile("mail");
+        Jdbc.update(dataSource, "update qp_user_profile set email = ? where id = ?", "m".repeat(100), profile);
+        assertThat(Jdbc.strings(dataSource, "select email from qp_user_profile where id = ?", profile))
+                .containsExactly("m".repeat(100));
+        Jdbc.update(dataSource, "update qp_user_profile set email = null where id = ?", profile);
+        assertThat(Jdbc.count(
+                        dataSource, "select count(*) from qp_user_profile where id = ? and email is null", profile))
+                .isEqualTo(1);
     }
 
     @Test

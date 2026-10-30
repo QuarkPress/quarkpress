@@ -3,6 +3,10 @@ package org.quarkpress.it.security;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.keycloak.client.KeycloakTestClient;
 import io.restassured.http.ContentType;
@@ -141,8 +145,24 @@ class SecurityDbTest {
         return JsonPath.from(new String(Base64.getUrlDecoder().decode(part(token, 1)), StandardCharsets.UTF_8));
     }
 
+    /** The token's payload: the base64url-decoded middle part of the JWT. */
+    private static JsonNode payload(String token) {
+        try {
+            return new ObjectMapper().readTree(Base64.getUrlDecoder().decode(part(token, 1)));
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static String encode(String json) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void devRealmTokensCarryTheVerifiedEmail() {
+        JsonNode claims = payload(keycloak.getAccessToken("carol"));
+        assertThat(claims.get("email")).isEqualTo(TextNode.valueOf("carol@quarkpress.test"));
+        assertThat(claims.get("email_verified")).isEqualTo(BooleanNode.TRUE);
     }
 
     @Test

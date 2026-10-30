@@ -15,6 +15,8 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.json.Json;
+import jakarta.json.JsonValue;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,6 +81,84 @@ class IdentityDbTest {
         assertThat(profiles.find(principal.user()).orElseThrow().nicename()).isEqualTo(word);
         assertThat(profiles.find(principal.user()).orElseThrow().displayName()).isEqualTo("Carol Chen");
         assertThat(identity.getPrincipal().getName()).isEqualTo(word);
+    }
+
+    private Optional<String> emailOf(SecurityIdentity identity) {
+        return profiles.find(QuarkPressPrincipal.of(identity).orElseThrow().user())
+                .orElseThrow()
+                .email();
+    }
+
+    @Test
+    void anEmailIsProvisionedUnlessTheTokenSaysItIsUnverified() {
+        // no email_verified claim counts as verified
+        String subject = sub();
+        assertThat(emailOf(Identities.augment(
+                        Identities.token(Map.of("sub", subject, "email", "first@quarkpress.test"), Set.of()))))
+                .contains("first@quarkpress.test");
+        // email_verified other than absent, true or the text true (any case) is unverified: the stored e-mail stays
+        List<Object> unverifiedValues = List.of(
+                Boolean.FALSE,
+                JsonValue.FALSE,
+                "false",
+                Json.createValue("FALSE"),
+                "yes",
+                "1",
+                1,
+                Json.createValue(1),
+                JsonValue.NULL,
+                "",
+                Map.of("verified", true));
+        for (Object unverified : unverifiedValues) {
+            assertThat(emailOf(Identities.augment(Identities.token(
+                            Map.of("sub", subject, "email", "other@quarkpress.test", "email_verified", unverified),
+                            Set.of()))))
+                    .as("email_verified %s", unverified)
+                    .contains("first@quarkpress.test");
+            assertThat(emailOf(Identities.augment(Identities.token(
+                            Map.of("sub", sub(), "email", "other@quarkpress.test", "email_verified", unverified),
+                            Set.of()))))
+                    .as("email_verified %s", unverified)
+                    .isEmpty();
+        }
+        // email_verified true as a Boolean, and the text true in any case
+        for (Object verified : List.of(Boolean.TRUE, "true", "TRUE", Json.createValue("True"))) {
+            String fresh = sub();
+            assertThat(emailOf(Identities.augment(Identities.token(
+                            Map.of("sub", fresh, "email", "v@quarkpress.test", "email_verified", verified), Set.of()))))
+                    .as("email_verified %s", verified)
+                    .contains("v@quarkpress.test");
+        }
+        // email_verified true, as a JSON value, and the e-mail as a JSON string
+        assertThat(emailOf(Identities.augment(Identities.token(
+                        Map.of(
+                                "sub",
+                                subject,
+                                "email",
+                                Json.createValue("second@quarkpress.test"),
+                                "email_verified",
+                                JsonValue.TRUE),
+                        Set.of()))))
+                .contains("second@quarkpress.test");
+        // an e-mail longer than a profile stores is no e-mail
+        String longest = "m".repeat(100 - "@quarkpress.test".length()) + "@quarkpress.test";
+        assertThat(emailOf(
+                        Identities.augment(Identities.token(Map.of("sub", subject, "email", "x" + longest), Set.of()))))
+                .contains("second@quarkpress.test");
+        assertThat(emailOf(Identities.augment(Identities.token(Map.of("sub", subject, "email", longest), Set.of()))))
+                .contains(longest);
+        // a blank e-mail is no e-mail: the stored one stays, and a new profile gets none
+        for (String blank : List.of("", " ", "\t")) {
+            assertThat(emailOf(Identities.augment(Identities.token(Map.of("sub", subject, "email", blank), Set.of()))))
+                    .as("email '%s'", blank)
+                    .contains(longest);
+            assertThat(emailOf(Identities.augment(Identities.token(Map.of("sub", sub(), "email", blank), Set.of()))))
+                    .as("email '%s'", blank)
+                    .isEmpty();
+        }
+        // an e-mail that is not text is no e-mail
+        assertThat(emailOf(Identities.augment(Identities.token(Map.of("sub", sub(), "email", 42), Set.of()))))
+                .isEmpty();
     }
 
     /** Signs a subject in with a token once, so it has a profile, and makes it a contributor on the main site. */

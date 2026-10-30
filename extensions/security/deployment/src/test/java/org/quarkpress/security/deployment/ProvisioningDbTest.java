@@ -40,6 +40,7 @@ import org.quarkpress.security.UserProfile;
 import org.quarkpress.security.UserProfileCreated;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserProfiles;
+import org.quarkpress.security.runtime.ProfileProvisioning;
 import org.quarkpress.security.runtime.UserProfileEntity;
 import org.quarkpress.security.runtime.UserProfileRepository;
 
@@ -91,6 +92,9 @@ class ProvisioningDbTest {
     UserProfiles profiles;
 
     @Inject
+    ProfileProvisioning provisioning;
+
+    @Inject
     TestClock clock;
 
     @Inject
@@ -128,6 +132,35 @@ class ProvisioningDbTest {
                 Optional.ofNullable(username),
                 Optional.ofNullable(given),
                 Optional.ofNullable(family));
+    }
+
+    /** Claims with an e-mail; an unverified one is not taken from the token, so the claims carry none. */
+    private static ProfileClaims claims(String subject, String email, boolean verified) {
+        return new ProfileClaims(
+                subject,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                verified ? Optional.of(email) : Optional.empty());
+    }
+
+    @Test
+    void aLoginStoresAndRefreshesTheVerifiedEmail() {
+        String mail = "sub-mail-" + UUID.randomUUID();
+        UserProfile first = provisioning.provision(claims(mail, "a@quarkpress.test", true), true);
+        assertThat(first.email()).contains("a@quarkpress.test");
+        assertThat(provisioning
+                        .provision(claims(mail, "b@quarkpress.test", true), true)
+                        .email())
+                .contains("b@quarkpress.test");
+        assertThat(provisioning
+                        .provision(claims(mail, "c@quarkpress.test", false), true)
+                        .email())
+                .contains("b@quarkpress.test");
+        assertThat(provisioning
+                        .provision(claims("sub-new-" + UUID.randomUUID(), "d@quarkpress.test", false), true)
+                        .email())
+                .isEmpty();
     }
 
     @Test
@@ -432,6 +465,15 @@ class ProvisioningDbTest {
                         base + "-lee-4",
                         base + "-lee-5",
                         base + "-lee-6");
+    }
+
+    @Test
+    void anEmailOfMoreThanAHundredCharactersIsRefused() {
+        String longest = "m".repeat(100 - "@quarkpress.test".length()) + "@quarkpress.test";
+        assertThat(claims("sub-" + UUID.randomUUID(), longest, true).email()).contains(longest);
+        assertThatThrownBy(() -> claims("sub-" + UUID.randomUUID(), "x" + longest, true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("an e-mail has at most 100 characters: 101");
     }
 
     @Test

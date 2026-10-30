@@ -39,8 +39,13 @@ public class CapabilityGuard {
 
     /** Requires {@code capability} for the binding in effect. */
     public void requireHere(String capability) {
+        requireHere(capability, Optional.empty());
+    }
+
+    /** Requires {@code capability} on {@code object} for the binding in effect. */
+    public void requireHere(String capability, Optional<CapObject> object) {
         SecurityIdentity identity = JpaCapabilities.currentIdentity();
-        if (!capabilities.can(identity, capability, Optional.empty())) {
+        if (!capabilities.can(identity, capability, object)) {
             refuse(identity, "the caller lacks the capability " + capability + " for this request");
         }
     }

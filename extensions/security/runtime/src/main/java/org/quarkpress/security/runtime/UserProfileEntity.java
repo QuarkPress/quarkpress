@@ -52,6 +52,9 @@ public class UserProfileEntity {
     @Column(name = "last_login_at")
     public Instant lastLoginAt;
 
+    @Column(name = "email", length = 100)
+    public String email;
+
     public UserProfile toProfile() {
         return new UserProfile(
                 UserId.of(id),
@@ -61,6 +64,7 @@ public class UserProfileEntity {
                 Optional.ofNullable(bio),
                 Optional.ofNullable(primarySiteId).map(SiteId::of),
                 createdAt,
-                Optional.ofNullable(lastLoginAt));
+                Optional.ofNullable(lastLoginAt),
+                Optional.ofNullable(email));
     }
 }

@@ -25,9 +25,12 @@ import org.quarkpress.security.UserProfileCreated;
  * Finds or creates a profile in a transaction of its own (committed whatever the caller's transaction does): the work
  * of {@link DefaultUserProfileProvisioner}, also used by {@link SuperAdminBootstrap}, which must not record a login. A
  * new profile is named as WordPress names a new user: nicename from the username with numeric suffixes when taken, or
- * {@code user-<id>} when the username gives none; display name from the given and family names. For a login, the
- * login time is written on creation and refreshed when it is older than {@link #LOGIN_REFRESH}; otherwise it is left
- * as it is (null for a new profile).
+ * {@code user-<id>} when the username gives none; display name from the given and family names; e-mail from the
+ * claims. For a login, the login time is written on creation and refreshed when it is older than
+ * {@link #LOGIN_REFRESH}, and an e-mail the claims carry is written whenever it differs from the stored one (claims
+ * without one leave the stored e-mail); otherwise the profile is left as it is (null login time for a new profile).
+ * A login that writes locks the profile row and reads it again first, so it never overwrites what a concurrent change
+ * of the row (such as a user meta write) committed.
  *
  * <p>A profile is inserted only if neither its subject nor its nicename exists, so the usual races (one subject logging
  * in from several requests, colliding nicenames) never fail. The one race left, another profile taking a fallback
@@ -101,7 +104,9 @@ public class ProfileProvisioning {
         Instant now = clock.now().truncatedTo(ChronoUnit.MICROS);
         Optional<UserProfileEntity> existing = profiles.findBySubject(claims.subject());
         if (existing.isPresent()) {
-            return login ? touched(existing.get(), now) : existing.get().toProfile();
+            return login
+                    ? touched(existing.get(), claims.email(), now)
+                    : existing.get().toProfile();
         }
         String displayName = UserNames.displayName(
                 claims.givenName(), claims.familyName(), claims.preferredUsername(), claims.subject());
@@ -113,7 +118,7 @@ public class ProfileProvisioning {
                 if (profiles.nicenameTaken(candidate)) {
                     continue;
                 }
-                Optional<Inserted> outcome = insert(claims.subject(), displayName, candidate, now, login);
+                Optional<Inserted> outcome = insert(claims, displayName, candidate, now, login);
                 if (outcome.isPresent()) {
                     if (outcome.get().ours()) {
                         transactions.publish(
@@ -126,7 +131,7 @@ public class ProfileProvisioning {
             }
         }
         String placeholder = "~" + UUID.randomUUID().toString().replace("-", "");
-        Inserted outcome = insert(claims.subject(), displayName, placeholder, now, login)
+        Inserted outcome = insert(claims, displayName, placeholder, now, login)
                 .orElseThrow(() -> new IllegalStateException(
                         "a profile with the unique placeholder nicename " + placeholder + " exists"));
         if (!outcome.ours()) {
@@ -153,8 +158,10 @@ public class ProfileProvisioning {
      * with a shared lock, so a profile committed after this transaction's snapshot is seen), or empty when the
      * nicename was taken.
      */
-    private Optional<Inserted> insert(String subject, String displayName, String nicename, Instant now, boolean login) {
-        Optional<Long> id = inserts.insertIfAbsent(subject, displayName, nicename, now, login);
+    private Optional<Inserted> insert(
+            ProfileClaims claims, String displayName, String nicename, Instant now, boolean login) {
+        String subject = claims.subject();
+        Optional<Long> id = inserts.insertIfAbsent(subject, displayName, nicename, now, login, claims.email());
         if (id.isPresent()) {
             return Optional.of(new Inserted(profiles.findById(id.get()).toProfile(), true));
         }
@@ -167,10 +174,34 @@ public class ProfileProvisioning {
                         false));
     }
 
-    private UserProfile touched(UserProfileEntity entity, Instant now) {
-        if (entity.lastLoginAt == null || entity.lastLoginAt.plus(LOGIN_REFRESH).isBefore(now)) {
+    /**
+     * A login of an existing profile: when the login time is due or the e-mail changed, the row is locked and read
+     * again, and what is still due is written.
+     */
+    private UserProfile touched(UserProfileEntity entity, Optional<String> email, Instant now) {
+        if (!loginChanges(entity, email, now)) {
+            return entity.toProfile();
+        }
+        ProfileRowLock.lock(profiles, entity, "login: provision it in a separate transaction");
+        if (loginDue(entity, now)) {
             entity.lastLoginAt = now;
         }
+        if (emailChanged(entity, email)) {
+            entity.email = email.get();
+        }
         return entity.toProfile();
+    }
+
+    private static boolean loginChanges(UserProfileEntity entity, Optional<String> email, Instant now) {
+        return loginDue(entity, now) || emailChanged(entity, email);
+    }
+
+    private static boolean loginDue(UserProfileEntity entity, Instant now) {
+        return entity.lastLoginAt == null
+                || entity.lastLoginAt.plus(LOGIN_REFRESH).isBefore(now);
+    }
+
+    private static boolean emailChanged(UserProfileEntity entity, Optional<String> email) {
+        return email.isPresent() && !email.get().equals(entity.email);
     }
 }
