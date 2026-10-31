@@ -67,8 +67,8 @@ public interface Terms {
 
     /**
      * A post's terms of a taxonomy (WordPress's {@code wp_get_object_terms}), by name, ignoring case and ordered by
-     * code point, then id. The caller must be able to read the post, and, for a taxonomy that is not publicly
-     * queryable, hold its {@code assign_terms}.
+     * code point, then id. The caller must be able to read the post, and, for a taxonomy that is neither publicly
+     * queryable nor shown in REST, hold its {@code assign_terms}.
      */
     List<TermSnapshot> postTerms(PostId post, String taxonomy);
 
@@ -86,7 +86,8 @@ public interface Terms {
 
     /**
      * The term with this id on the current site (WordPress's {@code get_term} without taxonomy); empty for a term of a
-     * taxonomy that is not registered. A taxonomy that is not publicly queryable needs its {@code assign_terms}.
+     * taxonomy that is not registered. A taxonomy that is neither publicly queryable nor shown in REST (whose routes
+     * WordPress serves to anyone) needs its {@code assign_terms}.
      */
     Optional<TermSnapshot> find(TermId term);
 

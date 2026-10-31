@@ -20,6 +20,7 @@ import org.quarkpress.core.UserId;
 import org.quarkpress.taxonomy.Taxonomy;
 import org.quarkpress.taxonomy.TermException;
 import org.quarkpress.taxonomy.TermField;
+import org.quarkpress.taxonomy.TermQuery;
 import org.quarkpress.taxonomy.TermSnapshot;
 import org.quarkpress.taxonomy.Terms;
 
@@ -28,8 +29,11 @@ class ReadsDbTest {
     @Taxonomy(key = "secret", objectTypes = "post", publicly = false, hierarchical = true)
     static class Secret {}
 
+    @Taxonomy(key = "shown", objectTypes = "post", publicly = false, restBase = "shown")
+    static class Shown {}
+
     @RegisterExtension
-    static final QuarkusExtensionTest app = TaxonomyApp.multisite(ReadsDbTest.class, Secret.class);
+    static final QuarkusExtensionTest app = TaxonomyApp.multisite(ReadsDbTest.class, Secret.class, Shown.class);
 
     @Inject
     @DataSource("quarkpress")
@@ -200,5 +204,21 @@ class ReadsDbTest {
         Optional<TermSnapshot> found =
                 Identities.onSite(site, Identities.user(contributor), () -> terms.find(hidden, "secret"));
         assertThat(found).isPresent();
+    }
+
+    @Test
+    void aTaxonomyShownInRestIsReadByAnyone() throws Exception {
+        TermId shown = TestData.term(dataSource, site, "shown", "Shown", "shown-term", null);
+        assertThat(anonymously(() -> terms.find(shown, "shown"))).isPresent();
+        assertThat(anonymously(() -> terms.find(shown))).isPresent();
+        assertThat(anonymously(() -> terms.findBy("shown", TermField.SLUG, "shown-term")))
+                .isPresent();
+        assertThat(anonymously(() -> terms.query(
+                        TermQuery.builder().taxonomies("shown").hideEmpty(false).build())))
+                .extracting(TermSnapshot::id)
+                .containsExactly(shown);
+        assertThat(anonymously(() ->
+                        terms.count(TermQuery.builder().taxonomies("shown").build())))
+                .isEqualTo(1);
     }
 }

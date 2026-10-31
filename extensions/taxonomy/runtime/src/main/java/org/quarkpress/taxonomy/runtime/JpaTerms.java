@@ -394,13 +394,17 @@ public class JpaTerms implements Terms {
         }
     }
 
-    /** Whether the caller may read the taxonomy's terms: it is publicly queryable, or the caller may assign them. */
+    /**
+     * Whether the caller may read the taxonomy's terms: it is publicly queryable, or shown in REST (whose routes
+     * WordPress serves to anyone), or the caller may assign them.
+     */
     boolean canRead(SiteId siteId, TaxonomyDefinition taxonomy) {
         return taxonomy.publiclyQueryable()
+                || taxonomy.showInRest()
                 || acting.can(siteId, taxonomy.capability("assign_terms"), Optional.empty());
     }
 
-    /** A taxonomy that is not publicly queryable is read only by callers that may assign its terms. */
+    /** A taxonomy neither publicly queryable nor shown in REST is read only by callers that may assign its terms. */
     void requireReadable(SiteId siteId, TaxonomyDefinition taxonomy) {
         if (!canRead(siteId, taxonomy)) {
             acting.require(siteId, taxonomy.capability("assign_terms"), Optional.empty());
