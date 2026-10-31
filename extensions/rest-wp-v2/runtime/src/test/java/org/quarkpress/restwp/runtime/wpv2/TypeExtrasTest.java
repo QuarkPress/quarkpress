@@ -10,7 +10,7 @@ class TypeExtrasTest {
 
     @Test
     void theBuiltInTypesHaveWordPresssRecordedValues() {
-        // Part D 20
+        // REST verification list item 20
         assertThat(TypeExtras.of("post").icon()).isEqualTo("dashicons-admin-post");
         assertThat(TypeExtras.of("page").icon()).isEqualTo("dashicons-admin-page");
         assertThat(TypeExtras.of("attachment").icon()).isEqualTo("dashicons-admin-media");

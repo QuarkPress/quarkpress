@@ -93,7 +93,8 @@ class RoutingDbTest {
 
     @Test
     void hostileRouteParametersAreRefusedLikeWordPress() {
-        // Part D 2: WordPress's wp_die page (no JSON Accept here; Task 10 adds the JSON form), no-cache, no REST
+        // REST verification list item 2: WordPress's wp_die page (no JSON Accept here; DispatchDbTest has the JSON
+        // form), no-cache, no REST
         // headers
         for (String url : List.of("/?rest_route[]=x", "/wp-json/qp-test/v1?rest_route[]=x")) {
             Http.as(null)

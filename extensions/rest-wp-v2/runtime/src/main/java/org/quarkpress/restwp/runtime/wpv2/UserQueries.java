@@ -57,21 +57,21 @@ final class UserQueries {
             Paging paging,
             Map<String, RoleDefinition> roles) {
         MemberQuery.Builder query = MemberQuery.builder();
-        List<Long> include = absoluteIds(ListArgs.bounded(request, "include"));
+        List<Long> include = ListArgs.absoluteIds(ListArgs.bounded(request, "include"));
         if (!include.isEmpty()) {
-            List<UserId> positive = positive(include);
+            List<UserId> positive = ListArgs.positive(include, UserId::of);
             if (positive.isEmpty()) {
                 return Optional.empty();
             }
             query.include(positive);
         }
-        query.exclude(positive(absoluteIds(ListArgs.bounded(request, "exclude"))));
-        List<String> slugs = texts(ListArgs.bounded(request, "slug"));
+        query.exclude(ListArgs.positive(ListArgs.absoluteIds(ListArgs.bounded(request, "exclude")), UserId::of));
+        List<String> slugs = ListArgs.texts(ListArgs.bounded(request, "slug"));
         if (!slugs.isEmpty()) {
             query.slugs(slugs);
         }
-        List<String> roleNames = roleKeys(texts(ListArgs.bounded(request, "roles")), roles);
-        List<String> capabilityNames = capabilityKeys(texts(ListArgs.bounded(request, "capabilities")), roles);
+        List<String> roleNames = roleKeys(ListArgs.texts(ListArgs.bounded(request, "roles")), roles);
+        List<String> capabilityNames = capabilityKeys(ListArgs.texts(ListArgs.bounded(request, "capabilities")), roles);
         boolean authorsOnly = text(request.param("who")).equals("authors");
         if (authorsOnly) {
             // WordPress's deprecated author query: a user level other than 0, and roles and capabilities ignored
@@ -79,8 +79,7 @@ final class UserQueries {
         } else {
             query.roles(roleNames).capabilities(capabilityNames);
         }
-        Optional<String> search =
-                request.param("search").map(UserQueries::scalar).filter(term -> !term.isEmpty());
+        Optional<String> search = request.param("search").map(ListArgs::scalar).filter(term -> !term.isEmpty());
         if (search.isPresent()) {
             String term = withoutWildcards(search.get());
             query.search(term).searchColumns(columns(request, term, listUsers));
@@ -105,7 +104,7 @@ final class UserQueries {
             return Optional.of(restTypes);
         }
         if (requested.isPresent() && !requested.get().isBoolean()) {
-            List<String> listed = texts(ListArgs.bounded(request, "has_published_posts"));
+            List<String> listed = ListArgs.texts(ListArgs.bounded(request, "has_published_posts"));
             if (!listed.isEmpty()) {
                 return Optional.of(List.copyOf(new LinkedHashSet<>(listed)));
             }
@@ -123,7 +122,7 @@ final class UserQueries {
     static Set<MemberColumn> columns(RestRequest request, String term, boolean listUsers) {
         Set<MemberColumn> columns = EnumSet.noneOf(MemberColumn.class);
         List<JsonNode> requested = ListArgs.bounded(request, "search_columns");
-        for (String name : texts(requested)) {
+        for (String name : ListArgs.texts(requested)) {
             switch (name) {
                 case "email" -> columns.add(MemberColumn.EMAIL);
                 case "name" -> columns.add(MemberColumn.DISPLAY_NAME);
@@ -235,37 +234,6 @@ final class UserQueries {
     }
 
     static String text(Optional<JsonNode> value) {
-        return value.map(UserQueries::scalar).orElse("");
-    }
-
-    /** A scalar request value as PHP prints it (null as ""); a list or an object as "". */
-    static String scalar(JsonNode value) {
-        return value == null || value.isContainerNode() ? "" : PhpValues.toPhpString(value);
-    }
-
-    static List<String> texts(List<JsonNode> items) {
-        List<String> texts = new ArrayList<>(items.size());
-        items.forEach(item -> texts.add(scalar(item)));
-        return texts;
-    }
-
-    /** WordPress's id lists: each item's absolute integer value, each once, in order. */
-    static List<Long> absoluteIds(List<JsonNode> items) {
-        Set<Long> ids = new LinkedHashSet<>();
-        for (JsonNode item : items) {
-            long id = PhpValues.toLong(item);
-            ids.add(id == Long.MIN_VALUE ? Long.MAX_VALUE : Math.abs(id));
-        }
-        return List.copyOf(ids);
-    }
-
-    static List<UserId> positive(List<Long> ids) {
-        List<UserId> positive = new ArrayList<>(ids.size());
-        for (long id : ids) {
-            if (id > 0) {
-                positive.add(UserId.of(id));
-            }
-        }
-        return positive;
+        return value.map(ListArgs::scalar).orElse("");
     }
 }

@@ -19,9 +19,10 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.restwp.runtime.RestJson;
 
 /**
- * The site index ({@code GET /}) and the namespace indexes, as WordPress answers them (Part D 19): the site's data in
- * WordPress's key order, every route's data in registration order with each namespace index right before its
- * namespace's first route, and the site logo and icon fields with their links unless {@code _fields} leaves them out.
+ * The site index ({@code GET /}) and the namespace indexes, as WordPress answers them (REST verification list item 19):
+ * the site's data in WordPress's key order, every route's data in registration order with each namespace index right
+ * before its namespace's first route, and the site logo and icon fields with their links unless {@code _fields} leaves
+ * them out.
  */
 class IndexDbTest {
 
@@ -72,7 +73,7 @@ class IndexDbTest {
         assertThat(index.get("authentication").toString()).isEqualTo("[]");
         assertThat(index.at("/_links").toString())
                 .isEqualTo("{\"help\":[{\"href\":\"https://developer.wordpress.org/rest-api/\"}]}");
-        // Ruling T14a: the active theme link waits for the themes routes
+        // the active theme link waits for the themes routes (README D7)
         assertThat(index.at("/_links").has("wp:active-theme")).isFalse();
         assertThat(index.at("/routes/~1wp~1v2~1types/_links/self/0/href").asText())
                 .isEqualTo("http://localhost/wp-json/wp/v2/types");
@@ -82,11 +83,11 @@ class IndexDbTest {
         assertThat(routes.get(routes.indexOf("/qp-test/v1") + 1)).startsWith("/qp-test/v1/");
         assertThat(routes.indexOf("/qp-test/v1"))
                 .isGreaterThan(routes.indexOf("/wp/v2/taxonomies/(?P<taxonomy>[\\w-]+)"));
-        // Part D 19: gmt_offset is the JSON string "0" on a fresh site (type-strict)
+        // REST verification list item 19: gmt_offset is the JSON string "0" on a fresh site (type-strict)
         assertThat(index.get("gmt_offset")).isEqualTo(TextNode.valueOf("0"));
         // namespaces lists wp/v2 and the test namespace in registration order
         assertThat(index.get("namespaces").toString()).isEqualTo("[\"wp/v2\",\"qp-test/v1\"]");
-        // the route data as WordPress describes the index routes (Part D 19)
+        // the route data as WordPress describes the index routes (REST verification list item 19)
         assertThat(index.at("/routes/~1").toString())
                 .isEqualTo("{\"namespace\":\"\",\"methods\":[\"GET\"],\"endpoints\":[{\"methods\":[\"GET\"],"
                         + "\"args\":{\"context\":{\"default\":\"view\",\"required\":false}}}],"
@@ -113,10 +114,11 @@ class IndexDbTest {
 
     @Test
     void theIndexNeverCarriesClientSideMediaKeys() {
-        // Known difference (Ruling T2c, README D15, parity known-differences file): WordPress gave image_sizes,
+        // Known difference (README D15, parity known-differences file): WordPress gave image_sizes,
         // image_size_threshold, image_strip_meta and image_max_bit_depth to bob (editor) because the harness on
-        // localhost is a secure context (Part D 19); QuarkPress never enables client-side media processing, so for
-        // every caller the keys are absent and site_logo follows show_on_front, namespaces, authentication, routes
+        // localhost is a secure context (REST verification list item 19); QuarkPress never enables client-side media
+        // processing, so for every caller the keys are absent and site_logo follows show_on_front, namespaces,
+        // authentication, routes
         for (String bearer : Arrays.asList(null, "test-" + editor, "test-" + administrator)) {
             JsonNode index = json(Http.as(bearer).get("/wp-json/").asString());
             assertThat(fieldNames(index))
@@ -209,7 +211,7 @@ class IndexDbTest {
                         "/wp/v2/users/(?P<id>[\\d]+)",
                         "/wp/v2/users/me",
                         "/wp/v2/settings");
-        // Part D 19
+        // REST verification list item 19
         Http.as(null)
                 .get("/wp-json/wp/v2?namespace=nope")
                 .then()
@@ -229,7 +231,7 @@ class IndexDbTest {
                         .at("/routes/~1wp~1v2~1statuses/schema/title")
                         .asText())
                 .isEqualTo("status");
-        // OPTIONS on the namespace route describes it (Part D OPTIONS /wp/v2)
+        // OPTIONS on the namespace route describes it (as WordPress answered OPTIONS /wp/v2)
         Http.as(null)
                 .options("/wp-json/wp/v2")
                 .then()

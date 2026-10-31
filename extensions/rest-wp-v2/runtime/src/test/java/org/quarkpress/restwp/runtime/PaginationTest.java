@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.quarkpress.restwp.Paging;
 
 /**
- * WordPress's pagination headers. The expected links are WordPress 7.1.3's answers: Part D 10, and add_query_arg run
- * by PHP 8.4 over urlencode_deep of parse_str's result, then again with page (as its collection controllers build
- * them).
+ * WordPress's pagination headers. The expected links are WordPress 7.1.3's answers: REST verification list item 10, and
+ * add_query_arg run by PHP 8.4 over urlencode_deep of parse_str's result, then again with page (as its collection
+ * controllers build them).
  */
 class PaginationTest {
 
@@ -23,7 +23,8 @@ class PaginationTest {
                 Pagination.headers(25, 10, 2, BASE, PhpQuery.parse("per_page=10&page=2&_fields=id"));
         assertThat(headers.get("X-WP-Total")).containsExactly("25");
         assertThat(headers.get("X-WP-TotalPages")).containsExactly("3");
-        // Part D 10: ONE Link line holding prev and next (it replaces the API-root Link on the response)
+        // REST verification list item 10: ONE Link line holding prev and next (it replaces the API-root Link on the
+        // response)
         assertThat(headers.get("Link"))
                 .containsExactly("<http://localhost/wp-json/wp/v2/tags?per_page=10&page=1&_fields=id>; rel=\"prev\", "
                         + "<http://localhost/wp-json/wp/v2/tags?per_page=10&page=3&_fields=id>; rel=\"next\"");
@@ -32,8 +33,8 @@ class PaginationTest {
 
     @Test
     void encodingAppendedPageAndTheEmptyCollectionQuirk() {
-        // Part D 10 confirmed the encoding: indexed brackets percent-encoded, comma as %2C, an absent page appended
-        // last
+        // REST verification list item 10 confirmed the encoding: indexed brackets percent-encoded, comma as %2C, an
+        // absent page appended last
         assertThat(Pagination.headers(30, 10, 1, BASE, PhpQuery.parse("include[]=1&include[]=2&_fields=id,name"))
                         .get("Link"))
                 .containsExactly(

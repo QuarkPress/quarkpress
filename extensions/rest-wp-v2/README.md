@@ -45,7 +45,11 @@ Send `Authorization: Bearer <access token>` with a token of the security module'
 then the QuarkPress user of that token, with their roles on the requested site. A request without credentials is
 anonymous. A token that fails authentication (invalid, expired, signed by an unknown issuer) is refused before any
 route is matched, on every route including public ones: 401 `rest_invalid_token` "The access token is invalid or has
-expired." with no `Allow` header (D2). There are no cookies, nonces or application passwords. The index's
+expired." with no `Allow` header (D2). There are no cookies, nonces or application passwords: only a request that
+carries `Authorization: Bearer ...` has a caller. A request the application authenticated any other way (such as the
+session cookie of an OIDC `web-app` or `hybrid` tenant, or a custom `HttpAuthenticationMechanism`) is served as
+anonymous, its permissions and the services it calls included, so a page of another site cannot make a browser write
+with the user's rights (D24). The index's
 `authentication` names the default tenant's issuer, `{"oidc":{"issuer":"<quarkus.oidc.auth-server-url>"}}`, when that
 tenant is enabled and configured, else `[]` (D3).
 
@@ -251,10 +255,10 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
 - Quarkus's path-based HTTP permission policies (`quarkus.http.auth.permission.*.paths`) and OIDC tenant resolution by
   path see the internal path the request is re-routed to, never `/wp-json/...`. Check REST callers in permissions and
   handlers instead.
-- At most 1000 distinct hrefs are embedded per answer; later ones get `[]` (D18). A link whose route starts with `//`
-  after the API root embeds `[]` (PHP would read a host there).
+- At most 1000 distinct hrefs are embedded per answer, counting those that lead nowhere; later ones get `[]` (D18).
+  A link whose route starts with `//` after the API root embeds `[]` (PHP would read a host there).
 - A negative `offset` is made positive for the query and for the pagination headers alike; WordPress's headers use the
-  raw value while its query uses the positive one.
+  raw value while its query uses the positive one (D25).
 - The `uniqueItems` check after sanitizing applies to the argument's own list, not to lists nested inside it (WordPress
   leaves a nested failure inside the sanitized value).
 - URL sanitizing (format `uri`) differs from WordPress's `esc_url_raw` on some malformed URLs with a port-like text in
@@ -269,7 +273,8 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
 - WordPress's quirks are kept where clients can see them (the `_fields` rules, `prev` links to page 0, PHP's JSON
   escapes), and WordPress's crashes (a PHP error answering 500) become ordinary answers (D20, D21).
 - Bearer tokens only, refused before matching when invalid: a client never receives public data under a token it
-  believes valid.
+  believes valid. An identity from anything but the `Authorization: Bearer` header is not trusted, so WordPress's
+  cookie and nonce defence against cross-site requests is not needed.
 - Cross-origin access is closed by default and opened per origin; JSONP is never served.
 - Embedding dispatches internally on the same site, caller and pipeline, never over HTTP and never to another host.
 - Users are managed by the identity provider: the users routes read profiles and memberships, and refuse writes
@@ -278,6 +283,9 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
   every list argument and embedding run is bounded.
 
 ## Differences from WordPress
+
+The rows below are the differences the parity tests know by label. Some further, narrower ones are listed under
+[Limits](#limits) only: `uniqueItems` in nested lists, bracketed URL authorities, and avatar `d` or `r` values of `0`.
 
 | Label | Difference |
 |---|---|
@@ -290,7 +298,7 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
 | D7 | The index has no `wp:active-theme` link until the synthetic theme route exists, and so no `curies`. |
 | D8 | `/wp/v2/types` lists only registered types (no `nav_menu_item`, `wp_template`, `wp_template_part`, `wp_global_styles`, `wp_navigation`, `wp_font_family`, `wp_font_face`); `/wp/v2/taxonomies` has no `nav_menu` or `wp_pattern_category`, so `wp_block`'s `taxonomies` is empty and enums naming types (such as the users' `has_published_posts`) list only registered ones. The unregistered `revision` type answers 404 `rest_type_invalid` where WordPress refuses it with 401 or 403 `rest_cannot_read_type`, and the unregistered `post_format` taxonomy 404 `rest_taxonomy_invalid` where WordPress answers 401 `rest_forbidden`. |
 | D9 | User fields come from the identity provider's profile: `username`, `nickname` and `slug` are the nicename, `first_name`, `last_name` and `url` are empty, `locale` is `en_US`. |
-| D10 | `POST /users` answers 501 `quarkpress_users_managed_externally` "Users are managed by the identity provider." after the `create_users` check; an update may change only one's own `meta.persisted_preferences`, any other field answers that 501 after the `edit_user` check. |
+| D10 | `POST /users` answers 501 `quarkpress_users_managed_externally` "Users are managed by the identity provider." after the `create_users` check; an update may change only one's own `meta.persisted_preferences`, any other field answers that 501 after WordPress's checks (`promote_user` when `roles` are given, then `edit_user`). |
 | D11 | `DELETE /users/{id}` answers 501 `rest_cannot_delete` "The user cannot be deleted." after the `delete_user` check on a single site too (WordPress does so only on multisite). |
 | D12 | Unexpected failures answer 500 `internal_server_error` with the short message "There has been a critical error on this website." and are logged; a stale-version conflict answers 409 `quarkpress_conflict` "The item was changed by another request.". |
 | D13 | The answers WordPress gives with `wp_die` before its REST server runs (410 for an archived, spam or deleted site; 400 for a `rest_route` that is not a string or that differs between query and form) are its JSON `wp_die` error when the request's `Accept` or `Content-Type` is JSON, else a minimal HTML page with the same sentence (WordPress's page has more markup: its styles, its title and a longer robots line). The 410 comes before authentication, for every caller: WordPress's answer for token and application-password callers; the only difference is that WordPress lets a cookie-authenticated super admin through, and QuarkPress has no cookies. |
@@ -298,21 +306,25 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
 | D15 | The index never carries `image_sizes`, `image_size_threshold`, `image_strip_meta` or `image_max_bit_depth`: QuarkPress never enables client-side media processing. WordPress 7.1 adds them to an editor's index (not a subscriber's or an anonymous caller's) when the site is served in a secure context such as `localhost`. |
 | D16 | A requested route longer than 2048 bytes in UTF-8 matches no route and answers 404 `rest_no_route`; WordPress has no bound and matches it (a 2053-byte `/wp/v2/types/...` route answers its `rest_type_invalid` with `Allow`). |
 | D17 | Embedding follows only links into this site's own API (below its API root, or its home with a `rest_route`) and embeds `[]` for any other; WordPress also dispatches another host's `?rest_route=` link, on this site. |
-| D18 | At most 1000 distinct hrefs are embedded per answer, later ones get `[]`; WordPress has no bound. |
+| D18 | At most 1000 distinct hrefs are embedded per answer (counting those that lead nowhere), later ones get `[]`; WordPress has no bound. |
 | D19 | Site address and admin e-mail settings (single site; a network's sites have neither): the `url` setting is read-only. In `/wp/v2/settings`, `url` answers the site's own address, the same as the index's `url`. A write to it is accepted and has no effect: the answer shows the address unchanged. QuarkPress takes a site's address from its site record, while WordPress stores the value in its `siteurl` option, which moves the site. `email` reads and writes the `admin_email` option as WordPress does, but a new QuarkPress site has none, so it reads null until one is written. WordPress answers the address given at installation. |
 | D20 | Argument values that make WordPress fail with a PHP error (a 500) get the answer of a value that does not fit: an IPv6 address such as `1:2:3:4:5:6:7:8:9::` (format `ip`) answers 400 `rest_invalid_ip`, an array given to a `date-time` format without a type answers 400 `rest_invalid_date`, and an array sanitized with format `uri` or `hex-color` becomes `""`, as it does for the other formats. |
 | D21 | Answers that make WordPress fail with a PHP error (a 500) are kept as they are: under `_fields`, a scalar or null body, a list of scalars, and a PHP object as the body or as an item of a list body; a scalar body with links (a null body with links becomes `{"_links":...}`); and `?namespace[]=x` on a namespace's index answers 404 `rest_invalid_namespace`. |
 | D22 | List arguments hold at most 1000 entries (the terms' `include`, `exclude` and `slug`; the users' `include`, `exclude`, `slug`, `roles`, `capabilities`, `has_published_posts` and `search_columns`); a longer list answers 400 `rest_invalid_param` as a list over its `maxItems` does ("... must contain at most 1000 items."). WordPress has no bound. |
 | D23 | In pagination links, the bytes of a query parameter's name below 0x20, 0x7F and above are percent-encoded, so no name can break the header; WordPress writes them raw. A malformed UTF-8 sequence in a query value is read as U+FFFD and written back as `%EF%BF%BD`; WordPress keeps the raw bytes. |
+| D24 | Only a request carrying `Authorization: Bearer ...` has a caller. A request the application authenticated another way (an OIDC `web-app` or `hybrid` session cookie, a custom `HttpAuthenticationMechanism`) is served as anonymous: reads answer as to anyone, writes are refused as to an anonymous caller (401). WordPress serves a cookie-authenticated request as its user when it carries a valid REST nonce, and as anonymous without one. |
+| D25 | A negative `offset` is made positive for the pagination headers as for the query, so `offset=-1` counts and links pages as `offset=1` does (a `prev` link included); WordPress's query uses the positive value while its headers use the raw one, so its pages and links do not match the items it lists. |
 
 WordPress behaviour kept on purpose (not differences): `_fields` reduces a keyed collection by its keys
 (`/wp/v2/types?_fields=name` is `[]`), and a field below one already requested whole ends the list there
 (`_fields=meta,meta.a,id` keeps `meta` whole and drops `id`); `prev` may point to page 0 (a page past the end links
-back to the last page, even when it is 0); `GET ...?_method=DELETE` deletes. With Bearer tokens a link cannot carry
-credentials, so the last one is not a cross-site request forgery vector.
+back to the last page, even when it is 0); `GET ...?_method=DELETE` deletes. Only a Bearer token identifies the caller
+(D24), and a link or a cross-site form cannot carry one, so the last one is not a cross-site request forgery vector.
 
 The parity tests (`-Pwp-parity`) run the hand-written verification scenarios and generated ones against WordPress
-7.1.3 served over HTTP (`testing/wp-rest-parity`, run by `integration-tests/rest-wp-v2`): 151 scenarios, 31
-hand-written and 120 generated, 7137 comparisons in the first green run, at least 3550 required. Their
-known-differences file labels every entry with a row of this table, and a test checks that every label it uses is a
-row here.
+7.1.3 served over HTTP (`testing/wp-rest-parity`, run by `integration-tests/rest-wp-v2`): 154 scenarios, 34
+hand-written and 120 generated, 10765 comparisons in the last green run, at least 9650 required, and every scenario
+must compare something. Besides status and body they compare `Allow`, the totals, `Link`, `Location`, the content
+type, `X-Robots-Tag`, `X-Content-Type-Options`, `Cache-Control`, `Expires`, `Vary` and the CORS headers, and, for the
+escapes and key-order scenarios, the body's bytes. Their known-differences file labels every entry with a row of this
+table and names the aspects that differ; a test checks that every label it uses is a row here and every row is used.

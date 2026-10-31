@@ -7,12 +7,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
@@ -281,6 +278,8 @@ public class TermsController implements RestRouteProvider {
     private RestResponse create(Routes term, RestRequest request) {
         requireValidParent(term, request);
         TermSnapshot created = terms.create(term.key(), changes(term, request).build());
+        // as WordPress, which answers in the edit context and so computes the Allow header in it
+        request.useContext("edit");
         return prepare(term, created, editSelection(term, request), "edit")
                 .withStatus(201)
                 .withHeader("Location", urls.route(term.item(created.id())));
@@ -297,6 +296,7 @@ public class TermsController implements RestRouteProvider {
             terms.update(found.id(), term.key(), changes);
         }
         TermSnapshot updated = terms.find(found.id(), term.key()).orElseThrow(() -> new RestException(missing()));
+        request.useContext("edit");
         return prepare(term, updated, editSelection(term, request), "edit");
     }
 
@@ -307,6 +307,7 @@ public class TermsController implements RestRouteProvider {
             throw new RestException(RestError.of(
                     "rest_trash_not_supported", "Terms do not support trashing. Set 'force=true' to delete.", 501));
         }
+        request.useContext("view");
         Fields.Selection selection = Fields.forResponse(Fields.of(request), term.schema(), "view", false);
         JsonNode previous = prepare(term, found, selection, "view").body();
         if (terms.delete(found.id(), term.key()).isEmpty()) {
@@ -352,9 +353,9 @@ public class TermsController implements RestRouteProvider {
     /** The fields the request gives: name, slug, description and, in a hierarchical taxonomy, the parent. */
     private TermChanges.Builder changes(Routes term, RestRequest request) {
         TermChanges.Builder changes = TermChanges.builder();
-        request.param("name").ifPresent(value -> changes.name(TermSchema.scalar(value)));
-        request.param("slug").ifPresent(value -> changes.slug(TermSchema.scalar(value)));
-        request.param("description").ifPresent(value -> changes.description(TermSchema.scalar(value)));
+        request.param("name").ifPresent(value -> changes.name(ListArgs.scalar(value)));
+        request.param("slug").ifPresent(value -> changes.slug(ListArgs.scalar(value)));
+        request.param("description").ifPresent(value -> changes.description(ListArgs.scalar(value)));
         if (term.hierarchical()) {
             request.param("parent").ifPresent(value -> changes.parent(Math.max(0, PhpValues.toLong(value))));
         }
@@ -372,24 +373,24 @@ public class TermsController implements RestRouteProvider {
      */
     private Optional<TermQuery.Builder> query(Routes term, RestRequest request) {
         TermQuery.Builder query = TermQuery.builder().taxonomies(term.key());
-        List<Long> include = absoluteIds(ListArgs.bounded(request, "include"));
+        List<Long> include = ListArgs.absoluteIds(ListArgs.bounded(request, "include"));
         if (!include.isEmpty()) {
-            List<TermId> positive = positive(include);
+            List<TermId> positive = ListArgs.positive(include, TermId::of);
             if (positive.isEmpty()) {
                 return Optional.empty();
             }
             query.include(positive.toArray(TermId[]::new));
         }
-        query.exclude(
-                positive(absoluteIds(ListArgs.bounded(request, "exclude"))).toArray(TermId[]::new));
-        List<String> slugList = texts(ListArgs.bounded(request, "slug"));
+        query.exclude(ListArgs.positive(ListArgs.absoluteIds(ListArgs.bounded(request, "exclude")), TermId::of)
+                .toArray(TermId[]::new));
+        List<String> slugList = ListArgs.texts(ListArgs.bounded(request, "slug"));
         if (!slugList.isEmpty()) {
             query.slugs(slugList.toArray(String[]::new));
         }
-        request.param("order").ifPresent(order -> query.order(TermSchema.scalar(order)));
-        request.param("orderby").ifPresent(orderby -> query.orderBy(orderBy(TermSchema.scalar(orderby))));
+        request.param("order").ifPresent(order -> query.order(ListArgs.scalar(order)));
+        request.param("orderby").ifPresent(orderby -> query.orderBy(orderBy(ListArgs.scalar(orderby))));
         request.param("hide_empty").ifPresent(hide -> query.hideEmpty(PhpValues.toBoolean(hide)));
-        request.param("search").ifPresent(search -> query.search(TermSchema.scalar(search)));
+        request.param("search").ifPresent(search -> query.search(ListArgs.scalar(search)));
         if (term.hierarchical()) {
             request.param("parent").ifPresent(parent -> {
                 long id = PhpValues.toLong(parent);
@@ -413,35 +414,9 @@ public class TermsController implements RestRouteProvider {
         };
     }
 
-    /** WordPress's id lists: each item's absolute integer value, each once, in order. */
-    private static List<Long> absoluteIds(List<JsonNode> items) {
-        Set<Long> ids = new LinkedHashSet<>();
-        for (JsonNode item : items) {
-            long id = PhpValues.toLong(item);
-            ids.add(id == Long.MIN_VALUE ? Long.MAX_VALUE : Math.abs(id));
-        }
-        return List.copyOf(ids);
-    }
-
-    private static List<TermId> positive(List<Long> ids) {
-        List<TermId> positive = new ArrayList<>(ids.size());
-        for (long id : ids) {
-            if (id > 0) {
-                positive.add(TermId.of(id));
-            }
-        }
-        return positive;
-    }
-
-    private static List<String> texts(List<JsonNode> items) {
-        List<String> texts = new ArrayList<>(items.size());
-        items.forEach(item -> texts.add(TermSchema.scalar(item)));
-        return texts;
-    }
-
     /** WordPress's slug sanitizing of a requested slug, through the site's slug sanitizer. */
     private JsonNode slug(Routes term, JsonNode value) {
-        String text = TermSchema.scalar(value);
+        String text = ListArgs.scalar(value);
         return TextNode.valueOf(slugs.sanitize(
                 text, new SlugContext(site.siteId(), Optional.empty(), term.key(), "", Optional.empty(), text)));
     }
@@ -487,11 +462,11 @@ public class TermsController implements RestRouteProvider {
     }
 
     /**
-     * The term's archive link in plain permalinks (pretty permalinks come with M3): {@code ?cat=<id>} for a category,
-     * {@code ?<query variable>=<slug>} for a taxonomy that has a query variable, else
-     * {@code ?taxonomy=<taxonomy>&term=<slug>}; the slug is the stored one, already percent-encoded. A taxonomy that is
-     * not publicly queryable has no query variable; a publicly queryable one has WordPress's default, its key
-     * ({@code tag} for tags), since QuarkPress registrations name no other.
+     * The term's archive link in plain permalinks (QuarkPress has no pretty permalinks yet): {@code ?cat=<id>} for a
+     * category, {@code ?<query variable>=<slug>} for a taxonomy that has a query variable, else {@code
+     * ?taxonomy=<taxonomy>&term=<slug>}; the slug is the stored one, already percent-encoded. A taxonomy that is not
+     * publicly queryable has no query variable; a publicly queryable one has WordPress's default, its key ({@code tag}
+     * for tags), since QuarkPress registrations name no other.
      */
     private String link(TaxonomyDefinition taxonomy, TermSnapshot found) {
         String home = urls.home();

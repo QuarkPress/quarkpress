@@ -233,7 +233,8 @@ class AllowOptionsDbTest {
         Response one = Http.as(null).get("/wp-json/qp-test/v1/things");
         one.then().header("X-WP-Total", "3").header("X-WP-TotalPages", "1");
         assertThat(one.headers().getValues("Link")).containsExactly(ROOT_LINK);
-        // Part D 15: the envelope holds the totals as JSON integers, then Allow; the HTTP Link stays the root's
+        // REST verification list item 15: the envelope holds the totals as JSON integers, then Allow; the HTTP Link
+        // stays the root's
         Response enveloped = Http.as(null).get("/wp-json/qp-test/v1/things?_envelope");
         enveloped
                 .then()

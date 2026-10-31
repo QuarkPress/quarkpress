@@ -21,7 +21,7 @@ import org.quarkpress.restwp.runtime.RestJson;
 /**
  * WordPress's links and embedding: the {@code self} link's target hints for the caller, links inlined into collection
  * items before {@code _fields}, and {@code _embed} answered by dispatching each embeddable link internally as the same
- * caller (Part D 16, 17, 18).
+ * caller (REST verification list items 16, 17, 18).
  */
 class LinksEmbedDbTest {
 
@@ -48,7 +48,7 @@ class LinksEmbedDbTest {
                 .containsExactly("GET", "POST", "PUT", "PATCH", "DELETE");
         assertThat(hints("test-" + author, "/wp-json/qp-test/v1/things/3"))
                 .containsExactly("GET", "POST", "PUT", "PATCH");
-        // Part D 17: the hints equal the Allow header of a GET of the same href by the same caller
+        // REST verification list item 17: the hints equal the Allow header of a GET of the same href by the same caller
         List<String> callers = new ArrayList<>(Arrays.asList((String) null));
         callers.add("test-" + administrator);
         callers.add("test-" + author);
@@ -105,7 +105,7 @@ class LinksEmbedDbTest {
         assertThat(embedded.at("/_links/up/0/embeddable").toString()).isEqualTo("true");
         assertThat(calls("2")).isZero();
         assertThat(calls("7")).isZero();
-        // Part D 18: ?_embed=0 embeds as ?_embed does; a listed relation embeds only that one
+        // REST verification list item 18: ?_embed=0 embeds as ?_embed does; a listed relation embeds only that one
         assertThat(json(Http.as(null).get(NODES + "/3?_embed=0").asString())).isEqualTo(node);
         JsonNode up = json(Http.as(null).get(NODES + "/3?_embed=up").asString());
         assertThat(fieldNames(up.get("_embedded"))).containsExactly("up");
@@ -114,8 +114,8 @@ class LinksEmbedDbTest {
         assertThat(fieldNames(author)).containsExactly("id", "context", "_links");
     }
 
-    // Part D 18 could not record an embedded error (unreachable in a default WordPress install): this test keeps the
-    // reference's reading, and the parity run cannot compare it
+    // REST verification list item 18 could not record an embedded error (unreachable in a default WordPress install):
+    // this test keeps the reference's reading, and the parity run cannot compare it
     @Test
     void errorsAreEmbeddedWithoutChangingTheParent() {
         Http.as(null)
@@ -147,7 +147,8 @@ class LinksEmbedDbTest {
                 .isEqualTo("{\"per_page\":100,\"context\":\"embed\"}");
         assertThat(sizes.at("/_embedded/wp:sizes/1/0").toString()).isEqualTo("{\"per_page\":2,\"context\":\"embed\"}");
         assertThat(sizes.at("/_embedded/wp:sizes/2/0").toString()).isEqualTo("{\"per_page\":100,\"context\":\"view\"}");
-        // Part D 16: a collection's items keep their links only when _links is requested, and only then embed
+        // REST verification list item 16: a collection's items keep their links only when _links is requested, and only
+        // then embed
         assertThat(Http.as(null).get(NODES + "?_fields=id,_embedded&_embed").asString())
                 .isEqualTo("[{\"id\":3},{\"id\":4}]");
         assertThat(calls("1")).isZero();
@@ -160,7 +161,8 @@ class LinksEmbedDbTest {
         assertThat(calls("1")).isEqualTo(1);
         // an embedded item is reduced by its own request, never by the outer _fields
         assertThat(fieldNames(items.at("/0/_embedded/up/0"))).containsExactly("id", "context", "_links");
-        // Part D 16, single item: the controller adds its links for _embedded, the server keeps them past _fields
+        // REST verification list item 16, single item: the controller adds its links for _embedded, the server keeps
+        // them past _fields
         JsonNode single =
                 json(Http.as(null).get(NODES + "/3?_fields=id,_embedded&_embed").asString());
         assertThat(fieldNames(single)).containsExactly("id", "_links", "_embedded");

@@ -176,12 +176,7 @@ final class TermSchema {
      * WordPress's text-field sanitizing of a request value: a scalar as PHP prints it (null as ""), anything else "".
      */
     static JsonNode textField(JsonNode value) {
-        return TextNode.valueOf(TextFields.textField(scalar(value)));
-    }
-
-    /** A scalar request value as PHP prints it (null as ""); a list or an object as "". */
-    static String scalar(JsonNode value) {
-        return value == null || value.isContainerNode() ? "" : PhpValues.toPhpString(value);
+        return TextNode.valueOf(TextFields.textField(ListArgs.scalar(value)));
     }
 
     private static ObjectNode property(

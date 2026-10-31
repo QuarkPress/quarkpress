@@ -18,12 +18,12 @@ import java.util.function.Function;
  * WordPress's {@code _embed}: for each item of a list answer (or the answer itself), each relation of its
  * {@code _links} that is asked for gets, under {@code _embedded}, one entry per link: the linked resource's data for
  * an embeddable link, {@code []} for any other. A relation none of whose entries holds anything is left out, and so is
- * {@code _embedded} when no relation is left. Each href is fetched once per answer; at most {@link #MAX_FETCHES}
- * different hrefs are fetched, later ones get {@code []}.
+ * {@code _embedded} when no relation is left. Each href is asked for once per answer, one that leads nowhere
+ * included; at most {@link #MAX_FETCHES} different hrefs are asked for, later ones get {@code []}.
  */
 public final class Embedder {
 
-    /** The most different hrefs one answer fetches (WordPress has no bound). */
+    /** The most different hrefs one answer asks for, those that lead nowhere included (WordPress has no bound). */
     public static final int MAX_FETCHES = 1000;
 
     private final EmbedChoice choice;
@@ -149,7 +149,10 @@ public final class Embedder {
                 && link.get("href").isTextual();
     }
 
-    /** The href's data, fetched once; {@code []} when it leads nowhere or the bound is reached. */
+    /**
+     * The href's data, asked for once; {@code []} when it leads nowhere (remembered as such, so it counts toward the
+     * bound) or the bound is reached.
+     */
     private JsonNode fetched(String href) {
         JsonNode known = cache.get(href);
         if (known != null) {
@@ -158,11 +161,8 @@ public final class Embedder {
         if (cache.size() >= maxFetches) {
             return RestJson.NODES.arrayNode();
         }
-        Optional<JsonNode> data = fetch.apply(href);
-        if (data.isEmpty()) {
-            return RestJson.NODES.arrayNode();
-        }
-        cache.put(href, data.get());
-        return data.get();
+        JsonNode data = fetch.apply(href).orElseGet(RestJson.NODES::arrayNode);
+        cache.put(href, data);
+        return data;
     }
 }

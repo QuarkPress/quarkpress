@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.arc.ClientProxy;
 import io.quarkus.runtime.StartupEvent;
+import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
+import io.quarkus.security.runtime.QuarkusPrincipal;
+import io.quarkus.security.runtime.QuarkusSecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
@@ -19,6 +23,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -60,6 +65,14 @@ public class RestServer {
 
     private static final Set<String> BODY_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 
+    private static final String BEARER = "Bearer ";
+
+    /** The identity of a request served as anonymous. */
+    private static final SecurityIdentity ANONYMOUS = QuarkusSecurityIdentity.builder()
+            .setAnonymous(true)
+            .setPrincipal(new QuarkusPrincipal(""))
+            .build();
+
     @Inject
     SiteGate gate;
 
@@ -71,6 +84,9 @@ public class RestServer {
 
     @Inject
     SecurityIdentity identity;
+
+    @Inject
+    CurrentIdentityAssociation association;
 
     @Inject
     SiteContext site;
@@ -132,9 +148,22 @@ public class RestServer {
     /**
      * Answers a REST request. Whatever fails on the way, an exception or a stack overflow, ends as WordPress's error
      * object, never as the server's own error page.
+     *
+     * <p>The caller is the request's identity only when the request carried {@code Authorization: Bearer ...} (the
+     * token then passed authentication). An identity the request got any other way, such as a session cookie of an
+     * OIDC web application, is not trusted: the request is served as anonymous, permissions and the services it calls
+     * included, so a page of another site cannot make a browser send a write that runs with the user's rights.
      */
     public ServedResponse serve(IncomingRequest incoming) {
         return respond(incoming, () -> dispatch(incoming), true);
+    }
+
+    /** Whether the request carried an {@code Authorization} header of the {@code Bearer} scheme with a credential. */
+    static boolean bearer(IncomingRequest incoming) {
+        String authorization = incoming.header("Authorization");
+        return authorization != null
+                && authorization.length() > BEARER.length()
+                && authorization.regionMatches(true, 0, BEARER, 0, BEARER.length());
     }
 
     /**
@@ -159,6 +188,7 @@ public class RestServer {
         String root = null;
         boolean started = false;
         boolean loggedIn = false;
+        SecurityIdentity untrusted = null;
         try {
             Optional<SiteGate.Gate> gated = gate.decide(incoming);
             if (gated.isPresent() && gated.get() instanceof SiteGate.Gate.Died died) {
@@ -175,6 +205,11 @@ public class RestServer {
             }
             if (asksForJsonp(incoming)) {
                 return sendable(incoming, new ServedResponse(400, ResponseHeaders.jsonpRefusal(root), JSONP_DISABLED));
+            }
+            if (identified && !bearer(incoming) && !identity.isAnonymous()) {
+                // an identity from anything but a Bearer token is not trusted: the request is served as anonymous
+                untrusted = association.getIdentity();
+                association.setIdentity(ANONYMOUS);
             }
             RestResponse response;
             try {
@@ -197,6 +232,10 @@ public class RestServer {
                         incoming, new ServedResponse(error.status(), headers, RestJson.encode(error.body(), false)));
             } catch (RuntimeException | StackOverflowError again) {
                 return unexpected(failure, incoming);
+            }
+        } finally {
+            if (untrusted != null) {
+                association.setIdentity(untrusted);
             }
         }
     }
@@ -638,6 +677,7 @@ public class RestServer {
         private final LinkRenderer links;
         private List<String> fields;
         private final Map<ObjectNode, Fields.Selection> selections = new IdentityHashMap<>();
+        private JsonNode context;
 
         Served(
                 String method,
@@ -689,12 +729,20 @@ public class RestServer {
 
         @Override
         public Optional<JsonNode> param(String name) {
+            if (context != null && name.equals("context")) {
+                return Optional.of(context);
+            }
             return sources.get(name);
         }
 
         @Override
+        public void useContext(String context) {
+            this.context = TextNode.valueOf(Objects.requireNonNull(context, "context"));
+        }
+
+        @Override
         public boolean hasParam(String name) {
-            return sources.has(name);
+            return param(name).isPresent();
         }
 
         @Override

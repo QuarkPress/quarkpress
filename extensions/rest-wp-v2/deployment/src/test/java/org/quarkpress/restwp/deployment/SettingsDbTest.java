@@ -190,20 +190,21 @@ class SettingsDbTest {
         // the site's Uncategorized term (the main site's category with slug "uncategorized"), never 0
         assertThat(settings.get("default_category"))
                 .isEqualTo(IntNode.valueOf((int) Jdbc.termId(MAIN, "category", "uncategorized")));
-        // Part D 28 for a fresh site: language "en_US", timezone "", default_ping_status / default_comment_status
-        // "open"
+        // REST verification list item 28 for a fresh site: language "en_US", timezone "", default_ping_status /
+        // default_comment_status "open"
         assertThat(settings.get("language")).isEqualTo(TextNode.valueOf("en_US"));
         assertThat(settings.get("timezone")).isEqualTo(TextNode.valueOf(""));
         assertThat(settings.get("default_ping_status")).isEqualTo(TextNode.valueOf("open"));
         assertThat(settings.get("default_comment_status")).isEqualTo(TextNode.valueOf("open"));
-        // Part D 19 vs 28: the index's site_logo is 0 (Task 15) while the setting is null, both as WordPress answers
+        // REST verification list items 19 and 28: the index's site_logo is 0 while the setting is null, both as
+        // WordPress answers
         assertThat(json(Http.as(null).get("/wp-json/").asString()).get("site_logo"))
                 .isEqualTo(IntNode.valueOf(0));
     }
 
     @Test
     void optionsDescribesTheSettingsAsWordPressDoes() {
-        // Part D: WordPress's OPTIONS body of the route on its network, byte for byte
+        // WordPress's OPTIONS body of the route on its network, byte for byte
         Http.as("test-" + administrator)
                 .options(SETTINGS)
                 .then()
@@ -240,7 +241,7 @@ class SettingsDbTest {
                         equalTo("default_comment_status is not one of open and closed."))
                 .body("data.details.default_comment_status.code", equalTo("rest_not_in_enum"))
                 .body("data.details.default_comment_status.data", nullValue());
-        // Part D 28: "" is refused by the enum before any sanitization could turn it into "closed"
+        // REST verification list item 28: "" is refused by the enum before any sanitization could turn it into "closed"
         Http.as("test-" + administrator)
                 .contentType("application/json")
                 .body("{\"default_ping_status\":\"\"}")
@@ -276,7 +277,8 @@ class SettingsDbTest {
 
     @Test
     void storedInvalidValuesReadAsNullAndRefuseANullReset() {
-        // Part D 28's case: use_smilies stored as "abc"; the earlier title in the same request is written
+        // REST verification list item 28's case: use_smilies stored as "abc"; the earlier title in the same request is
+        // written
         Jdbc.option(MAIN, "use_smilies", "\"abc\"");
         assertThat(setting("use_smilies").isNull()).isTrue();
         Http.as("test-" + administrator)
@@ -429,10 +431,8 @@ class SettingsDbTest {
         for (String name : List.of("home", "siteurl", "blog_public", "WPLANG")) {
             assertThat(Jdbc.optionJson(MAIN, name)).as(name).isNull();
         }
-        // a qp_ option is never listed, even when stored
-        for (String name : fieldNames(answer)) {
-            assertThat(name).doesNotStartWith("qp_");
-        }
+        // a qp_ option is never listed, even when stored; the answer lists the registered settings
+        assertThat(fieldNames(answer)).contains("title", "description").noneMatch(name -> name.startsWith("qp_"));
         Http.as("test-" + administrator)
                 .get(SETTINGS + "?_fields=qp_features")
                 .then()

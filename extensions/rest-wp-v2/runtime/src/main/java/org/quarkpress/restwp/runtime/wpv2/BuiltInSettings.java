@@ -14,22 +14,11 @@ import org.quarkpress.restwp.SettingDefinition;
 /**
  * The settings WordPress registers for REST in a default install, in its order, with its titles and descriptions:
  * the general, writing and reading settings, then the site logo and icon. The site URL and the administrator's e-mail
- * address are settings on a single site only. Whether the application is a network is decided when it is built.
+ * address are settings on a single site only.
  */
 public final class BuiltInSettings {
 
-    private static volatile boolean multisite;
-
     private BuiltInSettings() {}
-
-    /** Records whether the multisite module is present and turned on; called once when the application starts. */
-    public static void installMultisite(boolean enabled) {
-        multisite = enabled;
-    }
-
-    static boolean multisite() {
-        return multisite;
-    }
 
     /**
      * Whether {@code setting} is the single-site {@code url}, the site's address. QuarkPress takes the address from the

@@ -114,9 +114,9 @@ class ArgChecksTest {
 
     @Test
     void anArgWithItsOwnSanitizerIsNotTypeCheckedInPhaseTwo() {
-        // Part D 8: POST /tags?name[]=x with JSON {"name":"d08-ok"} created the tag (201): the term "name" arg carries
-        // WordPress's own sanitizer (text-field sanitization), which replaces the type check of phase 2, so the
-        // shadowed query value is sanitized, not reported
+        // REST verification list item 8: POST /tags?name[]=x with JSON {"name":"d08-ok"} created the tag (201): the
+        // term "name" arg carries WordPress's own sanitizer (text-field sanitization), which replaces the type check of
+        // phase 2, so the shadowed query value is sanitized, not reported
         assertThat(check(List.of(stringWithOwnSanitizer("name")), jsonAndQuery("{\"name\":\"ok\"}", "name[]=x")))
                 .isEmpty();
         ParamSources sources = jsonAndQuery("{\"name\":\" a <b>ok</b> \"}", "");

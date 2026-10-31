@@ -114,7 +114,7 @@ class CorsDbTest {
                 .statusCode(400)
                 .header("Access-Control-Allow-Origin", nullValue())
                 .header("Vary", nullValue());
-        // a request that dies before the REST server gets none either (Part D 2)
+        // a request that dies before the REST server gets none either (REST verification list item 2)
         Http.as(null)
                 .header("Origin", "https://admin.test")
                 .get("/?rest_route[]=x")

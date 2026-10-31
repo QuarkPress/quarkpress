@@ -14,7 +14,6 @@ import io.quarkus.runtime.configuration.ConfigurationException;
 import io.quarkus.vertx.http.deployment.HttpRootPathBuildItem;
 import io.quarkus.vertx.http.deployment.NonApplicationRootPathBuildItem;
 import java.util.Optional;
-import org.eclipse.microprofile.config.ConfigProvider;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.restwp.RestRouteProvider;
@@ -29,9 +28,6 @@ import org.quarkpress.restwp.runtime.RestWpRecorder;
 class RestWpV2Processor {
 
     static final String FEATURE = "quarkpress-rest-wp-v2";
-
-    /** The capability the multisite module provides. */
-    static final String MULTISITE = "org.quarkpress.multisite";
 
     /** The capability the revisions module provides. */
     static final String REVISIONS = "org.quarkpress.revisions";
@@ -80,20 +76,6 @@ class RestWpV2Processor {
                     .reason(RestWpV2Processor.class.getName())
                     .build());
         }
-    }
-
-    /**
-     * Whether the application is a network, which decides WordPress's settings: the multisite module is present and its
-     * build-time switch {@code quarkpress.multisite.enabled} is on.
-     */
-    @BuildStep
-    @Record(ExecutionTime.STATIC_INIT)
-    void installMode(Capabilities capabilities, RestWpRecorder recorder) {
-        boolean multisite = capabilities.isPresent(MULTISITE)
-                && ConfigProvider.getConfig()
-                        .getOptionalValue("quarkpress.multisite.enabled", Boolean.class)
-                        .orElse(false);
-        recorder.multisite(multisite);
     }
 
     /** The REST request filter never treats a path under the non-application root as a REST path. */

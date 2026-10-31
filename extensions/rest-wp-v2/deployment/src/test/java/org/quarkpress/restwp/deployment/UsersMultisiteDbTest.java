@@ -77,7 +77,7 @@ class UsersMultisiteDbTest {
 
     @Test
     void aSiteShowsOnlyItsOwnMembers() {
-        // Part D 24: a member of another site only does not exist here, for a super admin too
+        // REST verification list item 24: a member of another site only does not exist here, for a super admin too
         for (String bearer : new String[] {null, "test-" + alice}) {
             Response missing = Http.as(bearer).get("/wp-json/wp/v2/users/" + gina);
             expect(missing, 404, "rest_user_invalid_id", "Invalid user ID.");
@@ -177,7 +177,7 @@ class UsersMultisiteDbTest {
     @Test
     void wordPresssMultisiteUserRules() {
         String newUser = "{\"username\":\"z\",\"email\":\"z@quarkpress.test\",\"password\":\"z-pass\"}";
-        // Part D 27
+        // REST verification list item 27
         Response create = Http.as("test-" + frank)
                 .contentType("application/json")
                 .body(newUser)
@@ -226,7 +226,7 @@ class UsersMultisiteDbTest {
                 .body("code", equalTo("rest_invalid_param"))
                 .body("data.params.reassign", equalTo("Invalid user parameter(s)."));
         assertThat(Jdbc.profileMeta(dave)).doesNotContain("persisted_preferences");
-        // Part D 17: the super admin may use every method on carol
+        // REST verification list item 17: the super admin may use every method on carol
         Http.as("test-" + alice)
                 .get("/wp-json/wp/v2/users/" + carol)
                 .then()

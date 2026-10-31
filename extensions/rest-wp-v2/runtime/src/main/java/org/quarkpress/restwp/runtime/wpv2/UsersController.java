@@ -243,6 +243,14 @@ public class UsersController implements RestRouteProvider {
         if (target.isEmpty()) {
             return PermissionResult.denied(invalidId());
         }
+        // roles to set are checked first, against promote_user
+        if (request.param("roles").filter(roles -> !PhpValues.isEmpty(roles)).isPresent()
+                && !capabilities.can(
+                        request.identity(),
+                        "promote_user",
+                        Optional.of(new UserTarget(target.get().id())))) {
+            return denied(request, "rest_cannot_edit_roles", "Sorry, you are not allowed to edit roles of this user.");
+        }
         if (!canEdit(request.identity(), target.get().id())) {
             return denied(request, "rest_cannot_edit", "Sorry, you are not allowed to edit this user.");
         }

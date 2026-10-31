@@ -250,12 +250,12 @@ class UsersDbTest {
                 .containsExactly("alice", "bob", "carol", "dave", "erin");
         assertThat(slugs(Http.as(null).get("/wp-json/wp/v2/users?search=aro&" + fixture)))
                 .containsExactly("carol");
-        // Part D 24: the e-mail column is dropped without list_users, the request not refused
+        // REST verification list item 24: the e-mail column is dropped without list_users, the request not refused
         Response email =
                 Http.as(null).get("/wp-json/wp/v2/users?search=quarkpress.test&search_columns[]=email&" + fixture);
         email.then().statusCode(200).header("X-WP-Total", "0");
         assertThat(slugs(email)).isEmpty();
-        // Part D 24, as erin (no list_users)
+        // REST verification list item 24, as erin (no list_users)
         assertThat(slugs(Http.as("test-" + erin).get("/wp-json/wp/v2/users?search=car&" + fixture)))
                 .containsExactly("carol");
         assertThat(slugs(Http.as("test-" + erin).get("/wp-json/wp/v2/users?search=" + carol + "&" + fixture)))
@@ -321,7 +321,7 @@ class UsersDbTest {
         Http.as(null).get("/wp-json/wp/v2/users/" + erin).then().header("Allow", nullValue());
         // erin's private post is readable by bob
         Http.as("test-" + bob).get("/wp-json/wp/v2/users/" + erin).then().statusCode(200);
-        // Part D 24
+        // REST verification list item 24
         expect(
                 Http.as("test-" + dave).get("/wp-json/wp/v2/users/" + erin),
                 403,
@@ -335,7 +335,7 @@ class UsersDbTest {
                 "rest_user_cannot_view",
                 "Sorry, you are not allowed to list users.");
         Http.as("test-" + alice).get("/wp-json/wp/v2/users/" + dave).then().statusCode(200);
-        // Part D 17 / 25: Allow per caller
+        // REST verification list items 17 and 25: Allow per caller
         Http.as(null)
                 .get("/wp-json/wp/v2/users/" + carol)
                 .then()
@@ -444,7 +444,7 @@ class UsersDbTest {
         assertThat(edit.get("extra_capabilities").toString()).isEqualTo("{\"author\":true}");
         assertThat(edit.at("/capabilities/level_2")).isEqualTo(BooleanNode.TRUE);
         assertThat(edit.get("registered_date").asText()).matches("\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\+00:00");
-        // Part D 25
+        // REST verification list item 25
         assertThat(edit.get("meta").toString()).isEqualTo("{\"persisted_preferences\":[]}");
         JsonNode erinEdit = json(Http.as("test-" + erin)
                 .get("/wp-json/wp/v2/users/me?context=edit")
@@ -495,7 +495,7 @@ class UsersDbTest {
                 .statusCode(200)
                 .header("Allow", "GET, POST, PUT, PATCH")
                 .body("slug", equalTo("erin" + u));
-        // Part D 26
+        // REST verification list item 26
         Response anonymousPut = Http.as(null)
                 .contentType("application/json")
                 .body("{\"name\":\"x\"}")
@@ -567,7 +567,23 @@ class UsersDbTest {
                 "rest_cannot_edit",
                 "Sorry, you are not allowed to edit this user.");
         assertThat(Jdbc.profileMeta(erin)).doesNotContain("persisted_preferences");
-        // Part D 26: a non-object value is refused at the top level and the stored value stays
+        // roles to set are checked first, against promote_user (as WordPress answered a subscriber's request)
+        expect(
+                Http.as("test-" + erin).post("/wp-json/wp/v2/users/" + carol + "?password=Gen-pass-1&roles=editor"),
+                403,
+                "rest_cannot_edit_roles",
+                "Sorry, you are not allowed to edit roles of this user.");
+        expect(
+                Http.as(null).post("/wp-json/wp/v2/users/" + carol + "?roles=editor"),
+                401,
+                "rest_cannot_edit_roles",
+                "Sorry, you are not allowed to edit roles of this user.");
+        expect(
+                Http.as("test-" + erin).post("/wp-json/wp/v2/users/" + carol + "?password=Gen-pass-1"),
+                403,
+                "rest_cannot_edit",
+                "Sorry, you are not allowed to edit this user.");
+        // REST verification list item 26: a non-object value is refused at the top level and the stored value stays
         Http.as("test-" + dave)
                 .contentType("application/json")
                 .body("{\"meta\":{\"persisted_preferences\":\"x\"}}")
@@ -584,7 +600,7 @@ class UsersDbTest {
                 .body("meta.persisted_preferences.core.fixedToolbar", equalTo(true));
         // the preferences are not shown in the view context
         Http.as("test-" + dave).get("/wp-json/wp/v2/users/me").then().body("meta", equalTo(List.of()));
-        // Part D 25: null removes them; the same write through users/<id> on oneself, by POST
+        // REST verification list item 25: null removes them; the same write through users/<id> on oneself, by POST
         Http.as("test-" + dave)
                 .contentType("application/json")
                 .body("{\"meta\":{\"persisted_preferences\":null}}")

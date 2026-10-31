@@ -126,7 +126,7 @@ class RouteDataTest {
                 + "\"b\":{\"context\":[\"view\",\"embed\",\"edit\"]},\"c\":{\"type\":\"string\"}}}");
         List<Arg> args = Paging.collectionArgs(item, true);
         assertThat(args).extracting(Arg::name).containsExactly("context", "page", "per_page", "search", "offset");
-        // the texts and keyword order of WordPress's /wp/v2/tags OPTIONS body (Part D 12)
+        // the texts and keyword order of WordPress's /wp/v2/tags OPTIONS body (REST verification list item 12)
         assertThat(RouteData.describe(args.get(0)).toString())
                 .isEqualTo("{\"description\":\"Scope under which the request is made; determines fields present in"
                         + " response.\",\"type\":\"string\",\"enum\":[\"view\",\"embed\",\"edit\"],"
@@ -154,7 +154,7 @@ class RouteDataTest {
 
     @Test
     void offsetGoesWhereWordPresssTagsCollectionHasIt() throws Exception {
-        // the first seven args of WordPress 7.1.3's OPTIONS /wp/v2/tags (Part D 12), byte for byte
+        // the first seven args of WordPress 7.1.3's OPTIONS /wp/v2/tags (REST verification list item 12), byte for byte
         String tags = "{\"context\":{\"description\":\"Scope under which the request is made; determines fields"
                 + " present in response.\",\"type\":\"string\",\"enum\":[\"view\",\"embed\",\"edit\"],"
                 + "\"default\":\"view\",\"required\":false},\"page\":{\"description\":\"Current page of the"

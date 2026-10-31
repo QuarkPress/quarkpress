@@ -42,10 +42,10 @@ import org.quarkpress.taxonomy.runtime.TermEntity;
 import org.quarkpress.taxonomy.runtime.TermRepository;
 
 /**
- * The term routes of every taxonomy shown in REST (categories and tags): arguments, permissions, query, fields,
- * links, writes and their errors as WordPress answers them (Part D 3, 4, 7, 8, 14, 15, 23), and the site boundary: a
- * term or post of another site does not exist here. Members: an administrator, an editor, the author carol, the
- * contributor dave and the subscriber erin.
+ * The term routes of every taxonomy shown in REST (categories and tags): arguments, permissions, query, fields, links,
+ * writes and their errors as WordPress answers them (REST verification list items 3, 4, 7, 8, 14, 15, 23), and the site
+ * boundary: a term or post of another site does not exist here. Members: an administrator, an editor, the author carol,
+ * the contributor dave and the subscriber erin.
  */
 class TermsDbTest {
 
@@ -107,7 +107,8 @@ class TermsDbTest {
         long id = created.then().statusCode(201).extract().jsonPath().getLong("id");
         created.then()
                 .header("Location", "http://localhost/wp-json/wp/v2/tags/" + id)
-                .header("Allow", "GET, POST")
+                // the answer is in the edit context, which an author may not list tags in: WordPress allows only POST
+                .header("Allow", "POST")
                 .body("taxonomy", equalTo("post_tag"))
                 .body("count", equalTo(0))
                 .body("meta", equalTo(List.of()))
@@ -115,7 +116,7 @@ class TermsDbTest {
                 .body("description", equalTo(""));
         assertThat(fieldNames(json(created.asString())))
                 .containsExactly("id", "count", "description", "link", "name", "slug", "taxonomy", "meta", "_links");
-        // Part D 7
+        // REST verification list item 7
         Http.as("test-" + carol)
                 .contentType("application/json")
                 .body("{\"name\":\"News " + u + "\"}")
@@ -136,7 +137,8 @@ class TermsDbTest {
                 .body(equalTo("{\"code\":\"term_exists\",\"message\":\"A term with the name provided already exists"
                         + " with this parent.\",\"data\":{\"status\":400,\"term_id\":" + category + "},"
                         + "\"additional_data\":[" + category + "," + category + "]}"));
-        // Part D 8: a shadowed value of the wrong type is not reported, the name arg having its own sanitizer
+        // REST verification list item 8: a shadowed value of the wrong type is not reported, the name arg having its
+        // own sanitizer
         Http.as("test-" + carol)
                 .contentType("application/json")
                 .queryParam("name[]", "x")
@@ -185,7 +187,7 @@ class TermsDbTest {
                 .statusCode(400)
                 .body("code", equalTo("rest_missing_callback_param"))
                 .body("data.params", equalTo(List.of("name")));
-        // Part D 23
+        // REST verification list item 23
         Http.as("test-" + editor)
                 .contentType("application/json")
                 .body("{\"name\":\"<b></b>\"}")
@@ -216,7 +218,7 @@ class TermsDbTest {
                 .then()
                 .statusCode(400)
                 .body(equalTo(invalid));
-        // Part D 23: a tag is no parent of a category
+        // REST verification list item 23: a tag is no parent of a category
         long tag = create("test-" + editor, "tags", "{\"name\":\"Tag " + u + "\"}");
         Http.as("test-" + editor)
                 .contentType("application/json")
@@ -373,7 +375,7 @@ class TermsDbTest {
                 .body(
                         equalTo(
                                 "{\"code\":\"rest_term_invalid\",\"message\":\"Term does not exist.\",\"data\":{\"status\":404}}"));
-        // Part D 15
+        // REST verification list item 15
         Http.as(null)
                 .get("/wp-json/wp/v2/categories/999999?_envelope")
                 .then()
@@ -501,7 +503,7 @@ class TermsDbTest {
         assign(TestData.MAIN, published, arts);
         PostId draft = TestData.post(data, TestData.MAIN, "post", "draft", "draft-" + u, "Draft");
         Jdbc.update(data, "update qp_post set author_id = ? where id = ?", carol, draft.value());
-        // Part D 23
+        // REST verification list item 23
         Http.as(null)
                 .get("/wp-json/wp/v2/categories?post=987654")
                 .then()
@@ -616,7 +618,7 @@ class TermsDbTest {
                         + "\"link\":\"http://localhost/?tag=del-" + u + "\",\"name\":\"Del " + u + "\",\"slug\":\"del-"
                         + u + "\",\"taxonomy\":\"post_tag\",\"meta\":[]}}");
         Http.as(null).get("/wp-json/wp/v2/tags/" + tag).then().statusCode(404);
-        // Part D 23: nobody deletes the default category
+        // REST verification list item 23: nobody deletes the default category
         long uncategorized = Jdbc.count(
                 data, "select id from qp_term where site_id = 1 and taxonomy = 'category' and slug = 'uncategorized'");
         Http.as("test-" + administrator)
@@ -626,7 +628,7 @@ class TermsDbTest {
                 .header("Allow", "GET, POST, PUT, PATCH")
                 .body(equalTo("{\"code\":\"rest_cannot_delete\",\"message\":\"Sorry, you are not allowed to delete"
                         + " this term.\",\"data\":{\"status\":403}}"));
-        // Part D 4
+        // REST verification list item 4
         long other = create("test-" + editor, "tags", "{\"name\":\"Gone " + u + "\"}");
         Http.as(null)
                 .header("X-HTTP-Method-Override", "DELETE")
@@ -637,7 +639,7 @@ class TermsDbTest {
                 .header("Cache-Control", "no-cache, must-revalidate, max-age=0, no-store, private")
                 .body(equalTo("{\"code\":\"rest_cannot_delete\",\"message\":\"Sorry, you are not allowed to delete"
                         + " this term.\",\"data\":{\"status\":401}}"));
-        // the same through ?_method: no no-cache headers for an anonymous caller (Part D 4)
+        // the same through ?_method: no no-cache headers for an anonymous caller (REST verification list item 4)
         Http.as(null)
                 .contentType("application/json")
                 .body("{}")
@@ -680,9 +682,9 @@ class TermsDbTest {
 
     @Test
     void specialCharactersRoundTripAsWordPressStoresAndEncodesThem() {
-        // Part D 14: Cafe with an acute e, "/Bar <b> & " and a grinning face keep no tag and one space, store & as
-        // &amp;
-        // and are encoded as PHP's json_encode writes them (non-ASCII as escapes, the slash escaped)
+        // REST verification list item 14: Cafe with an acute e, "/Bar <b> & " and a grinning face keep no tag and one
+        // space, store & as &amp; and are encoded as PHP's json_encode writes them (non-ASCII as escapes, the slash
+        // escaped)
         String raw = Http.as("test-" + editor)
                 .contentType("application/json")
                 .body("{\"name\":\"Caf\\u00e9/Bar <b> & \\ud83d\\ude00 " + u + "\"}")
@@ -880,7 +882,7 @@ class TermsDbTest {
     }
 
     /**
-     * T10a: a stale write that fails when a transactional method commits (Narayana's RollbackException around
+     * A stale write that fails when a transactional method commits (Narayana's RollbackException around
      * Hibernate's optimistic lock failure) is answered 409, never 500.
      */
     @Test
@@ -1015,7 +1017,8 @@ class TermsDbTest {
         return Jdbc.count(data, "select id from qp_term where slug = ?", slug);
     }
 
-    // WordPress 7.1.3's OPTIONS bodies of /wp/v2/categories and /wp/v2/tags/<id> (recorded in Part D, as alice)
+    // WordPress 7.1.3's OPTIONS bodies of /wp/v2/categories and /wp/v2/tags/<id> (recorded for the REST verification
+    // list, as alice)
     static final String CATEGORIES_OPTIONS =
             "{\"namespace\":\"wp\\/v2\",\"methods\":[\"GET\",\"POST\"],\"endpoints\":[{\"methods\":[\"GET\"],\"allow_batch\":{\"v"
                     + "1\":true},\"args\":{\"context\":{\"description\":\"Scope under which the request is made; determines fie"

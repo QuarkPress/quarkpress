@@ -64,7 +64,7 @@ class HeadersDbTest {
 
     @Test
     void anInvalidTokensErrorGoesThroughTheSamePipeline() {
-        // Ruling T2d's code (README D2; WordPress has no such error, Part D 6)
+        // QuarkPress's own code (README D2; WordPress has no such error, REST verification list item 6)
         Http.as("invalid")
                 .get("/wp-json/qp-test/v1/items?_envelope")
                 .then()
@@ -186,7 +186,8 @@ class HeadersDbTest {
     void varyOriginOnlyForAnonymousGetWithoutOrigin() {
         Http.as(null).get("/wp-json/qp-test/v1/items").then().header("Vary", "Origin");
         Http.as(null).get("/wp-json/qp-test/v1/none").then().header("Vary", "Origin");
-        Http.as(null).head("/wp-json/qp-test/v1/items").then().header("Vary", nullValue()); // Part D 13
+        // REST verification list item 13
+        Http.as(null).head("/wp-json/qp-test/v1/items").then().header("Vary", nullValue());
         Http.as("test-" + editor.value())
                 .get("/wp-json/qp-test/v1/items")
                 .then()
@@ -224,8 +225,10 @@ class HeadersDbTest {
                         + " and request method.\",\n    \"data\": {\n        \"status\": 404\n    }\n}");
         fixed(Http.as(null).get("/wp-json/qp-test/v1/none?_envelope").then())
                 .statusCode(200)
-                .body(equalTo("{\"body\":" + DispatchDbTest.NO_ROUTE + ",\"status\":404,\"headers\":[]}")); // Part D 15
-        // Part D 15: the totals as JSON integers, in the order set, then Allow, and not sent as HTTP headers
+                // REST verification list item 15
+                .body(equalTo("{\"body\":" + DispatchDbTest.NO_ROUTE + ",\"status\":404,\"headers\":[]}"));
+        // REST verification list item 15: the totals as JSON integers, in the order set, then Allow, and not sent as
+        // HTTP headers
         fixed(Http.as(null).get("/wp-json/qp-test/v1/items?_envelope=1").then())
                 .statusCode(200)
                 .header("X-WP-Total", nullValue())
@@ -250,8 +253,8 @@ class HeadersDbTest {
                 .body(equalTo("{\"a\":null}"));
         for (String callback : List.of("cb", "a-b")) {
             // JSONP is never enabled (README D5: WordPress serves _jsonp=cb). The refusal carries the headers
-            // WordPress has sent before its refusal with JSONP disabled (Ruling T11b, correcting T2b, whose d15 was
-            // recorded with JSONP enabled): Content-Type application/json, X-Robots-Tag, the API Link, nosniff, and
+            // WordPress sends with its refusal when JSONP is disabled (the parity scenario d15 runs WordPress with
+            // JSONP enabled): Content-Type application/json, X-Robots-Tag, the API Link, nosniff, and
             // no Access-Control-* lines, no Vary, no no-cache; it comes before authentication (an invalid token does
             // not change it)
             for (String bearer : new String[] {null, "invalid", "test-" + editor.value()}) {
@@ -299,7 +302,8 @@ class HeadersDbTest {
 
     @Test
     void aRestRouteRefusalKeepsWordPresssPreServerAnswer() {
-        // Part D 2: the request dies before the REST server, so none of its stages apply, except that HEAD has no body
+        // REST verification list item 2: the request dies before the REST server, so none of its stages apply, except
+        // that HEAD has no body
         for (String url : List.of("/?rest_route[]=x&_jsonp=cb&_envelope&_pretty", "/?rest_route[]=x")) {
             Http.as("invalid")
                     .header("Origin", "https://x.test")

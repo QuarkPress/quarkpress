@@ -53,7 +53,8 @@ import org.quarkpress.taxonomy.TermException;
  * (args {@code per_page} 1 to 100, validated, and {@code order} asc or desc, sanitized; the caller needs
  * {@code edit_posts}) and to DELETE (the caller needs {@code delete_others_posts}); {@code /denied} (GET) refuses with
  * {@code rest_cannot_view}; {@code /throws/(?P<kind>[\w-]+)} (GET) throws the exception {@code kind} names;
- * {@code /json} (GET and POST) answers {@code {"a"}}, the parameter {@code a}; {@code /things} answers GET (public,
+ * {@code /json} (GET and POST) answers {@code {"a"}}, the parameter {@code a}, counting its runs in
+ * {@link #JSON_CALLS}; {@code /things} answers GET (public,
  * WordPress's collection args, batching allowed) with a page of {@link #THINGS} things and their pagination headers,
  * and POST (the caller needs {@code manage_options}); {@code /things/(?P<id>[\d]+)} answers {@code {"method", "id"}}
  * (an integer id when {@code _fields} selects it, which it always does, and a self link when it selects
@@ -93,6 +94,9 @@ public class TestRoutes implements RestRouteProvider {
             + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true},\"context\":"
             + "{\"description\":\"The context asked for.\",\"type\":\"string\","
             + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true}}}";
+
+    /** How many times the {@code /json} handler ran. */
+    static final AtomicInteger JSON_CALLS = new AtomicInteger();
 
     /** How many times the node handler ran, by node id. */
     static final Map<String, AtomicInteger> NODE_CALLS = new ConcurrentHashMap<>();
@@ -177,8 +181,11 @@ public class TestRoutes implements RestRouteProvider {
         routes.route("qp-test/v1", "/throws/(?P<kind>[\\w-]+)")
                 .endpoint(Endpoint.of("GET").handler(TestRoutes::fail).build())
                 .register();
-        Handler json = request -> RestResponse.ok(
-                RestJson.NODES.objectNode().set("a", request.param("a").orElse(NullNode.getInstance())));
+        Handler json = request -> {
+            JSON_CALLS.incrementAndGet();
+            return RestResponse.ok(
+                    RestJson.NODES.objectNode().set("a", request.param("a").orElse(NullNode.getInstance())));
+        };
         routes.route("qp-test/v1", "/json")
                 .endpoint(Endpoint.of("GET").handler(json).build())
                 .endpoint(Endpoint.of("POST").handler(json).build())

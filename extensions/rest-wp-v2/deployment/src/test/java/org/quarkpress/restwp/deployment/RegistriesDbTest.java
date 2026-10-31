@@ -31,8 +31,8 @@ import org.quarkpress.restwp.runtime.RestJson;
 
 /**
  * The registries WordPress serves under {@code /wp/v2}: post types, taxonomies and post statuses, with their fields in
- * WordPress's order per context, their links, and their refusals (Part D 20, 21, 22). The application also registers
- * a post type and a taxonomy that are not shown in REST.
+ * WordPress's order per context, their links, and their refusals (REST verification list items 20, 21, 22). The
+ * application also registers a post type and a taxonomy that are not shown in REST.
  */
 class RegistriesDbTest {
 
@@ -120,7 +120,7 @@ class RegistriesDbTest {
                 .header("Allow", "GET")
                 .body("code", equalTo("rest_cannot_read_type"))
                 .body("message", equalTo("Cannot view post type."));
-        // Part D 20
+        // REST verification list item 20
         Http.as(null)
                 .get("/wp-json/wp/v2/types/qp_hidden")
                 .then()
@@ -135,7 +135,8 @@ class RegistriesDbTest {
                 .header("Allow", "GET")
                 .body(equalTo("{\"code\":\"rest_forbidden_context\",\"message\":\"Sorry, you are not allowed to edit"
                         + " posts in this post type.\",\"data\":{\"status\":403}}"));
-        // Part D 20, edit context as administrator (alice's answers for post, page, attachment, wp_block)
+        // REST verification list item 20, edit context as administrator (alice's answers for post, page, attachment,
+        // wp_block)
         JsonNode post = json(Http.as("test-" + administrator)
                 .get("/wp-json/wp/v2/types/post?context=edit")
                 .asString());
@@ -338,7 +339,7 @@ class RegistriesDbTest {
                 .header("Allow", nullValue())
                 .body(equalTo("{\"code\":\"rest_cannot_view\",\"message\":\"Sorry, you are not allowed to manage terms"
                         + " in this taxonomy.\",\"data\":{\"status\":401}}"));
-        // Part D 21
+        // REST verification list item 21
         Http.as("test-" + subscriber)
                 .get("/wp-json/wp/v2/taxonomies?context=edit")
                 .then()
@@ -374,7 +375,7 @@ class RegistriesDbTest {
                 .body(
                         equalTo(
                                 "{\"code\":\"rest_taxonomy_invalid\",\"message\":\"Invalid taxonomy.\",\"data\":{\"status\":404}}"));
-        // category in edit context as administrator (Part D 21)
+        // category in edit context as administrator (REST verification list item 21)
         JsonNode category = json(Http.as("test-" + administrator)
                 .get("/wp-json/wp/v2/taxonomies/category?context=edit")
                 .asString());
@@ -424,7 +425,7 @@ class RegistriesDbTest {
 
     @Test
     void statuses() {
-        // Part D 22
+        // REST verification list item 22
         Http.as(null)
                 .get("/wp-json/wp/v2/statuses")
                 .then()

@@ -21,7 +21,7 @@ class AvatarsTest {
         ObjectNode urls = Avatars.urls(Optional.of("  Carol@QuarkPress.test "), options(Map.of()))
                 .orElseThrow();
         String hash = sha256Hex("carol@quarkpress.test");
-        // the hash WordPress gave carol@quarkpress.test (Part D 24)
+        // the hash WordPress gave carol@quarkpress.test (REST verification list item 24)
         assertThat(hash).isEqualTo("b2b80e9a91cf0031a0929970d723ec1a622ab9f122eedb00a13c11a1caa42f9c");
         assertThat(urls.toString())
                 .isEqualTo("{\"24\":\"https://secure.gravatar.com/avatar/" + hash + "?s=24&d=mm&r=g\","

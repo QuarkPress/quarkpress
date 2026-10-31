@@ -13,9 +13,11 @@ import java.util.Optional;
 import org.quarkpress.restwp.SettingDefinition;
 import org.quarkpress.restwp.SettingsProvider;
 import org.quarkpress.restwp.SettingsRegistry;
+import org.quarkpress.security.runtime.InstallMode;
 
 /**
- * The settings registry: WordPress's settings for this kind of installation, then each {@link SettingsProvider} bean's,
+ * The settings registry: WordPress's settings for this kind of installation (a network or a single site, as the
+ * security module's {@link InstallMode} tells), then each {@link SettingsProvider} bean's,
  * the beans ordered by class name. A REST name registered twice fails when the registry is first read, which the
  * settings route's registration does while the application starts.
  */
@@ -25,6 +27,9 @@ public class RegisteredSettings implements SettingsRegistry {
     @Inject
     @All
     List<InstanceHandle<SettingsProvider>> providers;
+
+    @Inject
+    InstallMode mode;
 
     private volatile Registered registered;
 
@@ -55,7 +60,7 @@ public class RegisteredSettings implements SettingsRegistry {
     }
 
     private Registered build() {
-        List<SettingDefinition> all = new ArrayList<>(BuiltInSettings.of(BuiltInSettings.multisite()));
+        List<SettingDefinition> all = new ArrayList<>(BuiltInSettings.of(mode.multisite()));
         List<InstanceHandle<SettingsProvider>> sorted = new ArrayList<>(providers);
         sorted.sort(
                 Comparator.comparing(handle -> handle.getBean().getBeanClass().getName()));

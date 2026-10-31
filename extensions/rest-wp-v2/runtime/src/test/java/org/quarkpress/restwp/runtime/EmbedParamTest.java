@@ -39,7 +39,7 @@ class EmbedParamTest {
     }
 
     @Test
-    void eachHrefIsFetchedOncePerAnswerUpToTheBound() throws Exception {
+    void eachHrefIsAskedOncePerAnswerUpToTheBoundMissesIncluded() throws Exception {
         Map<String, Integer> fetches = new HashMap<>();
         Embedder embedder = new Embedder(
                 EmbedChoice.ALL,
@@ -53,23 +53,29 @@ class EmbedParamTest {
                                     ? RestJson.NODES.arrayNode()
                                     : RestJson.NODES.objectNode().put("at", href));
                 },
-                3);
+                4);
         JsonNode list = RestJson.READER.readTree("[{\"id\":1,\"_links\":{"
                 + "\"up\":[{\"embeddable\":true,\"href\":\"a\"},{\"href\":\"x\"},{\"embeddable\":\"0\",\"href\":\"y\"}],"
                 + "\"none\":[{\"embeddable\":true,\"href\":\"empty\"},{\"embeddable\":true,\"href\":\"nowhere\"}],"
                 + "\"late\":[{\"embeddable\":true,\"href\":\"b\"},{\"embeddable\":\"false\",\"href\":\"c\"}]}},"
-                + "{\"id\":2,\"_links\":{\"up\":[{\"embeddable\":1,\"href\":\"a\"}]}},"
+                + "{\"id\":2,\"_links\":{\"up\":[{\"embeddable\":1,\"href\":\"a\"},"
+                + "{\"embeddable\":true,\"href\":\"nowhere\"}]}},"
                 + "\"scalar\",{\"id\":3}]");
         JsonNode embedded = embedder.embed(list);
         // non-embeddable links (absent, "0") hold [] in their place; "false" is a true string in PHP
         assertThat(embedded.at("/0/_embedded/up").toString()).isEqualTo("[{\"at\":\"a\"},[],[]]");
         // a relation whose entries hold nothing is left out
         assertThat(embedded.at("/0/_embedded").has("none")).isFalse();
-        // a, empty and b fill the bound of 3 fetched hrefs: c, fetched fourth, gets []
+        // a, empty, nowhere (which leads nowhere, and still counts) and b fill the bound of 4 asked hrefs: c, the
+        // fifth, gets [] without being asked
         assertThat(embedded.at("/0/_embedded/late").toString()).isEqualTo("[{\"at\":\"b\"},[]]");
-        // the second item's link to a is not fetched again
-        assertThat(embedded.at("/1/_embedded/up/0/at").asText()).isEqualTo("a");
-        assertThat(fetches).containsEntry("a", 1).containsEntry("b", 1).doesNotContainKey("c");
+        // the second item's links to a and to nowhere are not asked again
+        assertThat(embedded.at("/1/_embedded/up").toString()).isEqualTo("[{\"at\":\"a\"},[]]");
+        assertThat(fetches)
+                .containsEntry("a", 1)
+                .containsEntry("nowhere", 1)
+                .containsEntry("b", 1)
+                .doesNotContainKey("c");
         // items without links, and values that are not objects, are kept as they are
         assertThat(embedded.get(2).asText()).isEqualTo("scalar");
         assertThat(embedded.get(3).toString()).isEqualTo("{\"id\":3}");

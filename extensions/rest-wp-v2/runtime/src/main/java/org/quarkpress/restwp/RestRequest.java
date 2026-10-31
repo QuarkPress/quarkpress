@@ -37,6 +37,14 @@ public interface RestRequest {
     String context();
 
     /**
+     * Sets the request's {@code context} parameter to {@code context} from now on, over every source, as WordPress's
+     * handlers do before they prepare their answer (a created or updated term is answered in the edit context, a
+     * deleted one's previous state in the view context). The server then computes the answer's {@code Allow} header
+     * with that context, as WordPress does. A request the REST server did not build ignores it.
+     */
+    default void useContext(String context) {}
+
+    /**
      * Whether the {@code context} parameter is the text {@code edit} (WordPress compares it strictly, so only a string
      * equal to "edit" asks for the edit context).
      */

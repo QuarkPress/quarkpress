@@ -13,8 +13,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.restwp.runtime.RestJson;
 
 /**
- * WordPress's {@code _fields} at both levels: the controller builds only the requested fields of its schema (and
- * always {@code id}), then the server reduces the answer to the requested key tree, quirks included (Part D 16).
+ * WordPress's {@code _fields} at both levels: the controller builds only the requested fields of its schema (and always
+ * {@code id}), then the server reduces the answer to the requested key tree, quirks included (REST verification list
+ * item 16).
  */
 class FieldsDbTest {
 
@@ -42,7 +43,8 @@ class FieldsDbTest {
 
     @Test
     void bothWordPressQuirksAreKept() {
-        // a parent requested before one of its children stops the list there (Part D 16: name,name.x,id gives name)
+        // a parent requested before one of its children stops the list there (REST verification list item 16:
+        // name,name.x,id gives name)
         body("/wp-json/qp-test/v1/things/3?_fields=method,method.x,id", "{\"method\":\"GET\"}");
         body("/wp-json/qp-test/v1/things/3?_fields=method.x,method,id", "{\"method\":\"GET\",\"id\":3}");
         // a child of a scalar keeps the scalar whole
@@ -120,7 +122,8 @@ class FieldsDbTest {
                 .extract()
                 .asString());
         assertThat(envelope.get("body").toString()).isEqualTo("{\"id\":3}");
-        assertThat(envelope.get("status").asInt()).isEqualTo(200);
+        assertThat(envelope.get("status").isIntegralNumber()).isTrue();
+        assertThat(envelope.get("status").longValue()).isEqualTo(200);
         assertThat(envelope.at("/headers/Allow").asText()).isEqualTo("GET");
     }
 

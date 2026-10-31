@@ -12,6 +12,7 @@ import io.quarkus.security.runtime.QuarkusSecurityIdentity;
 import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import io.quarkus.vertx.http.runtime.security.HttpAuthenticationMechanism;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.http.Cookie;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Set;
@@ -22,12 +23,18 @@ import org.quarkpress.security.QuarkPressPrincipal;
  * Bearer tokens for tests: {@code Authorization: Bearer test-<userId>} authenticates as that profile (the identity
  * the security module's augmentor would leave, without its permission checker); any other bearer value, such as
  * {@code Bearer invalid}, fails authentication; no bearer header leaves the request anonymous.
+ *
+ * <p>A request without an {@code Authorization} header but with the cookie {@code qp-test-session=test-<userId>} is
+ * authenticated as that profile too, as a session cookie of an OIDC web application would authenticate it.
  */
 @ApplicationScoped
 public class TestBearer implements HttpAuthenticationMechanism, IdentityProvider<TestBearer.Request> {
 
     private static final String SCHEME = "Bearer ";
     private static final String PREFIX = "test-";
+
+    /** The cookie that authenticates a request without an {@code Authorization} header. */
+    public static final String SESSION = "qp-test-session";
 
     /** The bearer value of a request. */
     public static final class Request extends BaseAuthenticationRequest {
@@ -55,7 +62,13 @@ public class TestBearer implements HttpAuthenticationMechanism, IdentityProvider
     @Override
     public Uni<SecurityIdentity> authenticate(RoutingContext context, IdentityProviderManager identityProviderManager) {
         String header = context.request().getHeader("Authorization");
-        if (header == null || !header.regionMatches(true, 0, SCHEME, 0, SCHEME.length())) {
+        if (header == null) {
+            Cookie session = context.request().getCookie(SESSION);
+            return session == null
+                    ? Uni.createFrom().nullItem()
+                    : identityProviderManager.authenticate(new Request(session.getValue()));
+        }
+        if (!header.regionMatches(true, 0, SCHEME, 0, SCHEME.length())) {
             return Uni.createFrom().nullItem();
         }
         return identityProviderManager.authenticate(new Request(header.substring(SCHEME.length())));

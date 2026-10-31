@@ -251,6 +251,32 @@ class DispatchDbTest {
     }
 
     @Test
+    void aJsonBodyOverTheLimitIsRefusedBeforeAnyHandlerRuns() {
+        // the normal path: a valid caller, a body of a declared length one byte over the limit
+        StringBuilder body = new StringBuilder("{\"a\":\"");
+        body.append("b".repeat(BODY_LIMIT * 1024 + 1 - body.length() - 2)).append("\"}");
+        assertThat(body).hasSize(BODY_LIMIT * 1024 + 1);
+        int before = TestRoutes.JSON_CALLS.get();
+        Http.as("test-" + editor.value())
+                .contentType("application/json")
+                .body(body.toString())
+                .post("/wp-json/qp-test/v1/json")
+                .then()
+                .statusCode(413);
+        assertThat(TestRoutes.JSON_CALLS.get()).isEqualTo(before);
+        // one byte less is served
+        String within = "{\"a\":\"" + "b".repeat(BODY_LIMIT * 1024 - 8) + "\"}";
+        assertThat(within).hasSize(BODY_LIMIT * 1024);
+        Http.as("test-" + editor.value())
+                .contentType("application/json")
+                .body(within)
+                .post("/wp-json/qp-test/v1/json")
+                .then()
+                .statusCode(200);
+        assertThat(TestRoutes.JSON_CALLS.get()).isEqualTo(before + 1);
+    }
+
+    @Test
     void malformedJsonIsRefusedOnlyAfterAMatch() {
         Http.as(null)
                 .contentType("application/json")
@@ -376,8 +402,8 @@ class DispatchDbTest {
                 "/wp-json/qp-test/v1/none",
                 "/?rest_route=/qp-test/v1/items",
                 "/wp-json/qp-test/v1/guarded?per_page=0")) {
-            // Known difference (Ruling T2d, README D2; parity d06): WordPress serves a failed application password as
-            // anonymous (Part D 6); QuarkPress refuses an invalid or expired token before matching
+            // Known difference (README D2; parity d06): WordPress serves a failed application password as
+            // anonymous (REST verification list item 6); QuarkPress refuses an invalid or expired token before matching
             Http.as("invalid")
                     .get(url)
                     .then()
@@ -409,8 +435,8 @@ class DispatchDbTest {
 
     @Test
     void aNonStringRestRouteIsAJsonWpDieForJsonRequests() {
-        // Part D 2, JSON form (the HTML form is Task 8's): Accept application/json gives 400 application/json;
-        // charset=UTF-8, no-cache, no API Link
+        // REST verification list item 2, JSON form (RoutingDbTest has the HTML form): Accept application/json gives
+        // 400 application/json; charset=UTF-8, no-cache, no API Link
         Http.as(null)
                 .header("Accept", "application/json")
                 .get("/?rest_route[]=x")
