@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Endpoint;
@@ -62,6 +65,61 @@ class RouteTableTest {
                 .endpoint(endpoint(Arg.of("b", "string").format("email").build()))
                 .register();
         assertThat(table.routes()).hasSize(1);
+    }
+
+    @Test
+    void eachNamespaceGetsItsIndexRightBeforeItsFirstRoute() {
+        List<String> asked = new ArrayList<>();
+        RouteTable table = new RouteTable(namespace -> {
+            asked.add(namespace);
+            return endpoint(Arg.of("namespace", null)
+                    .defaultValue(TextNode.valueOf(namespace))
+                    .build());
+        });
+        table.registry()
+                .route("", "/")
+                .endpoint(endpoint(Arg.of("context", null).build()))
+                .register();
+        table.registry()
+                .route("a/v1", "/x")
+                .endpoint(endpoint(Arg.of("x", "string").build()))
+                .register();
+        table.registry()
+                .route("/b/v1/", "/y")
+                .endpoint(endpoint(Arg.of("y", "string").build()))
+                .register();
+        table.registry()
+                .route("a/v1", "/z")
+                .endpoint(endpoint(Arg.of("z", "string").build()))
+                .register();
+        table.registry()
+                .route("a/v1", "/x")
+                .endpoint(endpoint(Arg.of("x2", "string").build()))
+                .register();
+        List<String> keys = new ArrayList<>();
+        table.routes().forEach(route -> keys.add(route.key()));
+        assertThat(keys).containsExactly("/", "/a/v1", "/a/v1/x", "/b/v1", "/b/v1/y", "/a/v1/z");
+        // asked once per namespace, never for the root index's empty namespace
+        assertThat(asked).containsExactly("a/v1", "b/v1");
+        assertThat(table.namespaces()).containsExactly("a/v1", "b/v1");
+        RouteTable.Route index = table.routes().get(1);
+        assertThat(index.namespace()).isEqualTo("a/v1");
+        assertThat(index.endpoints()).hasSize(1);
+        assertThat(index.endpoints().get(0).args().get(0).defaultValue()).contains(TextNode.valueOf("a/v1"));
+        // the index is matched like any route
+        assertThat(table.match("/b/v1", "GET"))
+                .map(match -> match.route().key())
+                .contains("/b/v1");
+    }
+
+    @Test
+    void withoutAnIndexNoNamespaceRouteIsAdded() {
+        RouteTable table = new RouteTable();
+        table.registry()
+                .route("a/v1", "/x")
+                .endpoint(endpoint(Arg.of("x", "string").build()))
+                .register();
+        assertThat(table.routes()).extracting(RouteTable.Route::key).containsExactly("/a/v1/x");
     }
 
     private static Endpoint endpoint(Arg arg) {

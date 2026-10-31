@@ -16,9 +16,18 @@ import org.quarkpress.restwp.RouteRegistry;
 /**
  * The registered routes, by namespace, in registration order, and WordPress's matching: the routes of the namespaces
  * that prefix the path first (if any namespace does, only those), the first route whose pattern matches, and within
- * it the first endpoint declaring the method (HEAD falls back to an endpoint declaring GET).
+ * it the first endpoint declaring the method (HEAD falls back to an endpoint declaring GET). With a
+ * {@link NamespaceIndex}, the first route registered in a namespace is preceded by the namespace's index route
+ * ({@code /<namespace>}), as WordPress inserts it.
  */
 public final class RouteTable {
+
+    /** The endpoint of a namespace's index route ({@code /<namespace>}), which the table registers itself. */
+    @FunctionalInterface
+    public interface NamespaceIndex {
+
+        Endpoint endpoint(String namespace);
+    }
 
     /**
      * A route: its pattern, its endpoints (each with the route's shared arguments merged in) and its item schema.
@@ -49,6 +58,17 @@ public final class RouteTable {
 
     private final Map<String, List<Route>> namespaces = new LinkedHashMap<>();
     private final Map<String, Route> routes = new LinkedHashMap<>();
+    private final NamespaceIndex namespaceIndex;
+
+    /** A table without namespace index routes. */
+    public RouteTable() {
+        this(null);
+    }
+
+    /** A table that registers {@code namespaceIndex}'s endpoint at {@code /<namespace>} for every namespace. */
+    public RouteTable(NamespaceIndex namespaceIndex) {
+        this.namespaceIndex = namespaceIndex;
+    }
 
     /** A registry adding to this table. */
     public RouteRegistry registry() {
@@ -122,6 +142,17 @@ public final class RouteTable {
 
     private synchronized void add(
             String namespace, RoutePattern pattern, List<Endpoint> endpoints, Supplier<ObjectNode> schema) {
+        if (namespaceIndex != null && !namespace.isEmpty() && !namespaces.containsKey(namespace)) {
+            // WordPress registers the namespace's index route before the namespace's first route
+            namespaces.put(namespace, new ArrayList<>());
+            Endpoint index = Objects.requireNonNull(namespaceIndex.endpoint(namespace), "namespace index endpoint");
+            index.args().forEach(arg -> SchemaValidator.requireSupported(arg.schema()));
+            put(namespace, RoutePattern.parse(namespace, ""), List.of(index), null);
+        }
+        put(namespace, pattern, endpoints, schema);
+    }
+
+    private void put(String namespace, RoutePattern pattern, List<Endpoint> endpoints, Supplier<ObjectNode> schema) {
         Route existing = routes.get(pattern.key());
         Route route;
         if (existing == null) {

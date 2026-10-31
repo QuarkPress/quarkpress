@@ -64,6 +64,9 @@ public class RestServer {
     Instance<RestRouteProvider> providers;
 
     @Inject
+    Instance<RouteTable.NamespaceIndex> namespaceIndex;
+
+    @Inject
     SecurityIdentity identity;
 
     @Inject
@@ -77,7 +80,10 @@ public class RestServer {
 
     private volatile RouteTable table;
 
-    /** The routes, registered by every provider on first use. */
+    /**
+     * The routes, registered by every provider on first use; each namespace gets its index route when a
+     * {@link RouteTable.NamespaceIndex} bean supplies the endpoint.
+     */
     public RouteTable table() {
         RouteTable current = table;
         if (current == null) {
@@ -97,7 +103,7 @@ public class RestServer {
         providers.forEach(ordered::add);
         ordered.sort(Comparator.comparingInt(RestRouteProvider::order)
                 .thenComparing(provider -> provider.getClass().getName()));
-        RouteTable routes = new RouteTable();
+        RouteTable routes = new RouteTable(namespaceIndex.isResolvable() ? namespaceIndex.get() : null);
         for (RestRouteProvider provider : ordered) {
             provider.register(routes.registry());
         }

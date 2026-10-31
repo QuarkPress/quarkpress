@@ -69,16 +69,7 @@ public record Paging(int page, int perPage, int offset) {
      */
     public static List<Arg> collectionArgs(ObjectNode itemSchema, boolean withOffset) {
         List<Arg> args = new ArrayList<>();
-        ObjectNode context = NODES.objectNode();
-        context.put("description", "Scope under which the request is made; determines fields present in response.");
-        context.put("type", "string");
-        List<String> contexts = contexts(itemSchema);
-        if (!contexts.isEmpty()) {
-            ArrayNode values = context.putArray("enum");
-            contexts.forEach(values::add);
-        }
-        context.put("default", "view");
-        args.add(arg("context", context, Paging::sanitizeKey));
+        args.add(contextArg(itemSchema));
         ObjectNode page = NODES.objectNode();
         page.put("description", "Current page of the collection.");
         page.put("type", "integer");
@@ -100,6 +91,23 @@ public record Paging(int page, int perPage, int offset) {
             args.add(offsetArg());
         }
         return List.copyOf(args);
+    }
+
+    /**
+     * WordPress's {@code context} param: a string whose enum lists the contexts the item schema's properties name
+     * (each once, descending), default {@code view}, checked with the other arguments and sanitized as a key.
+     */
+    public static Arg contextArg(ObjectNode itemSchema) {
+        ObjectNode context = NODES.objectNode();
+        context.put("description", "Scope under which the request is made; determines fields present in response.");
+        context.put("type", "string");
+        List<String> contexts = contexts(itemSchema);
+        if (!contexts.isEmpty()) {
+            ArrayNode values = context.putArray("enum");
+            contexts.forEach(values::add);
+        }
+        context.put("default", "view");
+        return arg("context", context, Paging::sanitizeKey);
     }
 
     /**
