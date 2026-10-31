@@ -1,5 +1,6 @@
 package org.quarkpress.security;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -10,6 +11,10 @@ import java.util.Objects;
  * and, only when the type maps meta capabilities, {@code read} and the private, published and others' delete and edit
  * names (null otherwise; required when {@code mapMetaCap} is true). Entries of {@code overrides} (WordPress's names as keys, such as {@code read} or
  * {@code create_posts}) replace computed ones; {@code create_posts} defaults to the {@code edit_posts} name.
+ *
+ * @param names every capability name of the type keyed by WordPress's generic name, in the order WordPress's capability
+ *     object has them (the computed names, the overrides' new names after them, then {@code create_posts} when not
+ *     given); each named component above equals its entry (or is null when there is none)
  */
 public record PostTypeCapabilities(
         String name,
@@ -31,7 +36,8 @@ public record PostTypeCapabilities(
         String createPosts,
         String editPage,
         String readPage,
-        String deletePage) {
+        String deletePage,
+        Map<String, String> names) {
 
     public static final PostTypeCapabilities POST = of("post", "post", "posts", true, Map.of());
 
@@ -58,6 +64,7 @@ public record PostTypeCapabilities(
 
     public PostTypeCapabilities {
         Objects.requireNonNull(name, "name");
+        names = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(names, "names")));
         Objects.requireNonNull(editPost, "editPost");
         Objects.requireNonNull(readPost, "readPost");
         Objects.requireNonNull(deletePost, "deletePost");
@@ -74,6 +81,32 @@ public record PostTypeCapabilities(
             Objects.requireNonNull(deleteOthersPosts, "deleteOthersPosts");
             Objects.requireNonNull(editPrivatePosts, "editPrivatePosts");
             Objects.requireNonNull(editPublishedPosts, "editPublishedPosts");
+        }
+        String[][] named = {
+            {"edit_post", editPost},
+            {"read_post", readPost},
+            {"delete_post", deletePost},
+            {"edit_posts", editPosts},
+            {"edit_others_posts", editOthersPosts},
+            {"delete_posts", deletePosts},
+            {"publish_posts", publishPosts},
+            {"read_private_posts", readPrivatePosts},
+            {"read", read},
+            {"delete_private_posts", deletePrivatePosts},
+            {"delete_published_posts", deletePublishedPosts},
+            {"delete_others_posts", deleteOthersPosts},
+            {"edit_private_posts", editPrivatePosts},
+            {"edit_published_posts", editPublishedPosts},
+            {"create_posts", createPosts},
+            {"edit_page", editPage},
+            {"read_page", readPage},
+            {"delete_page", deletePage}
+        };
+        for (String[] entry : named) {
+            if (!Objects.equals(entry[1], names.get(entry[0]))) {
+                throw new IllegalArgumentException("capability name " + entry[0] + " of post type " + name + " is "
+                        + entry[1] + " but the names map has " + names.get(entry[0]));
+            }
         }
     }
 
@@ -118,7 +151,8 @@ public record PostTypeCapabilities(
                 caps.get("create_posts"),
                 caps.get("edit_page"),
                 caps.get("read_page"),
-                caps.get("delete_page"));
+                caps.get("delete_page"),
+                caps);
     }
 
     /**

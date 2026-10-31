@@ -111,7 +111,8 @@ class MetaCapsPostFixTest {
                         t.createPosts(),
                         null,
                         null,
-                        null))
+                        null,
+                        t.names()))
                 .isInstanceOf(NullPointerException.class);
     }
 
