@@ -140,9 +140,9 @@ public class BookRoutes implements RestRouteProvider {
   registration order, which decides which route a path matches first and how the index lists them. WordPress's own
   routes use orders 0 to 600; the default, 1000, puts an application's routes after them. A route registered again
   under the same pattern gets the new endpoints after its own.
-- **When.** The providers are asked once, when the REST server serves its first request. A registration error (a
-  pattern or schema keyword that is refused, a setting registered twice) then fails that request and every later one
-  with 500 `internal_server_error`, and is logged; the application itself starts.
+- **When.** The providers are asked once, while the application starts. A registration error (a route pattern or
+  schema keyword that is refused, a setting registered twice) fails the start with a message naming the provider and
+  the refused registration.
 
 ### Adding settings
 
@@ -242,8 +242,6 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
   registered: `pattern` would need a regular expression run on request input, and the others are not implemented.
 - Route patterns hold literal text and the groups `(?P<name>[\d]+)` and `(?P<name>[\w-]+)` only, one per path
   segment. A requested route longer than 2048 bytes in UTF-8 matches no route (D16).
-- Routes and settings are registered at the first REST request, so a registration error shows there (500, logged),
-  not at start.
 - `rest_route` is read from a POST's fields only for a form body (`application/x-www-form-urlencoded`) sent to the
   site's path or `index.php` there; a multipart body is not read for it, nor for parameters. A form POST to the site's
   path without any `rest_route` answers an empty 404 instead of reaching the application's own route there.

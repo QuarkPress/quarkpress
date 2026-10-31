@@ -90,8 +90,8 @@ public final class ErrorMapping {
     }
 
     /**
-     * {@code text} with every control character (C0, DEL, C1) and the Unicode line and paragraph separators written as
-     * a backslash, {@code x} and two hex digits, or a backslash, {@code u} and four hex digits, and the backslash
+     * {@code text} with every control character (U+0000 to U+001F and U+007F to U+009F) and the Unicode line and
+     * paragraph separators written as a backslash, {@code x} and two hex digits, or a backslash, {@code u} and four hex digits, and the backslash
      * doubled, so request text cannot forge log lines.
      */
     static String printable(String text) {

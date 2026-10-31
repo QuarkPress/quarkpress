@@ -18,7 +18,10 @@ import org.quarkpress.restwp.RestUrls;
  */
 public final class RouteData {
 
-    /** The JSON-schema keywords an argument's description shows. */
+    /**
+     * The JSON-schema keywords an argument's description shows. WordPress's list also has the regular-expression
+     * keyword, which this module refuses at registration ({@link SchemaValidator}), so no argument ever carries it.
+     */
     static final Set<String> ALLOWED_KEYWORDS = Set.of(
             "title",
             "description",
@@ -39,7 +42,6 @@ public final class RouteData {
             "multipleOf",
             "minLength",
             "maxLength",
-            "pattern",
             "minItems",
             "maxItems",
             "uniqueItems",

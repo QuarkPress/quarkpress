@@ -16,7 +16,8 @@ import org.quarkpress.restwp.SettingsRegistry;
 
 /**
  * The settings registry: WordPress's settings for this kind of installation, then each {@link SettingsProvider} bean's,
- * the beans ordered by class name. A REST name registered twice fails when the registry is first read.
+ * the beans ordered by class name. A REST name registered twice fails when the registry is first read, which the
+ * settings route's registration does while the application starts.
  */
 @ApplicationScoped
 public class RegisteredSettings implements SettingsRegistry {

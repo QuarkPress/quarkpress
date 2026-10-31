@@ -26,6 +26,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.SiteScope;
+import org.quarkpress.persistence.runtime.HeldLocks;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Membership;
 import org.quarkpress.security.MembershipChanged;
@@ -527,6 +528,33 @@ class MembershipsDbTest {
             refused.add(operation);
         }
         assertThat(refused).containsExactly("setRole", "addRole", "setCapability");
+    }
+
+    @Test
+    void aRemovalRecordsTheProfileLockSoAChangeOnAnotherSiteFailsFast() {
+        // remove takes the profile lock only through the shared lock path, which must record it
+        SiteId first = TestData.site(dataSource);
+        SiteId second = TestData.site(dataSource);
+        UserId user = TestData.profile(dataSource, "remove-then-add");
+        TestData.member(dataSource, first, user, "[\"author\"]", "{}");
+        String lock = "qp_user_profile:" + user.value();
+        long started = System.nanoTime();
+        assertThatThrownBy(() -> scope.call(
+                        first,
+                        () -> system.call(() -> {
+                            assertThat(memberships.remove(first, user)).isTrue();
+                            // checked before the change, which would otherwise wait for the row until a timeout
+                            assertThat(scope.call(second, () -> HeldLocks.heldBySpawner(lock)))
+                                    .as("a scope this transaction spawns sees the profile lock")
+                                    .isTrue();
+                            return memberships.add(second, user, "author");
+                        })))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("the profile of user " + user.value()
+                        + " is locked by a transaction that waits for this change: change the memberships of one"
+                        + " user on several sites in separate transactions");
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(10));
+        assertThat(memberships.sitesOf(user)).extracting(Membership::site).containsExactly(first);
     }
 
     @Test

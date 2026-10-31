@@ -34,8 +34,8 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
 
 /**
  * The REST API (wp/v2) against WordPress 7.1.3 over HTTP: every scenario of {@link RestScenarios#all()} runs on a fresh
- * subdirectory site on both sides — WordPress served by {@code php -S} on its own MySQL container, QuarkPress this
- * test application with Keycloak tokens — and the answers are compared after normalisation. Deliberate differences
+ * subdirectory site on both sides (WordPress served by {@code php -S} on its own MySQL container, QuarkPress this
+ * test application with Keycloak tokens), and the answers are compared after normalisation. Deliberate differences
  * are listed in {@code wp-rest-parity-known-differences.txt}, each with its README label; a listed difference that no
  * longer differs fails the run. Runs with {@code -Pwp-parity} only.
  */

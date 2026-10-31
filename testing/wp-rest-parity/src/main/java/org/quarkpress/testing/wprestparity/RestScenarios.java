@@ -163,7 +163,7 @@ public final class RestScenarios {
                 List.of(
                         kind,
                         kind.toLowerCase(java.util.Locale.ROOT) + " name",
-                        "Café " + kind,
+                        "Caf\u00e9 " + kind,
                         kind + " & more",
                         kind + " <b>bold</b>",
                         "  " + kind + "  spaced"));
@@ -403,7 +403,7 @@ public final class RestScenarios {
                 params,
                 "orderby",
                 () -> pick(random, List.of("id", "include", "name", "slug", "include_slugs", "bogus")));
-        maybe(random, params, "search", () -> pick(random, List.of("", "cat", "tag", "zz", "Café", "a b")));
+        maybe(random, params, "search", () -> pick(random, List.of("", "cat", "tag", "zz", "Caf\u00e9", "a b")));
         if (random.nextInt(4) == 0) {
             idList(random, params, "include", fixtures.terms());
         }
@@ -425,10 +425,10 @@ public final class RestScenarios {
                     random,
                     params,
                     "name",
-                    () -> pick(random, List.of("New term", "Café new", "<b>x</b>", "", "a & b", "Uncategorized")));
+                    () -> pick(random, List.of("New term", "Caf\u00e9 new", "<b>x</b>", "", "a & b", "Uncategorized")));
         }
         maybe(random, params, "description", () -> pick(random, List.of("About it", "<i>x</i>", "")));
-        maybe(random, params, "slug", () -> pick(random, List.of("new-slug", "uncategorized", "Café", "")));
+        maybe(random, params, "slug", () -> pick(random, List.of("new-slug", "uncategorized", "Caf\u00e9", "")));
         if (category) {
             maybe(random, params, "parent", () -> idValue(random, fixtures.terms()));
         }
@@ -474,7 +474,7 @@ public final class RestScenarios {
     }
 
     private static void settingsParams(RandomGenerator random, List<Param> params, Fixtures fixtures) {
-        maybe(random, params, "title", () -> pick(random, List.of("New title", "A & B <i>x</i>", "", "Café")));
+        maybe(random, params, "title", () -> pick(random, List.of("New title", "A & B <i>x</i>", "", "Caf\u00e9")));
         maybe(random, params, "description", () -> pick(random, List.of("Tagline", "<b>x</b>", "")));
         maybe(
                 random,

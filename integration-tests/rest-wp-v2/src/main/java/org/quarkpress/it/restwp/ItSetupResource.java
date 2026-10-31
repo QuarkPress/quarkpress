@@ -28,8 +28,8 @@ import org.quarkpress.security.Memberships;
 import org.quarkpress.security.QuarkPressPrincipal;
 
 /**
- * Test scaffolding, not part of any API: sets up what the REST API (wp/v2) does not serve yet — memberships, sites,
- * posts and options — through the modules' Java services, so that the tests can then exercise the REST API on that
+ * Test scaffolding, not part of any API: sets up what the REST API (wp/v2) does not serve yet (memberships, sites,
+ * posts and options) through the modules' Java services, so that the tests can then exercise the REST API on that
  * state. Every call acts on the site the request is bound to (by its Host header and path) and as the caller:
  * {@code /it/...} on the main site, {@code /<site>/it/...} ({@link ItSiteSetupResource}) on a subdirectory site.
  */

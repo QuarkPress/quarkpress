@@ -36,8 +36,8 @@ class OptionSanitizersTest {
 
     @Test
     void titlesAndTaglinesAreHtmlEscapedWithoutEncodingReferencesTwice() {
-        assertThat(kept("blogname", "  Tom's  <b>x</b> é &amp; &nbsp; &foo; \n"))
-                .isEqualTo("  Tom&#039;s  &lt;b&gt;x&lt;/b&gt; é &amp; &nbsp; &amp;foo; \n");
+        assertThat(kept("blogname", "  Tom's  <b>x</b> \u00e9 &amp; &nbsp; &foo; \n"))
+                .isEqualTo("  Tom&#039;s  &lt;b&gt;x&lt;/b&gt; \u00e9 &amp; &nbsp; &amp;foo; \n");
         assertThat(kept("blogdescription", "\"q\" 'a' <p>&copy;"))
                 .isEqualTo("&quot;q&quot; &#039;a&#039; &lt;p&gt;&copy;");
         assertThat(kept("blogdescription", " a\tb ")).isEqualTo(" a\tb ");

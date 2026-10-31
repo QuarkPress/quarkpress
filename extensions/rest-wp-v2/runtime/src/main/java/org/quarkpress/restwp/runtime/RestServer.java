@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.arc.ClientProxy;
+import io.quarkus.runtime.StartupEvent;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.io.IOException;
@@ -81,8 +84,16 @@ public class RestServer {
     private volatile RouteTable table;
 
     /**
-     * The routes, registered by every provider on first use; each namespace gets its index route when a
-     * {@link RouteTable.NamespaceIndex} bean supplies the endpoint.
+     * Builds the route table while the application starts, so a registration the server refuses (a route pattern or
+     * schema keyword it does not support, a setting registered twice) fails the start instead of the first request.
+     */
+    void registerAtStart(@Observes StartupEvent event) {
+        table();
+    }
+
+    /**
+     * The routes, registered by every provider once (when the application starts); each namespace gets its index route
+     * when a {@link RouteTable.NamespaceIndex} bean supplies the endpoint.
      */
     public RouteTable table() {
         RouteTable current = table;
@@ -105,7 +116,15 @@ public class RestServer {
                 .thenComparing(provider -> provider.getClass().getName()));
         RouteTable routes = new RouteTable(namespaceIndex.isResolvable() ? namespaceIndex.get() : null);
         for (RestRouteProvider provider : ordered) {
-            provider.register(routes.registry());
+            try {
+                provider.register(routes.registry());
+            } catch (RuntimeException e) {
+                throw new IllegalStateException(
+                        "quarkpress-rest-wp-v2: the REST routes of "
+                                + ClientProxy.unwrap(provider).getClass().getName()
+                                + " cannot be registered: " + e.getMessage(),
+                        e);
+            }
         }
         return routes;
     }
