@@ -101,4 +101,19 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Every test class builds its own application, and on JDK 21 one reused test JVM ran out of code cache over
+           the module's classes: a fresh JVM per test class keeps one class's applications from filling it for the
+           next. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <reuseForks>false</reuseForks>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
