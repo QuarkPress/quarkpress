@@ -55,10 +55,19 @@ Checks follow WordPress's REST API:
 | `update` | `edit_term` on the term |
 | `delete` | `delete_term` on the term; nobody holds it for the taxonomy's default term (the default category, or a custom default term), the system identity included |
 | `setPostTerms`, `removePostTerms` | `edit_post` on the post, `assign_term` on every existing term named, and the create capability for a name that creates a term |
-| reads and queries | nothing for a publicly queryable taxonomy; otherwise the taxonomy's `assign_terms`; `postTerms`, and `query` and `count` with `posts`, also need each post to exist on the site (`invalid_post`) and be readable |
+| reads and queries | nothing for a taxonomy that is publicly queryable or shown in REST (WordPress's REST routes serve its terms to anyone, logged out included); otherwise the taxonomy's `assign_terms`; `postTerms`, and `query` and `count` with `posts`, also need each post to exist on the site (`invalid_post`) and be readable |
 
 The meta capabilities `edit_term`, `delete_term` and `assign_term` map as WordPress maps them (security module); this
 module describes stored terms to it (`TermCapabilityFacts`).
+
+`TermPermissions` asks the REST API's questions without calling a service; its checks read the database, answer false
+instead of throwing, refuse a taxonomy that is not registered, and exist for the current identity and with an
+explicit `SecurityIdentity`: `canCreate(taxonomy)` (a hierarchical taxonomy's `edit_terms`, a flat one's
+`assign_terms`), `canEdit(term)` (`edit_term`, false for a missing term), `canDelete(term)` (`delete_term`, never for
+the taxonomy's default term), `canEditTerms(taxonomy)`, `canAssign(taxonomy)`, and `postTermsAccess(post, taxonomy)`,
+whether the post's terms in the taxonomy may be listed: `MISSING_POST` for no such post on the site, `DENIED` when the
+post's type does not use the taxonomy or the post is neither publicly viewable (a viewable type and a viewable
+status) nor readable (`read_post`), else `ALLOWED`.
 
 ### Saving
 

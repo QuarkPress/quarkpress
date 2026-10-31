@@ -14,7 +14,10 @@ deletes sites. Without this extension every request belongs to the main site.
 ```
 
 The extension brings `quarkpress-persistence` and Quarkus's HTTP layer. It sets `quarkpress.multisite.enabled=true`,
-which removes the single-site resolver.
+which removes the single-site resolver. Setting `quarkpress.multisite.enabled=false` in an application that has the
+module makes the installation a single site for the other modules, decided at build time: the security module then
+counts every user profile as a user of the site, those created while the application ran as a network included, as
+WordPress's single site counts every user.
 
 ## Configuration
 
@@ -61,7 +64,8 @@ WordPress. A raw path with `.` or `..` segments (also written `%2e`) is served w
 a different path. Requests whose normalized path lies under the Quarkus non-application root (`/q/` by default) are
 never resolved, and no site can have a path there.
 Archived, spammed, mature and deactivated sites still resolve; `SiteContext.site().status()` tells, and acting on it
-(WordPress's archived and suspended pages) is left to HTTP layers.
+(WordPress's archived and suspended pages) is left to HTTP layers (the REST API answers an archived, spam or deleted
+site's requests with 410).
 
 Code without an HTTP request (jobs, startup code) belongs to no site; run it in `SiteScope` or `NetworkScope`.
 
@@ -132,15 +136,19 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
   message shows the normalized path, cut to 64 characters.
 - Subdirectory sites of the network domain (the network domain exactly, below the network path) may not start their
   path with WordPress's reserved names: `page`, `comments`, `blog`, `files`, `feed`, `wp-admin`, `wp-content`,
-  `wp-includes`, `wp-json`, `embed`, as WordPress's Add Site screen refuses them in subdirectory installs.
-  `illegal_names` and the other front-end signup rules do not apply.
-- A new site gets WordPress's default options, with the JSON type of the value WordPress stores: `blogname` (the
-  title; `Site <id>` when the title is empty), `blogdescription` `""`, `timezone_string` `""`, `gmt_offset` `"0"`,
-  `date_format` `"F j, Y"`, `time_format` `"g:i a"`, `start_of_week` `1`, `posts_per_page` `10`,
-  `default_category` (the site's Uncategorized term with the taxonomy module, else `0`), `show_on_front` `"posts"`,
-  `page_on_front` `0`, `page_for_posts` `0`, `default_comment_status` `"open"`, `default_ping_status` `"open"`, and
-  `qp_features` (the switches passed in `NewSite.withFeatures`, else `{}`; features not set follow the network
-  defaults). `NewSite.of` creates a public site (public 1), as the Add Site screen does.
+  `wp-includes`, `wp-json`, `embed`, as WordPress's Add Site screen refuses them in subdirectory installs. Nor may
+  they start it with the first segment of Quarkus's non-application root (`q` by default), below any network path
+  (`/net/q/` under a network at `/net/`): "the first path segment 'q' is reserved for the non-application root on
+  subdirectory sites of the network". Sites of other domains may. `illegal_names` and the other front-end signup
+  rules do not apply.
+- A new site gets WordPress's default options, with the JSON type of the value WordPress stores: `blogname` (the title;
+  `Site <id>` when the title is empty), `blogdescription` `""`, `timezone_string` `""`, `gmt_offset` `"0"`,
+  `date_format` `"F j, Y"`, `time_format` `"g:i a"`, `start_of_week` `1`, `posts_per_page` `10`, `default_category` (the
+  site's Uncategorized term with the taxonomy module, else `0`), `show_on_front` `"posts"`, `page_on_front` `0`,
+  `page_for_posts` `0`, `default_comment_status` `"open"`, `default_ping_status` `"open"`, `use_smilies` `"1"`,
+  `default_post_format` `"0"`, `site_icon` `"0"`, `WPLANG` `""`, and `qp_features` (the switches passed in
+  `NewSite.withFeatures`, else `{}`; features not set follow the network defaults). `NewSite.of` creates a public site
+  (public 1), as the Add Site screen does.
 - Events: `SiteCreated` (preceded by `SiteFlagsChanged` when the new site's public value is not 1, as WordPress fires
   its status transitions on insert, before the site's options exist), `SiteUpdated`, `SiteFlagsChanged` (after
   `SiteUpdated` when a flag or the public value changed) and `SiteDeleted`, fired inside the transaction (an observer
@@ -194,7 +202,7 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 | D14 | WordPress's `/wp-admin/` cut can fail on a very long line (PCRE backtrack limit) and then yields an empty path; QuarkPress always cuts, in linear time. |
 | D15 | Every backslash is removed from the request host; WordPress applies `stripslashes`, which keeps one of a doubled backslash. Hosts containing backslashes are invalid either way. |
 | D16 | A site path no request can reach (a `0` segment, dot segments, an interior `//`) is refused at creation, and so is a path under the non-application root (`/q/` by default); WordPress creates such a site, which no request then reaches. |
-| D17 | Archived, spammed and deleted sites resolve like any other. WordPress's `ms_site_check` (skipped for super admins) answers a deleted site with `blog-deleted.php` or a 410 page, and an archived or spammed one with `blog-suspended.php` or a 410 page. QuarkPress leaves that to HTTP layers, which read `SiteContext.site().status()`. |
+| D17 | Archived, spammed and deleted sites resolve like any other. WordPress's `ms_site_check` (skipped for super admins) answers a deleted site with `blog-deleted.php` or a 410 page, and an archived or spammed one with `blog-suspended.php` or a 410 page. QuarkPress leaves that to HTTP layers, which read `SiteContext.site().status()`; the REST API (`quarkpress-rest-wp-v2`) answers 410 with WordPress's sentence. |
 
 The parity tests (`-Pwp-parity`) compare the path candidates, the domain and path normalization and the reserved names
 with WordPress 7.1.3's functions (Tier A), and run site creation, lookup, flag and default-option scenarios against a

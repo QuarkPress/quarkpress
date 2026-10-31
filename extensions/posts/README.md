@@ -71,6 +71,24 @@ A type that is not registered is checked with the `post` type's capability names
 content and excerpt with kses unless the caller holds `unfiltered_html`, and strips custom CSS from blocks unless it
 holds `edit_css`; the system identity does not hold `unfiltered_html`.
 
+Other modules (the REST API first) ask the same questions without calling a service, through two beans whose checks
+read the database and answer false instead of throwing; each check exists for the current identity and with an
+explicit `SecurityIdentity`:
+
+- `PostPermissions`: `can(metaCapability, post)` for a post id or a post already read (a missing post, or a post of
+  another site, is checked as a missing object, which every meta capability refuses; a public post is not
+  `read_post`-readable by a logged-out caller, since WordPress's REST read rule for public posts is a status rule);
+  `canType(genericCapability, type)` for a type capability by its generic name (`edit_posts`, `create_posts`,
+  `publish_posts`, `edit_others_posts`, ...) mapped through the type's names, false for an unregistered type;
+  `canCreate`, `canPublish`, `canEditOthers`; `canEditSomeRestType()` (`edit_posts` of at least one type shown in
+  REST) and `canEditSomeRestTypeSupporting(feature)`; `statusVisible(status)`, WordPress's REST status visibility (a
+  public status always, a status that is not internal, or `trash`, for a caller who may edit some REST type, any
+  other never); and `restStatuses()`, the registered statuses that are not internal, in registration order, then
+  `trash`. `PostPermissions.typeViewable` and `statusViewable` are WordPress's viewable type and status.
+- `PostAuthors.hasPostsVisibleToCaller(author, types)`: whether the author has a post of those types the caller may
+  count, as WordPress's `count_user_posts` counts them for the REST user read rule: a published post, or a private one
+  the caller may read (its own, or of a type whose `read_private_posts` it holds); unregistered types are left out.
+
 ### Saving
 
 A save follows `wp_insert_post` and `wp_update_post`:

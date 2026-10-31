@@ -47,9 +47,26 @@ otherwise.
 - **Display name**: `given_name family_name`, else `given_name`, else `family_name`, else `preferred_username`, else the
   subject; given and family name trimmed as PHP trims (one that is empty or `0` after trimming counts as absent), at
   most 250 characters, stored as given. It is set when the profile is created; later logins do not change it.
+- **Profiles made at start** for `initial-super-admins` have only their subject to be named by, so they are created
+  with the subject as display name and the nicename `user-<id>`, and marked with the meta key
+  `quarkpress_bootstrap_profile`. Their first login names them from the token's claims exactly as a new profile is
+  named (a username that gives no nicename keeps the fallback one) and removes the mark; no other profile is ever
+  renamed. A profile that already exists when the bootstrap runs is left as it is.
+- **E-mail** (WordPress's `user_email`): the token's `email` claim, when it is text that is not blank, at most 100
+  characters, and `email_verified` is absent, `true` or the text `true` (any other value counts as unverified). It is
+  stored when the profile is created and written again at any login whose claim differs from the stored one; a token
+  without a usable claim leaves the stored address. `UserProfile.email()` reads it. QuarkPress never uses the address
+  to identify a user.
 - **Login time**: written on creation and when the stored one is more than 15 minutes old. Profiles made at start
   (`initial-super-admins`, dev seeding) record no login.
-- `UserProfileCreated` is fired when a profile is created.
+- `UserProfileCreated` is fired when a profile is created. `UserProfiles.findAll(users)` reads several profiles at
+  once, in the given order, skipping unknown ids.
+- **User meta.** `UserMeta` keeps JSON values per user under keys of 1 to 255 characters that are not blank, stored
+  with the profile in the order they were first written. `get` needs no capability; `set` and `delete` need
+  `edit_user` on the user (oneself always) and lock the profile row, so concurrent changes of one user's meta and a
+  login that refreshes the profile apply one after the other. `siteKey(site, name)` gives WordPress's per-site key:
+  `wp_<name>` for site 1 and `wp_<site id>_<name>` for any other site, whichever site is the network's main one (the
+  REST API keeps the editor's `persisted_preferences` there).
 
 ## The identity
 
@@ -106,7 +123,11 @@ release. `initial-super-admins` and the dev realm's users are subjects of the de
 - `canForSite(identity, site, …)`, `userCan(user, site, …)`, `anonymousCan(site, …)`: an explicit site (on a single
   site the site id is ignored, as WordPress ignores it there, and the answer is for the only site);
 - `isSuperAdmin(user)`: WordPress's `is_super_admin`: in a network, a network administrator; on a single site, a user
-  who can delete users (which gives no bypass).
+  who can delete users (which gives no bypass);
+- `allCapabilities(user, site)`: WordPress's `allcaps` of a member: each role's capabilities in the user's role order,
+  every role key true, then the user's individual capabilities over everything (false is a denial); empty for a user
+  who is not a member. Network administration and the capabilities every user holds are not included; on a single site
+  the site id is ignored.
 
 A user id without a profile counts as a logged-out visitor. A check maps the capability to the primitive capabilities
 it requires (WordPress's `map_meta_cap`), then:
@@ -231,6 +252,22 @@ or a plain Vert.x route) nothing maps it: map it yourself from `anonymous()`.
   separate steps: a concurrent change between them is not detected.
 - `isMember`: in a network, a membership row on a site that is not archived, spam or deleted; on a single site, every
   existing user.
+- `members(site, query)` lists a site's members as WordPress's user query does, for the REST users routes: in a network
+  the users with a membership row on the site; on a single site every user, whether it has a role or not (an application
+  that has the multisite module with `quarkpress.multisite.enabled=false` is a single site, so this includes every
+  profile created while it ran as a network). A `MemberQuery` filters by roles and capabilities (one filter: the
+  requested roles, the requested capability names and every role of the site's table that grants one of them form one
+  list of names, and a member matches when it stores any of them among its roles or as a key of its individual
+  capabilities, whatever the value; capabilities are not evaluated), by a case-insensitive substring of the chosen
+  columns (`ID` matches a digits-only term exactly; `LOGIN` is the nicename; `URL` matches nothing), by `include` (which
+  then ignores `exclude`), `exclude` and nicenames, and with `publishedPostTypes` only authors of a published post of
+  those types on the site (this filter reads the posts module's table: use it only in an application that has the posts
+  module). It orders by `ID`, `NAME` (display name), `SLUG`, `REGISTERED`, `EMAIL` (members without one first when
+  ascending), `INCLUDE` (the position in the `include` list; without one, the nicename) or `INCLUDE_SLUGS` (the position
+  in the slug list, always ascending); text orders ignore case, and names outside ASCII are ordered by the database's
+  collation. Ties break by id. Filtering, ordering, counting and paging all run in the database, with every value bound
+  as a parameter, and the answer is a `MemberPage` (the page's ids and the total). There is no capability check: any
+  identity may call it, and the caller decides who may see which filters and fields.
 - Adding or removing a user, or any other change that creates a membership (`setRole`, `addRole` or
   `setCapability` of a user who is not a member of the site yet), after another change of that user on a different
   site, inside one caller transaction, is refused with `IllegalStateException` on both databases (it would wait for
@@ -303,7 +340,7 @@ ignored. His token carries it; his identity never does (he is an editor on the m
 | D5 | A username strict sanitizing empties, or whose nicename sanitizes to nothing, gives the nicename `user-<id>`; WordPress refuses to create the user. |
 | D6 | Several users may have the same username (OIDC subjects tell them apart); their nicenames get suffixes. WordPress refuses an existing login (compared case-insensitively). |
 | D7 | A username longer than 60 characters is accepted (its first 50 characters start the nicename); WordPress refuses the login. |
-| D8 | The display name is stored as given (WordPress HTML-escapes `&`, `<` and `>` on save); without names it is the `preferred_username`, trimmed but otherwise as given (WordPress uses the sanitized login); later logins never change it. |
+| D8 | The display name is stored as given (WordPress HTML-escapes `&`, `<` and `>` on save); without names it is the `preferred_username`, trimmed but otherwise as given (WordPress uses the sanitized login); later logins never change it, except the first login of a profile made at start for `initial-super-admins`, which names it from the token's claims. |
 | D9 | No `user_level` meta is kept and numeric capabilities (`current_user_can(8)`) are not supported; the `level_N` capabilities are in the role table. |
 | D10 | A site whose roles never changed follows the default table of the running QuarkPress build; WordPress stores a copy of the defaults when the site is created. |
 | D11 | Role and membership changes check capabilities (`manage_options`; `promote_user`, `remove_user`; `manage_network_options` for network administrator grants and revocations); WordPress's role, user and super-admin functions check nothing (its screens do). |
