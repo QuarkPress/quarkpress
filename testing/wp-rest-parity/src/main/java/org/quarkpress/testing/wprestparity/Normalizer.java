@@ -15,11 +15,12 @@ import java.util.TreeSet;
 
 /**
  * Makes the answers of the two sides comparable. Hosts and ports of local URLs become {@code {host}} (the scheme is
- * kept), the scenario's site path {@code {site}/}; ids of known refs become the ref in id fields and inside local URLs (all-digit path
- * segments and the values of id query parameters); an id field with an unknown id becomes {@code #?<id>}, so it
- * differs between the sides. {@code registered_date} becomes {@code {date:<format>}} (its digits as {@code d}, so a
- * format difference still shows), the index's {@code authentication}
- * {@code {auth}}, and the preferences' {@code _modified} stamp {@code {stamp}}. {@code targetHints} and {@code Allow}
+ * kept), the scenario's site path {@code {site}/}; ids of known refs become the ref in id fields and inside local URLs
+ * (all-digit path segments after a base that names their kind, and the values of id query parameters); an unknown id
+ * becomes {@code #?<id>} in both places, so it differs between the sides unless both answer the same number.
+ * {@code registered_date} becomes {@code {date:<format>}} (its digits as {@code d}, so a format difference still shows),
+ * the index's {@code authentication} (a key of the body itself, or of an envelope's body) {@code {auth}}, and the
+ * preferences' {@code _modified} stamp {@code {stamp}}. {@code targetHints} and {@code Allow}
  * are left as they are: they are compared per caller.
  *
  * <p>Users, terms and posts are numbered apart (on WordPress a subsite's terms and posts start again at 1), so an id
@@ -140,7 +141,19 @@ public final class Normalizer {
 
     /** The normalised copy of a JSON body; an {@code id} of an object that does not tell its kind is {@code kind}. */
     public JsonNode body(JsonNode body, Refs refs, String sitePath, Kind kind) {
-        return walk(body.deepCopy(), refs, sitePath, kind);
+        JsonNode copy = walk(body.deepCopy(), refs, sitePath, kind);
+        authentication(copy);
+        if (copy.isObject() && copy.path("body").isObject() && copy.has("status") && copy.has("headers")) {
+            authentication(copy.get("body"));
+        }
+        return copy;
+    }
+
+    /** The index's {@code authentication}, a key of the body itself, as {@code {auth}}. */
+    private static void authentication(JsonNode body) {
+        if (body.isObject() && body.has("authentication")) {
+            ((ObjectNode) body).put("authentication", "{auth}");
+        }
     }
 
     /** The normalised value of a header line (URLs inside it, as in {@code Link} and {@code Location}). */
@@ -203,8 +216,6 @@ public final class Normalizer {
                     field.setValue(TextNode.valueOf("{date:" + shape(value.textValue()) + "}"));
                 } else if (key.equals("_modified") && value.isTextual()) {
                     field.setValue(TextNode.valueOf("{stamp}"));
-                } else if (key.equals("authentication")) {
-                    field.setValue(TextNode.valueOf("{auth}"));
                 } else {
                     field.setValue(walk(value, refs, sitePath, kind));
                 }
@@ -419,7 +430,10 @@ public final class Normalizer {
         return upper < 0 ? lower : lower < 0 ? upper : Math.min(upper, lower);
     }
 
-    /** The ref of an all-digit text that is a known id of the kind; the text itself otherwise. */
+    /**
+     * The ref of an all-digit text that is a known id of the kind; {@code #?<text>} for an unknown id; the text itself
+     * when it is not all digits.
+     */
     private static String knownId(String text, Kind kind, Refs refs) {
         if (text.isEmpty() || text.length() > 18) {
             return text;
@@ -430,6 +444,6 @@ public final class Normalizer {
             }
         }
         String ref = refs.find(kind, Long.parseLong(text));
-        return ref != null ? ref : text;
+        return ref != null ? ref : "#?" + text;
     }
 }

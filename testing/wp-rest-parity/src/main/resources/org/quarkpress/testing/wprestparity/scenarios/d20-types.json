@@ -1,6 +1,6 @@
 {
   "id": "d20",
-  "rule": "Part D 20: types in edit context, unregistered types (D8), the revision type (not registered in QuarkPress), refusals",
+  "rule": "REST verification list item 20: types in edit context, unregistered types (D8), the revision type (not registered in QuarkPress), refusals",
   "setup": [],
   "requests": [
     {

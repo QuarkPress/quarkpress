@@ -136,6 +136,11 @@ public interface Side extends AutoCloseable {
                         args.set("value", option.value());
                         site.operation("option", args);
                     }
+                    case SetupStep.Leave leave -> {
+                        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+                        args.put("site", sitePath).put("user", leave.user());
+                        site.operation("leave", args);
+                    }
                 }
                 known.putAll(created);
             }

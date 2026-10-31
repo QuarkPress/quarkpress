@@ -1,6 +1,6 @@
 {
   "id": "d24",
-  "rule": "Part D 24: who sees which users (published posts, list_users, who=authors), searches",
+  "rule": "REST verification list item 24: who sees which users (published posts, list_users, who=authors), searches",
   "setup": [
     {
       "post": "p:draft",

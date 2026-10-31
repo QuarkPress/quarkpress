@@ -1,6 +1,6 @@
 {
   "id": "d13",
-  "rule": "Part D 13: HEAD answers the GET's headers without a body",
+  "rule": "REST verification list item 13: HEAD answers the GET's headers without a body",
   "setup": [
     {
       "term": "t:tag",

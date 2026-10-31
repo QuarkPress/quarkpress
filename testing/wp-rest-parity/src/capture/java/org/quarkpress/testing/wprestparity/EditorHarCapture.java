@@ -153,9 +153,9 @@ class EditorHarCapture {
 
     /**
      * Harness rule, capture only: writes a must-use plugin into the WordPress tree that turns client-side media
-     * processing off (filter {@code wp_client_side_media_processing_enabled}) for requests carrying the cookie
-     * {@value #SERVER_MEDIA_COOKIE}=1, so the server-side upload path can be recorded although localhost is a secure
-     * context. Requests without the cookie, and so every Part D or parity run, are untouched; the file is removed after
+     * processing off (filter {@code wp_client_side_media_processing_enabled}) for requests carrying the cookie {@value
+     * #SERVER_MEDIA_COOKIE}=1, so the server-side upload path can be recorded although localhost is a secure context.
+     * Requests without the cookie, and so every verification or parity run, are untouched; the file is removed after
      * the run.
      */
     static void installServerMediaSwitch(Path tree) throws IOException {

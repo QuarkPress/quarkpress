@@ -1,6 +1,6 @@
 {
   "id": "d23",
-  "rule": "Part D 23: the default category cannot be deleted; parent of another taxonomy; empty name; taken slug; post filter refusals",
+  "rule": "REST verification list item 23: the default category cannot be deleted; parent of another taxonomy; empty name; taken slug; post filter refusals",
   "setup": [
     {
       "term": "t:tag",

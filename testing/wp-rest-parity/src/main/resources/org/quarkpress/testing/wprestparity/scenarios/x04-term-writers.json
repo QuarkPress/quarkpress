@@ -1,0 +1,259 @@
+{
+  "id": "x04",
+  "rule": "who writes terms: creating, changing and deleting categories and tags per role (refusals 401 or 403 rest_cannot_create, rest_cannot_update, rest_cannot_delete); users in the edit context per role",
+  "setup": [
+    {
+      "term": "t:cat",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "x04-cat"
+    },
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "x04-tag"
+    },
+    {
+      "term": "t:cat-del",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "x04-cat-del"
+    },
+    {
+      "term": "t:tag-del",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "x04-tag-del"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-cat-anonymous\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-cat-erin\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-cat-dave\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-cat-carol\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-cat-bob\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-cat-alice\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-tag-anonymous\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-tag-erin\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-tag-dave\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-tag-carol\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-tag-bob\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:cat}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-anonymous\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:cat}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-erin\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:cat}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-dave\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:cat}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-carol\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:cat}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-bob\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-anonymous\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-erin\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-dave\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-carol\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x04-changed-bob\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:cat-del}?force=true"
+    },
+    {
+      "as": "erin",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:cat-del}?force=true"
+    },
+    {
+      "as": "dave",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:cat-del}?force=true"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:cat-del}?force=true"
+    },
+    {
+      "as": "bob",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:cat-del}?force=true"
+    },
+    {
+      "as": "anonymous",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/tags/{t:tag-del}?force=true"
+    },
+    {
+      "as": "erin",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/tags/{t:tag-del}?force=true"
+    },
+    {
+      "as": "dave",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/tags/{t:tag-del}?force=true"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/tags/{t:tag-del}?force=true"
+    },
+    {
+      "as": "bob",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/tags/{t:tag-del}?force=true"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}?context=edit"
+    }
+  ]
+}

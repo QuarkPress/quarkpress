@@ -1,6 +1,6 @@
 {
   "id": "d12",
-  "rule": "Part D 12: OPTIONS on an unknown path is an empty list; OPTIONS on a route describes it",
+  "rule": "REST verification list item 12: OPTIONS on an unknown path is an empty list; OPTIONS on a route describes it",
   "setup": [],
   "requests": [
     {

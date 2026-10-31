@@ -1,0 +1,141 @@
+{
+  "id": "x05",
+  "rule": "a member of another site only (bob, an editor of the main site, has no role here): term writes, the edit contexts of terms, types, taxonomies, statuses and users, a users search by e-mail, the settings",
+  "setup": [
+    {
+      "leave": "bob"
+    },
+    {
+      "term": "t:cat",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "x05-cat"
+    },
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "x05-tag"
+    },
+    {
+      "post": "p:published",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "x05 carol published"
+    }
+  ],
+  "requests": [
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x05-bob-cat\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x05-bob-tag\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:cat}",
+      "contentType": "application/json",
+      "body": "{\"name\": \"x05-changed\"}"
+    },
+    {
+      "as": "bob",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:cat}?force=true"
+    },
+    {
+      "as": "bob",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/tags/{t:tag}?force=true"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:cat}?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/post?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/category?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=carol%40quarkpress.test&search_columns[]=email"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=carol"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:bob}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:cat}"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "id": "d19",
-  "rule": "Part D 19: the index per caller (QuarkPress lists only what it serves: D6; no wp:active-theme: D7; no image_* keys: D15; authentication: D3), the help context, namespaces",
+  "rule": "REST verification list item 19: the index per caller (QuarkPress lists only what it serves: D6; no wp:active-theme: D7; no image_* keys: D15; authentication: D3), the help context, namespaces",
   "setup": [],
   "requests": [
     {

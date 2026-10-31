@@ -36,6 +36,12 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
 
         /** An option of the scenario's site, set directly. */
         record Option(String name, JsonNode value) implements SetupStep {}
+
+        /**
+         * {@code user} leaves the scenario's site (no role there) and stays a member of the main site: a member of
+         * another site only, for the requests that follow. Never alice, the super admin.
+         */
+        record Leave(String user) implements SetupStep {}
     }
 
     public RestScenario {
@@ -158,6 +164,12 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
                 case SetupStep.Option option -> {
                     if (option.name().isEmpty()) {
                         throw new IllegalArgumentException(id + ": an option needs a name");
+                    }
+                }
+                case SetupStep.Leave leave -> {
+                    caller(id, leave.user(), false);
+                    if (leave.user().equals("alice")) {
+                        throw new IllegalArgumentException(id + ": alice, the super admin, never leaves a site");
                     }
                 }
             }

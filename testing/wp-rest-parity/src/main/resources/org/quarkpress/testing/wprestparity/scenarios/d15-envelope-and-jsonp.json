@@ -1,6 +1,6 @@
 {
   "id": "d15",
-  "rule": "Part D 15: _envelope on errors and collections; _jsonp (QuarkPress refuses it always: README D5)",
+  "rule": "REST verification list item 15: _envelope on errors and collections; _jsonp (QuarkPress refuses it always: README D5)",
   "setup": [],
   "requests": [
     {

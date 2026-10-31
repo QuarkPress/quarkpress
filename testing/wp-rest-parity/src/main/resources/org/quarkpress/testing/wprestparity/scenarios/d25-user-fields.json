@@ -1,6 +1,6 @@
 {
   "id": "d25",
-  "rule": "Part D 25: a subscriber's own user in edit context, preferences saved and reset",
+  "rule": "REST verification list item 25: a subscriber's own user in edit context, preferences saved and reset",
   "setup": [],
   "requests": [
     {

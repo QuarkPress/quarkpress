@@ -1,6 +1,6 @@
 {
   "id": "d01",
-  "rule": "Part D 1: with plain permalinks WordPress redirects /wp-json/ and writes ?rest_route= hrefs, also in pagination links (QuarkPress serves /wp-json/ always: README D1)",
+  "rule": "REST verification list item 1: with plain permalinks WordPress redirects /wp-json/ and writes ?rest_route= hrefs, also in pagination links (QuarkPress serves /wp-json/ always: README D1)",
   "setup": [
     {
       "option": "permalink_structure",

@@ -46,7 +46,33 @@ class NormalizerTest {
                 "{\"id\":99,\"author\":3,\"_links\":{\"self\":[{\"href\":\"http://localhost/s1/wp-json/wp/v2/users/99\"}]}}");
         assertThat(normalizer.body(body, Map.of(3L, "u:carol"), "/s1/").toString())
                 .isEqualTo("{\"id\":\"#?99\",\"author\":\"u:carol\",\"_links\":{\"self\":[{\"href\":"
-                        + "\"http://{host}{site}/wp-json/wp/v2/users/99\"}]}}");
+                        + "\"http://{host}{site}/wp-json/wp/v2/users/#?99\"}]}}");
+        // in URLs too: an unknown id in an id parameter or after a base that names its kind; other numbers stay
+        assertThat(normalizer.header(
+                        "Link",
+                        "<http://localhost/s1/wp-json/wp/v2/tags/12?include=3,4&page=2&per_page=5>",
+                        Map.of(3L, "t:a"),
+                        "/s1/"))
+                .isEqualTo("<http://{host}{site}/wp-json/wp/v2/tags/#?12?include=t:a,#?4&page=2&per_page=5>");
+    }
+
+    @Test
+    void onlyTheIndexsOwnAuthenticationIsReplaced() {
+        assertThat(normalizer
+                        .body(json("{\"authentication\":[],\"x\":{\"authentication\":\"kept\"}}"), Map.of(), "/s1/")
+                        .toString())
+                .isEqualTo("{\"authentication\":\"{auth}\",\"x\":{\"authentication\":\"kept\"}}");
+        assertThat(normalizer
+                        .body(
+                                json("{\"body\":{\"authentication\":{\"oidc\":{}}},\"status\":200,\"headers\":{}}"),
+                                Map.of(),
+                                "/s1/")
+                        .toString())
+                .isEqualTo("{\"body\":{\"authentication\":\"{auth}\"},\"status\":200,\"headers\":{}}");
+        assertThat(normalizer
+                        .body(json("[{\"authentication\":1}]"), Map.of(), "/s1/")
+                        .toString())
+                .isEqualTo("[{\"authentication\":1}]");
     }
 
     @Test
@@ -235,6 +261,136 @@ class NormalizerTest {
                         "[{\"link\":\"http://localhost/s1/tag/a/\",\"name\":\"a\"},{\"link\":\"x\"},{\"link\":\"y\"}]",
                         "[{\"link\":\"http://localhost/s1/?tag=a\",\"name\":\"a\"},{\"link\":\"x\"},{}]"))
                 .containsExactly("req1:body:link-form:/0/link", "req1:body:/2/link");
+    }
+
+    @Test
+    void wordPresssPrettyLinksAreComparedInTheirPlainForm() {
+        // the plain form of each pretty link equals QuarkPress's: only the link-form aspect is recorded
+        assertThat(aspects(
+                        "/wp-json/wp/v2/categories",
+                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/category/a/b/\"},"
+                                + "{\"id\":3,\"slug\":\"carol\",\"link\":\"http://localhost/s1/author/carol/\"},"
+                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/tag/t/\"}]",
+                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/?cat=7\"},"
+                                + "{\"id\":3,\"slug\":\"carol\",\"link\":\"http://localhost/s1/?author=3\"},"
+                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/?tag=t\"}]"))
+                .containsExactly(
+                        "req1:body:link-form:/0/link", "req1:body:link-form:/1/link", "req1:body:link-form:/2/link");
+        // a wrong id, slug, host or site in QuarkPress's link differs
+        assertThat(aspects(
+                        "/wp-json/wp/v2/categories",
+                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/category/b/\"},"
+                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/tag/t/\"},"
+                                + "{\"id\":3,\"slug\":\"c\",\"link\":\"http://localhost/s1/author/c/\"}]",
+                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/?cat=8\"},"
+                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/?tag=u\"},"
+                                + "{\"id\":3,\"slug\":\"c\",\"link\":\"http://localhost/s2/?author=3\"}]"))
+                .containsExactly(
+                        "req1:body:link-form:/0/link",
+                        "req1:body:link-form:/1/link",
+                        "req1:body:link-form:/2/link",
+                        "req1:body:/0/link",
+                        "req1:body:/1/link",
+                        "req1:body:/2/link");
+        // a pretty link whose slug is not the object's own is not mapped, and differs
+        assertThat(aspects(
+                        "/wp-json/wp/v2/categories",
+                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/category/x/\"}]",
+                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/?cat=7\"}]"))
+                .containsExactly("req1:body:link-form:/0/link", "req1:body:/0/link");
+        assertThat(RestComparison.plainLink(
+                        "http://{host}{site}/category/a/b/", json("{\"id\":\"t:b\",\"slug\":\"b\"}")))
+                .contains("http://{host}{site}/?cat=t:b");
+        assertThat(RestComparison.plainLink("http://{host}{site}/category/b/", json("{\"slug\":\"b\"}")))
+                .isEmpty();
+    }
+
+    @Test
+    void rawBodiesKeepTheirBytesExceptTheNormalisedValues() {
+        String wordpress = "{\"id\":12,\"name\":\"Caf\\u00e9\",\"link\":\"http:\\/\\/localhost\\/s1\\/?tag=x\","
+                + "\"auth\":{\"a\":[1, 2]}}";
+        JsonNode parsed = json(wordpress);
+        JsonNode normalised = normalizer.body(parsed, Map.of(12L, "t:x"), "/s1/");
+        assertThat(RawJson.normalised(bytes(wordpress), parsed, normalised))
+                .isEqualTo("{\"id\":\"t:x\",\"name\":\"Caf\\u00e9\",\"link\":\"http://{host}{site}/?tag=x\","
+                        + "\"auth\":{\"a\":[1, 2]}}");
+        // a replaced container, and a value the normalised tree lacks
+        JsonNode changed = normalised.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed).put("auth", "{auth}");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed).remove("name");
+        assertThat(RawJson.normalised(bytes(wordpress), parsed, changed))
+                .isEqualTo("{\"id\":\"t:x\",\"name\":<absent>,\"link\":\"http://{host}{site}/?tag=x\","
+                        + "\"auth\":\"{auth}\"}");
+        // the raw comparison of a byte-level scenario sees escapes and the order of keys
+        ParityRun run =
+                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        RestCall call = RestCall.get("anonymous", "/wp-json/wp/v2/tags/1");
+        RestComparison comparison = new RestComparison(Map.of(), Map.of(), "/d14/");
+        RestScenario d14 = new RestScenario("d14", "test", List.of(), List.of(call, call, call));
+        comparison.compare(
+                d14,
+                List.of(
+                        new Exchange(call, 200, Map.of(), bytes("{\"a\":\"\\u00e9\",\"b\":1}")),
+                        new Exchange(call, 200, Map.of(), bytes("{\"a\":\"x\",\"b\":1}")),
+                        new Exchange(call, 200, Map.of(), bytes("{\"a\":\"x\",\"b\":1}"))),
+                List.of(
+                        new Exchange(call, 200, Map.of(), bytes("{\"a\":\"\u00e9\",\"b\":1}")),
+                        new Exchange(call, 200, Map.of(), bytes("{\"b\":1,\"a\":\"x\"}")),
+                        new Exchange(call, 200, Map.of(), bytes("{\"a\":\"x\",\"b\":1}"))),
+                run);
+        List<String> found = new ArrayList<>();
+        run.mismatches().forEach(m -> found.add(m.aspect()));
+        assertThat(found).containsExactly("req1:body:raw", "req2:body:raw");
+        // other scenarios compare parsed bodies only
+        assertThat(aspects("/wp-json/wp/v2/tags/1", "{\"a\":\"x\",\"b\":1}", "{\"b\":1,\"a\":\"x\"}"))
+                .isEmpty();
+    }
+
+    @Test
+    void securityHeadersAreComparedAndCorsHeadersWhenAnOriginWasSent() {
+        ParityRun run =
+                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        RestCall plain = RestCall.get("anonymous", "/wp-json/wp/v2/tags");
+        RestCall origin = new RestCall(
+                "anonymous",
+                "GET",
+                "/wp-json/wp/v2/tags",
+                Map.of("Origin", "https://x.test"),
+                Optional.empty(),
+                Optional.empty());
+        Map<String, List<String>> wpHeaders = Map.of(
+                "Cache-Control", List.of("no-cache"),
+                "Expires", List.of("Wed, 11 Jan 1984 05:00:00 GMT"),
+                "X-Content-Type-Options", List.of("nosniff"),
+                "Vary", List.of("Origin"),
+                "Access-Control-Allow-Origin", List.of("https://x.test"),
+                "Access-Control-Allow-Credentials", List.of("true"),
+                "Access-Control-Allow-Methods", List.of("OPTIONS, GET"));
+        new RestComparison(Map.of(), Map.of(), "/s1/")
+                .compare(
+                        new RestScenario("s1", "test", List.of(), List.of(plain, origin)),
+                        List.of(
+                                new Exchange(plain, 200, wpHeaders, bytes("[]")),
+                                new Exchange(origin, 200, wpHeaders, bytes("[]"))),
+                        List.of(
+                                new Exchange(plain, 200, Map.of(), bytes("[]")),
+                                new Exchange(origin, 200, Map.of(), bytes("[]"))),
+                        run);
+        List<String> found = new ArrayList<>();
+        run.mismatches().forEach(m -> found.add(m.aspect()));
+        assertThat(found)
+                .containsExactly(
+                        "req1:header:x-content-type-options",
+                        "req1:header:cache-control",
+                        "req1:header:expires",
+                        "req1:header:vary",
+                        "req2:header:x-content-type-options",
+                        "req2:header:cache-control",
+                        "req2:header:expires",
+                        "req2:header:vary",
+                        "req2:header:access-control-allow-origin",
+                        "req2:header:access-control-allow-credentials",
+                        "req2:header:access-control-allow-methods");
     }
 
     @Test

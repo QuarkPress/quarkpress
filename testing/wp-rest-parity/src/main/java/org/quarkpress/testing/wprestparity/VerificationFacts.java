@@ -18,14 +18,14 @@ import java.util.TreeMap;
 import org.quarkpress.testing.wporacle.OracleJson;
 
 /**
- * What WordPress answered to the verification list, kept for the controller and the later tasks. Each item maps to
- * the exchanges recorded for it, in the order they were made; {@link #save()} writes them, with the notes, to
- * {@code target/wp-rest-parity/part-d-facts.json} as {@code {"items": {item: [{request, status, headers, body,
- * bodyText}...]}, "notes": {item: {key: value}}}}. {@code body} is the parsed JSON when the body is JSON, else the text;
- * {@code bodyText} is always the body exactly as sent (escapes included). Header names are lower-case, each with its
- * lines in the order received.
+ * What WordPress answered to the verification list, kept as the reference the scenarios and the tests were written
+ * from. Each item maps to the exchanges recorded for it, in the order they were made; {@link #save()} writes them, with
+ * the notes, to {@code target/wp-rest-parity/verification-facts.json} as {@code {"items": {item: [{request, status,
+ * headers, body, bodyText}...]}, "notes": {item: {key: value}}}}. {@code body} is the parsed JSON when the body is
+ * JSON, else the text; {@code bodyText} is always the body exactly as sent (escapes included). Header names are
+ * lower-case, each with its lines in the order received.
  */
-public final class PartDFacts {
+public final class VerificationFacts {
 
     /** Where the facts and the OPTIONS bodies are written. */
     public static final Path DIRECTORY = Path.of("target", "wp-rest-parity");
@@ -33,7 +33,7 @@ public final class PartDFacts {
     private static final ObjectNode ITEMS = OracleJson.MAPPER.createObjectNode();
     private static final ObjectNode NOTES = OracleJson.MAPPER.createObjectNode();
 
-    private PartDFacts() {}
+    private VerificationFacts() {}
 
     /** Appends an exchange to the item's list. */
     public static synchronized void record(String item, Exchange exchange) {
@@ -55,12 +55,12 @@ public final class PartDFacts {
     }
 
     /**
-     * Writes the items and notes recorded so far into {@code part-d-facts.json}, merging with what the file already
-     * holds: an item recorded in this run replaces its earlier record, every other item is kept, so a run of a few
-     * items never shrinks the file.
+     * Writes the items and notes recorded so far into {@code verification-facts.json}, merging with what the file
+     * already holds: an item recorded in this run replaces its earlier record, every other item is kept, so a run of a
+     * few items never shrinks the file.
      */
     public static synchronized void save() {
-        Path file = DIRECTORY.resolve("part-d-facts.json");
+        Path file = DIRECTORY.resolve("verification-facts.json");
         JsonNode existing = null;
         if (Files.isRegularFile(file)) {
             try {

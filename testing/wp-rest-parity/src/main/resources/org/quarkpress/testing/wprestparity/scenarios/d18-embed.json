@@ -1,6 +1,6 @@
 {
   "id": "d18",
-  "rule": "Part D 18: _embed=0, _embed=up and _embed of a relation the item does not link",
+  "rule": "REST verification list item 18: _embed=0, _embed=up and _embed of a relation the item does not link",
   "setup": [
     {
       "term": "t:parent",

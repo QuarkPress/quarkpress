@@ -1,6 +1,6 @@
 {
   "id": "d21",
-  "rule": "Part D 21: taxonomies per type, post_format (not registered in QuarkPress), edit context refusals, field order",
+  "rule": "REST verification list item 21: taxonomies per type, post_format (not registered in QuarkPress), edit context refusals, field order",
   "setup": [],
   "requests": [
     {

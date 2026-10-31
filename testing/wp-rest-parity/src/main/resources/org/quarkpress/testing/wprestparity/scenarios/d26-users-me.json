@@ -1,6 +1,6 @@
 {
   "id": "d26",
-  "rule": "Part D 26: /users/me anonymously; preferences with _modified stored verbatim; a non-object refused",
+  "rule": "REST verification list item 26: /users/me anonymously; preferences with _modified stored verbatim; a non-object refused",
   "setup": [],
   "requests": [
     {

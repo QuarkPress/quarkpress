@@ -20,10 +20,10 @@ import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
  * Reads and writes the scenario format:
  *
  * <pre>{@code
- * {"id": "d03", "rule": "Part D 3: ...",
+ * {"id": "d03", "rule": "REST verification list item 3: ...",
  *  "setup": [{"term": "t:other", "as": "alice", "taxonomy": "category", "name": "d03-other", "parent": "t:x"},
  *            {"post": "p:draft", "as": "dave", "type": "post", "status": "draft", "title": "..."},
- *            {"option": "permalink_structure", "value": ""}],
+ *            {"option": "permalink_structure", "value": ""}, {"leave": "bob"}],
  *  "requests": [{"as": "alice", "method": "GET", "target": "/wp-json/wp/v2/users/{u:alice}",
  *                "headers": {"Accept": "application/json"}, "contentType": "application/json", "body": "{}"}]}
  * }</pre>
@@ -36,6 +36,7 @@ public final class RestScenarioJson {
     private static final Set<String> POST_KEYS = Set.of("post", "as", "type", "status", "title");
     private static final Set<String> TERM_KEYS = Set.of("term", "as", "taxonomy", "name", "parent");
     private static final Set<String> OPTION_KEYS = Set.of("option", "value");
+    private static final Set<String> LEAVE_KEYS = Set.of("leave");
     private static final Set<String> REQUEST_KEYS = Set.of("as", "method", "target", "headers", "contentType", "body");
 
     private RestScenarioJson() {}
@@ -88,6 +89,7 @@ public final class RestScenarioJson {
                     node.put("option", option.name());
                     node.set("value", option.value());
                 }
+                case SetupStep.Leave leave -> node.put("leave", leave.user());
             }
         }
         ArrayNode requests = root.putArray("requests");
@@ -136,7 +138,11 @@ public final class RestScenarioJson {
             }
             return new SetupStep.Option(text(step, "option"), step.get("value"));
         }
-        throw new IllegalArgumentException(id + ": a setup step is a post, a term or an option: " + step);
+        if (step.has("leave")) {
+            keys(step, LEAVE_KEYS, id + " leave step");
+            return new SetupStep.Leave(text(step, "leave"));
+        }
+        throw new IllegalArgumentException(id + ": a setup step is a post, a term, an option or a leave: " + step);
     }
 
     private static RestCall request(String id, JsonNode request) {

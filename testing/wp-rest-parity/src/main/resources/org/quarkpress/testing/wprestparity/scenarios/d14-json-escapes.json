@@ -1,6 +1,6 @@
 {
   "id": "d14",
-  "rule": "Part D 14: names as WordPress stores them, encoded as PHP encodes them; _pretty; the title setting",
+  "rule": "REST verification list item 14: names as WordPress stores them, encoded as PHP encodes them; _pretty; the title setting",
   "setup": [
     {
       "term": "t:first",

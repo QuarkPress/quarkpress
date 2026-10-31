@@ -1,6 +1,6 @@
 {
   "id": "d10",
-  "rule": "Part D 10: totals and the Link header (one line, every request parameter carried, indexed brackets, prev to page 0)",
+  "rule": "REST verification list item 10: totals and the Link header (one line, every request parameter carried, indexed brackets, prev to page 0)",
   "setup": [
     {
       "term": "t:tag01",

@@ -1,6 +1,6 @@
 {
   "id": "d04",
-  "rule": "Part D 4: X-HTTP-Method-Override and _method, permission before deletion, GET ?_method=DELETE deletes",
+  "rule": "REST verification list item 4: X-HTTP-Method-Override and _method, permission before deletion, GET ?_method=DELETE deletes",
   "setup": [
     {
       "term": "t:tag",

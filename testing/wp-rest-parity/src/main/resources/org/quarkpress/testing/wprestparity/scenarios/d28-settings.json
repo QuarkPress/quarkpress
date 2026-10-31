@@ -1,6 +1,6 @@
 {
   "id": "d28",
-  "rule": "Part D 28: the settings of a new site, sanitizing, enum before sanitizing, an invalid stored value, null resets, refusals",
+  "rule": "REST verification list item 28: the settings of a new site, sanitizing, enum before sanitizing, an invalid stored value, null resets, refusals",
   "setup": [
     {
       "option": "use_smilies",

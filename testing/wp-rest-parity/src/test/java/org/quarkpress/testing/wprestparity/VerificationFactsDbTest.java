@@ -26,18 +26,19 @@ import org.quarkpress.testing.wpscenario.ScenarioDatabase;
 import org.quarkpress.testing.wpscenario.WordPressTree;
 
 /**
- * Records what WordPress answers for every item of the behaviour reference's verification list (Part D 1-28, plus
- * {@code site-410}), asserting only the six items the reference states firmly. Every item creates the fixtures it
- * needs through WordPress's REST API, deletes only what it created and restores any site state it changes.
+ * Records what WordPress answers for every item of the behaviour reference's verification list (items 1-28 of the REST
+ * verification list, plus {@code site-410}), asserting only the six items the reference states firmly. Every item
+ * creates the fixtures it needs through WordPress's REST API, deletes only what it created and restores any site state
+ * it changes.
  */
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
 @TestMethodOrder(MethodOrderer.MethodName.class)
-class PartDFactsDbTest {
+class VerificationFactsDbTest {
     static ScenarioDatabase database;
     static WordPressRestSite site;
     static RestClient client;
 
-    /** The Part D item the running test records under; null when it records nothing. */
+    /** The verification list item the running test records under; null when it records nothing. */
     String item;
 
     @BeforeAll
@@ -52,7 +53,7 @@ class PartDFactsDbTest {
     @AfterAll
     static void stop() {
         try {
-            PartDFacts.save();
+            VerificationFacts.save();
         } finally {
             if (site != null) {
                 site.close();
@@ -70,7 +71,8 @@ class PartDFactsDbTest {
         item = method.startsWith("site410") ? "site-410" : method.startsWith("d") ? method.substring(0, 3) : null;
     }
 
-    // ---- Part D items -------------------------------------------------------------------------------------------
+    // ---- verification list items
+    // -------------------------------------------------------------------------------------------
 
     @Test
     void d01PlainModeHasNoWpJsonUrls() throws Exception {
@@ -644,7 +646,7 @@ class PartDFactsDbTest {
                 Exchange options = client.send(new RestCall(
                         "alice", "OPTIONS", "/wp-json" + route, Map.of(), Optional.empty(), Optional.empty()));
                 assertThat(options.status()).as("OPTIONS %s", route).isEqualTo(200);
-                PartDFacts.saveOptions(route.equals("/wp/v2/tags/" + tag) ? "/wp/v2/tags/{id}" : route, options);
+                VerificationFacts.saveOptions(route.equals("/wp/v2/tags/" + tag) ? "/wp/v2/tags/{id}" : route, options);
             }
         } finally {
             deleteTerm("tags", tag);
@@ -664,17 +666,17 @@ class PartDFactsDbTest {
     Exchange send(RestCall call) throws Exception {
         Exchange exchange = client.send(call);
         if (item != null) {
-            PartDFacts.record(item, exchange);
+            VerificationFacts.record(item, exchange);
         }
         return exchange;
     }
 
     void note(String key, String value) {
-        PartDFacts.note(item, key, TextNode.valueOf(value));
+        VerificationFacts.note(item, key, TextNode.valueOf(value));
     }
 
     void note(String key, int value) {
-        PartDFacts.note(item, key, IntNode.valueOf(value));
+        VerificationFacts.note(item, key, IntNode.valueOf(value));
     }
 
     static RestCall withHeaders(RestCall call, Map<String, String> headers) {

@@ -1,6 +1,6 @@
 {
   "id": "d27",
-  "rule": "Part D 27: user writes on a network (QuarkPress manages users externally: README D10, D11)",
+  "rule": "REST verification list item 27: user writes on a network (QuarkPress manages users externally: README D10, D11)",
   "setup": [],
   "requests": [
     {

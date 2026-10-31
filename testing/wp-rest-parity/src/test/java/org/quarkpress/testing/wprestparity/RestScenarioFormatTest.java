@@ -16,7 +16,7 @@ class RestScenarioFormatTest {
     }
 
     @Test
-    void everyHandWrittenScenarioReadsAndPartDIsComplete() {
+    void everyHandWrittenScenarioReadsAndTheVerificationListIsComplete() {
         List<RestScenario> scenarios = RestScenarios.handWritten();
         Set<String> ids = new HashSet<>();
         for (RestScenario scenario : scenarios) {
@@ -72,16 +72,32 @@ class RestScenarioFormatTest {
     }
 
     @Test
+    void aUserLeavesTheSiteButAliceNever() {
+        String get = "{\"as\":\"bob\",\"method\":\"GET\",\"target\":\"/wp-json/wp/v2/users/me\"}";
+        RestScenario read = RestScenarioJson.read(scenario("{\"leave\":\"bob\"}", get));
+        assertThat(read.setup()).containsExactly(new RestScenario.SetupStep.Leave("bob"));
+        assertThat(RestScenarioJson.read(RestScenarioJson.write(read)))
+                .usingRecursiveComparison()
+                .isEqualTo(read);
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("{\"leave\":\"alice\"}", get)))
+                .hasMessageContaining("alice, the super admin, never leaves a site");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("{\"leave\":\"anonymous\"}", get)))
+                .hasMessageContaining("unknown caller 'anonymous'");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("{\"leave\":\"bob\",\"site\":\"x\"}", get)))
+                .hasMessageContaining("unknown key site");
+    }
+
+    @Test
     void generatedScenariosAreReproduciblePerSeedAndValid() {
-        List<RestScenario> first = RestScenarios.generated("m2c-a", RestScenarios.GENERATED);
-        List<RestScenario> again = RestScenarios.generated("m2c-a", RestScenarios.GENERATED);
-        List<RestScenario> other = RestScenarios.generated("m2c-b", RestScenarios.GENERATED);
+        List<RestScenario> first = RestScenarios.generated("rest-a", RestScenarios.GENERATED);
+        List<RestScenario> again = RestScenarios.generated("rest-a", RestScenarios.GENERATED);
+        List<RestScenario> other = RestScenarios.generated("rest-b", RestScenarios.GENERATED);
         assertThat(first).hasSize(RestScenarios.GENERATED);
         assertThat(first.stream().map(RestScenarioJson::write).toList())
                 .isEqualTo(again.stream().map(RestScenarioJson::write).toList());
         assertThat(first.stream().map(RestScenarioJson::write).toList())
                 .isNotEqualTo(other.stream().map(RestScenarioJson::write).toList());
-        assertThat(first.get(0).id()).isEqualTo("m2c-a-001");
+        assertThat(first.get(0).id()).isEqualTo("rest-a-001");
         for (RestScenario scenario : first) {
             assertThat(scenario.requests()).hasSizeBetween(2, 6);
             for (RestCall call : scenario.requests()) {
@@ -94,5 +110,8 @@ class RestScenarioFormatTest {
             RestScenarioJson.read(RestScenarioJson.write(scenario));
         }
         assertThat(RestScenarios.all()).hasSize(RestScenarios.handWritten().size() + 2 * RestScenarios.GENERATED);
+        assertThat(RestScenarios.isGenerated("rest-a-001")).isTrue();
+        assertThat(RestScenarios.isGenerated("d01")).isFalse();
+        assertThat(RestScenarios.isGenerated("x01")).isFalse();
     }
 }

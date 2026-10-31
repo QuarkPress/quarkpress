@@ -18,6 +18,7 @@
  *   app_password {user}            creates an application password named "parity"; answers {password}
  *   archived_site {path}           creates a site on localhost at path and marks it archived; answers {id}
  *   outsider {login}               creates a network user who is a member of no site; answers {id}
+ *   leave {site, user}             removes the user from the site at path "site" (no role there); answers {left}
  *   delete_user {login}            deletes a network user (wpmu_delete_user); answers {deleted}
  * The script calls WordPress functions; every rule it applies itself is marked "Harness rule" where it happens.
  */
@@ -83,13 +84,17 @@ function qp_offline(): void
     add_filter('pre_http_request', static fn() => new WP_Error('qp_offline', 'the REST setup script makes no HTTP requests'), 10, 0);
 }
 
-/** The dev realm's users: login (also the password), display name and role on the main site. */
+/**
+ * The dev realm's users: login (also the password), display name and role on the main site. Harness rule: created in
+ * QuarkPress's order, so their ids sort the same on both sides: alice (the network's initial super admin, whose profile
+ * QuarkPress makes at start) first, then the others in the order of their first login.
+ */
 const QP_REST_USERS = [
+    'alice' => ['Alice Anders', 'administrator'],
     'bob' => ['Bob Baker', 'editor'],
     'carol' => ['Carol Chen', 'author'],
     'dave' => ['Dave Diaz', 'contributor'],
     'erin' => ['Erin Evans', 'subscriber'],
-    'alice' => ['Alice Anders', 'administrator'],
 ];
 
 function qp_prepare_site(): array
@@ -287,6 +292,16 @@ function qp_outsider(array $input): array
     return ['id' => (int) $id];
 }
 
+function qp_leave(array $input): array
+{
+    // Harness rule: the user leaves the scenario's site (remove_user_from_blog) and stays a member of the main site.
+    $removed = remove_user_from_blog(qp_user_id($input), qp_site_id((string) $input['site']));
+    if (is_wp_error($removed)) {
+        throw new RuntimeException('remove_user_from_blog: ' . $removed->get_error_code());
+    }
+    return ['left' => true];
+}
+
 function qp_delete_user(array $input): array
 {
     require_once ABSPATH . 'wp-admin/includes/admin.php';
@@ -319,6 +334,7 @@ try {
         'app_password' => qp_app_password($qp_input),
         'archived_site' => qp_archived_site($qp_input),
         'outsider' => qp_outsider($qp_input),
+        'leave' => qp_leave($qp_input),
         'delete_user' => qp_delete_user($qp_input),
         default => throw new InvalidArgumentException("unknown operation $qp_mode"),
     };

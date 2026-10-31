@@ -1,6 +1,6 @@
 {
   "id": "d16",
-  "rule": "Part D 16: _fields on a keyed collection, on a child after its parent, with _embedded and _links",
+  "rule": "REST verification list item 16: _fields on a keyed collection, on a child after its parent, with _embedded and _links",
   "setup": [
     {
       "term": "t:parent",

@@ -1,6 +1,6 @@
 {
   "id": "d08",
-  "rule": "Part D 8: a first-phase error hides second-phase ones; a shadowed bad query value is not reported",
+  "rule": "REST verification list item 8: a first-phase error hides second-phase ones; a shadowed bad query value is not reported",
   "setup": [],
   "requests": [
     {

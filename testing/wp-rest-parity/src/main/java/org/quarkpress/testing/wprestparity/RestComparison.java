@@ -20,18 +20,24 @@ import org.quarkpress.testing.wporacle.ParityRun;
  * aspects are {@code req<n>:status}, {@code req<n>:header:<lower-case name>} and either {@code req<n>:body} (equal
  * bodies, one comparison) or one {@code req<n>:body:<JSON pointer>} per differing leaf ({@code <absent>} where one
  * side has no value). JSON bodies are compared parsed ({@code []} and {@code {}} distinct, key order ignored); other
- * bodies as text.
+ * bodies as text. For the scenarios of {@link #RAW_SCENARIOS}, whose point is the bytes (PHP's escapes, the order of
+ * keys, pretty printing), a JSON body that compares equal parsed is also compared as text, as {@code req<n>:body:raw}:
+ * the bytes as sent, with each value the normalisation changed written as its normalised JSON.
  *
  * <p>The index ({@code namespaces} and {@code routes}) and a namespace's index ({@code namespace} and
  * {@code routes}) are compared for everything except a fixed, named set of namespaces, routes and index links that
  * QuarkPress does not serve yet: each of those WordPress lists is dropped and recorded as its own aspect
- * {@code req<n>:body:wp-only:<pointer>}, a difference the known-differences file must list. Front-end {@code link}
- * values that differ while both sides have one are recorded as {@code req<n>:body:link-form:<pointer>} and then
- * compared as equal, so a {@code link} one side lacks still differs.
+ * {@code req<n>:body:wp-only:<pointer>}, a difference the known-differences file must list. A front-end {@code link}
+ * that differs while both sides have one is recorded as {@code req<n>:body:link-form:<pointer>}; WordPress's pretty
+ * form is then mapped to the plain form QuarkPress writes ({@code /author/<slug>/} to {@code ?author=<id>},
+ * {@code /category/.../<slug>/} to {@code ?cat=<id>}, {@code /tag/<slug>/} to {@code ?tag=<slug>}, the slug checked
+ * against the object's own, the id the object's normalised one), so the body comparison still sees a wrong host, site,
+ * id or slug. Only a link whose object lacks the id or the slug is compared as equal; any other link WordPress writes
+ * in a form the mapping does not know still differs.
  */
 public final class RestComparison {
 
-    /** The headers compared on every answer; {@code Vary} only when the request sent an {@code Origin}. */
+    /** The headers compared on every answer. */
     public static final List<String> HEADERS = List.of(
             "allow",
             "x-wp-total",
@@ -40,8 +46,19 @@ public final class RestComparison {
             "content-type",
             "location",
             "x-robots-tag",
+            "x-content-type-options",
+            "cache-control",
+            "expires",
+            "vary",
             "access-control-expose-headers",
             "access-control-allow-headers");
+
+    /** The headers compared on the answers to requests that sent an {@code Origin}. */
+    public static final List<String> ORIGIN_HEADERS =
+            List.of("access-control-allow-origin", "access-control-allow-credentials", "access-control-allow-methods");
+
+    /** The scenarios whose bodies are also compared as bytes: PHP's JSON escapes, and the order of keys. */
+    public static final Set<String> RAW_SCENARIOS = Set.of("d14", "d21");
 
     static final String ABSENT = "<absent>";
 
@@ -74,9 +91,11 @@ public final class RestComparison {
                 compareHeader(scenario.id(), prefix, name, wp, qp, run);
             }
             if (wp.call().headers().keySet().stream().anyMatch(h -> h.equalsIgnoreCase("Origin"))) {
-                compareHeader(scenario.id(), prefix, "vary", wp, qp, run);
+                for (String name : ORIGIN_HEADERS) {
+                    compareHeader(scenario.id(), prefix, name, wp, qp, run);
+                }
             }
-            compareBody(scenario.id(), prefix, wp, qp, run);
+            compareBody(scenario.id(), prefix, wp, qp, run, RAW_SCENARIOS.contains(scenario.id()));
         }
     }
 
@@ -92,7 +111,7 @@ public final class RestComparison {
                         .orElse(ABSENT));
     }
 
-    private void compareBody(String caseId, String prefix, Exchange wp, Exchange qp, ParityRun run) {
+    private void compareBody(String caseId, String prefix, Exchange wp, Exchange qp, ParityRun run, boolean raw) {
         Normalizer.Kind kind = Normalizer.Kind.ofTarget(wp.call().target());
         Optional<JsonNode> wpJson = json(wp.body());
         Optional<JsonNode> qpJson = json(qp.body());
@@ -125,6 +144,13 @@ public final class RestComparison {
         }
         if (wpBody.equals(qpBody)) {
             run.compare(caseId, prefix + "body", "same", "same");
+            if (raw) {
+                run.compare(
+                        caseId,
+                        prefix + "body:raw",
+                        RawJson.normalised(wp.body(), wpJson.get(), wpBody),
+                        RawJson.normalised(qp.body(), qpJson.get(), qpBody));
+            }
             return;
         }
         List<String[]> leaves = new ArrayList<>();
@@ -294,8 +320,10 @@ public final class RestComparison {
 
     /**
      * Where both sides have a front-end {@code link} (a text under the key {@code link}) and the two differ, records the
-     * pair as {@code <pointer>} and puts {@code {link}} in both bodies, so the rest of the comparison still sees whether
-     * each side has the field.
+     * pair as {@code <pointer>} and puts in WordPress's body the plain form of its link ({@link #plainLink}), so the
+     * comparison of the bodies sees whether it is QuarkPress's; when the object has no slug or id to tell the plain
+     * form, puts {@code {link}} in both bodies, so the rest of the comparison still sees whether each side has the
+     * field; any other link is left as it is, and differs.
      */
     static void linkForms(String pointer, JsonNode wordpress, JsonNode quarkpress, List<String[]> out) {
         if (wordpress.isObject() && quarkpress.isObject()) {
@@ -310,8 +338,16 @@ public final class RestComparison {
                 if (key.equals("link") && a.isTextual() && b.isTextual()) {
                     if (!a.equals(b)) {
                         out.add(new String[] {child, a.toString(), b.toString()});
-                        ((ObjectNode) wordpress).put(key, "{link}");
-                        ((ObjectNode) quarkpress).put(key, "{link}");
+                        Optional<String> plain = plainLink(a.textValue(), wordpress);
+                        if (plain.isPresent()) {
+                            ((ObjectNode) wordpress).put(key, plain.get());
+                        } else if (!wordpress.path("slug").isTextual()
+                                || !wordpress.has("id")
+                                || !wordpress.get("id").isValueNode()) {
+                            // the object does not tell what the plain form would be
+                            ((ObjectNode) wordpress).put(key, "{link}");
+                            ((ObjectNode) quarkpress).put(key, "{link}");
+                        }
                     }
                 } else {
                     linkForms(child, a, b, out);
@@ -322,6 +358,54 @@ public final class RestComparison {
                 linkForms(pointer + "/" + i, wordpress.get(i), quarkpress.get(i), out);
             }
         }
+    }
+
+    /**
+     * The plain-permalink form of WordPress's pretty front-end link {@code link} (normalised, so starting with
+     * {@code {site}/}) of {@code object}: {@code <base>/author/<slug>/} is {@code <base>/?author=<id>},
+     * {@code <base>/category/<parents>/<slug>/} is {@code <base>/?cat=<id>} and {@code <base>/tag/<slug>/} is
+     * {@code <base>/?tag=<slug>}, where the slug in the link must be the object's {@code slug} and the id is the object's
+     * normalised {@code id}. Empty for any other link, or when the object has no {@code slug} or {@code id}.
+     */
+    static Optional<String> plainLink(String link, JsonNode object) {
+        int site = link.indexOf("{site}/");
+        if (site < 0) {
+            return Optional.empty();
+        }
+        String base = link.substring(0, site + "{site}/".length());
+        String path = link.substring(base.length());
+        if (!path.endsWith("/") || path.indexOf('?') >= 0 || path.indexOf('#') >= 0) {
+            return Optional.empty();
+        }
+        List<String> segments = new ArrayList<>();
+        int start = 0;
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) == '/') {
+                segments.add(path.substring(start, i));
+                start = i + 1;
+            }
+        }
+        if (segments.size() < 2 || segments.stream().anyMatch(String::isEmpty)) {
+            return Optional.empty();
+        }
+        String last = segments.get(segments.size() - 1);
+        JsonNode slug = object.get("slug");
+        JsonNode id = object.get("id");
+        boolean ownSlug = slug != null && slug.isTextual() && slug.textValue().equals(last);
+        String kind = segments.get(0);
+        if (kind.equals("tag") && segments.size() == 2) {
+            return Optional.of(base + "?tag=" + last);
+        }
+        if (!ownSlug || id == null || !id.isValueNode()) {
+            return Optional.empty();
+        }
+        if (kind.equals("author") && segments.size() == 2) {
+            return Optional.of(base + "?author=" + id.asText());
+        }
+        if (kind.equals("category")) {
+            return Optional.of(base + "?cat=" + id.asText());
+        }
+        return Optional.empty();
     }
 
     /** Appends one {pointer, wordpress, quarkpress} entry per differing leaf. */

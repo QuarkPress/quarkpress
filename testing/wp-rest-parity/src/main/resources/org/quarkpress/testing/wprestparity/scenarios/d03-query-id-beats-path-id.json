@@ -1,6 +1,6 @@
 {
   "id": "d03",
-  "rule": "Part D 3: the query's id wins over the path's",
+  "rule": "REST verification list item 3: the query's id wins over the path's",
   "setup": [
     {
       "term": "t:other",

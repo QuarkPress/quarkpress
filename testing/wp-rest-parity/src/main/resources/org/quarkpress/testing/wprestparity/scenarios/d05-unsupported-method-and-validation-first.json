@@ -1,6 +1,6 @@
 {
   "id": "d05",
-  "rule": "Part D 5: an unsupported method is no route; validation answers before permission",
+  "rule": "REST verification list item 5: an unsupported method is no route; validation answers before permission",
   "setup": [],
   "requests": [
     {

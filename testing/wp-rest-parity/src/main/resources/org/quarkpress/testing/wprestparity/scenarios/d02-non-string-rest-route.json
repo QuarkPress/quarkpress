@@ -1,6 +1,6 @@
 {
   "id": "d02",
-  "rule": "Part D 2: a non-string rest_route is refused before the REST server, as HTML or as JSON when the request accepts JSON",
+  "rule": "REST verification list item 2: a non-string rest_route is refused before the REST server, as HTML or as JSON when the request accepts JSON",
   "setup": [],
   "requests": [
     {

@@ -12,7 +12,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.testing.wporacle.OracleJson;
 
-class PartDFactsTest {
+class VerificationFactsTest {
 
     static Exchange exchange(Map<String, List<String>> headers, String body) {
         RestCall call = new RestCall(
@@ -37,7 +37,7 @@ class PartDFactsTest {
         headers.put("X-WP-Total", List.of("25"));
         String body = "{\"name\":\"Caf\\u00e9\\/Bar\",\"id\":7}";
 
-        ObjectNode entry = PartDFacts.toJson(exchange(headers, body));
+        ObjectNode entry = VerificationFacts.toJson(exchange(headers, body));
 
         assertThat(entry.get("request"))
                 .isEqualTo(json("{\"as\":\"alice\",\"method\":\"POST\",\"target\":\"/wp-json/wp/v2/tags?x=1\","
@@ -55,7 +55,7 @@ class PartDFactsTest {
     @Test
     void aBodyThatIsNotJsonOrHasTrailingTokensIsRecordedAsText() {
         for (String body : List.of("<!DOCTYPE html><p>error</p>", "{\"a\":1} <br />Notice", "[] []", "")) {
-            ObjectNode entry = PartDFacts.toJson(exchange(Map.of(), body));
+            ObjectNode entry = VerificationFacts.toJson(exchange(Map.of(), body));
             assertThat(entry.get("body").isTextual()).as("body of %s", body).isTrue();
             assertThat(entry.get("body").textValue()).isEqualTo(body);
             assertThat(entry.get("bodyText").textValue()).isEqualTo(body);
@@ -69,7 +69,7 @@ class PartDFactsTest {
         ObjectNode items = (ObjectNode) json("{\"d06\":[{\"status\":401}],\"d07\":[{\"status\":400}]}");
         ObjectNode notes = (ObjectNode) json("{\"d07\":{\"term_id\":\"NUMBER\"}}");
 
-        JsonNode merged = PartDFacts.merge(existing, items, notes);
+        JsonNode merged = VerificationFacts.merge(existing, items, notes);
 
         assertThat(merged)
                 .isEqualTo(json("{\"items\":{\"d01\":[{\"status\":301}],\"d06\":[{\"status\":401}],"
@@ -83,7 +83,7 @@ class PartDFactsTest {
         ObjectNode items = (ObjectNode) json("{\"d06\":[{\"status\":401}]}");
         ObjectNode notes = OracleJson.MAPPER.createObjectNode();
 
-        assertThat(PartDFacts.merge(null, items, notes))
+        assertThat(VerificationFacts.merge(null, items, notes))
                 .isEqualTo(json("{\"items\":{\"d06\":[{\"status\":401}]},\"notes\":{}}"));
     }
 }

@@ -17,7 +17,7 @@ mvn -pl integration-tests/rest-wp-v2 -am verify -Pwp-parity
 ```
 
 The first runs this module's own tests: the site starts and answers, and the recorder of WordPress's answers to the
-REST verification list writes them to `target/wp-rest-parity/part-d-facts.json` (one entry per request: status,
+REST verification list writes them to `target/wp-rest-parity/verification-facts.json` (one entry per request: status,
 headers by lower-case name, parsed body and exact text) and the OPTIONS answers to `target/wp-rest-parity/options/`.
 The second runs the comparison itself, `RestParityDbTest` in `integration-tests/rest-wp-v2`, against that module's
 test application with the dev realm's Keycloak tokens. Both need a container runtime (Docker or Podman) and `php` 8.4
@@ -58,7 +58,9 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
 - Requests name their caller (`as`), method, target relative to the site, headers, content type and body. Unknown keys
   are refused, so a typo never drops a step.
 - The hand-written scenarios come first: one per item of the REST verification list (`d01` to `d28`), then `x01` to
-  `x03` for rules found later. Then 60 generated scenarios for each of the seeds `m2c-a` and `m2c-b`, the same on
+  `x06` for rules found later (among them who writes terms, `x04`, and a member of another site only, `x05`: a
+  `{"leave": "<user>"}` setup step takes the user's role on the scenario's site away). Then 60 generated scenarios for
+  each of the seeds `rest-a` and `rest-b`, the same on
   every run: random callers, routes, methods and query parameters drawn from each route's declared arguments, keeping
   clear of requests whose answers differ as a whole (see `RestScenarios`).
 
@@ -67,16 +69,22 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
 Before comparing, `Normalizer` makes the two sides' answers comparable: hosts and ports of local URLs become `{host}`
 (the scheme is kept) and the scenario's site path `{site}/`; ids of known refs become the ref, in id fields (`id`,
 `parent`, `author`, `post`, `term_id` and the like, by the kind of object) and inside local URLs, while an unknown id
-becomes `#?<id>` so that it still differs; `registered_date` becomes its format; the index's `authentication` becomes
-`{auth}`; the editor preferences' `_modified` stamp `{stamp}`. `targetHints` and `Allow` are left as they are: they are
+becomes `#?<id>` (in URLs too) so that it still differs; `registered_date` becomes its format; the index's own
+`authentication` (a key of the body, or of an envelope's body) becomes `{auth}`; the editor preferences' `_modified`
+stamp `{stamp}`. `targetHints` and `Allow` are left as they are: they are
 compared per caller.
 
 `RestComparison` then compares, per request, the status, the headers `Allow`, `X-WP-Total`, `X-WP-TotalPages`,
-`Link`, `Content-Type`, `Location`, `X-Robots-Tag`, `Access-Control-Expose-Headers`, `Access-Control-Allow-Headers`
-(and `Vary` when the request sent an `Origin`) and the normalised body: JSON parsed (`[]` and `{}` distinct, key order
-ignored), anything else as text; one aspect per differing JSON leaf. The namespaces, routes and index links QuarkPress
-does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect. Front-end
-`link` fields that differ while both sides have one are recorded as `link-form` aspects. Every difference is written
+`Link`, `Content-Type`, `Location`, `X-Robots-Tag`, `X-Content-Type-Options`, `Cache-Control`, `Expires`, `Vary`,
+`Access-Control-Expose-Headers`, `Access-Control-Allow-Headers` (and `Access-Control-Allow-Origin`, `-Credentials` and
+`-Methods` when the request sent an `Origin`) and the normalised body: JSON parsed (`[]` and `{}` distinct, key order
+ignored), anything else as text; one aspect per differing JSON leaf. For the scenarios about PHP's escapes and the
+order of keys (`d14`, `d21`), a body equal once parsed is also compared byte for byte (`body:raw`), each value the
+normalisation changed written as its normalised JSON and every other byte kept. The namespaces, routes and index links
+QuarkPress does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect.
+Front-end `link` fields that differ while both sides have one are recorded as `link-form` aspects, and WordPress's
+pretty form is then compared in the plain form QuarkPress writes (`/author/<slug>/` as `?author=<id>`,
+`/category/.../<slug>/` as `?cat=<id>`, `/tag/<slug>/` as `?tag=<slug>`), so a wrong host, site, id or slug differs. Every difference is written
 to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each scenario's answers to
 `target/rest-parity/<id>.json` there.
 
@@ -85,12 +93,15 @@ to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each s
 `integration-tests/rest-wp-v2/src/test/resources/wp-rest-parity-known-differences.txt` lists the deliberate
 differences, one per line: scenario, aspect, label and reason, with `*` and `?` globs. The label is a row of the
 "Differences from WordPress" table in `extensions/rest-wp-v2/README.md`, and `KnownDifferenceLabelsTest` checks that
-every label used there is a row of it. Every entry is asserted: an entry whose comparisons all match WordPress now, or
+every label used there is a row of it and every row is used. Entries name the aspects that differ, never a whole
+request, so the rest of a request is still compared. Every entry is asserted: an entry whose comparisons all match WordPress now, or
 that covers no comparison, fails the run. A scenario of `none` documents a difference no scenario can show. Entries
 naming generated scenarios by id are fragile: a change to the generator renumbers them.
 
-The run also needs at least `MIN_COMPARISONS` comparisons (3550, half the 7137 of the first green run rounded down to
-a multiple of 50), so a harness that silently stops comparing fails. `-Drest.parity.only=d01,x0` narrows the run to
+The run also needs at least `MIN_COMPARISONS` comparisons (9650, 90% of the 10765 of the last green run rounded down
+to a multiple of 50), every scenario of the corpus, and at least one comparison per scenario, so a harness that
+silently stops comparing fails; with the `wp-parity` profile on, a missing container runtime fails the run instead of
+skipping it. `-Drest.parity.only=d01,x0` narrows the run to
 scenarios whose ids start so, for local debugging; such a run never passes, since the other scenarios' known
 differences then match nothing.
 

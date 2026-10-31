@@ -14,7 +14,7 @@ import org.quarkpress.testing.wporacle.GeneratedCases;
 import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
 
 /**
- * The REST parity scenarios: the hand-written ones ({@code scenarios/index.txt}, Part D 1-28 first) and generated ones
+ * The REST parity scenarios: the hand-written ones ({@code scenarios/index.txt}, REST verification list items 1-28 first) and generated ones
  * over callers, routes, methods and query parameters drawn from each route's declared arguments.
  *
  * <p>Generated requests come from six callers (anonymous and the five dev-realm users) and stay clear of the classes of
@@ -31,7 +31,7 @@ public final class RestScenarios {
     public static final int GENERATED = 60;
 
     /** The seeds of {@link #all()}. */
-    public static final List<String> SEEDS = List.of("m2c-a", "m2c-b");
+    public static final List<String> SEEDS = List.of("rest-a", "rest-b");
 
     static final String RESOURCES = "scenarios/";
 
@@ -64,6 +64,16 @@ public final class RestScenarios {
                     "%s-%03d".formatted(seed, i + 1), "generated (seed " + seed + ")", draft.setup, draft.requests));
         }
         return List.copyOf(out);
+    }
+
+    /** Whether {@code id} is the id of a generated scenario: a seed of {@link #SEEDS}, a dash and a number. */
+    public static boolean isGenerated(String id) {
+        for (String seed : SEEDS) {
+            if (id.startsWith(seed + "-")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The hand-written scenarios, then {@link #GENERATED} per seed of {@link #SEEDS}. */

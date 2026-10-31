@@ -1,6 +1,6 @@
 {
   "id": "d07",
-  "rule": "Part D 7: creating a term that exists answers term_exists with the term id",
+  "rule": "REST verification list item 7: creating a term that exists answers term_exists with the term id",
   "setup": [
     {
       "term": "t:tag",

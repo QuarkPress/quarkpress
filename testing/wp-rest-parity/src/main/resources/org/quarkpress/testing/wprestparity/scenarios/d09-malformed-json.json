@@ -1,6 +1,6 @@
 {
   "id": "d09",
-  "rule": "Part D 9: malformed JSON is refused only on a matched route and only for a JSON content type",
+  "rule": "REST verification list item 9: malformed JSON is refused only on a matched route and only for a JSON content type",
   "setup": [],
   "requests": [
     {

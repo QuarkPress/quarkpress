@@ -1,6 +1,6 @@
 {
   "id": "d11",
-  "rule": "Part D 11: the fixed headers, no-cache for logged-in callers, Vary for anonymous GETs, CORS with an Origin (QuarkPress: only configured origins, README D4)",
+  "rule": "REST verification list item 11: the fixed headers, no-cache for logged-in callers, Vary for anonymous GETs, CORS with an Origin (QuarkPress: only configured origins, README D4)",
   "setup": [],
   "requests": [
     {
