@@ -2,10 +2,12 @@ package org.quarkpress.restwp.deployment;
 
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.Capabilities;
+import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveDeploymentBuildItem;
 import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveResourceMethodEntriesBuildItem;
 import io.quarkus.runtime.configuration.ConfigurationException;
@@ -31,6 +33,12 @@ class RestWpV2Processor {
     /** The capability the multisite module provides. */
     static final String MULTISITE = "org.quarkpress.multisite";
 
+    /** The capability the revisions module provides. */
+    static final String REVISIONS = "org.quarkpress.revisions";
+
+    /** The revisions module's exception, which the error mapping looks up by name. */
+    static final String REVISION_EXCEPTION = "org.quarkpress.revisions.RevisionException";
+
     @BuildStep
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
@@ -55,6 +63,23 @@ class RestWpV2Processor {
     UnremovableBeanBuildItem unremovable() {
         return UnremovableBeanBuildItem.beanTypes(
                 RestWpConfig.class, RestRouteProvider.class, SettingsProvider.class, SettingsRegistry.class);
+    }
+
+    /**
+     * The error mapping finds out whether the optional revisions module is present by looking its exception up by name,
+     * which a native executable answers only for a class registered for reflection (the class alone: no constructor,
+     * method or field is used reflectively).
+     */
+    @BuildStep
+    void revisionException(Capabilities capabilities, BuildProducer<ReflectiveClassBuildItem> reflective) {
+        if (capabilities.isPresent(REVISIONS)) {
+            reflective.produce(ReflectiveClassBuildItem.builder(REVISION_EXCEPTION)
+                    .constructors(false)
+                    .methods(false)
+                    .fields(false)
+                    .reason(RestWpV2Processor.class.getName())
+                    .build());
+        }
     }
 
     /**
