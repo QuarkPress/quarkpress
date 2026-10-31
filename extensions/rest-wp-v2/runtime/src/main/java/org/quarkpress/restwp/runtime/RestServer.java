@@ -2,6 +2,7 @@ package org.quarkpress.restwp.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,21 +22,22 @@ import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteNotResolvedException;
 import org.quarkpress.core.UserId;
 import org.quarkpress.restwp.Arg;
+import org.quarkpress.restwp.Endpoint;
 import org.quarkpress.restwp.Links;
 import org.quarkpress.restwp.PermissionResult;
 import org.quarkpress.restwp.RestError;
-import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.security.QuarkPressPrincipal;
 
 /**
- * Serves REST requests in WordPress's order: the method override, the site gate, the route match, the JSON body check,
- * the arguments' validation and sanitizing, the endpoint's permission, then its handler; an exception that escapes the
- * permission or the handler becomes the error WordPress would answer. Every answer then goes through WordPress's
- * response stages (fixed headers, envelope, no-cache, cross-origin headers, pretty printing, HEAD) and is encoded as
- * PHP encodes it.
+ * Serves REST requests in WordPress's order: the method override, the site gate, OPTIONS (answered with the route's
+ * data before any match), the route match, the JSON body check, the arguments' validation and sanitizing, the
+ * endpoint's permission, then its handler; an exception that escapes the permission or the handler becomes the error
+ * WordPress would answer. Every answer of a matched route, an error included, gets the {@code Allow} header for its
+ * caller. Every answer then goes through WordPress's response stages (fixed headers, envelope, no-cache, cross-origin
+ * headers, pretty printing, HEAD) and is encoded as PHP encodes it.
  */
 @ApplicationScoped
 public class RestServer {
@@ -187,7 +189,8 @@ public class RestServer {
     /**
      * The response stages after the answer, in WordPress's order: the fixed headers, then the envelope or the answer's
      * own headers (which replace fixed ones of the same name, as a pagination {@code Link} replaces the API root's),
-     * the status, the no-cache headers, the cross-origin headers, and the body, pretty printed on request.
+     * the status, the no-cache headers, the cross-origin headers, and the body, pretty printed on request (none for a
+     * null body or a 204).
      */
     private ServedResponse finish(IncomingRequest incoming, String root, RestResponse response, boolean loggedIn) {
         Map<String, List<String>> headers = ResponseHeaders.fixed(root);
@@ -195,8 +198,11 @@ public class RestServer {
         replace(headers, sent.headers());
         int status = sent.status();
         withCacheAndOrigin(incoming, headers, status, loggedIn);
-        return new ServedResponse(
-                status, headers, RestJson.encode(sent.body(), incoming.query().has("_pretty")));
+        // a null body (an OPTIONS on a route with no shown endpoint) or a 204 is sent without a body, as WordPress does
+        byte[] body = status == 204 || sent.body().isNull()
+                ? new byte[0]
+                : RestJson.encode(sent.body(), incoming.query().has("_pretty"));
+        return new ServedResponse(status, headers, body);
     }
 
     /**
@@ -281,13 +287,12 @@ public class RestServer {
 
     private RestResponse dispatch(IncomingRequest incoming) {
         String method = method(incoming);
+        if (method.equals("OPTIONS")) {
+            return options(incoming);
+        }
         Optional<RouteTable.Match> found = table().match(incoming.route(), method);
         if (found.isEmpty()) {
             return error(NO_ROUTE);
-        }
-        Optional<RestJsonFailure> invalidJson = jsonFailure(incoming);
-        if (invalidJson.isPresent()) {
-            return error(invalidJson(invalidJson.get()));
         }
         RouteTable.Match match = found.get();
         ParamSources sources = new ParamSources(
@@ -296,7 +301,18 @@ public class RestServer {
                 incoming.query(),
                 match.urlParams(),
                 defaults(match));
-        Served request = new Served(method, match, incoming.route(), sources, incoming.query(), identity);
+        Served request = new Served(
+                method, match.matchedRoute(), match.endpoint(), incoming.route(), sources, incoming.query(), this);
+        return withAllow(match.matchedRoute(), request, answer(incoming, match, sources, request));
+    }
+
+    /** The matched request's answer: the JSON check, the arguments, the permission, then the handler. */
+    private static RestResponse answer(
+            IncomingRequest incoming, RouteTable.Match match, ParamSources sources, Served request) {
+        Optional<RestJsonFailure> invalidJson = jsonFailure(incoming);
+        if (invalidJson.isPresent()) {
+            return error(invalidJson(invalidJson.get()));
+        }
         try {
             Optional<RestError> invalid = ArgChecks.check(match.endpoint().args(), sources);
             if (invalid.isPresent()) {
@@ -309,6 +325,37 @@ public class RestServer {
         } catch (RuntimeException failure) {
             return error(ErrorMapping.toError(failure, request));
         }
+    }
+
+    /**
+     * WordPress's answer to OPTIONS, before any route is matched for a method: the data of the first route whose
+     * pattern matches the path, in the help context, with the {@code Allow} header computed against this request
+     * (its own parameters and the route's groups, no defaults); 200 {@code []} without {@code Allow} when no route
+     * matches; 200 with no body (WordPress's null data) when none of the route's endpoints is shown in the index.
+     * Nothing is validated and no handler runs.
+     */
+    private RestResponse options(IncomingRequest incoming) {
+        Optional<RouteTable.MatchedRoute> found = table().firstMatching(incoming.route());
+        if (found.isEmpty()) {
+            return RestResponse.ok(RestJson.NODES.arrayNode());
+        }
+        RouteTable.MatchedRoute matched = found.get();
+        ParamSources sources = new ParamSources(
+                jsonParams(incoming),
+                bodyParams(incoming, "OPTIONS"),
+                incoming.query(),
+                matched.urlParams(),
+                RestJson.NODES.objectNode());
+        Served request = new Served("OPTIONS", matched, null, incoming.route(), sources, incoming.query(), this);
+        ObjectNode data = RouteData.of(matched.route(), "help", urls);
+        return withAllow(matched, request, RestResponse.ok(data == null ? NullNode.getInstance() : data));
+    }
+
+    /** {@code response} with the {@code Allow} header for this caller, set last; unchanged when nothing is allowed. */
+    private static RestResponse withAllow(RouteTable.MatchedRoute matched, Served request, RestResponse response) {
+        return AllowHeader.compute(matched, request)
+                .map(allow -> response.withHeader("Allow", allow))
+                .orElse(response);
     }
 
     private static ServedResponse unexpected(Throwable failure, IncomingRequest incoming) {
@@ -437,28 +484,31 @@ public class RestServer {
     }
 
     /** A matched request as handlers see it. */
-    private static final class Served implements RestRequest {
+    private static final class Served implements ServedRequest {
 
         private final String method;
-        private final RouteTable.Match match;
+        private final RouteTable.MatchedRoute matched;
+        private final Endpoint endpoint;
         private final String path;
         private final ParamSources sources;
         private final ObjectNode query;
-        private final SecurityIdentity identity;
+        private final RestServer server;
 
         Served(
                 String method,
-                RouteTable.Match match,
+                RouteTable.MatchedRoute matched,
+                Endpoint endpoint,
                 String path,
                 ParamSources sources,
                 ObjectNode query,
-                SecurityIdentity identity) {
+                RestServer server) {
             this.method = method;
-            this.match = match;
+            this.matched = matched;
+            this.endpoint = endpoint;
             this.path = path;
             this.sources = sources;
             this.query = query;
-            this.identity = identity;
+            this.server = server;
         }
 
         @Override
@@ -468,7 +518,7 @@ public class RestServer {
 
         @Override
         public String route() {
-            return match.route().key();
+            return matched.route().key();
         }
 
         @Override
@@ -478,7 +528,7 @@ public class RestServer {
 
         @Override
         public Map<String, String> urlParams() {
-            return match.urlParams();
+            return matched.urlParams();
         }
 
         @Override
@@ -506,17 +556,56 @@ public class RestServer {
 
         @Override
         public SecurityIdentity identity() {
-            return identity;
+            return server.identity;
         }
 
         @Override
         public Optional<UserId> user() {
-            return QuarkPressPrincipal.of(identity).map(QuarkPressPrincipal::user);
+            return QuarkPressPrincipal.of(server.identity).map(QuarkPressPrincipal::user);
         }
 
         @Override
         public int authCode() {
             return user().isPresent() ? 403 : 401;
         }
+
+        @Override
+        public boolean declaresArg(String name) {
+            if (endpoint == null) {
+                return false;
+            }
+            for (Arg arg : endpoint.args()) {
+                if (arg.name().equals(name)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String routeUrl() {
+            return server.urls.route(filled(matched.route().pattern().template(), matched.urlParams()));
+        }
+    }
+
+    /** {@code template} with each {@code {name}} replaced by the group's value. */
+    static String filled(String template, Map<String, String> groups) {
+        StringBuilder out = new StringBuilder(template.length());
+        int i = 0;
+        while (i < template.length()) {
+            char c = template.charAt(i);
+            int close = c == '{' ? template.indexOf('}', i + 1) : -1;
+            if (close > i) {
+                String value = groups.get(template.substring(i + 1, close));
+                if (value != null) {
+                    out.append(value);
+                    i = close + 1;
+                    continue;
+                }
+            }
+            out.append(c);
+            i++;
+        }
+        return out.toString();
     }
 }

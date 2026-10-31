@@ -225,13 +225,14 @@ class HeadersDbTest {
         fixed(Http.as(null).get("/wp-json/qp-test/v1/none?_envelope").then())
                 .statusCode(200)
                 .body(equalTo("{\"body\":" + DispatchDbTest.NO_ROUTE + ",\"status\":404,\"headers\":[]}")); // Part D 15
-        // Part D 15: the totals as JSON integers, in the order set, and not sent as HTTP headers
+        // Part D 15: the totals as JSON integers, in the order set, then Allow, and not sent as HTTP headers
         fixed(Http.as(null).get("/wp-json/qp-test/v1/items?_envelope=1").then())
                 .statusCode(200)
                 .header("X-WP-Total", nullValue())
                 .header("X-WP-TotalPages", nullValue())
+                .header("Allow", nullValue())
                 .body(equalTo("{\"body\":" + TestRoutes.ITEMS
-                        + ",\"status\":200,\"headers\":{\"X-WP-Total\":2,\"X-WP-TotalPages\":1}}"));
+                        + ",\"status\":200,\"headers\":{\"X-WP-Total\":2,\"X-WP-TotalPages\":1,\"Allow\":\"GET\"}}"));
         Http.as(null)
                 .get("/wp-json/qp-test/v1/items")
                 .then()

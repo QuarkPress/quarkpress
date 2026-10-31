@@ -11,6 +11,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.CapabilityDeniedException;
@@ -22,6 +23,7 @@ import org.quarkpress.posts.PostException;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Endpoint;
 import org.quarkpress.restwp.Handler;
+import org.quarkpress.restwp.Paging;
 import org.quarkpress.restwp.Permission;
 import org.quarkpress.restwp.PermissionResult;
 import org.quarkpress.restwp.RestError;
@@ -46,7 +48,12 @@ import org.quarkpress.taxonomy.TermException;
  * (args {@code per_page} 1 to 100, validated, and {@code order} asc or desc, sanitized; the caller needs
  * {@code edit_posts}) and to DELETE (the caller needs {@code delete_others_posts}); {@code /denied} (GET) refuses with
  * {@code rest_cannot_view}; {@code /throws/(?P<kind>[\w-]+)} (GET) throws the exception {@code kind} names;
- * {@code /json} (GET and POST) answers {@code {"a"}}, the parameter {@code a}.
+ * {@code /json} (GET and POST) answers {@code {"a"}}, the parameter {@code a}; {@code /things} answers GET (public,
+ * WordPress's collection args, batching allowed) with a page of {@link #THINGS} things and their pagination headers,
+ * and POST (the caller needs {@code manage_options}); {@code /things/(?P<id>[\d]+)} answers {@code {"method", "id"}}
+ * to GET (public), POST, PUT and PATCH (one endpoint; the caller needs {@code edit_posts}) and DELETE (the caller needs
+ * {@code manage_options}); {@code /offset-things} (GET) is {@code /things} with WordPress's {@code offset} arg;
+ * {@code /hidden} (GET, public) is not shown in the index.
  */
 @ApplicationScoped
 public class TestRoutes implements RestRouteProvider {
@@ -59,6 +66,14 @@ public class TestRoutes implements RestRouteProvider {
 
     /** The {@code link} (lower-case) of {@code /headers}. */
     static final String NEXT_LINK = "<http://localhost/wp-json/qp-test/v1/headers?page=2>; rel=\"next\"";
+
+    /** How many things {@code /things} lists. */
+    static final int THINGS = 3;
+
+    /** The item schema of {@code /things}. */
+    static final String THING_SCHEMA = "{\"title\":\"thing\",\"type\":\"object\",\"properties\":{\"id\":"
+            + "{\"description\":\"Unique identifier for the thing.\",\"type\":\"integer\","
+            + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true}}}";
 
     @Inject
     SiteContext site;
@@ -140,6 +155,71 @@ public class TestRoutes implements RestRouteProvider {
                 .endpoint(Endpoint.of("GET").handler(json).build())
                 .endpoint(Endpoint.of("POST").handler(json).build())
                 .register();
+        ObjectNode thing = thingSchema();
+        routes.route("qp-test/v1", "/things")
+                .schema(TestRoutes::thingSchema)
+                .endpoint(Endpoint.of("GET")
+                        .args(Paging.collectionArgs(thing, false))
+                        .allowBatch(true)
+                        .handler(TestRoutes::things)
+                        .build())
+                .endpoint(Endpoint.of("POST")
+                        .permission(can("manage_options"))
+                        .allowBatch(true)
+                        .handler(TestRoutes::thing)
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/offset-things")
+                .schema(TestRoutes::thingSchema)
+                .endpoint(Endpoint.of("GET")
+                        .args(Paging.collectionArgs(thing, false))
+                        .arg(Paging.offsetArg())
+                        .handler(TestRoutes::things)
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/hidden")
+                .endpoint(Endpoint.of("GET")
+                        .showInIndex(false)
+                        .handler(TestRoutes::thing)
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/things/(?P<id>[\\d]+)")
+                .schema(TestRoutes::thingSchema)
+                .endpoint(Endpoint.of("GET").handler(TestRoutes::thing).build())
+                .endpoint(Endpoint.of("POST", "PUT", "PATCH")
+                        .permission(can("edit_posts"))
+                        .handler(TestRoutes::thing)
+                        .build())
+                .endpoint(Endpoint.of("DELETE")
+                        .permission(can("manage_options"))
+                        .handler(TestRoutes::thing)
+                        .build())
+                .register();
+    }
+
+    static ObjectNode thingSchema() {
+        try {
+            return (ObjectNode) RestJson.READER.readTree(THING_SCHEMA);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A page of the things {@code 1..THINGS}, with WordPress's pagination headers. */
+    private static RestResponse things(RestRequest request) {
+        Paging paging = Paging.of(request);
+        var page = RestJson.NODES.arrayNode();
+        for (long id = paging.offset() + 1L; id <= THINGS && id <= (long) paging.offset() + paging.perPage(); id++) {
+            page.addObject().put("id", id);
+        }
+        return RestResponse.paged(page, THINGS, paging, request);
+    }
+
+    private static RestResponse thing(RestRequest request) {
+        ObjectNode body = RestJson.NODES.objectNode();
+        body.put("method", request.method());
+        body.put("id", request.urlParams().get("id"));
+        return RestResponse.ok(body);
     }
 
     private Permission can(String capability) {

@@ -31,7 +31,15 @@ public final class RouteTable {
     }
 
     /** The outcome of a match. */
-    public record Match(Route route, Endpoint endpoint, Map<String, String> urlParams) {}
+    public record Match(Route route, Endpoint endpoint, Map<String, String> urlParams) {
+
+        public MatchedRoute matchedRoute() {
+            return new MatchedRoute(route, urlParams);
+        }
+    }
+
+    /** A route whose pattern matched a path, with the values of its named groups. */
+    public record MatchedRoute(Route route, Map<String, String> urlParams) {}
 
     /**
      * The longest route path, in UTF-8 bytes, that is matched at all; a longer one matches no route. WordPress has no
@@ -165,6 +173,23 @@ public final class RouteTable {
                 if (endpoint.declares(checked)) {
                     return Optional.of(new Match(route, endpoint, groups.get()));
                 }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The first route, in registration order across all namespaces, whose pattern matches {@code path} whatever the
+     * method, as WordPress finds the route an OPTIONS request describes.
+     */
+    public Optional<MatchedRoute> firstMatching(String path) {
+        if (tooLong(path)) {
+            return Optional.empty();
+        }
+        for (Route route : routes()) {
+            Optional<Map<String, String>> groups = route.pattern().match(path);
+            if (groups.isPresent()) {
+                return Optional.of(new MatchedRoute(route, groups.get()));
             }
         }
         return Optional.empty();
