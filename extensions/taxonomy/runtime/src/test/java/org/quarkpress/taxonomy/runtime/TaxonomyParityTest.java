@@ -145,7 +145,14 @@ class TaxonomyParityTest {
             cp(0x130) + "I",
             "",
             "a" + cp(0xA0) + "b " + cp(0x2013) + " c " + cp(0xD7) + " d",
-            "&nbsp;x&ndash;y");
+            "&nbsp;x&ndash;y",
+            "%4%411",
+            "x %%%414141 y",
+            "%%%%41414141",
+            "%41%%4141%41 z",
+            "a%4",
+            "%G1%4a%%4A4a",
+            "  %20 %2 0 %%2020  ");
 
     /**
      * Generated text of one to eight pieces: words, markup, entities, whitespace, control characters, percent octets,

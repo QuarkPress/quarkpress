@@ -20,7 +20,7 @@ public final class TermText {
      * a '<', a lone '<' is escaped, tags are stripped (script and style elements with their content) and a '<' before
      * a line feed is escaped; runs of spaces, tabs and line breaks become one space; the ends are trimmed as PHP's
      * {@code trim} does, NUL included; percent-encoded octets are removed until none is left, and then the spaces are
-     * collapsed and the ends trimmed again.
+     * collapsed and the ends trimmed again. The work is linear in the length of the text.
      */
     public static String sanitizeTextField(String text) {
         return textField(text);
@@ -37,14 +37,28 @@ public final class TermText {
             filtered = filtered.replace("<\n", "&lt;\n");
         }
         filtered = trim(collapse(filtered, true), true);
-        boolean found = false;
-        int octet = firstOctet(filtered);
-        while (octet >= 0) {
-            filtered = filtered.replace(filtered.substring(octet, octet + 3), "");
-            found = true;
-            octet = firstOctet(filtered);
+        String removed = removeOctets(filtered, new long[1]);
+        return removed.length() == filtered.length() ? filtered : trim(collapse(removed, false), true);
+    }
+
+    /**
+     * The text with every percent-encoded octet ({@code %} and two hexadecimal digits) removed, again and again until
+     * none is left ({@code %%4141} gives the empty string), in one pass: each character is appended and an octet that
+     * the append completes is dropped at once. Removing the octets in another order (WordPress removes every copy of
+     * the first one found, then looks again) leaves the same text, because two octets never overlap: a '%' is not a
+     * hexadecimal digit. Adds the characters looked at to {@code work[0]}.
+     */
+    static String removeOctets(String text, long[] work) {
+        StringBuilder out = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            work[0]++;
+            out.append(text.charAt(i));
+            int n = out.length();
+            if (n >= 3 && out.charAt(n - 3) == '%' && hex(out.charAt(n - 2)) && hex(out.charAt(n - 1))) {
+                out.setLength(n - 3);
+            }
         }
-        return found ? trim(collapse(filtered, false), true) : filtered;
+        return out.toString();
     }
 
     /**
@@ -172,16 +186,6 @@ public final class TermText {
 
     private static boolean trimmed(char c, boolean nul) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == 0x0B || (nul && c == 0);
-    }
-
-    /** The index of the first '%' followed by two hex digits, or -1. */
-    private static int firstOctet(String text) {
-        for (int i = text.indexOf('%'); i >= 0 && i + 2 < text.length(); i = text.indexOf('%', i + 1)) {
-            if (hex(text.charAt(i + 1)) && hex(text.charAt(i + 2))) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     private static boolean hex(char c) {

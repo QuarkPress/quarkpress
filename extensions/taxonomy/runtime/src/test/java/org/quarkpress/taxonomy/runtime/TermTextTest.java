@@ -1,7 +1,9 @@
 package org.quarkpress.taxonomy.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -179,6 +181,58 @@ class TermTextTest {
                     String once = TermText.name(text);
                     assertThat(TermText.name(once)).as(text).isEqualTo(once);
                 });
+    }
+
+    @Test
+    void octetsAreRemovedInOnePassWhateverTheNesting() {
+        int n = 100_000;
+        String nested = "%".repeat(n) + "41".repeat(n);
+        long[] work = new long[1];
+        assertThat(TermText.removeOctets(nested, work)).isEmpty();
+        assertThat(work[0]).isEqualTo(nested.length());
+        // the whole sanitizing path stays linear: the old removal took minutes on this input
+        assertThat(assertTimeoutPreemptively(
+                        Duration.ofSeconds(5), () -> TermText.sanitizeTextField("a " + nested + " b")))
+                .isEqualTo("a b");
+        assertThat(assertTimeoutPreemptively(Duration.ofSeconds(5), () -> TermText.name("x " + nested)))
+                .isEqualTo("x");
+        String chained = "%4".repeat(n) + "1".repeat(n);
+        work[0] = 0;
+        assertThat(TermText.removeOctets(chained, work)).isEmpty();
+        assertThat(work[0]).isEqualTo(chained.length());
+    }
+
+    @Test
+    void octetsRemovedInOnePassAreThoseRemovedOneAtATime() {
+        Properties.check(
+                "one pass removes what repeated removal of the first octet's copies removes",
+                2000,
+                Gens.strings("%%41aAfFgG9 x", 0, 30),
+                text -> assertThat(TermText.removeOctets(text, new long[1]))
+                        .as(text)
+                        .isEqualTo(removeOctetsOneAtATime(text)));
+    }
+
+    /** WordPress's order of removal: every copy of the first octet found, then again until none is left. */
+    private static String removeOctetsOneAtATime(String text) {
+        String current = text;
+        while (true) {
+            int found = -1;
+            for (int i = 0; i + 2 < current.length(); i++) {
+                if (current.charAt(i) == '%' && hexDigit(current.charAt(i + 1)) && hexDigit(current.charAt(i + 2))) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found < 0) {
+                return current;
+            }
+            current = current.replace(current.substring(found, found + 3), "");
+        }
+    }
+
+    private static boolean hexDigit(char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     }
 
     @Test
