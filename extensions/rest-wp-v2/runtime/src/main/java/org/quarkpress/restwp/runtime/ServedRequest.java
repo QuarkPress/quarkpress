@@ -18,6 +18,14 @@ public interface ServedRequest extends RestRequest {
      */
     String routeUrl();
 
+    /**
+     * Whether any parameter source holds {@code name}, with JSON null too (which {@link #param} and {@link #hasParam}
+     * count as absent): a setting sent as null is reset.
+     */
+    default boolean sentParam(String name) {
+        return hasParam(name);
+    }
+
     /** Whether the matched endpoint declares an argument named {@code name}. */
     boolean declaresArg(String name);
 

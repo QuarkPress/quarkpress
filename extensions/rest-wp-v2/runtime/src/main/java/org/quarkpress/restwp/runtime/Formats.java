@@ -5,7 +5,7 @@ package org.quarkpress.restwp.runtime;
  * bounded number of times. A single line feed at the very end is accepted where WordPress's own check accepts it
  * (dates, IPv4 addresses, UUIDs and hex colours).
  */
-final class Formats {
+public final class Formats {
 
     private Formats() {}
 
@@ -80,7 +80,7 @@ final class Formats {
      * starting or ending with a dot or whitespace, each label of letters, digits and '-' and not starting or ending
      * with '-'.
      */
-    static boolean email(String text) {
+    public static boolean email(String text) {
         if (text.length() < 6) {
             return false;
         }

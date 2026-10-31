@@ -2,6 +2,7 @@ package org.quarkpress.restwp.deployment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.agroal.api.AgroalDataSource;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.quarkpress.core.PostId;
@@ -98,6 +99,32 @@ public final class TestData {
                 site.value(),
                 name,
                 json);
+    }
+
+    /** The id of the term with {@code slug} in {@code taxonomy} on {@code site}; fails when there is none. */
+    public static long termId(AgroalDataSource dataSource, SiteId site, String taxonomy, String slug) {
+        List<String> ids = Jdbc.strings(
+                dataSource,
+                "select id from qp_term where site_id = ? and taxonomy = ? and slug = ?",
+                site.value(),
+                taxonomy,
+                slug);
+        if (ids.size() != 1) {
+            throw new IllegalStateException("no single term " + taxonomy + "/" + slug + " on site " + site.value());
+        }
+        return Long.parseLong(ids.get(0));
+    }
+
+    /** The JSON text of option {@code name} of {@code site}, or null when the site has no such option. */
+    public static String optionJson(AgroalDataSource dataSource, SiteId site, String name) {
+        List<String> values = Jdbc.strings(
+                dataSource, "select value from qp_option where site_id = ? and name = ?", site.value(), name);
+        return values.isEmpty() ? null : values.get(0);
+    }
+
+    /** Deletes option {@code name} of {@code site}, past the services. */
+    public static void deleteOption(AgroalDataSource dataSource, SiteId site, String name) {
+        Jdbc.update(dataSource, "delete from qp_option where site_id = ? and name = ?", site.value(), name);
     }
 
     /** A post row with WordPress-like defaults, written past the service. */

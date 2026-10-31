@@ -207,7 +207,8 @@ class IndexDbTest {
                         "/wp/v2/tags/(?P<id>[\\d]+)",
                         "/wp/v2/users",
                         "/wp/v2/users/(?P<id>[\\d]+)",
-                        "/wp/v2/users/me");
+                        "/wp/v2/users/me",
+                        "/wp/v2/settings");
         // Part D 19
         Http.as(null)
                 .get("/wp-json/wp/v2?namespace=nope")

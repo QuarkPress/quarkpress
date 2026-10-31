@@ -679,6 +679,11 @@ public class RestServer {
         }
 
         @Override
+        public boolean sentParam(String name) {
+            return sources.holds(name);
+        }
+
+        @Override
         public ObjectNode queryParams() {
             return query;
         }

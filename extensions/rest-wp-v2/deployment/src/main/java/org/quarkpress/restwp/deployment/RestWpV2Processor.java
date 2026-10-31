@@ -1,6 +1,7 @@
 package org.quarkpress.restwp.deployment;
 
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
+import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
@@ -11,10 +12,13 @@ import io.quarkus.runtime.configuration.ConfigurationException;
 import io.quarkus.vertx.http.deployment.HttpRootPathBuildItem;
 import io.quarkus.vertx.http.deployment.NonApplicationRootPathBuildItem;
 import java.util.Optional;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestWpV2Feature;
+import org.quarkpress.restwp.SettingsProvider;
+import org.quarkpress.restwp.SettingsRegistry;
 import org.quarkpress.restwp.runtime.RestEntryResource;
 import org.quarkpress.restwp.runtime.RestPaths;
 import org.quarkpress.restwp.runtime.RestWpConfig;
@@ -23,6 +27,9 @@ import org.quarkpress.restwp.runtime.RestWpRecorder;
 class RestWpV2Processor {
 
     static final String FEATURE = "quarkpress-rest-wp-v2";
+
+    /** The capability the multisite module provides. */
+    static final String MULTISITE = "org.quarkpress.multisite";
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -46,7 +53,22 @@ class RestWpV2Processor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(RestWpConfig.class, RestRouteProvider.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                RestWpConfig.class, RestRouteProvider.class, SettingsProvider.class, SettingsRegistry.class);
+    }
+
+    /**
+     * Whether the application is a network, which decides WordPress's settings: the multisite module is present and its
+     * build-time switch {@code quarkpress.multisite.enabled} is on.
+     */
+    @BuildStep
+    @Record(ExecutionTime.STATIC_INIT)
+    void installMode(Capabilities capabilities, RestWpRecorder recorder) {
+        boolean multisite = capabilities.isPresent(MULTISITE)
+                && ConfigProvider.getConfig()
+                        .getOptionalValue("quarkpress.multisite.enabled", Boolean.class)
+                        .orElse(false);
+        recorder.multisite(multisite);
     }
 
     /** The REST request filter never treats a path under the non-application root as a REST path. */

@@ -74,4 +74,14 @@ public final class ParamSources {
     public boolean has(String name) {
         return get(name).isPresent();
     }
+
+    /** Whether some source holds {@code name}, with any value, JSON null included. */
+    public boolean holds(String name) {
+        for (ObjectNode source : order()) {
+            if (source.has(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

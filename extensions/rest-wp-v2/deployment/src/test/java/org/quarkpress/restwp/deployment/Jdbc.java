@@ -66,6 +66,21 @@ public final class Jdbc {
         TestData.siteOption(dataSource(), site, name, json);
     }
 
+    /** The id of the term with {@code slug} in {@code taxonomy} on {@code site}; fails when there is none. */
+    public static long termId(SiteId site, String taxonomy, String slug) {
+        return TestData.termId(dataSource(), site, taxonomy, slug);
+    }
+
+    /** The JSON text of option {@code name} of {@code site}, or null when the site has no such option. */
+    public static String optionJson(SiteId site, String name) {
+        return TestData.optionJson(dataSource(), site, name);
+    }
+
+    /** Deletes option {@code name} of {@code site}, past the services. */
+    public static void deleteOption(SiteId site, String name) {
+        TestData.deleteOption(dataSource(), site, name);
+    }
+
     /** The meta of profile {@code user} as the database returns the JSON text. */
     public static String profileMeta(long user) {
         List<String> meta = strings(dataSource(), "select meta from qp_user_profile where id = ?", user);
