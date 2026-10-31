@@ -17,6 +17,7 @@ import java.util.TreeMap;
  * @param headers the request headers, names compared ignoring case
  * @param body the raw body, empty when there is none
  * @param form the form fields PHP itself reads (a POST with a form content type), empty otherwise
+ * @param target the path and query the client asked for, as sent, such as {@code /wp-json/wp/v2/posts?page=2}
  */
 public record IncomingRequest(
         String method,
@@ -24,7 +25,8 @@ public record IncomingRequest(
         ObjectNode query,
         Map<String, List<String>> headers,
         byte[] body,
-        ObjectNode form) {
+        ObjectNode form,
+        String target) {
 
     private static final String FORM = "application/x-www-form-urlencoded";
 
@@ -34,6 +36,7 @@ public record IncomingRequest(
         Objects.requireNonNull(query, "query");
         Objects.requireNonNull(body, "body");
         Objects.requireNonNull(form, "form");
+        Objects.requireNonNull(target, "target");
         Map<String, List<String>> copy = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         headers.forEach((name, values) -> copy.merge(name, List.copyOf(values), (a, b) -> {
             List<String> all = new ArrayList<>(a);
@@ -41,6 +44,31 @@ public record IncomingRequest(
             return List.copyOf(all);
         }));
         headers = copy;
+    }
+
+    /** A request whose target is its route (for requests built in code). */
+    public IncomingRequest(
+            String method,
+            String route,
+            ObjectNode query,
+            Map<String, List<String>> headers,
+            byte[] body,
+            ObjectNode form) {
+        this(method, route, query, headers, body, form, route);
+    }
+
+    /** This request with {@code route} as its route. */
+    public IncomingRequest withRoute(String route) {
+        return new IncomingRequest(method, route, query, headers, body, form, target);
+    }
+
+    /**
+     * Header {@code name} as PHP's server variables hold it: every value of the header joined with {@code ", "}, or
+     * null when the request has none.
+     */
+    public String joinedHeader(String name) {
+        List<String> values = headers.get(name);
+        return values == null || values.isEmpty() ? null : String.join(", ", values);
     }
 
     /** The first value of header {@code name}, or null. */

@@ -2,26 +2,48 @@ package org.quarkpress.restwp.deployment;
 
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.security.ForbiddenException;
+import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Map;
+import java.util.Optional;
+import org.quarkpress.core.CapabilityDeniedException;
+import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.SiteFeatureDisabledException;
+import org.quarkpress.core.TermId;
+import org.quarkpress.posts.PostException;
+import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Endpoint;
 import org.quarkpress.restwp.Handler;
+import org.quarkpress.restwp.Permission;
+import org.quarkpress.restwp.PermissionResult;
+import org.quarkpress.restwp.RestError;
+import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.revisions.RevisionException;
+import org.quarkpress.security.Capabilities;
+import org.quarkpress.taxonomy.TermException;
 
 /**
  * Routes of namespace {@code qp-test/v1} for the routing tests: {@code /echo/(?P<id>[\d]+)} (GET and POST) answers
- * {@code {"method", "id", "urlId", "params", "site", "root", "link", "home"}}; {@code /items} (GET) answers {@code []}.
+ * {@code {"method", "id", "urlId", "params", "site", "root", "link", "home"}}; {@code /items} (GET) answers {@code []};
+ * {@code /site} (GET) answers {@code {"site"}}; {@code /guarded} answers {@code {"method", "per_page", "order"}} to GET
+ * (args {@code per_page} 1 to 100, validated, and {@code order} asc or desc, sanitized; the caller needs
+ * {@code edit_posts}) and to DELETE (the caller needs {@code delete_others_posts}); {@code /denied} (GET) refuses with
+ * {@code rest_cannot_view}; {@code /throws/(?P<kind>[\w-]+)} (GET) throws the exception {@code kind} names;
+ * {@code /json} (GET and POST) answers {@code {"a"}}, the parameter {@code a}.
  */
 @ApplicationScoped
 public class TestRoutes implements RestRouteProvider {
@@ -31,6 +53,9 @@ public class TestRoutes implements RestRouteProvider {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    Capabilities capabilities;
 
     @Override
     public void register(RouteRegistry routes) {
@@ -44,6 +69,82 @@ public class TestRoutes implements RestRouteProvider {
                         .handler(request -> RestResponse.ok(RestJson.NODES.arrayNode()))
                         .build())
                 .register();
+        routes.route("qp-test/v1", "/site")
+                .endpoint(Endpoint.of("GET")
+                        .handler(request -> RestResponse.ok(RestJson.NODES
+                                .objectNode()
+                                .put("site", site.siteId().value())))
+                        .build())
+                .register();
+        Handler guarded = request -> {
+            ObjectNode body = RestJson.NODES.objectNode();
+            body.put("method", request.method());
+            body.set("per_page", request.param("per_page").orElse(NullNode.getInstance()));
+            body.set("order", request.param("order").orElse(NullNode.getInstance()));
+            return RestResponse.ok(body);
+        };
+        routes.route("qp-test/v1", "/guarded")
+                .endpoint(Endpoint.of("GET")
+                        .arg(Arg.of("per_page", "integer")
+                                .minimum(1)
+                                .maximum(100)
+                                .build())
+                        .arg(Arg.of("order", "string")
+                                .enumOf("asc", "desc")
+                                .phase(Arg.Phase.SANITIZE)
+                                .build())
+                        .permission(can("edit_posts"))
+                        .handler(guarded)
+                        .build())
+                .endpoint(Endpoint.of("DELETE")
+                        .permission(can("delete_others_posts"))
+                        .handler(guarded)
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/denied")
+                .endpoint(Endpoint.of("GET")
+                        .permission(request ->
+                                PermissionResult.denied(RestError.of("rest_cannot_view", "Nope.", request.authCode())))
+                        .handler(request -> RestResponse.ok(RestJson.NODES.objectNode()))
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/throws/(?P<kind>[\\w-]+)")
+                .endpoint(Endpoint.of("GET").handler(TestRoutes::fail).build())
+                .register();
+        Handler json = request -> RestResponse.ok(
+                RestJson.NODES.objectNode().set("a", request.param("a").orElse(NullNode.getInstance())));
+        routes.route("qp-test/v1", "/json")
+                .endpoint(Endpoint.of("GET").handler(json).build())
+                .endpoint(Endpoint.of("POST").handler(json).build())
+                .register();
+    }
+
+    private Permission can(String capability) {
+        return request -> capabilities.can(request.identity(), capability, Optional.empty())
+                ? PermissionResult.allowed()
+                : PermissionResult.forbidden(request);
+    }
+
+    private static RestResponse fail(RestRequest request) {
+        String kind = request.urlParams().get("kind");
+        if (kind.equals("stack-overflow")) {
+            throw new StackOverflowError();
+        }
+        throw switch (kind) {
+            case "forbidden" -> new ForbiddenException();
+            case "unauthorized" -> new UnauthorizedException();
+            case "capability-denied" -> new CapabilityDeniedException("manage_network");
+            case "capability-denied-anonymous" -> new CapabilityDeniedException("manage_network", true);
+            case "feature-disabled" -> new SiteFeatureDisabledException("qp-test");
+            case "duplicate-term-slug" -> TermException.duplicateSlug("news");
+            case "term-exists" -> TermException.exists(new TermId(7), false);
+            case "invalid-post" -> PostException.invalidPost(PostId.of(9));
+            case "invalid-revision" -> RevisionException.invalidRevision();
+            case "stale-version" -> new OptimisticLockException("stale");
+            case "wrapped-stale-version" -> new IllegalStateException(new OptimisticLockException("stale"));
+            case "rest" -> new RestException(RestError.of("rest_custom", "Custom.", 418));
+            default -> new IllegalStateException("unexpected failure " + kind);
+        };
     }
 
     private RestResponse echo(RestRequest request) {

@@ -32,8 +32,6 @@ public class RestEntryResource {
     /** The internal path REST requests are re-routed to. */
     public static final String PATH = "/_quarkpress/rest-wp-v2";
 
-    private static final String HTML = "text/html; charset=UTF-8";
-
     @Inject
     RestServer server;
 
@@ -87,42 +85,74 @@ public class RestEntryResource {
             return Response.status(404).build();
         }
         byte[] body = rawBody == null ? new byte[0] : rawBody;
-        String method = entry.method();
-        String contentType = context.request().getHeader("Content-Type");
-        ObjectNode form = method.equals("POST") && IncomingRequest.isForm(contentType)
+        ObjectNode form = form(entry, context.request().getHeader("Content-Type"), body);
+        IncomingRequest request =
+                new IncomingRequest(entry.method(), "/", entry.query(), headers(context), body, form, entry.target());
+        return switch (route(entry, form)) {
+            case Decision.Route route -> response(server.serve(request.withRoute(route.route())));
+            case Decision.Refused refused -> response(server.refuse(request, refused.code(), refused.message()));
+            case Decision.NotRest notRest -> Response.status(404).build();
+        };
+    }
+
+    /** What a REST request's route is, once its form fields are known. */
+    sealed interface Decision {
+
+        /** The route to serve. */
+        record Route(String route) implements Decision {}
+
+        /** Refused before the REST server runs, with WordPress's code and message. */
+        record Refused(String code, String message) implements Decision {}
+
+        /** Not a REST request after all ({@code rest_route} empty to PHP, or no route at all). */
+        record NotRest() implements Decision {}
+    }
+
+    /**
+     * The form fields PHP reads for a request: those of a POST with the form content type, none otherwise.
+     */
+    static ObjectNode form(RestRequestFilter.Entry entry, String contentType, byte[] body) {
+        return entry.method().equals("POST") && IncomingRequest.isForm(contentType)
                 ? PhpQuery.parse(new String(body, StandardCharsets.ISO_8859_1))
                 : RestJson.NODES.objectNode();
-        ObjectNode query = entry.query();
-        JsonNode fromQuery = query.get("rest_route");
+    }
+
+    /**
+     * The route a REST request asks for: {@code rest_route} from the form (when the form may carry it) or else the
+     * query, which must agree when both have one and must be a string; else the route its path addresses.
+     */
+    static Decision route(RestRequestFilter.Entry entry, ObjectNode form) {
+        JsonNode fromQuery = entry.query().get("rest_route");
         JsonNode fromForm = entry.form() ? form.get("rest_route") : null;
         if (fromQuery != null && fromForm != null && !fromQuery.equals(fromForm)) {
-            return died("A variable mismatch has been detected.");
+            return new Decision.Refused("wp_die", "A variable mismatch has been detected.");
         }
         JsonNode chosen = fromForm != null ? fromForm : fromQuery;
-        String route;
         if (chosen != null) {
             if (!chosen.isTextual()) {
-                return died("The REST route parameter must be a string.");
+                return new Decision.Refused("rest_path_invalid_type", "The REST route parameter must be a string.");
             }
             if (RestRequestFilter.phpEmpty(chosen)) {
-                return Response.status(404).build();
+                return new Decision.NotRest();
             }
-            route = RestPaths.trimRoute(chosen.textValue());
-        } else if (entry.pathRoute() != null) {
-            route = RestPaths.trimRoute(PhpQuery.rawDecode(entry.pathRoute()));
-        } else {
-            return Response.status(404).build();
+            return new Decision.Route(RestPaths.trimRoute(chosen.textValue()));
         }
+        if (entry.pathRoute() != null) {
+            return new Decision.Route(RestPaths.trimRoute(PhpQuery.rawDecode(entry.pathRoute())));
+        }
+        return new Decision.NotRest();
+    }
+
+    static Map<String, List<String>> headers(RoutingContext context) {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         for (Map.Entry<String, String> header : context.request().headers()) {
             headers.computeIfAbsent(header.getKey(), ignored -> new ArrayList<>())
                     .add(header.getValue());
         }
-        RestServer.Answer answer = server.serve(new IncomingRequest(method, route, query, headers, body, form));
-        return response(answer);
+        return headers;
     }
 
-    private static Response response(RestServer.Answer answer) {
+    private static Response response(ServedResponse answer) {
         Response.ResponseBuilder builder = Response.status(answer.status());
         String type = null;
         for (Map.Entry<String, List<String>> header : answer.headers().entrySet()) {
@@ -134,25 +164,10 @@ public class RestEntryResource {
                 builder.header(header.getKey(), value);
             }
         }
+        if (type == null && answer.body().length == 0) {
+            // an empty answer, such as a redirect, has no content type
+            return builder.build();
+        }
         return builder.entity(answer.body()).type(type).build();
-    }
-
-    /**
-     * WordPress's wp_die page for a request it refuses before the REST server starts: 400, HTML, no-cache, no REST
-     * headers.
-     */
-    static Response died(String message) {
-        String page = "<!DOCTYPE html>\n<html lang=\"en-US\">\n<head>\n"
-                + "\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n"
-                + "\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-                + "\t<meta name='robots' content='noindex, follow' />\n"
-                + "\t<title>Error</title>\n</head>\n<body id=\"error-page\">\n"
-                + "\t<div class=\"wp-die-message\">" + message + "</div></body>\n</html>\n";
-        return Response.status(400)
-                .header("Expires", "Wed, 11 Jan 1984 05:00:00 GMT")
-                .header("Cache-Control", "no-cache, must-revalidate, max-age=0, no-store, private")
-                .entity(page.getBytes(StandardCharsets.UTF_8))
-                .type(HTML)
-                .build();
     }
 }

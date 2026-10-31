@@ -10,10 +10,16 @@ public final class Http {
 
     /**
      * A request with {@code Host: localhost} and, unless {@code bearer} is null, {@code Authorization: Bearer
-     * <bearer>}.
+     * <bearer>}; redirects are not followed.
      */
     public static RequestSpecification as(String bearer) {
-        RequestSpecification spec = RestAssured.given().header("Host", "localhost");
+        return at("localhost", bearer);
+    }
+
+    /** A request as {@link #as} makes it, with {@code Host: <host>}. */
+    public static RequestSpecification at(String host, String bearer) {
+        RequestSpecification spec =
+                RestAssured.given().header("Host", host).redirects().follow(false);
         if (bearer != null) {
             spec.header("Authorization", "Bearer " + bearer);
         }

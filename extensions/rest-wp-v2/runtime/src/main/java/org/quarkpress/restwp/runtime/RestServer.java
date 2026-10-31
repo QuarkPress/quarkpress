@@ -20,25 +20,25 @@ import org.quarkpress.core.UserId;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.PermissionResult;
 import org.quarkpress.restwp.RestError;
-import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.security.QuarkPressPrincipal;
 
 /**
- * Serves REST requests: applies the method override, matches the route, gathers the parameters by source, checks the
- * endpoint's permission, calls its handler and encodes the answer as PHP does.
+ * Serves REST requests in WordPress's order: the method override, the site gate, the route match, the JSON body check,
+ * the arguments' validation and sanitizing, the endpoint's permission, then its handler; an exception that escapes the
+ * permission or the handler becomes the error WordPress would answer. Answers are encoded as PHP encodes them.
  */
 @ApplicationScoped
 public class RestServer {
 
-    /** What goes back over HTTP. */
-    public record Answer(int status, Map<String, List<String>> headers, byte[] body) {}
-
     static final String JSON_TYPE = "application/json; charset=UTF-8";
 
     private static final Set<String> BODY_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
+
+    @Inject
+    SiteGate gate;
 
     @Inject
     Instance<RestRouteProvider> providers;
@@ -75,11 +75,31 @@ public class RestServer {
         return routes;
     }
 
-    public Answer serve(IncomingRequest incoming) {
+    /**
+     * Answers a REST request. Whatever fails on the way, an exception or a stack overflow, ends as WordPress's error
+     * object, never as the server's own error page.
+     */
+    public ServedResponse serve(IncomingRequest incoming) {
+        try {
+            return dispatch(incoming);
+        } catch (RuntimeException | StackOverflowError failure) {
+            return unexpected(failure, incoming);
+        }
+    }
+
+    private ServedResponse dispatch(IncomingRequest incoming) {
         String method = method(incoming);
+        Optional<ServedResponse> gated = gate.check(incoming);
+        if (gated.isPresent()) {
+            return gated.get();
+        }
         Optional<RouteTable.Match> found = table().match(incoming.route(), method);
         if (found.isEmpty()) {
             return error(RestError.of("rest_no_route", "No route was found matching the URL and request method.", 404));
+        }
+        Optional<RestJsonFailure> invalidJson = jsonFailure(incoming);
+        if (invalidJson.isPresent()) {
+            return error(invalidJson(invalidJson.get()));
         }
         RouteTable.Match match = found.get();
         ParamSources sources = new ParamSources(
@@ -90,13 +110,61 @@ public class RestServer {
                 defaults(match));
         Served request = new Served(method, match, incoming.route(), sources, incoming.query(), identity);
         try {
+            Optional<RestError> invalid = ArgChecks.check(match.endpoint().args(), sources);
+            if (invalid.isPresent()) {
+                return error(invalid.get());
+            }
             if (match.endpoint().permission().check(request) instanceof PermissionResult.Denied denied) {
                 return error(denied.error());
             }
             return answer(match.endpoint().handler().handle(request));
-        } catch (RestException refused) {
-            return error(refused.error());
+        } catch (RuntimeException failure) {
+            return error(ErrorMapping.toError(failure, request));
         }
+    }
+
+    private static ServedResponse unexpected(Throwable failure, IncomingRequest incoming) {
+        return error(ErrorMapping.toError(failure, incoming.method(), incoming.target()));
+    }
+
+    /**
+     * Answers {@code error}, decided before any route was matched (an authentication failure), through the same stages
+     * as {@link #serve}: the site gate first, then the error in place of the route's answer.
+     */
+    public ServedResponse serveAuthFailure(IncomingRequest incoming, RestError error) {
+        try {
+            Optional<ServedResponse> gated = gate.check(incoming);
+            if (gated.isPresent()) {
+                return gated.get();
+            }
+            return error(error);
+        } catch (RuntimeException | StackOverflowError failure) {
+            return unexpected(failure, incoming);
+        }
+    }
+
+    /**
+     * WordPress's refusal of a request before its REST server starts (a {@code rest_route} that is not a string, or
+     * that differs between the query and the form): the site gate's answer when the site may not be served, as
+     * WordPress checks the site first; otherwise 400, a JSON error object for a JSON request and an HTML page for any
+     * other, with no-cache headers and none of the REST headers.
+     */
+    public ServedResponse refuse(IncomingRequest incoming, String code, String message) {
+        try {
+            return gate.check(incoming).orElseGet(() -> SiteGate.died(400, code, message, SiteGate.isJson(incoming)));
+        } catch (RuntimeException | StackOverflowError failure) {
+            return unexpected(failure, incoming);
+        }
+    }
+
+    /** WordPress's error for a JSON body PHP cannot decode, with PHP's error code and message. */
+    static RestError invalidJson(RestJsonFailure failure) {
+        ObjectNode data = RestJson.NODES.objectNode();
+        data.put("status", 400);
+        data.put("json_error_code", failure.code());
+        data.put("json_error_message", failure.message());
+        return RestError.noStatus("rest_invalid_json", "Invalid JSON body passed.")
+                .withData(data);
     }
 
     /** The method after the override: the query's {@code _method}, else the override header, upper-cased. */
@@ -188,16 +256,16 @@ public class RestServer {
         return defaults;
     }
 
-    static Answer answer(RestResponse response) {
+    static ServedResponse answer(RestResponse response) {
         Map<String, List<String>> headers = new LinkedHashMap<>(response.headers());
         headers.put("Content-Type", List.of(JSON_TYPE));
-        return new Answer(response.status(), headers, RestJson.encode(response.body(), false));
+        return new ServedResponse(response.status(), headers, RestJson.encode(response.body(), false));
     }
 
-    static Answer error(RestError error) {
+    static ServedResponse error(RestError error) {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         headers.put("Content-Type", List.of(JSON_TYPE));
-        return new Answer(error.status(), headers, RestJson.encode(error.toJson(), false));
+        return new ServedResponse(error.status(), headers, RestJson.encode(error.toJson(), false));
     }
 
     /** A matched request as handlers see it. */

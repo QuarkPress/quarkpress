@@ -37,9 +37,16 @@ public class RestRequestFilter {
 
     /**
      * A request sent to the REST server: its method, raw path and parsed query, the route its path addresses (null when
-     * the path is not a REST path, still percent-encoded) and whether {@code rest_route} may come from its form fields.
+     * the path is not a REST path, still percent-encoded), whether {@code rest_route} may come from its form fields,
+     * and its raw query (null when it has none).
      */
-    public record Entry(String method, String path, ObjectNode query, String pathRoute, boolean form) {}
+    public record Entry(String method, String path, ObjectNode query, String pathRoute, boolean form, String rawQuery) {
+
+        /** The path and query the client asked for, as sent. */
+        public String target() {
+            return rawQuery == null ? path : path + "?" + rawQuery;
+        }
+    }
 
     @Inject
     RestWpConfig config;
@@ -78,7 +85,7 @@ public class RestRequestFilter {
                 if (phpEmpty(restRoute)) {
                     context.next();
                 } else {
-                    reroute(context, new Entry(request.method().name(), path, query, null, false));
+                    reroute(context, new Entry(request.method().name(), path, query, null, false, request.query()));
                 }
                 return;
             }
@@ -117,7 +124,10 @@ public class RestRequestFilter {
         Optional<String> route = RestPaths.route(path, sitePath, base);
         boolean rest = restRoute == null ? route.isPresent() || form : !phpEmpty(restRoute) || form;
         if (rest) {
-            reroute(context, new Entry(context.request().method().name(), path, query, route.orElse(null), form));
+            HttpServerRequest request = context.request();
+            reroute(
+                    context,
+                    new Entry(request.method().name(), path, query, route.orElse(null), form, request.query()));
         } else {
             context.next();
         }
