@@ -85,6 +85,14 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- The REST parity comparison (RestParityDbTest, -Pwp-parity): WordPress served by php -S, the scenarios and
+         the comparison library. -->
+    <dependency>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
     <!-- Make the reactor build the deployment modules before this application. -->
     <dependency>
       <groupId>org.quarkpress</groupId>
@@ -210,6 +218,17 @@
       <plugin>
         <groupId>io.quarkus</groupId>
         <artifactId>quarkus-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- RestParityDbTest sends its requests with java.net.http and names the site's host (localhost, without
+                 the test port) in the Host header, as WordPress's side sees it. -->
+            <jdk.httpclient.allowRestrictedHeaders>host</jdk.httpclient.allowRestrictedHeaders>
+          </systemPropertyVariables>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

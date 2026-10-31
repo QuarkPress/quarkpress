@@ -1,0 +1,126 @@
+# Known differences between QuarkPress's REST API and WordPress 7.1.3 (RestParityDbTest, -Pwp-parity).
+# One per line: <scenario-id> <aspect> <label> <reason>. Globs know * and ?. The label is the row of the "Differences
+# from WordPress" table in extensions/rest-wp-v2/README.md. Every entry is asserted: an entry whose comparisons all
+# match WordPress now, or that covers no comparison, fails the run. A scenario of "none" documents a difference no
+# scenario can show.
+# Aspects: req<n>:status, req<n>:header:<name>, req<n>:body (equal bodies), req<n>:body:<JSON pointer> (a differing
+# leaf), req<n>:body:wp-only:<pointer> (one of the namespaces, routes and index links QuarkPress does not serve yet,
+# RestComparison.NOT_SERVED_*), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing).
+
+# D1: front-end links use plain permalinks; REST hrefs always use /wp-json/, which is served whatever the permalinks.
+* req*:body:link-form:* D1 front-end link fields are plain permalinks (?cat=, ?tag=, ?author=); WordPress's follow the site's permalinks (compared where both sides have a link)
+d01 req1:* D1 with plain permalinks WordPress redirects /wp-json/... (301 text/html, no REST headers); QuarkPress serves it
+d01 req2:* D1 with plain permalinks WordPress answers /wp-json/ with the front page; QuarkPress serves the index
+d01 req3:body:/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
+d01 req4:body:/routes/*/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
+d01 req4:header:link D1 plain permalinks: the API root link uses index.php?rest_route=
+d01 req3:header:link D1 plain permalinks: the API root link uses index.php?rest_route=
+d01 req5:header:link D1 plain permalinks: pagination links use index.php?rest_route=
+d01 req6:header:link D1 plain permalinks: pagination links use index.php?rest_route=
+d01 req5:body:/0/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
+d01 req6:body:/0/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
+
+# D2: an invalid Bearer token answers 401 rest_invalid_token before matching; WordPress serves a failed application password as anonymous.
+d06 req1:* D2 users/me with a refused credential: WordPress 401 rest_not_logged_in with Allow, QuarkPress 401 rest_invalid_token without
+d06 req2:* D2 types with a refused credential: WordPress 200 (anonymous), QuarkPress 401 rest_invalid_token
+d06 req3:* D2 an unknown route with a refused credential: WordPress 404 rest_no_route, QuarkPress 401 rest_invalid_token
+
+# D4: CORS only for configured origins.
+d11 req4:header:vary D4 a preflight with an Origin: WordPress reflects it (Vary: Origin); QuarkPress has no configured origin
+
+# D5: _jsonp is always refused with rest_callback_disabled.
+d15 req4:* D5 _jsonp=cb: WordPress serves JSONP (application/javascript); QuarkPress refuses it
+d15 req5:* D5 _jsonp=a-b: WordPress refuses the callback name (rest_callback_invalid, javascript type); QuarkPress refuses JSONP (application/json)
+
+# D6: the index and a namespace's index list only the namespaces and routes QuarkPress serves.
+* req*:body:wp-only:*/namespaces/oembed~11.0 D6 a namespace QuarkPress does not serve yet
+* req*:body:wp-only:*/namespaces/wp-site-health~1v1 D6 a namespace QuarkPress does not serve yet
+* req*:body:wp-only:*/namespaces/wp-block-editor~1v1 D6 a namespace QuarkPress does not serve yet
+* req*:body:wp-only:*/namespaces/wp-abilities~1v1 D6 a namespace QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1batch~1v1* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1oembed~11.0* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp-site-health~1v1* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp-block-editor~1v1* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1posts* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1pages* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1media* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1blocks* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1template-parts* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1global-styles* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1navigation* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1font-families* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1font-collections* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1menus* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1menu-locations* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1wp_pattern_category* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1comments* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1search* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1block-renderer* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1block-types* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1block-directory* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1block-patterns* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1pattern-directory* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1themes* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1plugins* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1sidebars* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1widget-types* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1widgets* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1icons* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkPress authenticates with tokens only
+d19 req5:* D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404 rest_invalid_namespace)
+
+# D7: no wp:active-theme link until the synthetic theme route exists.
+* req*:body:wp-only:*/_links/wp:active-theme D7 WordPress links an editor's index to the active theme
+* req*:body:wp-only:*/_links/curies D7 WordPress's index curies come with the wp:active-theme link
+
+# D8: only registered types and taxonomies.
+* req*:body:*/nav_menu_item D8 type not registered in QuarkPress (lists and the has_published_posts enum)
+* req*:body:*/wp_template D8 type not registered in QuarkPress
+* req*:body:*/wp_template_part D8 type not registered in QuarkPress
+* req*:body:*/wp_global_styles D8 type not registered in QuarkPress
+* req*:body:*/wp_navigation D8 type not registered in QuarkPress
+* req*:body:*/wp_font_family D8 type not registered in QuarkPress
+* req*:body:*/wp_font_face D8 type not registered in QuarkPress
+* req*:body:*/nav_menu D8 taxonomy not registered in QuarkPress
+* req*:body:*/wp_pattern_category D8 taxonomy not registered in QuarkPress (until M2f)
+* req*:body:*wp_block/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress until M2f)
+d20 req4:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress until M2f)
+d20 req6:* D8 the revision type is not registered in QuarkPress: 404 rest_type_invalid where WordPress refuses 403 rest_cannot_read_type
+d20 req7:* D8 the revision type is not registered in QuarkPress: 404 rest_type_invalid where WordPress refuses 401 rest_cannot_read_type
+m2c-a-024 req5:body:/body/taxonomies/0 D8 wp_block's taxonomies (in an envelope): WordPress lists wp_pattern_category
+m2c-a-055 req5:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category
+m2c-a-042 req2:body:/data/params/has_published_posts D8 the has_published_posts enum message names WordPress's unregistered types
+m2c-a-042 req2:body:/data/details/has_published_posts/message D8 the has_published_posts enum message names WordPress's unregistered types
+d21 req2:* D8 the post_format taxonomy is not registered in QuarkPress: 404 rest_taxonomy_invalid where WordPress refuses 401 rest_forbidden
+
+# D10: users are managed by the identity provider.
+d27 req1:* D10 a super admin creates a user: WordPress 201, QuarkPress 501 quarkpress_users_managed_externally
+d27 req3:* D10 a super admin changes a user's roles: WordPress 200, QuarkPress 501 quarkpress_users_managed_externally
+
+# D13: wp_die answers in HTML are a minimal page (WordPress's page has more markup and styles).
+d02 req1:body D13 the refusal of a non-string rest_route as HTML: the same message in a minimal page
+d02 req2:body D13 the refusal of a non-string rest_route as HTML: the same message in a minimal page
+
+# D15: no client-side media processing keys in the index.
+* req*:body:*/image_sizes D15 WordPress adds them to an editor's index in a secure context (localhost)
+* req*:body:*/image_size_threshold D15 WordPress adds them to an editor's index in a secure context (localhost)
+* req*:body:*/image_strip_meta D15 WordPress adds them to an editor's index in a secure context (localhost)
+* req*:body:*/image_max_bit_depth D15 WordPress adds them to an editor's index in a secure context (localhost)
+
+# D16: a route longer than 2048 bytes matches nothing (README Limits); WordPress has no cap.
+x01 req1:* D16 a 2053-byte types route: WordPress 404 rest_type_invalid with Allow, QuarkPress 404 rest_no_route
+
+# Differences no scenario can show: listed so the table stays complete.
+none * D3 the index's authentication is normalised to {auth} (QuarkPress advertises its OIDC issuer)
+none * D9 the harness gives WordPress's users the dev realm's names, so the user name fields agree
+none * D11 user deletion answers 501 on a single site too; the scenarios run on a network, where WordPress agrees
+none * D12 unexpected failures (500) and stale-version conflicts (409) are not provoked by scenarios
+none * D14 messages are English only; the harness runs WordPress in English
+none * D17 embeds never leave this site; no M2c data links another host
+none * D18 at most 1000 distinct hrefs are embedded per answer; no M2c answer has that many
+none * D19 on a single site the url setting is read-only (the site address); the scenarios run on a network, without url
