@@ -262,8 +262,10 @@ class SecurityDbTest {
                 .extract()
                 .jsonPath();
         assertThat(alice.getBoolean("superAdmin")).isTrue();
-        // alice's profile was created at startup, before her first login: no claims, so the id names it
-        assertThat(alice.getString("nicename")).isEqualTo("user-" + alice.getLong("user"));
+        // alice's profile was created at startup, before her first login, which names it from her token's claims
+        assertThat(alice.getString("nicename")).isEqualTo("alice");
+        assertThat(alice.getString("displayName")).isEqualTo("Alice Anders");
+        assertThat(alice.getString("subject")).isEqualTo("a11ce000-0000-4000-8000-000000000001");
     }
 
     @Test
