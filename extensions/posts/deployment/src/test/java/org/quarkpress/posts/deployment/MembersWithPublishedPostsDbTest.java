@@ -17,11 +17,14 @@ import org.quarkpress.security.MemberPage;
 import org.quarkpress.security.MemberQuery;
 import org.quarkpress.security.Memberships;
 
-/** The security module's published-authors filter, which reads the posts module's table. */
+/**
+ * The security module's published-authors filter, which reads the posts module's table. On a network, where the main
+ * site's members are exactly the users with a membership row there (a single site lists every user).
+ */
 class MembersWithPublishedPostsDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = PostsApp.with(MembersWithPublishedPostsDbTest.class);
+    static final QuarkusExtensionTest app = PostsApp.multisite(MembersWithPublishedPostsDbTest.class);
 
     @Inject
     @DataSource("quarkpress")

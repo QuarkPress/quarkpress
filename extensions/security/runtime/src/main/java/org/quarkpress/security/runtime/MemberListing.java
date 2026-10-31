@@ -28,7 +28,10 @@ import org.quarkpress.security.MemberQuery;
 
 /**
  * Lists a site's members with one native statement per database kind over the site's membership rows joined to the
- * profiles, run twice: once to count the matches, once for the page. Every value is a bound parameter.
+ * profiles (on a single site, over every profile, joined to its membership row when it has one, as WordPress's
+ * single-site user query lists every user), run twice: once to count the matches, once for the page. Every value is a
+ * bound parameter. A profile without a membership row stores no role or capability, so a role or capability filter
+ * never matches it.
  *
  * <p>Roles and capabilities filter together, as WordPress's user query does: the requested roles, the requested
  * capability names and every role of the site's table that grants one of those capabilities form one list of names,
@@ -47,18 +50,18 @@ public class MemberListing {
 
     @ActivateRequestContext
     @Transactional
-    MemberPage list(SiteId site, MemberQuery query) {
+    MemberPage list(SiteId site, MemberQuery query, boolean everyProfile) {
         Session session = memberships.getSession();
         boolean postgresql = Dialects.postgresql(session);
         List<RoleDefinition> siteRoles = query.capabilities().isEmpty() ? List.of() : tables.forSite(site);
-        Statement where = where(site, query, siteRoles, postgresql);
+        Statement where = where(site, query, siteRoles, postgresql, everyProfile);
 
         NativeQuery<Object> count = session.createNativeQuery("select count(*)" + where.sql, Object.class);
         where.bind(count);
         long total = ((Number) count.getSingleResult()).longValue();
 
         Statement page = new Statement(postgresql);
-        page.append("select m.user_id").append(where.sql.toString());
+        page.append("select u.id").append(where.sql.toString());
         page.parameters.putAll(where.parameters);
         page.append(" order by ");
         order(page, query);
@@ -72,16 +75,24 @@ public class MemberListing {
         return new MemberPage(users, total);
     }
 
-    private static Statement where(SiteId site, MemberQuery query, List<RoleDefinition> siteRoles, boolean postgresql) {
+    private static Statement where(
+            SiteId site, MemberQuery query, List<RoleDefinition> siteRoles, boolean postgresql, boolean everyProfile) {
         Statement where = new Statement(postgresql);
-        where.append(" from qp_site_membership m join qp_user_profile u on u.id = m.user_id where m.site_id = ")
-                .param(site.value());
+        if (everyProfile) {
+            // a single site: every profile, its membership row (roles and capabilities) when it has one
+            where.append(" from qp_user_profile u left join qp_site_membership m on m.user_id = u.id and m.site_id = ")
+                    .param(site.value())
+                    .append(" where 1 = 1");
+        } else {
+            where.append(" from qp_site_membership m join qp_user_profile u on u.id = m.user_id where m.site_id = ")
+                    .param(site.value());
+        }
         if (!query.include().isEmpty()) {
-            where.append(" and m.user_id in (").ids(query.include()).append(")");
+            where.append(" and u.id in (").ids(query.include()).append(")");
         }
         // as in WordPress, exclude applies only without include
         if (query.include().isEmpty() && !query.exclude().isEmpty()) {
-            where.append(" and m.user_id not in (").ids(query.exclude()).append(")");
+            where.append(" and u.id not in (").ids(query.exclude()).append(")");
         }
         if (!query.slugs().isEmpty()) {
             // no nicename ends in white space, but MySQL's PAD SPACE collation would match "bob " to "bob"
@@ -119,8 +130,9 @@ public class MemberListing {
             if (types.isEmpty()) {
                 where.append(" and 1 = 0");
             } else {
-                where.append(" and exists (select 1 from qp_post p where p.site_id = m.site_id"
-                                + " and p.author_id = m.user_id and p.status = 'publish' and p.type in (")
+                where.append(" and exists (select 1 from qp_post p where p.site_id = ")
+                        .param(site.value())
+                        .append(" and p.author_id = u.id and p.status = 'publish' and p.type in (")
                         .texts(types)
                         .append("))");
             }
@@ -156,7 +168,7 @@ public class MemberListing {
                 continue;
             }
             switch (column) {
-                case ID -> digits(term).ifPresent(id -> tests.add("m.user_id = " + where.placeholder(id)));
+                case ID -> digits(term).ifPresent(id -> tests.add("u.id = " + where.placeholder(id)));
                 case LOGIN, NICENAME -> tests.add(like(where, "u.nicename", pattern));
                 case DISPLAY_NAME -> tests.add(like(where, "u.display_name", pattern));
                 case EMAIL -> tests.add(like(where, "u.email", pattern));
@@ -220,7 +232,7 @@ public class MemberListing {
                 if (query.include().isEmpty()) {
                     page.append("lower(u.nicename)").append(direction).append(", ");
                 } else {
-                    positions(page, "m.user_id", ids(query.include()), direction);
+                    positions(page, "u.id", ids(query.include()), direction);
                 }
             }
             // WordPress orders by the slugs' positions ascending, whatever the direction
@@ -229,7 +241,7 @@ public class MemberListing {
                 // by id only
             }
         }
-        page.append("m.user_id").append(direction);
+        page.append("u.id").append(direction);
     }
 
     private static List<Object> ids(List<UserId> users) {

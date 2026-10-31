@@ -122,7 +122,7 @@ public class JpaMemberships implements Memberships {
 
     @Override
     public MemberPage members(SiteId site, MemberQuery query) {
-        return listing.list(target(site), Objects.requireNonNull(query, "query"));
+        return listing.list(target(site), Objects.requireNonNull(query, "query"), !mode.multisite());
     }
 
     @Override

@@ -96,7 +96,8 @@ public interface Memberships {
     List<UserId> superAdmins();
 
     /**
-     * Members of {@code site} (users with a membership row there; on a single site, of the only site) matching every
+     * Members of {@code site} (users with a membership row there; on a single site every user, as WordPress's
+     * single-site user query lists every user whether it has a role or not) matching every
      * given filter, as WordPress's user query matches them. Roles and capabilities form one filter: a member matches
      * when it stores, among its roles or as a key of its individual capabilities (whatever the value, a denial
      * included), any of {@code roles}, any of {@code capabilities} or any role of the site that grants one of

@@ -32,11 +32,14 @@ import org.quarkpress.security.UserProfile;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.security.runtime.SiteRoleTables;
 
-/** A site's members filtered, ordered, counted and paged in the database; allcaps and profiles by ids. */
+/**
+ * A site's members filtered, ordered, counted and paged in the database; allcaps and profiles by ids. On a network,
+ * where a member is a user with a membership row (a single site lists every user: MembersSingleSiteDbTest).
+ */
 class MembersDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = SecurityApp.with(MembersDbTest.class);
+    static final QuarkusExtensionTest app = SecurityApp.multisite(MembersDbTest.class);
 
     static final SiteId MAIN = SiteId.of(1);
 
