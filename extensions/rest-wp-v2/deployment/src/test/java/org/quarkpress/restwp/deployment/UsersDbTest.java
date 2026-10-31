@@ -375,6 +375,15 @@ class UsersDbTest {
                 .get("/wp-json/wp/v2/users/" + carol + "?_fields=id,email,roles,meta")
                 .asString());
         assertThat(view.toString()).isEqualTo("{\"id\":" + carol + ",\"meta\":[]}");
+        // a body field is built only when its exact name is selected: a child of it alone selects nothing
+        assertThat(Http.as(null)
+                        .get("/wp-json/wp/v2/users/" + carol + "?_fields=name.x")
+                        .asString())
+                .isEqualTo("[]");
+        assertThat(Http.as(null)
+                        .get("/wp-json/wp/v2/users/" + carol + "?_fields=id,avatar_urls.24")
+                        .asString())
+                .isEqualTo("{\"id\":" + carol + "}");
         assertThat(Http.as("test-" + erin)
                         .get("/wp-json/wp/v2/users?_fields=email&" + fixture)
                         .asString())

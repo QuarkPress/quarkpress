@@ -154,7 +154,7 @@ public class StatusesController implements RestRouteProvider {
     }
 
     private RestResponse list(RestRequest request) {
-        Predicate<String> fields = TaxonomiesController.exactFields(Fields.forResponse(request, SCHEMA));
+        Predicate<String> fields = Fields.forResponse(request, SCHEMA)::includesExactly;
         ObjectNode data = RestJson.NODES.objectNode();
         for (String name : permissions.restStatuses()) {
             Optional<PostStatusDefinition> status = statuses.find(name);
@@ -171,7 +171,7 @@ public class StatusesController implements RestRouteProvider {
         if (status.isEmpty()) {
             throw new RestException(RestError.of("rest_status_invalid", "Invalid status.", 404));
         }
-        return prepare(status.get(), TaxonomiesController.exactFields(Fields.forResponse(request, SCHEMA)), request);
+        return prepare(status.get(), Fields.forResponse(request, SCHEMA)::includesExactly, request);
     }
 
     /** The status's selected fields in WordPress's order, filtered by the context, with its {@code archives} link. */

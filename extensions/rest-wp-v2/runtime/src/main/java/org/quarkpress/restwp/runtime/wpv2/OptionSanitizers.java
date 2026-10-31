@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.quarkpress.lib.wpkses.Kses;
 import org.quarkpress.restwp.runtime.Formats;
@@ -108,6 +109,32 @@ public final class OptionSanitizers {
             return TextNode.valueOf(value.booleanValue() ? "1" : "");
         }
         return value;
+    }
+
+    /**
+     * Whether {@code value} would be stored as {@code stored} already is: scalars compared as the option table's text
+     * (true "1", false and null "", numbers as PHP prints them), anything else compared whole.
+     */
+    public static boolean sameStoredValue(JsonNode stored, JsonNode value) {
+        Optional<String> left = databaseText(stored);
+        Optional<String> right = databaseText(stored(value));
+        return left.isPresent() && right.isPresent() ? left.get().equals(right.get()) : stored.equals(stored(value));
+    }
+
+    private static Optional<String> databaseText(JsonNode value) {
+        if (value.isNull()) {
+            return Optional.of("");
+        }
+        if (value.isBoolean()) {
+            return Optional.of(value.booleanValue() ? "1" : "");
+        }
+        if (value.isIntegralNumber()) {
+            return Optional.of(value.bigIntegerValue().toString());
+        }
+        if (value.isTextual()) {
+            return Optional.of(value.textValue());
+        }
+        return Optional.empty();
     }
 
     /** WordPress's HTML escaping of text: '&' not encoded again where it starts a character reference. */

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +89,7 @@ public class SettingsController implements RestRouteProvider {
                 .schema(() -> schema)
                 .endpoint(Endpoint.of("GET")
                         .permission(this::mayManage)
-                        .handler(request -> RestResponse.ok(read(shown)))
+                        .handler(request -> RestResponse.ok(read(shown, Map.of())))
                         .build())
                 .endpoint(Endpoint.of("POST", "PUT", "PATCH")
                         .args(args)
@@ -104,11 +105,16 @@ public class SettingsController implements RestRouteProvider {
                 : PermissionResult.forbidden(request);
     }
 
-    /** Every setting's value, in registration order. */
-    private ObjectNode read(List<SettingDefinition> settings) {
+    /**
+     * Every setting's value, in registration order. {@code written} holds the values this request wrote, by option
+     * name: they are read as written (WordPress's option cache keeps the written value for the rest of the request,
+     * so a boolean written false reads false there, while a later request reads the stored "" as null).
+     */
+    private ObjectNode read(List<SettingDefinition> settings, Map<String, JsonNode> written) {
         ObjectNode data = RestJson.NODES.objectNode();
         for (SettingDefinition setting : settings) {
-            JsonNode value = stored(setting);
+            JsonNode value =
+                    written.containsKey(setting.optionName()) ? written.get(setting.optionName()) : stored(setting);
             ObjectNode schema = valueSchema(setting);
             data.set(
                     setting.restName(),
@@ -143,6 +149,7 @@ public class SettingsController implements RestRouteProvider {
     }
 
     private RestResponse update(List<SettingDefinition> settings, RestRequest request) {
+        Map<String, JsonNode> written = new HashMap<>();
         for (SettingDefinition setting : settings) {
             String name = setting.restName();
             boolean sent = request instanceof ServedRequest served ? served.sentParam(name) : request.hasParam(name);
@@ -161,14 +168,20 @@ public class SettingsController implements RestRouteProvider {
                             500));
                 }
                 options.delete(setting.optionName());
+                written.remove(setting.optionName());
                 continue;
             }
             if (OptionSanitizers.sanitize(setting.optionName(), value.get())
                     instanceof OptionSanitizers.Sanitized.Kept kept) {
-                options.set(setting.optionName(), OptionSanitizers.stored(kept.value()));
+                Optional<JsonNode> old = site.options().get(setting.optionName());
+                // as WordPress, a value whose stored form equals the stored one is not written (nor cached)
+                if (old.isEmpty() || !OptionSanitizers.sameStoredValue(old.get(), kept.value())) {
+                    options.set(setting.optionName(), OptionSanitizers.stored(kept.value()));
+                    written.put(setting.optionName(), kept.value());
+                }
             }
         }
-        return RestResponse.ok(read(settings));
+        return RestResponse.ok(read(settings, written));
     }
 
     /** The update argument of a setting: its title, description, type and other keywords, never a default. */

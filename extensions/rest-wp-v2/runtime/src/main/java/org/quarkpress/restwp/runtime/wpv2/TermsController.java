@@ -452,31 +452,31 @@ public class TermsController implements RestRouteProvider {
      */
     private RestResponse prepare(Routes term, TermSnapshot found, Fields.Selection fields, String context) {
         ObjectNode data = RestJson.NODES.objectNode();
-        if (fields.includes("id")) {
+        if (fields.includesExactly("id")) {
             data.put("id", found.id().value());
         }
-        if (fields.includes("count")) {
+        if (fields.includesExactly("count")) {
             data.put("count", found.count());
         }
-        if (fields.includes("description")) {
+        if (fields.includesExactly("description")) {
             data.put("description", found.description());
         }
-        if (fields.includes("link")) {
+        if (fields.includesExactly("link")) {
             data.put("link", link(term.taxonomy(), found));
         }
-        if (fields.includes("name")) {
+        if (fields.includesExactly("name")) {
             data.put("name", found.name());
         }
-        if (fields.includes("slug")) {
+        if (fields.includesExactly("slug")) {
             data.put("slug", found.slug());
         }
-        if (fields.includes("taxonomy")) {
+        if (fields.includesExactly("taxonomy")) {
             data.put("taxonomy", found.taxonomy());
         }
-        if (term.hierarchical() && fields.includes("parent")) {
+        if (term.hierarchical() && fields.includesExactly("parent")) {
             data.put("parent", found.parent().map(TermId::value).orElse(0L));
         }
-        if (fields.includes("meta")) {
+        if (fields.includesExactly("meta")) {
             data.putArray("meta");
         }
         RestResponse response = RestResponse.ok(ContextFilter.apply(data, term.schema(), context));

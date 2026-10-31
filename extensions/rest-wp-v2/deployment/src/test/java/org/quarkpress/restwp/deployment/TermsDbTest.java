@@ -473,6 +473,22 @@ class TermsDbTest {
                 .get("/wp-json/wp/v2/tags/" + tag + "?_fields=name")
                 .then()
                 .body(equalTo("{\"name\":\"Linked " + u + "\"}"));
+        // a body field is built only when its exact name is selected: a child of it alone selects nothing, id is
+        // kept when asked for, and _links.x still gives the whole links
+        Http.as(null)
+                .get("/wp-json/wp/v2/tags/" + tag + "?_fields=name.x")
+                .then()
+                .body(equalTo("[]"));
+        Http.as(null)
+                .get("/wp-json/wp/v2/tags/" + tag + "?_fields=id,name.x")
+                .then()
+                .body(equalTo("{\"id\":" + tag + "}"));
+        JsonNode childOfLinks = json(Http.as(null)
+                .get("/wp-json/wp/v2/tags/" + tag + "?_fields=_links.x")
+                .asString());
+        assertThat(fieldNames(childOfLinks)).containsExactly("_links");
+        assertThat(fieldNames(childOfLinks.get("_links")))
+                .containsExactly("self", "collection", "about", "wp:post_type", "curies");
     }
 
     @Test

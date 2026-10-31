@@ -390,9 +390,13 @@ class SettingsDbTest {
         assertThat(post("{\"site_icon\":-4}").get("site_icon")).isEqualTo(IntNode.valueOf(4));
         assertThat(post("{\"default_ping_status\":\"closed\"}").get("default_ping_status"))
                 .isEqualTo(TextNode.valueOf("closed"));
-        // WordPress stores false as an empty string, which then is no boolean: the setting reads null
-        assertThat(post("{\"use_smilies\":false}").get("use_smilies").isNull()).isTrue();
+        // WordPress stores false as an empty string, which then is no boolean: later reads show null, while the
+        // write's own answer shows the value written (WordPress's option cache keeps it for the request)
+        assertThat(post("{\"use_smilies\":false}").get("use_smilies")).isEqualTo(BooleanNode.FALSE);
         assertThat(Jdbc.optionJson(MAIN, "use_smilies")).isEqualTo("\"\"");
+        assertThat(setting("use_smilies").isNull()).isTrue();
+        // false over a stored "" changes nothing, so nothing is cached either: the answer reads the stored ""
+        assertThat(post("{\"use_smilies\":false}").get("use_smilies").isNull()).isTrue();
         assertThat(post("{\"use_smilies\":\"1\"}").get("use_smilies")).isEqualTo(BooleanNode.TRUE);
         assertThat(Jdbc.optionJson(MAIN, "use_smilies")).isEqualTo("\"1\"");
         // on a network, url and email are not settings, and keys that are no setting are ignored

@@ -404,60 +404,61 @@ public class UsersController implements RestRouteProvider {
         boolean edit = context.equals("edit");
         boolean shown = edit && (mayEdit || listUsers);
         UserId id = profile.id();
-        Optional<Membership> membership = edit && (fields.includes("roles") || fields.includes("extra_capabilities"))
-                ? memberships.find(site.siteId(), id)
-                : Optional.empty();
+        Optional<Membership> membership =
+                edit && (fields.includesExactly("roles") || fields.includesExactly("extra_capabilities"))
+                        ? memberships.find(site.siteId(), id)
+                        : Optional.empty();
         ObjectNode data = RestJson.NODES.objectNode();
-        if (fields.includes("id")) {
+        if (fields.includesExactly("id")) {
             data.put("id", id.value());
         }
-        if (fields.includes("username")) {
+        if (fields.includesExactly("username")) {
             data.put("username", profile.nicename());
         }
-        if (fields.includes("name")) {
+        if (fields.includesExactly("name")) {
             data.put("name", profile.displayName());
         }
-        if (fields.includes("first_name")) {
+        if (fields.includesExactly("first_name")) {
             data.put("first_name", "");
         }
-        if (fields.includes("last_name")) {
+        if (fields.includesExactly("last_name")) {
             data.put("last_name", "");
         }
-        if (shown && fields.includes("email")) {
+        if (shown && fields.includesExactly("email")) {
             data.put("email", profile.email().orElse(""));
         }
-        if (fields.includes("url")) {
+        if (fields.includesExactly("url")) {
             data.put("url", "");
         }
-        if (fields.includes("description")) {
+        if (fields.includesExactly("description")) {
             data.put("description", profile.bio().orElse(""));
         }
-        if (fields.includes("link")) {
+        if (fields.includesExactly("link")) {
             data.put("link", urls.home() + "?author=" + id.value());
         }
-        if (fields.includes("locale")) {
+        if (fields.includesExactly("locale")) {
             data.put("locale", "en_US");
         }
-        if (fields.includes("nickname")) {
+        if (fields.includesExactly("nickname")) {
             data.put("nickname", profile.nicename());
         }
-        if (fields.includes("slug")) {
+        if (fields.includesExactly("slug")) {
             data.put("slug", profile.nicename());
         }
-        if (shown && fields.includes("roles")) {
+        if (shown && fields.includesExactly("roles")) {
             ArrayNode list = data.putArray("roles");
             membership.ifPresent(found ->
                     AllCaps.roles(roles, found.roles(), found.capabilities()).forEach(list::add));
         }
-        if (fields.includes("registered_date")) {
+        if (fields.includesExactly("registered_date")) {
             data.put("registered_date", REGISTERED.format(profile.createdAt().truncatedTo(ChronoUnit.SECONDS)));
         }
-        if (edit && fields.includes("capabilities")) {
+        if (edit && fields.includesExactly("capabilities")) {
             PhpObjectNode all = new PhpObjectNode();
             capabilities.allCapabilities(id, site.siteId()).forEach(all::put);
             data.set("capabilities", all);
         }
-        if (edit && fields.includes("extra_capabilities")) {
+        if (edit && fields.includesExactly("extra_capabilities")) {
             PhpObjectNode extra = new PhpObjectNode();
             membership.ifPresent(found -> {
                 found.roles().forEach(role -> extra.put(role, true));
@@ -465,11 +466,11 @@ public class UsersController implements RestRouteProvider {
             });
             data.set("extra_capabilities", extra);
         }
-        if (fields.includes("avatar_urls")) {
+        if (fields.includesExactly("avatar_urls")) {
             Avatars.urls(profile.email(), avatarName(profile), site.options())
                     .ifPresent(avatars -> data.set("avatar_urls", avatars));
         }
-        if (fields.includes("meta")) {
+        if (fields.includesExactly("meta")) {
             // outside the edit context the context filter removes the preferences, leaving WordPress's []
             JsonNode preferences = edit && mayEdit
                     ? userMeta.get(id, userMeta.siteKey(site.siteId(), PREFERENCES))

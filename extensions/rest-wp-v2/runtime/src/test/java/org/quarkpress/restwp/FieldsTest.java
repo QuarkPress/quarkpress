@@ -61,4 +61,19 @@ class FieldsTest {
         assertThat(selection.includes("b", work)).isFalse();
         assertThat(work[0]).isLessThanOrEqualTo(5L * deep.length());
     }
+
+    @Test
+    void anExactCheckSelectsOnlyListedFieldsNeverAParentOrAChild() {
+        Fields.Selection selection = Fields.Selection.of(List.of("name.x", "id", "meta"));
+        assertThat(selection.includes("name")).isTrue();
+        assertThat(selection.includesExactly("name")).isFalse();
+        assertThat(selection.includesExactly("name.x")).isTrue();
+        assertThat(selection.includesExactly("id")).isTrue();
+        assertThat(selection.includesExactly("meta")).isTrue();
+        assertThat(selection.includes("meta.persisted_preferences")).isTrue();
+        assertThat(selection.includesExactly("meta.persisted_preferences")).isFalse();
+        assertThat(selection.includesExactly("slug")).isFalse();
+        assertThat(Fields.Selection.everything().includesExactly("anything")).isTrue();
+        assertThat(Fields.Selection.nothing().includesExactly("id")).isFalse();
+    }
 }

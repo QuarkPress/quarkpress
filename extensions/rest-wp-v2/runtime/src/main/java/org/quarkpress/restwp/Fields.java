@@ -135,6 +135,31 @@ public final class Fields {
             }
         }
 
+        /**
+         * The test most WordPress controllers apply to their own body fields (an exact name among the selected fields):
+         * {@code field} is listed itself. Unlike {@link #includes}, a listed {@code name.x} does not select
+         * {@code name}, and a listed {@code a} does not select {@code a.b}. Work linear in the field's length.
+         */
+        public boolean includesExactly(String field) {
+            if (kind != Kind.THESE) {
+                return kind == Kind.EVERYTHING;
+            }
+            Segment node = root;
+            int start = 0;
+            while (true) {
+                int dot = field.indexOf('.', start);
+                int end = dot < 0 ? field.length() : dot;
+                node = node.next.get(field.substring(start, end));
+                if (node == null) {
+                    return false;
+                }
+                if (dot < 0) {
+                    return node.listed;
+                }
+                start = dot + 1;
+            }
+        }
+
         @Override
         public String toString() {
             return kind == Kind.THESE ? fields.toString() : kind.toString();

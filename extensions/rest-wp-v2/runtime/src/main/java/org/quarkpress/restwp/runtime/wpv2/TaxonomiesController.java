@@ -6,10 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Predicate;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.restwp.Arg;
@@ -227,21 +225,6 @@ public class TaxonomiesController implements RestRouteProvider {
                 .register();
     }
 
-    /**
-     * WordPress's test of a field by its exact name (its {@code in_array} over the selected fields), where a requested
-     * {@code labels.name} does not select {@code labels}.
-     */
-    static Predicate<String> exactFields(Fields.Selection selection) {
-        return switch (selection.kind()) {
-            case EVERYTHING -> field -> true;
-            case NOTHING -> field -> false;
-            case THESE -> {
-                Set<String> names = new HashSet<>(selection.fields());
-                yield names::contains;
-            }
-        };
-    }
-
     /** The taxonomies the collection considers: those of the requested post type, or all. */
     private List<TaxonomyDefinition> considered(RestRequest request) {
         Optional<JsonNode> type = request.param("type");
@@ -286,7 +269,7 @@ public class TaxonomiesController implements RestRouteProvider {
         }
         boolean edit = request.isEditContext();
         Fields.Selection selection = Fields.forResponse(request, SCHEMA);
-        Predicate<String> fields = exactFields(selection);
+        Predicate<String> fields = selection::includesExactly;
         ObjectNode data = RestJson.NODES.objectNode();
         for (TaxonomyDefinition taxonomy : considered(request)) {
             if (!taxonomy.showInRest() || (edit && !permissions.canAssign(request.identity(), taxonomy.key()))) {
@@ -307,7 +290,7 @@ public class TaxonomiesController implements RestRouteProvider {
             return RestResponse.ok(RestJson.NODES.arrayNode());
         }
         Fields.Selection selection = Fields.forResponse(request, SCHEMA);
-        return prepare(taxonomy.get(), selection, exactFields(selection), request);
+        return prepare(taxonomy.get(), selection, selection::includesExactly, request);
     }
 
     /** The taxonomy's selected fields in WordPress's order, filtered by the context; links when selected. */
