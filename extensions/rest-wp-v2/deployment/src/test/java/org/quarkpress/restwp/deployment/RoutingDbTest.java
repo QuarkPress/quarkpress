@@ -15,7 +15,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class RoutingDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(
+    static final QuarkusExtensionTest app = RestApp.network(
             RoutingDbTest.class, TestRoutes.class, TestRoutes.PlainResource.class, RawHttp.class, RawHttp.Reply.class);
 
     @Test

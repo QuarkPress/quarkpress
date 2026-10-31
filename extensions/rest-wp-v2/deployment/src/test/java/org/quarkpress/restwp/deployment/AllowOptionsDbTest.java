@@ -23,7 +23,7 @@ import org.quarkpress.restwp.runtime.RestJson;
 class AllowOptionsDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(AllowOptionsDbTest.class, TestRoutes.class);
+    static final QuarkusExtensionTest app = RestApp.network(AllowOptionsDbTest.class, TestRoutes.class);
 
     static final String ROOT_LINK = "<http://localhost/wp-json/>; rel=\"https://api.w.org/\"";
     static final String THINGS = "http://localhost/wp-json/qp-test/v1/things";

@@ -13,7 +13,7 @@ import org.quarkpress.restwp.runtime.RestWpConfig;
 class ConfigDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(ConfigDbTest.class)
+    static final QuarkusExtensionTest app = RestApp.network(ConfigDbTest.class)
             .overrideRuntimeConfigKey("quarkpress.rest-wp-v2.path", "/api")
             .overrideRuntimeConfigKey("quarkpress.rest-wp-v2.cors.origins", "https://a.test,https://b.test");
 

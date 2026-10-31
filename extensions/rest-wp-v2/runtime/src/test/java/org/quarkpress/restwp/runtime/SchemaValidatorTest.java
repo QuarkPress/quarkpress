@@ -69,6 +69,12 @@ class SchemaValidatorTest {
                         "{\"type\":[\"boolean\",\"array\"],\"items\":{\"type\":\"string\",\"enum\":[\"post\",\"page\"]}}"),
                 "rest_not_in_enum",
                 "p[0] is not one of post and page.");
+        // an enum declared as an associative array (the users controller's post types) lists its values
+        String keyed = "{\"type\":[\"boolean\",\"array\"],\"items\":{\"type\":\"string\","
+                + "\"enum\":{\"post\":\"post\",\"page\":\"page\",\"k\":\"wp_block\"}}}";
+        invalid("x", schema(keyed), "rest_not_in_enum", "p[0] is not one of post, page, and wp_block.");
+        valid("post,wp_block", schema(keyed));
+        invalid("k", schema(keyed), "rest_not_in_enum", "p[0] is not one of post, page, and wp_block.");
     }
 
     @Test

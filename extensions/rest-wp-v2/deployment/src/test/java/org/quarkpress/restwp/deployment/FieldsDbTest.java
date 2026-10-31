@@ -19,7 +19,7 @@ import org.quarkpress.restwp.runtime.RestJson;
 class FieldsDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(FieldsDbTest.class, TestRoutes.class);
+    static final QuarkusExtensionTest app = RestApp.network(FieldsDbTest.class, TestRoutes.class);
 
     @Test
     void anItemKeepsOnlyTheRequestedFields() {

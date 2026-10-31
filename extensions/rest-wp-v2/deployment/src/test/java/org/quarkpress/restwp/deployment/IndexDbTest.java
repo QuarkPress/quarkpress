@@ -26,7 +26,7 @@ import org.quarkpress.restwp.runtime.RestJson;
 class IndexDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(IndexDbTest.class, TestRoutes.class);
+    static final QuarkusExtensionTest app = RestApp.network(IndexDbTest.class, TestRoutes.class);
 
     long editor;
     long administrator;
@@ -204,7 +204,10 @@ class IndexDbTest {
                         "/wp/v2/categories",
                         "/wp/v2/categories/(?P<id>[\\d]+)",
                         "/wp/v2/tags",
-                        "/wp/v2/tags/(?P<id>[\\d]+)");
+                        "/wp/v2/tags/(?P<id>[\\d]+)",
+                        "/wp/v2/users",
+                        "/wp/v2/users/(?P<id>[\\d]+)",
+                        "/wp/v2/users/me");
         // Part D 19
         Http.as(null)
                 .get("/wp-json/wp/v2?namespace=nope")

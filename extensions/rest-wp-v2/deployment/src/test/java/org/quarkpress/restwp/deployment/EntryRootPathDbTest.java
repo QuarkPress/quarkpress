@@ -10,7 +10,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class EntryRootPathDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(
+    static final QuarkusExtensionTest app = RestApp.network(
                     EntryRootPathDbTest.class, TestRoutes.class, RawHttp.class, RawHttp.Reply.class)
             .overrideConfigKey("quarkus.http.root-path", "/app");
 

@@ -15,7 +15,7 @@ import org.quarkpress.restwp.runtime.RestWpConfig;
 class ExtensionDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(ExtensionDbTest.class)
+    static final QuarkusExtensionTest app = RestApp.network(ExtensionDbTest.class)
             .setLogRecordPredicate(
                     record -> record.getMessage() != null && record.getMessage().startsWith("Installed features"))
             .assertLogRecords(records -> assertThat(records)

@@ -1,7 +1,7 @@
 package org.quarkpress.restwp.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -78,7 +78,8 @@ public final class SchemaValidator {
         if (error != null) {
             return error;
         }
-        if (schema.get("enum") instanceof ArrayNode values) {
+        // an enum WordPress declares as an associative array lists its values
+        if (schema.get("enum") instanceof ContainerNode<?> values) {
             error = checkEnum(value, schema, type, values, param);
             if (error != null) {
                 return error;
@@ -420,7 +421,8 @@ public final class SchemaValidator {
         return null;
     }
 
-    private static RestError checkEnum(JsonNode value, ObjectNode schema, String type, ArrayNode values, String param) {
+    private static RestError checkEnum(
+            JsonNode value, ObjectNode schema, String type, ContainerNode<?> values, String param) {
         JsonNode sanitized = type == null ? value : SchemaSanitizer.sanitizeAs(value, schema, type);
         for (JsonNode allowed : values) {
             if (same(sanitized, allowed)) {

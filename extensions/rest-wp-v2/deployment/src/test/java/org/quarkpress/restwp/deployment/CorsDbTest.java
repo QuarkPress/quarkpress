@@ -16,7 +16,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class CorsDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(CorsDbTest.class, TestRoutes.class)
+    static final QuarkusExtensionTest app = RestApp.network(CorsDbTest.class, TestRoutes.class)
             .overrideConfigKey("quarkpress.rest-wp-v2.cors.origins", "https://admin.test, null");
 
     static final String WIDE_EXPOSED = "X-WP-Total, X-WP-TotalPages, Link, Allow, X-WP-Upload-Attachment-ID";

@@ -26,7 +26,7 @@ import org.quarkpress.restwp.runtime.RestJson;
 class LinksEmbedDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(LinksEmbedDbTest.class, TestRoutes.class);
+    static final QuarkusExtensionTest app = RestApp.network(LinksEmbedDbTest.class, TestRoutes.class);
 
     static final String NODES = "/wp-json/qp-test/v1/nodes";
 

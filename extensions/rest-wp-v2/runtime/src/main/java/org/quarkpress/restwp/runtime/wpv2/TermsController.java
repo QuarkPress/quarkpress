@@ -33,12 +33,10 @@ import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
-import org.quarkpress.restwp.runtime.ArgChecks;
 import org.quarkpress.restwp.runtime.CollectionItems;
 import org.quarkpress.restwp.runtime.ContextFilter;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
-import org.quarkpress.restwp.runtime.SchemaValidator;
 import org.quarkpress.taxonomy.PostTermsAccess;
 import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.TermChanges;
@@ -65,7 +63,7 @@ import org.quarkpress.taxonomy.Terms;
 public class TermsController implements RestRouteProvider {
 
     /** The most entries {@code include}, {@code exclude} or {@code slug} may list. */
-    static final int MAX_LIST_ITEMS = 1000;
+    static final int MAX_LIST_ITEMS = ListArgs.MAX_ITEMS;
 
     private static final String NAMESPACE = "wp/v2";
 
@@ -374,7 +372,7 @@ public class TermsController implements RestRouteProvider {
      */
     private Optional<TermQuery.Builder> query(Routes term, RestRequest request) {
         TermQuery.Builder query = TermQuery.builder().taxonomies(term.key());
-        List<Long> include = absoluteIds(bounded(request, "include"));
+        List<Long> include = absoluteIds(ListArgs.bounded(request, "include"));
         if (!include.isEmpty()) {
             List<TermId> positive = positive(include);
             if (positive.isEmpty()) {
@@ -382,8 +380,9 @@ public class TermsController implements RestRouteProvider {
             }
             query.include(positive.toArray(TermId[]::new));
         }
-        query.exclude(positive(absoluteIds(bounded(request, "exclude"))).toArray(TermId[]::new));
-        List<String> slugList = texts(bounded(request, "slug"));
+        query.exclude(
+                positive(absoluteIds(ListArgs.bounded(request, "exclude"))).toArray(TermId[]::new));
+        List<String> slugList = texts(ListArgs.bounded(request, "slug"));
         if (!slugList.isEmpty()) {
             query.slugs(slugList.toArray(String[]::new));
         }
@@ -412,33 +411,6 @@ public class TermsController implements RestRouteProvider {
             case "include_slugs" -> TermOrder.SLUG_IN;
             default -> TermOrder.parse(orderby);
         };
-    }
-
-    /**
-     * The list argument's items, refused as WordPress refuses a list over a schema's {@code maxItems} when it holds
-     * more than {@value #MAX_LIST_ITEMS}.
-     */
-    private static List<JsonNode> bounded(RestRequest request, String name) {
-        Optional<JsonNode> value = request.param(name);
-        if (value.isEmpty()) {
-            return List.of();
-        }
-        List<JsonNode> items = new ArrayList<>();
-        if (value.get().isContainerNode()) {
-            value.get().forEach(items::add);
-        } else {
-            items.add(value.get());
-        }
-        if (items.size() > MAX_LIST_ITEMS) {
-            ObjectNode bound = RestJson.NODES.objectNode();
-            bound.put("type", "array");
-            bound.put("maxItems", MAX_LIST_ITEMS);
-            ArrayNode list = RestJson.NODES.arrayNode();
-            items.forEach(list::add);
-            RestError tooMany = SchemaValidator.validate(list, bound, name).orElseThrow();
-            throw new RestException(ArgChecks.invalidParams(Map.of(name, tooMany)));
-        }
-        return items;
     }
 
     /** WordPress's id lists: each item's absolute integer value, each once, in order. */

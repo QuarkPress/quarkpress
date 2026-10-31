@@ -37,7 +37,7 @@ import org.quarkpress.restwp.runtime.RestJson;
 class RegistriesDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(RegistriesDbTest.class)
+    static final QuarkusExtensionTest app = RestApp.network(RegistriesDbTest.class)
             .addBuildChainCustomizer(chain -> chain.addBuildStep(new BuildStep() {
                         @Override
                         public void execute(BuildContext context) {

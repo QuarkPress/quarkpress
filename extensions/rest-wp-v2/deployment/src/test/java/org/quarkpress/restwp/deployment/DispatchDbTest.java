@@ -32,7 +32,7 @@ class DispatchDbTest {
     static final int BODY_LIMIT = 64;
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(
+    static final QuarkusExtensionTest app = RestApp.network(
                     DispatchDbTest.class,
                     TestRoutes.class,
                     TestRoutes.PlainResource.class,

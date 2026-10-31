@@ -10,8 +10,22 @@ public final class RestApp {
 
     private RestApp() {}
 
-    public static QuarkusExtensionTest with(Class<?>... classes) {
+    /**
+     * A network: the multisite module is on the test class path and its own configuration turns it on
+     * ({@code quarkpress.multisite.enabled=true}), so this application applies WordPress's multisite rules (an
+     * administrator who is not a super admin manages no users) and resolves sites by domain and path. Use
+     * {@link #singleSite} for a single site.
+     */
+    public static QuarkusExtensionTest network(Class<?>... classes) {
         return app(false, classes);
+    }
+
+    /**
+     * A single-site install: the multisite module, which is on the test class path and turns itself on, turned off,
+     * so WordPress's single-site rules apply (an administrator manages users).
+     */
+    public static QuarkusExtensionTest singleSite(Class<?>... classes) {
+        return app(false, classes).overrideConfigKey("quarkpress.multisite.enabled", "false");
     }
 
     /** A multisite install: the multisite module (an optional dependency of this one) turned on. */
@@ -21,7 +35,7 @@ public final class RestApp {
 
     /** For tests whose build or start must fail: no database is started. */
     public static QuarkusExtensionTest buildOnly(Class<?>... classes) {
-        return with(classes).overrideConfigKey("quarkus.datasource.\"quarkpress\".devservices.enabled", "false");
+        return network(classes).overrideConfigKey("quarkus.datasource.\"quarkpress\".devservices.enabled", "false");
     }
 
     private static QuarkusExtensionTest app(boolean multisite, Class<?>... classes) {

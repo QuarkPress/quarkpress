@@ -28,6 +28,31 @@ public final class TestData {
         return UserId.of(Jdbc.count(dataSource, "select id from qp_user_profile where subject = ?", subject));
     }
 
+    /** A profile with the given nicename, display name and e-mail address. */
+    public static UserId profile(AgroalDataSource dataSource, String nicename, String displayName, String email) {
+        String subject = nicename + "-" + UUID.randomUUID();
+        Jdbc.update(
+                dataSource,
+                "insert into qp_user_profile (subject, display_name, nicename, email) values (?, ?, ?, ?)",
+                subject,
+                displayName,
+                nicename,
+                email);
+        return UserId.of(Jdbc.count(dataSource, "select id from qp_user_profile where subject = ?", subject));
+    }
+
+    /** A post of {@code author} on {@code site}, written past the service. */
+    public static PostId post(AgroalDataSource dataSource, SiteId site, UserId author, String type, String status) {
+        PostId post = post(dataSource, site, type, status, "p-" + UUID.randomUUID(), "post");
+        Jdbc.update(dataSource, "update qp_post set author_id = ? where id = ?", author.value(), post.value());
+        return post;
+    }
+
+    /** Makes {@code user} a network administrator (a super admin). */
+    public static void superAdmin(AgroalDataSource dataSource, UserId user) {
+        Jdbc.update(dataSource, "insert into qp_network_admin (user_id) values (?)", user.value());
+    }
+
     /** A membership with {@code roles}, a JSON array such as {@code ["editor"]}. */
     public static void member(AgroalDataSource dataSource, SiteId site, UserId user, String roles) {
         Jdbc.update(

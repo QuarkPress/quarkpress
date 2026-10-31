@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.RestError;
+import org.quarkpress.restwp.RestException;
 
 /**
  * WordPress's checks of an endpoint's arguments, in its order.
@@ -22,7 +23,8 @@ import org.quarkpress.restwp.RestError;
  *       by its own check or else against its schema, in declaration order; all failures are reported together.
  *   <li>Phase 2, only when phase 1 found nothing: every source's value of every argument (JSON, form body, query, URL,
  *       defaults, each in its own order; JSON nulls and values another source shadows included) is sanitized and
- *       replaced by its sanitized form. An argument's own sanitizer is applied alone. A typed argument without one is
+ *       replaced by its sanitized form. An argument's own sanitizer is applied alone; one that throws a
+ *       {@link RestException} refuses the value with that exception's error. A typed argument without one is
  *       sanitized by its schema (a list that sanitizing leaves with duplicates under {@code uniqueItems} fails), and a
  *       {@link Arg.Phase#SANITIZE} argument's value is checked first (by its own check when it has one); failures are reported in the order found, a
  *       later failure of the same name replacing the earlier message in place. An untyped argument without a
@@ -100,7 +102,13 @@ public final class ArgChecks {
                 }
                 JsonNode value = entry.getValue();
                 if (arg.sanitize().isPresent()) {
-                    replaced.add(Map.entry(entry.getKey(), arg.sanitize().get().apply(value)));
+                    try {
+                        replaced.add(
+                                Map.entry(entry.getKey(), arg.sanitize().get().apply(value)));
+                    } catch (RestException refused) {
+                        // WordPress's sanitize callback answering an error: the value is refused, with that error
+                        invalid.put(arg.name(), refused.error());
+                    }
                     continue;
                 }
                 if (!arg.schema().has("type")) {

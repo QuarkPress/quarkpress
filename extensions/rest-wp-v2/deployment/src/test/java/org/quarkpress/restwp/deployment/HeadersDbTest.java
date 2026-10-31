@@ -20,7 +20,7 @@ import org.quarkpress.core.UserId;
 class HeadersDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(HeadersDbTest.class, TestRoutes.class);
+    static final QuarkusExtensionTest app = RestApp.network(HeadersDbTest.class, TestRoutes.class);
 
     static final String ROOT_LINK = "<http://localhost/wp-json/>; rel=\"https://api.w.org/\"";
     static final String EXPIRES = "Wed, 11 Jan 1984 05:00:00 GMT";

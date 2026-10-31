@@ -15,6 +15,7 @@ import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.RestError;
+import org.quarkpress.restwp.RestException;
 
 /** Expected answers are WordPress 7.1.3's (WP_REST_Request's checks run on the same args and sources, PHP 8.4). */
 class ArgChecksTest {
@@ -122,6 +123,32 @@ class ArgChecksTest {
         assertThat(ArgChecks.check(List.of(stringWithOwnSanitizer("name")), sources))
                 .isEmpty();
         assertThat(sources.json().get("name")).isEqualTo(TextNode.valueOf("a ok"));
+    }
+
+    @Test
+    void aSanitizerThatRefusesTheValueReportsItsErrorWithDetails() {
+        // WordPress's sanitize callback answering a WP_Error (the users controller's reassign): the error is reported
+        // under the arg's name, in params and details, after phase 1
+        Arg refusing = new Arg(
+                "reassign",
+                schema("{\"type\":\"integer\"}"),
+                true,
+                Optional.empty(),
+                Arg.Phase.SANITIZE,
+                Optional.of(value -> {
+                    if (value.asText().equals("x")) {
+                        throw new RestException(RestError.of("rest_invalid_param", "Invalid user parameter(s).", 400));
+                    }
+                    return value;
+                }));
+        Optional<RestError> error = check(List.of(refusing), query("reassign=x"));
+        assertThat(error).isPresent();
+        assertThat(error.get().toJson().toString())
+                .isEqualTo("{\"code\":\"rest_invalid_param\",\"message\":\"Invalid parameter(s): reassign\","
+                        + "\"data\":{\"status\":400,\"params\":{\"reassign\":\"Invalid user parameter(s).\"},"
+                        + "\"details\":{\"reassign\":{\"code\":\"rest_invalid_param\","
+                        + "\"message\":\"Invalid user parameter(s).\",\"data\":{\"status\":400}}}}}");
+        assertThat(check(List.of(refusing), query("reassign=5"))).isEmpty();
     }
 
     @Test

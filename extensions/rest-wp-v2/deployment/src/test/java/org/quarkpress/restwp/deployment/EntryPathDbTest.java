@@ -12,7 +12,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class EntryPathDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(
+    static final QuarkusExtensionTest app = RestApp.network(
                     EntryPathDbTest.class,
                     TestRoutes.class,
                     TestRoutes.PlainResource.class,

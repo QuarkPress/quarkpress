@@ -50,7 +50,7 @@ import org.quarkpress.taxonomy.runtime.TermRepository;
 class TermsDbTest {
 
     @RegisterExtension
-    static final QuarkusExtensionTest app = RestApp.with(
+    static final QuarkusExtensionTest app = RestApp.network(
                     TermsDbTest.class, StaleWriter.class, StaleRoute.class, RefusedTerms.class)
             .addBuildChainCustomizer(chain -> chain.addBuildStep(new BuildStep() {
                         @Override
