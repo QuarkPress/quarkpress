@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 /**
@@ -13,6 +14,9 @@ import java.util.function.UnaryOperator;
  *
  * @param defaultValue the value used when the request has none; checked and sanitized like any other value
  * @param sanitize the argument's own sanitizer, which replaces the schema's
+ * @param validate the argument's own check, which replaces the schema's in the phase that checks it: a value it
+ *     refuses is reported as "Invalid parameter." without details (WordPress's answer to a validate callback that
+ *     returns false)
  */
 public record Arg(
         String name,
@@ -20,7 +24,8 @@ public record Arg(
         boolean required,
         Optional<JsonNode> defaultValue,
         Phase phase,
-        Optional<UnaryOperator<JsonNode>> sanitize) {
+        Optional<UnaryOperator<JsonNode>> sanitize,
+        Optional<Predicate<JsonNode>> validate) {
 
     /** When the argument's value is checked against its schema. */
     public enum Phase {
@@ -36,10 +41,22 @@ public record Arg(
         Objects.requireNonNull(defaultValue, "defaultValue");
         Objects.requireNonNull(phase, "phase");
         Objects.requireNonNull(sanitize, "sanitize");
+        Objects.requireNonNull(validate, "validate");
         if (defaultValue.isPresent() && defaultValue.get().isNull()) {
             // WordPress treats a null default as no default
             defaultValue = Optional.empty();
         }
+    }
+
+    /** An argument checked by its schema (or not at all, when it is untyped). */
+    public Arg(
+            String name,
+            ObjectNode schema,
+            boolean required,
+            Optional<JsonNode> defaultValue,
+            Phase phase,
+            Optional<UnaryOperator<JsonNode>> sanitize) {
+        this(name, schema, required, defaultValue, phase, sanitize, Optional.empty());
     }
 
     /** An argument of JSON schema type {@code type}; {@code null} leaves it untyped. */
@@ -55,6 +72,7 @@ public record Arg(
         private JsonNode defaultValue;
         private Phase phase = Phase.VALIDATE;
         private UnaryOperator<JsonNode> sanitize;
+        private Predicate<JsonNode> validate;
 
         private Builder(String name, String type) {
             this.name = Objects.requireNonNull(name, "name");
@@ -121,6 +139,11 @@ public record Arg(
             return this;
         }
 
+        public Builder validate(Predicate<JsonNode> validate) {
+            this.validate = Objects.requireNonNull(validate, "validate");
+            return this;
+        }
+
         public Arg build() {
             return new Arg(
                     name,
@@ -128,7 +151,8 @@ public record Arg(
                     required,
                     Optional.ofNullable(defaultValue),
                     phase,
-                    Optional.ofNullable(sanitize));
+                    Optional.ofNullable(sanitize),
+                    Optional.ofNullable(validate));
         }
     }
 }

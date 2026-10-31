@@ -36,6 +36,18 @@ public interface RestRequest {
     /** The {@code context} parameter as text, {@code view} when absent. */
     String context();
 
+    /**
+     * Whether the {@code context} parameter is the text {@code edit} (WordPress compares it strictly, so only a string
+     * equal to "edit" asks for the edit context).
+     */
+    default boolean isEditContext() {
+        return param("context")
+                .filter(JsonNode::isTextual)
+                .map(JsonNode::textValue)
+                .filter("edit"::equals)
+                .isPresent();
+    }
+
     SecurityIdentity identity();
 
     Optional<UserId> user();

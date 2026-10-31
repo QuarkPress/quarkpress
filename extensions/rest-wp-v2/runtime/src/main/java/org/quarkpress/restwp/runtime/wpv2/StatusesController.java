@@ -134,7 +134,7 @@ public class StatusesController implements RestRouteProvider {
     }
 
     private PermissionResult mayList(RestRequest request) {
-        if (TypesController.isEdit(request) && !permissions.canEditSomeRestType(request.identity())) {
+        if (request.isEditContext() && !permissions.canEditSomeRestType(request.identity())) {
             return PermissionResult.denied(RestError.of(
                     "rest_cannot_view", "Sorry, you are not allowed to manage post statuses.", request.authCode()));
         }

@@ -246,7 +246,7 @@ public class TypesController implements RestRouteProvider {
 
     /** The edit context needs {@code edit_posts} of some type shown in REST. */
     private PermissionResult mayList(RestRequest request) {
-        if (isEdit(request) && !permissions.canEditSomeRestType(request.identity())) {
+        if (request.isEditContext() && !permissions.canEditSomeRestType(request.identity())) {
             return PermissionResult.denied(RestError.of("rest_cannot_view", NOT_ALLOWED, request.authCode()));
         }
         return PermissionResult.allowed();
@@ -257,7 +257,7 @@ public class TypesController implements RestRouteProvider {
             // no body is sent, so none is built
             return RestResponse.ok(RestJson.NODES.arrayNode());
         }
-        boolean edit = isEdit(request);
+        boolean edit = request.isEditContext();
         ObjectNode data = RestJson.NODES.objectNode();
         for (PostTypeDefinition type : types.all()) {
             if (!type.showInRest() || (edit && !permissions.canType(request.identity(), "edit_posts", type.key()))) {
@@ -280,7 +280,7 @@ public class TypesController implements RestRouteProvider {
             throw new RestException(
                     RestError.of("rest_cannot_read_type", "Cannot view post type.", request.authCode()));
         }
-        if (isEdit(request) && !permissions.canType(request.identity(), "edit_posts", type.key())) {
+        if (request.isEditContext() && !permissions.canType(request.identity(), "edit_posts", type.key())) {
             throw new RestException(RestError.of("rest_forbidden_context", NOT_ALLOWED, request.authCode()));
         }
         if (request.method().equals("HEAD")) {
@@ -403,15 +403,6 @@ public class TypesController implements RestRouteProvider {
 
     private static JsonNode label(String value) {
         return value == null ? NullNode.getInstance() : TextNode.valueOf(value);
-    }
-
-    /** Whether the request's context is {@code edit} (WordPress compares the sanitized text strictly). */
-    static boolean isEdit(RestRequest request) {
-        return request.param("context")
-                .filter(JsonNode::isTextual)
-                .map(JsonNode::textValue)
-                .filter("edit"::equals)
-                .isPresent();
     }
 
     /** A request parameter as PHP text; "" when absent. */

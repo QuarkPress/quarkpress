@@ -200,7 +200,11 @@ class IndexDbTest {
                         "/wp/v2/statuses",
                         "/wp/v2/statuses/(?P<status>[\\w-]+)",
                         "/wp/v2/taxonomies",
-                        "/wp/v2/taxonomies/(?P<taxonomy>[\\w-]+)");
+                        "/wp/v2/taxonomies/(?P<taxonomy>[\\w-]+)",
+                        "/wp/v2/categories",
+                        "/wp/v2/categories/(?P<id>[\\d]+)",
+                        "/wp/v2/tags",
+                        "/wp/v2/tags/(?P<id>[\\d]+)");
         // Part D 19
         Http.as(null)
                 .get("/wp-json/wp/v2?namespace=nope")

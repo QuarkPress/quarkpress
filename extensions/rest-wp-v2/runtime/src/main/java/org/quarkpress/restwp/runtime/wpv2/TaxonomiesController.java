@@ -252,7 +252,7 @@ public class TaxonomiesController implements RestRouteProvider {
     }
 
     private PermissionResult mayList(RestRequest request) {
-        if (!TypesController.isEdit(request)) {
+        if (!request.isEditContext()) {
             return PermissionResult.allowed();
         }
         for (TaxonomyDefinition taxonomy : considered(request)) {
@@ -272,7 +272,7 @@ public class TaxonomiesController implements RestRouteProvider {
         if (!taxonomy.get().showInRest()) {
             return PermissionResult.forbidden(request);
         }
-        if (TypesController.isEdit(request)
+        if (request.isEditContext()
                 && !permissions.canAssign(request.identity(), taxonomy.get().key())) {
             return PermissionResult.denied(RestError.of("rest_forbidden_context", NOT_ALLOWED, request.authCode()));
         }
@@ -284,7 +284,7 @@ public class TaxonomiesController implements RestRouteProvider {
             // no body is sent, so none is built
             return RestResponse.ok(RestJson.NODES.arrayNode());
         }
-        boolean edit = TypesController.isEdit(request);
+        boolean edit = request.isEditContext();
         Fields.Selection selection = Fields.forResponse(request, SCHEMA);
         Predicate<String> fields = exactFields(selection);
         ObjectNode data = RestJson.NODES.objectNode();

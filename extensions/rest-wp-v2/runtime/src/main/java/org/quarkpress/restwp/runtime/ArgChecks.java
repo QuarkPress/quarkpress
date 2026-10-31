@@ -19,22 +19,36 @@ import org.quarkpress.restwp.RestError;
  *   <li>Every required argument without a value (absent, or JSON null in every source) is listed: 400
  *       {@code rest_missing_callback_param}. An empty string is a value.
  *   <li>Phase 1: each {@link Arg.Phase#VALIDATE} argument's value (by precedence, a default included) is checked
- *       against its schema, in declaration order; all failures are reported together.
+ *       by its own check or else against its schema, in declaration order; all failures are reported together.
  *   <li>Phase 2, only when phase 1 found nothing: every source's value of every argument (JSON, form body, query, URL,
  *       defaults, each in its own order; JSON nulls and values another source shadows included) is sanitized and
  *       replaced by its sanitized form. An argument's own sanitizer is applied alone. A typed argument without one is
  *       sanitized by its schema (a list that sanitizing leaves with duplicates under {@code uniqueItems} fails), and a
- *       {@link Arg.Phase#SANITIZE} argument's value is checked first; failures are reported in the order found, a
+ *       {@link Arg.Phase#SANITIZE} argument's value is checked first (by its own check when it has one); failures are reported in the order found, a
  *       later failure of the same name replacing the earlier message in place. An untyped argument without a
  *       sanitizer is left alone.
  * </ol>
  *
- * Failures answer 400 {@code rest_invalid_param} with each argument's message under {@code params} and its error
- * under {@code details}.
+ * Failures answer 400 {@code rest_invalid_param} ({@link #invalidParams}) with each argument's message under
+ * {@code params} and its error under {@code details}.
  */
 public final class ArgChecks {
 
+    /**
+     * The failure of an argument's own check: WordPress's "Invalid parameter.", reported without details. Compared by
+     * identity.
+     */
+    public static final RestError INVALID = RestError.noStatus("rest_invalid_param", "Invalid parameter.");
+
     private ArgChecks() {}
+
+    /** Whether the value passes the argument's own check, or else its schema; the schema's error when it fails. */
+    private static Optional<RestError> check(Arg arg, JsonNode value) {
+        if (arg.validate().isPresent()) {
+            return arg.validate().get().test(value) ? Optional.empty() : Optional.of(INVALID);
+        }
+        return SchemaValidator.validate(value, arg.schema(), arg.name());
+    }
 
     /** The first failing step's error, empty when the arguments pass; the sources then hold sanitized values. */
     public static Optional<RestError> check(List<Arg> args, ParamSources sources) {
@@ -61,8 +75,7 @@ public final class ArgChecks {
             if (arg.phase() == Arg.Phase.VALIDATE) {
                 Optional<JsonNode> value = sources.get(arg.name());
                 if (value.isPresent()) {
-                    SchemaValidator.validate(value.get(), arg.schema(), arg.name())
-                            .ifPresent(error -> invalid.put(arg.name(), error));
+                    check(arg, value.get()).ifPresent(error -> invalid.put(arg.name(), error));
                 }
             }
         }
@@ -94,7 +107,7 @@ public final class ArgChecks {
                     continue;
                 }
                 if (arg.phase() == Arg.Phase.SANITIZE) {
-                    Optional<RestError> error = SchemaValidator.validate(value, arg.schema(), arg.name());
+                    Optional<RestError> error = check(arg, value);
                     if (error.isPresent()) {
                         invalid.put(arg.name(), error.get());
                         continue;
@@ -114,15 +127,25 @@ public final class ArgChecks {
         }
     }
 
-    private static RestError invalidParams(Map<String, RestError> invalid) {
+    /**
+     * WordPress's answer to arguments that fail their checks: 400 {@code rest_invalid_param} "Invalid parameter(s): "
+     * and the names, each argument's message under {@code params} and its error under {@code details} ({@link #INVALID}
+     * has no details; details empty print as an empty list, as PHP prints an empty array).
+     *
+     * @param invalid each failing argument's error, in the order to report them
+     */
+    public static RestError invalidParams(Map<String, RestError> invalid) {
         ObjectNode data = RestJson.NODES.objectNode();
         data.put("status", 400);
         ObjectNode params = data.putObject("params");
-        ObjectNode details = data.putObject("details");
+        ObjectNode details = RestJson.NODES.objectNode();
         for (Map.Entry<String, RestError> entry : invalid.entrySet()) {
             params.put(entry.getKey(), entry.getValue().message());
-            details.set(entry.getKey(), entry.getValue().toJson());
+            if (entry.getValue() != INVALID) {
+                details.set(entry.getKey(), entry.getValue().toJson());
+            }
         }
+        data.set("details", details.isEmpty() ? RestJson.NODES.arrayNode() : details);
         return new RestError(
                 "rest_invalid_param",
                 "Invalid parameter(s): " + String.join(", ", invalid.keySet()),

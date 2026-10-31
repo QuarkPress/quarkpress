@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.RestError;
@@ -30,6 +31,30 @@ class ArgChecksTest {
                 .orElseThrow();
         assertThat(two.message()).isEqualTo("Missing parameter(s): a, b");
         assertThat(two.status()).isEqualTo(400);
+    }
+
+    @Test
+    void anArgsOwnCheckReplacesItsSchemaAndReportsNoDetails() {
+        // WordPress's meta field: an is-array check, no sanitizer; a refusal is "Invalid parameter." without details
+        Arg meta = Arg.of("meta", "object")
+                .validate(PhpValues::isPhpArray)
+                .sanitize(UnaryOperator.identity())
+                .build();
+        assertThat(check(List.of(meta), jsonAndQuery("{\"meta\":\"\"}", ""))
+                        .orElseThrow()
+                        .toJson()
+                        .toString())
+                .isEqualTo("{\"code\":\"rest_invalid_param\",\"message\":\"Invalid parameter(s): meta\","
+                        + "\"data\":{\"status\":400,\"params\":{\"meta\":\"Invalid parameter.\"},\"details\":[]}}");
+        assertThat(check(List.of(meta), jsonAndQuery("{\"meta\":[1]}", ""))).isEmpty();
+        assertThat(check(List.of(meta), jsonAndQuery("{\"meta\":{\"x\":\"y\"}}", "")))
+                .isEmpty();
+        assertThat(check(List.of(meta), jsonAndQuery("{\"meta\":null}", ""))).isEmpty();
+        // with a schema failure beside it, details hold only the schema's error
+        RestError both = check(List.of(meta, perPage()), jsonAndQuery("{\"meta\":5}", "per_page=0"))
+                .orElseThrow();
+        assertThat(both.message()).isEqualTo("Invalid parameter(s): meta, per_page");
+        assertThat(both.toJson().at("/data/details").toString()).startsWith("{\"per_page\":");
     }
 
     @Test
