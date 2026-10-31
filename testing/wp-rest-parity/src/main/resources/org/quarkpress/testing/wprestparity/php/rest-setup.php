@@ -9,7 +9,11 @@
  * server from QP_DB_HOST, QP_DB_PORT, QP_DB_USER and QP_DB_PASSWORD. The answer is {"out": ...} or {"error": ...}.
  * Operations:
  *   prepare  {template, database}  clones the template network into the site's database and sets it up
- *   option   {name, value}         update_option on the main site (permalink_structure also rebuilds the rewrite rules)
+ *   option   {name, value, site?}  update_option on the main site, or on the site at path "site" (permalink_structure
+ *                                  also rebuilds the rewrite rules)
+ *   create_site {path, title}      creates a site on localhost at path with the five users, without sample content;
+ *                                  answers {path, refs: {"t:uncategorized": id, "u:alice": id, ...}}
+ *   post {site, as, type, status, title}  inserts a post on the site at path "site", written by "as"; answers {id}
  *   revoke_passwords {user}        deletes every application password of the user
  *   app_password {user}            creates an application password named "parity"; answers {password}
  *   archived_site {path}           creates a site on localhost at path and marks it archived; answers {id}
@@ -149,7 +153,7 @@ function qp_prepare_site(): array
 function qp_option(array $input): array
 {
     global $wp_rewrite;
-    switch_to_blog(get_main_site_id());
+    switch_to_blog(isset($input['site']) ? qp_site_id((string) $input['site']) : get_main_site_id());
     update_option($input['name'], $input['value']);
     if ('permalink_structure' === $input['name']) {
         // Harness rule: what saving the permalink settings screen does, so the rewrite rules follow the structure.
@@ -159,6 +163,76 @@ function qp_option(array $input): array
     $value = get_option($input['name']);
     restore_current_blog();
     return ['name' => $input['name'], 'value' => $value];
+}
+
+/** The id of the site at path on localhost. */
+function qp_site_id(string $path): int
+{
+    $id = get_blog_id_from_url('localhost', $path);
+    if (0 === $id) {
+        throw new InvalidArgumentException("no site at $path");
+    }
+    return (int) $id;
+}
+
+function qp_create_site(array $input): array
+{
+    // Harness rule: alice, the super admin, creates the site and is its administrator.
+    $alice = qp_user_id(['user' => 'alice']);
+    $id = wpmu_create_blog('localhost', (string) $input['path'], (string) $input['title'], $alice);
+    if (is_wp_error($id)) {
+        throw new RuntimeException('wpmu_create_blog: ' . $id->get_error_code());
+    }
+    switch_to_blog($id);
+    // Harness rule (driver-applied, not WordPress behaviour): QuarkPress creates no sample content, so everything the
+    // installer wrote except the Uncategorized category is deleted for good: the sample post with its comment, the
+    // sample page and the privacy-policy draft.
+    global $wpdb;
+    foreach ($wpdb->get_col("SELECT ID FROM $wpdb->posts") as $post) {
+        if (!wp_delete_post((int) $post, true)) {
+            throw new RuntimeException("wp_delete_post($post) refused");
+        }
+    }
+    foreach ($wpdb->get_col("SELECT comment_ID FROM $wpdb->comments") as $comment) {
+        if (!wp_delete_comment((int) $comment, true)) {
+            throw new RuntimeException("wp_delete_comment($comment) refused");
+        }
+    }
+    // Harness rule: the dev realm's users with their roles, as on the main site.
+    foreach (QP_REST_USERS as $login => [, $role]) {
+        if ('alice' === $login) {
+            continue;
+        }
+        $added = add_user_to_blog($id, qp_user_id(['user' => $login]), $role);
+        if (is_wp_error($added)) {
+            throw new RuntimeException("add_user_to_blog($login): " . $added->get_error_code());
+        }
+    }
+    $refs = ['t:uncategorized' => (int) get_option('default_category')];
+    foreach (['alice', 'bob', 'carol', 'dave', 'erin'] as $login) {
+        $refs['u:' . $login] = qp_user_id(['user' => $login]);
+    }
+    restore_current_blog();
+    return ['path' => (string) $input['path'], 'refs' => $refs];
+}
+
+function qp_post(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $author = qp_user_id($input, 'as');
+    wp_set_current_user($author);
+    $id = wp_insert_post([
+        'post_type' => (string) $input['type'],
+        'post_status' => (string) $input['status'],
+        'post_title' => (string) $input['title'],
+        'post_author' => $author,
+    ], true);
+    wp_set_current_user(0);
+    restore_current_blog();
+    if (is_wp_error($id)) {
+        throw new RuntimeException('wp_insert_post: ' . $id->get_error_code());
+    }
+    return ['id' => (int) $id];
 }
 
 function qp_user_id(array $input, string $key = 'user'): int
@@ -239,6 +313,8 @@ try {
     $qp_out = match ($qp_mode) {
         'prepare' => qp_prepare_site(),
         'option' => qp_option($qp_input),
+        'create_site' => qp_create_site($qp_input),
+        'post' => qp_post($qp_input),
         'revoke_passwords' => qp_revoke_passwords($qp_input),
         'app_password' => qp_app_password($qp_input),
         'archived_site' => qp_archived_site($qp_input),

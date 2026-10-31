@@ -1,0 +1,37 @@
+{
+  "id": "d21",
+  "rule": "Part D 21: taxonomies per type, post_format (not registered in QuarkPress), edit context refusals, field order",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies?type=page"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/post_format"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/nope"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/category?context=edit"
+    }
+  ]
+}

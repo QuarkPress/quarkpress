@@ -1,0 +1,66 @@
+{
+  "id": "d17",
+  "rule": "Part D 17: Allow and the self link's targetHints per caller",
+  "setup": [
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d17-tag"
+    },
+    {
+      "post": "p:carol",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "d17 carol"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:tag}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:tag}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:tag}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}"
+    }
+  ]
+}

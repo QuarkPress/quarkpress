@@ -1,0 +1,24 @@
+{
+  "id": "d13",
+  "rule": "Part D 13: HEAD answers the GET's headers without a body",
+  "setup": [
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d13-tag"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/tags"
+    },
+    {
+      "as": "alice",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/settings"
+    }
+  ]
+}

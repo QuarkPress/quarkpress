@@ -1,0 +1,24 @@
+{
+  "id": "d03",
+  "rule": "Part D 3: the query's id wins over the path's",
+  "setup": [
+    {
+      "term": "t:other",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d03-other"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:alice}?id={u:carol}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}?id={t:other}"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "d14",
+  "rule": "Part D 14: names as WordPress stores them, encoded as PHP encodes them; _pretty; the title setting",
+  "setup": [
+    {
+      "term": "t:first",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "Caf\u00e9/Bar <b>"
+    },
+    {
+      "term": "t:second",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "Caf\u00e9/Bar <b> & \ud83d\ude00"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:first}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:second}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:first}?_pretty"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"title\":\"A & B\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings?_fields=title"
+    }
+  ]
+}

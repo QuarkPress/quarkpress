@@ -1,0 +1,226 @@
+{
+  "id": "d28",
+  "rule": "Part D 28: the settings of a new site, sanitizing, enum before sanitizing, an invalid stored value, null resets, refusals",
+  "setup": [
+    {
+      "option": "use_smilies",
+      "value": "abc"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"title\":\"d28 before\",\"use_smilies\":null}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings?title=X",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"title\":\"A & B <i>x</i>\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"title\":null}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"timezone\":\"Mars/Base\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"posts_per_page\":\"abc\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"default_comment_status\":\"maybe\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"date_format\":\"<b>Y</b>-m-d\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"start_of_week\":-3}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"posts_per_page\":0}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"posts_per_page\":-5}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"default_ping_status\":\"\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"language\":\"fr_FR\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"email\":\"not-an-email\",\"url\":\"ftp://x.test\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"qp_unknown\":1}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"posts_per_page\":\"5\",\"title\":\"d28 & two\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"title\":\"d28 after\",\"posts_per_page\":null}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings"
+    }
+  ]
+}

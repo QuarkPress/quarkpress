@@ -1,0 +1,32 @@
+{
+  "id": "d15",
+  "rule": "Part D 15: _envelope on errors and collections; _jsonp (QuarkPress refuses it always: README D5)",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/qp/none?_envelope"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/999999?_envelope"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?_envelope"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types?_jsonp=cb"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types?_jsonp=a-b"
+    }
+  ]
+}

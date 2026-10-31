@@ -1,0 +1,35 @@
+{
+  "id": "d09",
+  "rule": "Part D 9: malformed JSON is refused only on a matched route and only for a JSON content type",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types",
+      "contentType": "application/json",
+      "body": "{bad"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/qp/none",
+      "contentType": "application/json",
+      "body": "{bad"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types",
+      "contentType": "text/plain",
+      "body": "{bad"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\":"
+    }
+  ]
+}

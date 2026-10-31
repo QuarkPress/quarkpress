@@ -1,0 +1,109 @@
+{
+  "id": "d24",
+  "rule": "Part D 24: who sees which users (published posts, list_users, who=authors), searches",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "dave",
+      "type": "post",
+      "status": "draft",
+      "title": "d24 dave draft"
+    },
+    {
+      "post": "p:private",
+      "as": "carol",
+      "type": "post",
+      "status": "private",
+      "title": "d24 carol private"
+    },
+    {
+      "post": "p:published",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "d24 carol published"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?who=authors"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?who=authors"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:erin}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/999999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:dave}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:dave}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:dave}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:carol}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=quarkpress"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=car"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search={u:carol}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=Chen"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=quarkpress&search_columns[]=email"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=quarkpress&who=authors"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?search=quarkpress"
+    }
+  ]
+}

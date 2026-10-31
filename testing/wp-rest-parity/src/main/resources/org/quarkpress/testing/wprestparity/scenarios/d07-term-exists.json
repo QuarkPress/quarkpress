@@ -1,0 +1,34 @@
+{
+  "id": "d07",
+  "rule": "Part D 7: creating a term that exists answers term_exists with the term id",
+  "setup": [
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d07-tag"
+    },
+    {
+      "term": "t:category",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d07-category"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags",
+      "contentType": "application/json",
+      "body": "{\"name\":\"d07-tag\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\":\"d07-category\"}"
+    }
+  ]
+}

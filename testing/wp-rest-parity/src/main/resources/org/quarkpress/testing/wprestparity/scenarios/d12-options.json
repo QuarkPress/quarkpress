@@ -1,0 +1,17 @@
+{
+  "id": "d12",
+  "rule": "Part D 12: OPTIONS on an unknown path is an empty list; OPTIONS on a route describes it",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/qp/none"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/categories"
+    }
+  ]
+}

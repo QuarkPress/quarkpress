@@ -1,0 +1,31 @@
+{
+  "id": "x02",
+  "rule": "A boolean setting written false: WordPress stores it as an empty string; the write's answer and a later read",
+  "setup": [],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings",
+      "contentType": "application/json",
+      "body": "{\"use_smilies\":false}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings?_fields=use_smilies"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/settings?use_smilies=false",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/settings?_fields=use_smilies"
+    }
+  ]
+}

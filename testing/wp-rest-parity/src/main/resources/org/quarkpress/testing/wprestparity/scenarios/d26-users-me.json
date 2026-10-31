@@ -1,0 +1,50 @@
+{
+  "id": "d26",
+  "rule": "Part D 26: /users/me anonymously; preferences with _modified stored verbatim; a non-object refused",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me"
+    },
+    {
+      "as": "anonymous",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/me",
+      "contentType": "application/json",
+      "body": "{\"name\":\"x\"}"
+    },
+    {
+      "as": "bob",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/me",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"persisted_preferences\":{\"core\":{\"fixedToolbar\":true},\"_modified\":\"2026-10-30T12:00:00.000Z\"}}}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/me",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"persisted_preferences\":\"x\"}}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/me",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"persisted_preferences\":null}}"
+    }
+  ]
+}

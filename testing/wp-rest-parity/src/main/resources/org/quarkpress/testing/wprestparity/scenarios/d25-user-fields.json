@@ -1,0 +1,56 @@
+{
+  "id": "d25",
+  "rule": "Part D 25: a subscriber's own user in edit context, preferences saved and reset",
+  "setup": [],
+  "requests": [
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:erin}?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me"
+    },
+    {
+      "as": "erin",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/me",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"persisted_preferences\":{\"core/edit-post\":{\"welcomeGuide\":false}}}}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/{u:erin}?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/me",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"persisted_preferences\":null}}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?context=edit"
+    }
+  ]
+}

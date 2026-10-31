@@ -1,0 +1,41 @@
+{
+  "id": "d16",
+  "rule": "Part D 16: _fields on a keyed collection, on a child after its parent, with _embedded and _links",
+  "setup": [
+    {
+      "term": "t:parent",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d16-parent"
+    },
+    {
+      "term": "t:child",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d16-child",
+      "parent": "t:parent"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types?_fields=name"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}?_fields=name,name.x,id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?_fields=id,_embedded&_embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?_fields=id,_links,_embedded&_embed&parent={t:parent}"
+    }
+  ]
+}

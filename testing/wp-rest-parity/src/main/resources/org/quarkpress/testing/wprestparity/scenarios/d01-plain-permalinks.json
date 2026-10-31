@@ -1,0 +1,60 @@
+{
+  "id": "d01",
+  "rule": "Part D 1: with plain permalinks WordPress redirects /wp-json/ and writes ?rest_route= hrefs, also in pagination links (QuarkPress serves /wp-json/ always: README D1)",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": ""
+    },
+    {
+      "term": "t:a",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d01-tag-a"
+    },
+    {
+      "term": "t:b",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d01-tag-b"
+    },
+    {
+      "term": "t:c",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d01-tag-c"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php?rest_route=/wp/v2/types/post"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?rest_route=/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?rest_route=/wp/v2/tags&per_page=1&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php?rest_route=/wp/v2/tags&per_page=1&page=2"
+    }
+  ]
+}

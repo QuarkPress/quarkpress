@@ -1,0 +1,178 @@
+{
+  "id": "d10",
+  "rule": "Part D 10: totals and the Link header (one line, every request parameter carried, indexed brackets, prev to page 0)",
+  "setup": [
+    {
+      "term": "t:tag01",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-01"
+    },
+    {
+      "term": "t:tag02",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-02"
+    },
+    {
+      "term": "t:tag03",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-03"
+    },
+    {
+      "term": "t:tag04",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-04"
+    },
+    {
+      "term": "t:tag05",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-05"
+    },
+    {
+      "term": "t:tag06",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-06"
+    },
+    {
+      "term": "t:tag07",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-07"
+    },
+    {
+      "term": "t:tag08",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-08"
+    },
+    {
+      "term": "t:tag09",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-09"
+    },
+    {
+      "term": "t:tag10",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-10"
+    },
+    {
+      "term": "t:tag11",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-11"
+    },
+    {
+      "term": "t:tag12",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-12"
+    },
+    {
+      "term": "t:tag13",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-13"
+    },
+    {
+      "term": "t:tag14",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-14"
+    },
+    {
+      "term": "t:tag15",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-15"
+    },
+    {
+      "term": "t:tag16",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-16"
+    },
+    {
+      "term": "t:tag17",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-17"
+    },
+    {
+      "term": "t:tag18",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-18"
+    },
+    {
+      "term": "t:tag19",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-19"
+    },
+    {
+      "term": "t:tag20",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-20"
+    },
+    {
+      "term": "t:tag21",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-21"
+    },
+    {
+      "term": "t:tag22",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-22"
+    },
+    {
+      "term": "t:tag23",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-23"
+    },
+    {
+      "term": "t:tag24",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-24"
+    },
+    {
+      "term": "t:tag25",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d10-tag-25"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags?per_page=10&page=2&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags?include[]={t:tag01}&include[]={t:tag02}&per_page=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags?_fields=id,name&per_page=10"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags?search=d10-none&page=2"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "d11",
+  "rule": "Part D 11: the fixed headers, no-cache for logged-in callers, Vary for anonymous GETs, CORS with an Origin (QuarkPress: only configured origins, README D4)",
+  "setup": [],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/post"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types",
+      "headers": {
+        "Origin": "https://x.test"
+      }
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/categories",
+      "headers": {
+        "Origin": "https://x.test",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type"
+      }
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/qp/none"
+    }
+  ]
+}

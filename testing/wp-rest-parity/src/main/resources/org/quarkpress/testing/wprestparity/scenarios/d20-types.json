@@ -1,0 +1,52 @@
+{
+  "id": "d20",
+  "rule": "Part D 20: types in edit context, unregistered types (D8), the revision type (not registered in QuarkPress), refusals",
+  "setup": [],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/post?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/page?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/attachment?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/wp_block?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/revision"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/revision"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/nope"
+    }
+  ]
+}

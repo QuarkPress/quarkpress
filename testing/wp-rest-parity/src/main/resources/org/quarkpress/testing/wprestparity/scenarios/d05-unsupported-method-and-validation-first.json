@@ -1,0 +1,19 @@
+{
+  "id": "d05",
+  "rule": "Part D 5: an unsupported method is no route; validation answers before permission",
+  "setup": [],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/types",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users?per_page=0"
+    }
+  ]
+}

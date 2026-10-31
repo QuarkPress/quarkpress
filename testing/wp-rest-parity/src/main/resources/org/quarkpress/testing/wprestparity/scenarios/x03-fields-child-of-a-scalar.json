@@ -1,0 +1,72 @@
+{
+  "id": "x03",
+  "rule": "_fields naming only a child of a field: terms, users, taxonomies and statuses build a field only when its exact name is selected; types keep a field whose child is selected",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}?_fields=name.x"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?_fields=name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}?_fields=name.x,id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/post?_fields=name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses/publish?_fields=name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/category?_fields=name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies?_fields=name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses?_fields=name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/category?_fields=labels.name"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses/publish?_fields=name,name.x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}?_fields=_links.x"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/users/me?_fields=id,avatar_urls.24"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?_fields=name.x,slug"
+    }
+  ]
+}

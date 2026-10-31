@@ -1,0 +1,27 @@
+{
+  "id": "d22",
+  "rule": "Part D 22: internal statuses are refused even to administrators; the list per caller",
+  "setup": [],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses/auto-draft"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/statuses/nope"
+    }
+  ]
+}

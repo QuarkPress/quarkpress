@@ -1,0 +1,19 @@
+{
+  "id": "d08",
+  "rule": "Part D 8: a first-phase error hides second-phase ones; a shadowed bad query value is not reported",
+  "setup": [],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?per_page=0&order=up"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags?name[]=x",
+      "contentType": "application/json",
+      "body": "{\"name\":\"d08-ok\"}"
+    }
+  ]
+}

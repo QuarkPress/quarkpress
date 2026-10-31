@@ -1,0 +1,36 @@
+{
+  "id": "d18",
+  "rule": "Part D 18: _embed=0, _embed=up and _embed of a relation the item does not link",
+  "setup": [
+    {
+      "term": "t:parent",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d18-parent"
+    },
+    {
+      "term": "t:child",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d18-child",
+      "parent": "t:parent"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:child}?_embed=0"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:child}?_embed=up"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories/{t:child}?_embed=author"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "d04",
+  "rule": "Part D 4: X-HTTP-Method-Override and _method, permission before deletion, GET ?_method=DELETE deletes",
+  "setup": [
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d04-tag"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "headers": {
+        "X-HTTP-Method-Override": "OPTIONS"
+      },
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}?force=true",
+      "headers": {
+        "X-HTTP-Method-Override": "DELETE"
+      },
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/tags/{t:tag}?_method=DELETE&force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:tag}?_method=DELETE&force=true"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/tags/{t:tag}"
+    }
+  ]
+}

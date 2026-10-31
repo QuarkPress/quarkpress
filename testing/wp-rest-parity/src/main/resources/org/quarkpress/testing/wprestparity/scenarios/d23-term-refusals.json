@@ -1,0 +1,71 @@
+{
+  "id": "d23",
+  "rule": "Part D 23: the default category cannot be deleted; parent of another taxonomy; empty name; taken slug; post filter refusals",
+  "setup": [
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "d23-tag"
+    },
+    {
+      "term": "t:first",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d23-first"
+    },
+    {
+      "term": "t:second",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "d23-second"
+    },
+    {
+      "post": "p:draft",
+      "as": "dave",
+      "type": "post",
+      "status": "draft",
+      "title": "d23 dave draft"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/categories/{t:uncategorized}?force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\":\"d23-cross\",\"parent\":{t:tag}}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories",
+      "contentType": "application/json",
+      "body": "{\"name\":\"<b></b>\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/categories/{t:second}",
+      "contentType": "application/json",
+      "body": "{\"slug\":\"d23-first\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?post={p:draft}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/categories?post=999999"
+    }
+  ]
+}

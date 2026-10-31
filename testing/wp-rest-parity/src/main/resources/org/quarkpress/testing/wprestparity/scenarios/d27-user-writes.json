@@ -1,0 +1,35 @@
+{
+  "id": "d27",
+  "rule": "Part D 27: user writes on a network (QuarkPress manages users externally: README D10, D11)",
+  "setup": [],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/users",
+      "contentType": "application/json",
+      "body": "{\"username\":\"d27temp\",\"email\":\"d27temp@quarkpress.test\",\"password\":\"d27-Temp-pass\"}"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/users/{u:dave}?force=true&reassign={u:alice}",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/users/{u:bob}",
+      "contentType": "application/json",
+      "body": "{\"roles\":[\"administrator\"]}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/users",
+      "contentType": "application/json",
+      "body": "{\"username\":\"d27bob\",\"email\":\"d27bob@quarkpress.test\",\"password\":\"d27-Bob-pass\"}"
+    }
+  ]
+}
