@@ -35,6 +35,7 @@
     <module>dev-ui-minimal</module>
     <module>dev-ui-posts</module>
     <module>host-coexistence</module>
+    <module>rest-wp-v2</module>
   </modules>
 
   <dependencyManagement>
