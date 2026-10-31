@@ -20,8 +20,8 @@ import org.quarkpress.testing.wprestparity.WordPressRestSite;
 /**
  * The QuarkPress side of the REST parity comparison: this test application, reached over HTTP with the dev realm's
  * Keycloak tokens, every request naming {@code localhost} as its host (the network's domain). A scenario's site is
- * created by alice through the setup resource, with the five users given their WordPress roles there; posts and
- * options go through the setup resource on that site, terms through the REST API.
+ * created by alice through the setup resource, with the five users given their WordPress roles there; posts, options
+ * and a user's leaving the site go through the setup resource on that site, terms through the REST API.
  */
 final class QuarkPressSide implements Side {
 
@@ -45,8 +45,9 @@ final class QuarkPressSide implements Side {
     QuarkPressSide(URI root, KeycloakTestClient keycloak) throws Exception {
         this.keycloak = keycloak;
         this.client = new RestClient(root, this::authorization);
-        // the profiles are provisioned at each user's first call, in WordPress's order of creation
-        for (String user : List.of("bob", "carol", "dave", "erin", "alice")) {
+        // alice's profile (the initial super admin) is made at start; the others are provisioned at each user's first
+        // call, in WordPress's order of creation
+        for (String user : List.of("alice", "bob", "carol", "dave", "erin")) {
             Exchange me = send("/", RestCall.get(user, "/it/me"));
             if (me.status() != 200 || !me.json().path("user").isIntegralNumber()) {
                 throw new IllegalStateException("GET /it/me as " + user + ": " + me.status() + " " + me.text());
@@ -133,6 +134,19 @@ final class QuarkPressSide implements Side {
                             "term " + term);
                     created.put(term.ref(), answer.json().get("id").longValue());
                 }
+                case SetupStep.Leave leave ->
+                    expect(
+                            send(
+                                    sitePath,
+                                    new RestCall(
+                                            "alice",
+                                            "DELETE",
+                                            "/it/memberships/" + userIds.get(leave.user()),
+                                            Map.of(),
+                                            Optional.empty(),
+                                            Optional.empty())),
+                            200,
+                            leave.user() + " leaves " + sitePath);
                 case SetupStep.Option option ->
                     expect(
                             send(

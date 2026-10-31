@@ -5,12 +5,31 @@
 # scenario can show.
 # Aspects: req<n>:status, req<n>:header:<name>, req<n>:body (equal bodies), req<n>:body:<JSON pointer> (a differing
 # leaf), req<n>:body:wp-only:<pointer> (one of the namespaces, routes and index links QuarkPress does not serve yet,
-# RestComparison.NOT_SERVED_*), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing).
+# RestComparison.NOT_SERVED_*), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing; WordPress's
+# pretty form is then compared in its plain form), req<n>:body:raw (the bytes of a body equal once parsed, for the
+# scenarios RestComparison.RAW_SCENARIOS names). Entries name the aspects that differ, never a whole request.
 
 # D1: front-end links use plain permalinks; REST hrefs always use /wp-json/, which is served whatever the permalinks.
 * req*:body:link-form:* D1 front-end link fields are plain permalinks (?cat=, ?tag=, ?author=); WordPress's follow the site's permalinks (compared where both sides have a link)
-d01 req1:* D1 with plain permalinks WordPress redirects /wp-json/... (301 text/html, no REST headers); QuarkPress serves it
-d01 req2:* D1 with plain permalinks WordPress answers /wp-json/ with the front page; QuarkPress serves the index
+d01 req1:status D1 with plain permalinks WordPress redirects /wp-json/... (301); QuarkPress serves it (404 for posts)
+d01 req1:header:location D1 WordPress's redirect of /wp-json/... with plain permalinks
+d01 req1:header:link D1 WordPress's redirect has no API root link
+d01 req1:header:content-type D1 WordPress's redirect is text/html
+d01 req1:header:x-robots-tag D1 WordPress's redirect has no REST headers
+d01 req1:header:x-content-type-options D1 WordPress's redirect has no REST headers
+d01 req1:header:vary D1 WordPress's redirect has no REST headers
+d01 req1:header:access-control-expose-headers D1 WordPress's redirect has no REST headers
+d01 req1:header:access-control-allow-headers D1 WordPress's redirect has no REST headers
+d01 req1:body* D1 WordPress's redirect body; QuarkPress's rest_no_route for posts
+d01 req2:header:allow D1 with plain permalinks WordPress answers /wp-json/ with the front page; QuarkPress serves the index
+d01 req2:header:link D1 the front page's API root link uses index.php?rest_route=
+d01 req2:header:content-type D1 the front page is text/html
+d01 req2:header:x-robots-tag D1 the front page has no REST headers
+d01 req2:header:x-content-type-options D1 the front page has no REST headers
+d01 req2:header:vary D1 the front page has no REST headers
+d01 req2:header:access-control-expose-headers D1 the front page has no REST headers
+d01 req2:header:access-control-allow-headers D1 the front page has no REST headers
+d01 req2:body* D1 the front page's HTML; QuarkPress's index
 d01 req3:body:/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
 d01 req4:body:/routes/*/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
 d01 req4:header:link D1 plain permalinks: the API root link uses index.php?rest_route=
@@ -21,16 +40,33 @@ d01 req5:body:/0/_links/* D1 plain permalinks: WordPress's hrefs use index.php?r
 d01 req6:body:/0/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
 
 # D2: an invalid Bearer token answers 401 rest_invalid_token before matching; WordPress serves a failed application password as anonymous.
-d06 req1:* D2 users/me with a refused credential: WordPress 401 rest_not_logged_in with Allow, QuarkPress 401 rest_invalid_token without
-d06 req2:* D2 types with a refused credential: WordPress 200 (anonymous), QuarkPress 401 rest_invalid_token
-d06 req3:* D2 an unknown route with a refused credential: WordPress 404 rest_no_route, QuarkPress 401 rest_invalid_token
+d06 req1:header:allow D2 users/me with a refused credential: WordPress 401 rest_not_logged_in with Allow, QuarkPress 401 rest_invalid_token without
+d06 req1:body* D2 users/me with a refused credential: WordPress rest_not_logged_in, QuarkPress rest_invalid_token
+d06 req2:status D2 types with a refused credential: WordPress 200 (anonymous), QuarkPress 401 rest_invalid_token
+d06 req2:header:allow D2 types with a refused credential: WordPress answers with Allow, QuarkPress's refusal has none
+d06 req2:body* D2 types with a refused credential: WordPress's types, QuarkPress's rest_invalid_token
+d06 req3:status D2 an unknown route with a refused credential: WordPress 404 rest_no_route, QuarkPress 401 rest_invalid_token
+d06 req3:body* D2 an unknown route with a refused credential: WordPress rest_no_route, QuarkPress rest_invalid_token
 
 # D4: CORS only for configured origins.
 d11 req4:header:vary D4 a preflight with an Origin: WordPress reflects it (Vary: Origin); QuarkPress has no configured origin
+d11 req3:header:access-control-allow-origin D4 WordPress reflects any Origin; QuarkPress none it was not configured with
+d11 req4:header:access-control-allow-origin D4 WordPress reflects any Origin; QuarkPress none it was not configured with
+d11 req3:header:access-control-allow-credentials D4 WordPress allows credentials for any Origin; QuarkPress has no configured origin
+d11 req4:header:access-control-allow-credentials D4 WordPress allows credentials for any Origin; QuarkPress has no configured origin
+d11 req3:header:access-control-allow-methods D4 WordPress lists the methods for any Origin; QuarkPress has no configured origin
+d11 req4:header:access-control-allow-methods D4 WordPress lists the methods for any Origin; QuarkPress has no configured origin
 
 # D5: _jsonp is always refused with rest_callback_disabled.
-d15 req4:* D5 _jsonp=cb: WordPress serves JSONP (application/javascript); QuarkPress refuses it
-d15 req5:* D5 _jsonp=a-b: WordPress refuses the callback name (rest_callback_invalid, javascript type); QuarkPress refuses JSONP (application/json)
+d15 req4:status D5 _jsonp=cb: WordPress serves JSONP (200); QuarkPress refuses it (400)
+d15 req4:header:content-type D5 _jsonp=cb: WordPress's JSONP is application/javascript
+d15 req4:header:allow D5 _jsonp=cb: WordPress's JSONP answer has Allow; QuarkPress's refusal comes before matching
+d15 req4:header:vary D5 _jsonp=cb: WordPress's anonymous JSONP GET has Vary; QuarkPress's refusal has the refusal's headers only
+d15 req4:header:access-control-expose-headers D5 _jsonp=cb: QuarkPress's refusal has the refusal's headers only
+d15 req4:header:access-control-allow-headers D5 _jsonp=cb: QuarkPress's refusal has the refusal's headers only
+d15 req4:body* D5 _jsonp=cb: WordPress's JSONP; QuarkPress's rest_callback_disabled
+d15 req5:header:content-type D5 _jsonp=a-b: WordPress refuses the callback name with the javascript type; QuarkPress refuses JSONP (application/json)
+d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_callback_disabled
 
 # D6: the index and a namespace's index list only the namespaces and routes QuarkPress serves.
 * req*:body:wp-only:*/namespaces/oembed~11.0 D6 a namespace QuarkPress does not serve yet
@@ -72,7 +108,8 @@ d15 req5:* D5 _jsonp=a-b: WordPress refuses the callback name (rest_callback_inv
 * req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkPress authenticates with tokens only
-d19 req5:* D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404 rest_invalid_namespace)
+d19 req5:status D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404)
+d19 req5:body* D6 namespace=oembed/1.0: WordPress's oEmbed namespace, QuarkPress's rest_invalid_namespace
 
 # D7: no wp:active-theme link until the synthetic theme route exists.
 * req*:body:wp-only:*/_links/wp:active-theme D7 WordPress links an editor's index to the active theme
@@ -87,20 +124,24 @@ d19 req5:* D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; Qu
 * req*:body:*/wp_font_family D8 type not registered in QuarkPress
 * req*:body:*/wp_font_face D8 type not registered in QuarkPress
 * req*:body:*/nav_menu D8 taxonomy not registered in QuarkPress
-* req*:body:*/wp_pattern_category D8 taxonomy not registered in QuarkPress (until M2f)
-* req*:body:*wp_block/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress until M2f)
-d20 req4:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress until M2f)
-d20 req6:* D8 the revision type is not registered in QuarkPress: 404 rest_type_invalid where WordPress refuses 403 rest_cannot_read_type
-d20 req7:* D8 the revision type is not registered in QuarkPress: 404 rest_type_invalid where WordPress refuses 401 rest_cannot_read_type
-m2c-a-024 req5:body:/body/taxonomies/0 D8 wp_block's taxonomies (in an envelope): WordPress lists wp_pattern_category
-m2c-a-055 req5:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category
-m2c-a-042 req2:body:/data/params/has_published_posts D8 the has_published_posts enum message names WordPress's unregistered types
-m2c-a-042 req2:body:/data/details/has_published_posts/message D8 the has_published_posts enum message names WordPress's unregistered types
-d21 req2:* D8 the post_format taxonomy is not registered in QuarkPress: 404 rest_taxonomy_invalid where WordPress refuses 401 rest_forbidden
+* req*:body:*/wp_pattern_category D8 taxonomy not registered in QuarkPress
+* req*:body:*wp_block/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress)
+d20 req4:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress)
+d20 req6:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
+d20 req7:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
+d20 req6:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
+d20 req7:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
+d21 req2:status D8 the post_format taxonomy is not registered in QuarkPress: 404 where WordPress refuses 401
+d21 req2:header:allow D8 the post_format taxonomy: WordPress refuses in the permission (no Allow), QuarkPress in the handler
+d21 req2:body* D8 the post_format taxonomy: QuarkPress rest_taxonomy_invalid, WordPress rest_forbidden
+rest-b-060 req3:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category
 
 # D10: users are managed by the identity provider.
-d27 req1:* D10 a super admin creates a user: WordPress 201, QuarkPress 501 quarkpress_users_managed_externally
-d27 req3:* D10 a super admin changes a user's roles: WordPress 200, QuarkPress 501 quarkpress_users_managed_externally
+d27 req1:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkPress 501
+d27 req3:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkPress 501
+d27 req1:header:location D10 WordPress's created user's address; QuarkPress creates none
+d27 req1:body* D10 WordPress's user; QuarkPress's quarkpress_users_managed_externally
+d27 req3:body* D10 WordPress's user; QuarkPress's quarkpress_users_managed_externally
 
 # D13: wp_die answers in HTML are a minimal page (WordPress's page has more markup and styles).
 d02 req1:body D13 the refusal of a non-string rest_route as HTML: the same message in a minimal page
@@ -113,7 +154,21 @@ d02 req2:body D13 the refusal of a non-string rest_route as HTML: the same messa
 * req*:body:*/image_max_bit_depth D15 WordPress adds them to an editor's index in a secure context (localhost)
 
 # D16: a route longer than 2048 bytes matches nothing (README Limits); WordPress has no cap.
-x01 req1:* D16 a 2053-byte types route: WordPress 404 rest_type_invalid with Allow, QuarkPress 404 rest_no_route
+x01 req1:header:allow D16 a 2053-byte types route: WordPress matches it and answers with Allow, QuarkPress matches nothing
+x01 req1:body* D16 a 2053-byte types route: WordPress 404 rest_type_invalid, QuarkPress 404 rest_no_route
+
+# D22: list arguments hold at most 1000 entries.
+x06 req1:status D22 1001 include ids: WordPress 200, QuarkPress 400 rest_invalid_param
+x06 req2:status D22 1001 include ids: WordPress 200, QuarkPress 400 rest_invalid_param
+x06 req1:header:x-wp-total D22 WordPress's list has totals; QuarkPress's refusal none
+x06 req2:header:x-wp-total D22 WordPress's list has totals; QuarkPress's refusal none
+x06 req1:header:x-wp-totalpages D22 WordPress's list has totals; QuarkPress's refusal none
+x06 req2:header:x-wp-totalpages D22 WordPress's list has totals; QuarkPress's refusal none
+x06 req1:body* D22 WordPress's list; QuarkPress's "include must contain at most 1000 items."
+x06 req2:body* D22 WordPress's list; QuarkPress's "include must contain at most 1000 items."
+
+# D25: a negative offset is made positive for the pagination headers too.
+rest-a-031 req1:body:/headers/Link D25 offset=-1 (in an envelope): WordPress's headers use the raw offset and link no prev page
 
 # Differences no scenario can show: listed so the table stays complete.
 none * D3 the index's authentication is normalised to {auth} (QuarkPress advertises its OIDC issuer)
@@ -121,6 +176,10 @@ none * D9 the harness gives WordPress's users the dev realm's names, so the user
 none * D11 user deletion answers 501 on a single site too; the scenarios run on a network, where WordPress agrees
 none * D12 unexpected failures (500) and stale-version conflicts (409) are not provoked by scenarios
 none * D14 messages are English only; the harness runs WordPress in English
-none * D17 embeds never leave this site; no M2c data links another host
-none * D18 at most 1000 distinct hrefs are embedded per answer; no M2c answer has that many
+none * D17 embeds never leave this site; no scenario's data links another host
+none * D18 at most 1000 distinct hrefs are embedded per answer; no scenario's answer has that many
 none * D19 on a single site the url setting is read-only (the site address); the scenarios run on a network, without url
+none * D20 argument values that make WordPress fail with a PHP error (a 500) are not sent: a crash is no answer to compare
+none * D21 answers that make WordPress fail with a PHP error (a 500) are not provoked: a crash is no answer to compare
+none * D23 no scenario sends a control byte in a query parameter's name or malformed UTF-8, which WordPress writes raw into a header
+none * D24 the harness has no session cookie mechanism: every caller authenticates with a Bearer token or an application password

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -85,6 +86,13 @@ public class ItSetupResource {
         return memberships
                 .setRole(site.siteId(), UserId.of(request.user()), request.role())
                 .roles();
+    }
+
+    /** Removes the user (by id) from the bound site; answers whether the user was a member. */
+    @DELETE
+    @Path("/memberships/{user}")
+    public Map<String, Object> leave(@PathParam("user") long user) {
+        return Map.of("left", memberships.remove(site.siteId(), UserId.of(user)));
     }
 
     /** Creates a site at {@code path} on the bound site's domain; answers its id. */

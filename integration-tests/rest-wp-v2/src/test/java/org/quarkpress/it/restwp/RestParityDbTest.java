@@ -1,6 +1,6 @@
 package org.quarkpress.it.restwp;
 
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -37,14 +37,16 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
  * subdirectory site on both sides (WordPress served by {@code php -S} on its own MySQL container, QuarkPress this
  * test application with Keycloak tokens), and the answers are compared after normalisation. Deliberate differences
  * are listed in {@code wp-rest-parity-known-differences.txt}, each with its README label; a listed difference that no
- * longer differs fails the run. Runs with {@code -Pwp-parity} only.
+ * longer differs fails the run, and so does a scenario that compared nothing (every aspect of it known to differ), a
+ * missing scenario, or fewer comparisons than {@link #MIN_COMPARISONS}. Runs with {@code -Pwp-parity} only, and then
+ * fails without a container runtime instead of skipping.
  */
 @QuarkusTest
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
 class RestParityDbTest {
 
-    /** Half the comparisons of the first green run, rounded down to a multiple of 50. */
-    static final int MIN_COMPARISONS = 3550;
+    /** 90% of the comparisons of the last green run (10765), rounded down to a multiple of 50. */
+    static final int MIN_COMPARISONS = 9650;
 
     static final Path KNOWN = Path.of("src", "test", "resources", "wp-rest-parity-known-differences.txt");
     static final Path DUMPS = Path.of("target", "rest-parity");
@@ -59,20 +61,28 @@ class RestParityDbTest {
 
     @Test
     void theRestApiAnswersAsWordPressDoes() throws Exception {
-        assumeTrue(ScenarioDatabase.runtimeAvailable(), "ASSUMPTION: no container runtime");
+        assertThat(ScenarioDatabase.runtimeAvailable())
+                .as("the REST parity run (-Pwp-parity) needs a container runtime")
+                .isTrue();
         ParityRun run = new ParityRun(
                 "rest-parity", ParitySkipList.load(KNOWN), Path.of("target", "rest-parity-failures.json"));
         List<RestScenario> scenarios = RestScenarios.all();
-        // -Drest.parity.only=d01,m2c-a-0 narrows the run to scenarios whose ids start so (local debugging only: the
+        // -Drest.parity.only=d01,rest-a-0 narrows the run to scenarios whose ids start so (local debugging only: the
         // known differences of the others then match nothing, so such a run never passes)
         String only = System.getProperty("rest.parity.only", "");
-        if (!only.isEmpty()) {
+        if (only.isEmpty()) {
+            assertThat(RestScenarios.handWritten()).as("hand-written scenarios").isNotEmpty();
+            assertThat(scenarios)
+                    .as("every hand-written scenario and %d generated ones per seed", RestScenarios.GENERATED)
+                    .hasSize(RestScenarios.handWritten().size() + RestScenarios.SEEDS.size() * RestScenarios.GENERATED);
+        } else {
             List<String> prefixes = List.of(only.split(","));
             scenarios = scenarios.stream()
                     .filter(s -> prefixes.stream().anyMatch(p -> s.id().startsWith(p)))
                     .toList();
         }
         Files.createDirectories(DUMPS);
+        List<String> comparedNothing = new ArrayList<>();
         try (ScenarioDatabase database = ScenarioDatabase.start();
                 Side wordpress = Side.wordpress(WordPressRestSite.start(
                         WordPressTree.ensure(System.getProperty("wp.version")),
@@ -83,11 +93,15 @@ class RestParityDbTest {
                 Run wp = run(wordpress, scenario);
                 Run qp = run(quarkpress, scenario);
                 dump(scenario, wp, qp);
-                if (scenario.id().startsWith("m2c-")) {
+                if (RestScenarios.isGenerated(scenario.id())) {
                     run.generated(scenario.id(), RestScenarioJson.write(scenario));
                 }
+                int before = run.comparisons();
                 new RestComparison(wp.refs(), qp.refs(), scenario.sitePath())
                         .compare(scenario, wp.exchanges(), qp.exchanges(), run);
+                if (run.comparisons() == before) {
+                    comparedNothing.add(scenario.id());
+                }
             }
         }
         System.out.println("rest-parity: " + scenarios.size() + " scenarios, " + run.comparisons() + " comparisons, "
@@ -105,11 +119,15 @@ class RestParityDbTest {
         }
         Files.writeString(DUMPS.resolve("differences.tsv"), all);
         run.assertParity(MIN_COMPARISONS);
+        assertThat(comparedNothing)
+                .as("scenarios every aspect of which is a known difference")
+                .isEmpty();
     }
 
     /**
      * Creates the scenario's site, runs its setup and sends its requests. An item a request created (a 201 answer with
-     * an id) becomes the ref {@code <kind>:new-req<n>}, so later answers name it the same way on both sides.
+     * an id, or an {@code _envelope} answer whose status is 201) becomes the ref {@code <kind>:new-req<n>}, so later
+     * answers name it the same way on both sides.
      */
     static Run run(Side side, RestScenario scenario) throws Exception {
         Side.ScenarioSite site = side.newSite(scenario.id());
@@ -120,8 +138,15 @@ class RestParityDbTest {
             RestCall call = scenario.requests().get(i);
             Exchange exchange = side.send(site.path(), RestScenario.resolve(call, refs));
             exchanges.add(exchange);
-            if (exchange.status() == 201) {
-                JsonNode id = RestComparison.jsonBody(exchange).path("id");
+            JsonNode answer = RestComparison.jsonBody(exchange);
+            if (exchange.status() == 200 && answer.path("status").asInt() == 201 && answer.has("headers")) {
+                // an _envelope answer: the created item is its body
+                answer = answer.path("body");
+            } else if (exchange.status() != 201) {
+                answer = com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+            }
+            if (!answer.isMissingNode()) {
+                JsonNode id = answer.path("id");
                 Normalizer.Kind kind = Normalizer.Kind.ofTarget(call.target());
                 if (id.isIntegralNumber() && kind != Normalizer.Kind.ANY) {
                     refs.put(kind.prefix() + ":new-req" + (i + 1), id.longValue());

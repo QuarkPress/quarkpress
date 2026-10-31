@@ -13,9 +13,10 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * Every label the REST parity known-differences file uses is a row of the "Differences from WordPress" table of the
- * REST extension's README, so an entry never cites a difference the README does not explain. Reads both files only:
- * no application, no database.
+ * The REST parity known-differences file and the "Differences from WordPress" table of the REST extension's README
+ * name the same differences: every label an entry uses is a row of the table, so an entry never cites a difference the
+ * README does not explain, and every row is used by at least one entry (a scenario that shows it, or a {@code none}
+ * line saying why none can), so the file is complete. Reads both files only: no application, no database.
  */
 class KnownDifferenceLabelsTest {
 
@@ -27,13 +28,14 @@ class KnownDifferenceLabelsTest {
     static final String TABLE = "## Differences from WordPress";
 
     @Test
-    void everyLabelOfTheKnownDifferencesIsARowOfTheReadme() throws IOException {
+    void theKnownDifferencesAndTheReadmeNameTheSameDifferences() throws IOException {
         List<String> used = usedLabels(Files.readAllLines(KNOWN, StandardCharsets.UTF_8));
         List<String> rows = readmeLabels(Files.readAllLines(README, StandardCharsets.UTF_8));
 
         assertThat(used).as("labels used by %s", KNOWN).isNotEmpty().allMatch(this::isLabel);
         assertThat(rows).as("rows of %s in %s", TABLE, README).doesNotHaveDuplicates();
         assertThat(rows).as("rows of %s in %s", TABLE, README).containsAll(used);
+        assertThat(used).as("labels used by %s", KNOWN).containsAll(rows);
     }
 
     /** The third field of each entry (scenario, aspect, label, reason), in order of first use. */
