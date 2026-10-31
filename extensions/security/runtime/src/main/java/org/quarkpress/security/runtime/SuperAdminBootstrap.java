@@ -19,7 +19,7 @@ import org.quarkpress.security.UserProfile;
  * in a network, a network administrator row, or, on a single site, the administrator role on the main site. Subjects
  * are trimmed and empty ones skipped. Records no login: an existing profile's login time is left as it is, and a
  * profile created here has none. The profile is created as {@link DefaultUserProfileProvisioner} names one, even when
- * an application replaces the provisioner. Idempotent: a subject that already has what it would get is left as it
+ * an application replaces the provisioner, and marked so that its first login names it from the token's claims. Idempotent: a subject that already has what it would get is left as it
  * is. Runs without a capability check (no identity is needed) and after the checks of the main site and the network
  * made at start.
  */
@@ -56,7 +56,7 @@ public class SuperAdminBootstrap {
             ProfileClaims claims = ProfileClaims.subjectOnly(subject);
             for (int attempt = 1; ; attempt++) {
                 try {
-                    ensure(provisioning.provision(claims, false));
+                    ensure(provisioning.provisionBootstrap(claims));
                     break;
                 } catch (PessimisticLockException conflict) {
                     if (attempt == ATTEMPTS) {
