@@ -1,6 +1,8 @@
 package org.quarkpress.restwp.runtime;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.restwp.Endpoint;
@@ -22,6 +24,12 @@ public final class AllowHeader {
      * {@code ", "}, in the order first seen; empty when none is.
      */
     public static Optional<String> compute(RouteTable.MatchedRoute matched, RestRequest request) {
+        List<String> allowed = methods(matched, request);
+        return allowed.isEmpty() ? Optional.empty() : Optional.of(String.join(", ", allowed));
+    }
+
+    /** The methods {@link #compute} lists, in its order; empty when none is allowed. */
+    public static List<String> methods(RouteTable.MatchedRoute matched, RestRequest request) {
         Map<String, Boolean> methods = new LinkedHashMap<>();
         for (Endpoint endpoint : matched.route().endpoints()) {
             boolean allowed = allowed(endpoint, request);
@@ -29,16 +37,13 @@ public final class AllowHeader {
                 methods.put(method, allowed);
             }
         }
-        StringBuilder allow = new StringBuilder();
-        methods.forEach((method, allowed) -> {
-            if (allowed) {
-                if (!allow.isEmpty()) {
-                    allow.append(", ");
-                }
-                allow.append(method);
+        List<String> allowed = new ArrayList<>();
+        methods.forEach((method, isAllowed) -> {
+            if (isAllowed) {
+                allowed.add(method);
             }
         });
-        return allow.isEmpty() ? Optional.empty() : Optional.of(allow.toString());
+        return allowed;
     }
 
     private static boolean allowed(Endpoint endpoint, RestRequest request) {

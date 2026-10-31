@@ -24,7 +24,10 @@ class FieldsDbTest {
     @Test
     void anItemKeepsOnlyTheRequestedFields() {
         // the controller computes id and method; the server keeps what was asked for
-        body("/wp-json/qp-test/v1/things/3", "{\"method\":\"GET\",\"id\":3}");
+        body(
+                "/wp-json/qp-test/v1/things/3",
+                "{\"method\":\"GET\",\"id\":3,\"_links\":{\"self\":[{\"href\":"
+                        + "\"http:\\/\\/localhost\\/wp-json\\/qp-test\\/v1\\/things\\/3\",\"targetHints\":{\"allow\":[\"GET\"]}}]}}");
         body("/wp-json/qp-test/v1/things/3?_fields=id", "{\"id\":3}");
         body("/wp-json/qp-test/v1/things/3?_fields=method", "{\"method\":\"GET\"}");
         body("/wp-json/qp-test/v1/things/3?_fields=nothing", "[]");
@@ -33,7 +36,8 @@ class FieldsDbTest {
                 .get("/wp-json/qp-test/v1/things/3?_fields=id,_links")
                 .then()
                 .statusCode(200)
-                .body("id", equalTo(3));
+                .body("id", equalTo(3))
+                .body("_links.self[0].href", equalTo("http://localhost/wp-json/qp-test/v1/things/3"));
     }
 
     @Test

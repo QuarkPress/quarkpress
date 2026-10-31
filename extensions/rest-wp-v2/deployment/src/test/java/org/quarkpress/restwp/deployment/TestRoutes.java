@@ -14,6 +14,8 @@ import jakarta.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.quarkpress.core.CapabilityDeniedException;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteContext;
@@ -35,6 +37,7 @@ import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
+import org.quarkpress.restwp.runtime.CollectionItems;
 import org.quarkpress.restwp.runtime.RestJson;
 import org.quarkpress.revisions.RevisionException;
 import org.quarkpress.security.Capabilities;
@@ -56,7 +59,13 @@ import org.quarkpress.taxonomy.TermException;
  * (an integer id when {@code _fields} selects it, which it always does, and a self link when it selects
  * {@code _links}) to GET (public), POST, PUT and PATCH (one endpoint; the caller needs {@code edit_posts}) and DELETE
  * (the caller needs {@code manage_options}); {@code /offset-things} (GET) is {@code /things} with WordPress's
- * {@code offset} arg; {@code /hidden} (GET, public) is not shown in the index.
+ * {@code offset} arg; {@code /hidden} (GET, public) is not shown in the index; {@code /nodes/(?P<id>[\d]+)} (GET)
+ * answers {@code {"id", "context"}} with the links {@link #nodeLinks} gives (when {@code _links} or {@code _embedded}
+ * is selected), counting its runs in {@link #NODE_CALLS}, and refuses node 9 to an anonymous caller;
+ * {@code /nodes} (GET, WordPress's collection args) lists nodes 3 and 4 as a WordPress collection does (each item's
+ * links inlined); {@code /sizes} (GET, WordPress's collection args) answers {@code [{"per_page", "context"}]};
+ * {@code /linker} (GET) answers {@code {"id":0}} with one embeddable link per query parameter not starting with
+ * {@code _}: the parameter's name is the relation, its value the href.
  */
 @ApplicationScoped
 public class TestRoutes implements RestRouteProvider {
@@ -77,6 +86,19 @@ public class TestRoutes implements RestRouteProvider {
     static final String THING_SCHEMA = "{\"title\":\"thing\",\"type\":\"object\",\"properties\":{\"id\":"
             + "{\"description\":\"Unique identifier for the thing.\",\"type\":\"integer\","
             + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true}}}";
+
+    /** The item schema of {@code /nodes}. */
+    static final String NODE_SCHEMA = "{\"title\":\"node\",\"type\":\"object\",\"properties\":{\"id\":"
+            + "{\"description\":\"Unique identifier for the node.\",\"type\":\"integer\","
+            + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true},\"context\":"
+            + "{\"description\":\"The context asked for.\",\"type\":\"string\","
+            + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true}}}";
+
+    /** How many times the node handler ran, by node id. */
+    static final Map<String, AtomicInteger> NODE_CALLS = new ConcurrentHashMap<>();
+
+    /** The item schema the nodes' handler selects fields from. */
+    private static final ObjectNode NODE = schema(NODE_SCHEMA);
 
     /** The item schema the things' handler selects fields from (one instance, so a request selects once). */
     private static final ObjectNode THING = thingSchema();
@@ -201,11 +223,133 @@ public class TestRoutes implements RestRouteProvider {
                         .handler(this::thing)
                         .build())
                 .register();
+        ObjectNode node = schema(NODE_SCHEMA);
+        routes.route("qp-test/v1", "/nodes")
+                .schema(() -> schema(NODE_SCHEMA))
+                .endpoint(Endpoint.of("GET")
+                        .args(Paging.collectionArgs(node, false))
+                        .handler(request -> {
+                            var items = RestJson.NODES.arrayNode();
+                            items.add(CollectionItems.inline(node(request, "3"), request));
+                            items.add(CollectionItems.inline(node(request, "4"), request));
+                            return RestResponse.ok(items);
+                        })
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/linker")
+                .endpoint(Endpoint.of("GET")
+                        .handler(request -> {
+                            Links links = Links.none();
+                            for (var param : request.queryParams().properties()) {
+                                if (!param.getKey().startsWith("_")
+                                        && param.getValue().isTextual()) {
+                                    links = links.add(
+                                            param.getKey(),
+                                            param.getValue().textValue(),
+                                            Map.of("embeddable", com.fasterxml.jackson.databind.node.BooleanNode.TRUE));
+                                }
+                            }
+                            return RestResponse.ok(RestJson.NODES.objectNode().put("id", 0))
+                                    .withLinks(links);
+                        })
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/sizes")
+                .schema(() -> schema(NODE_SCHEMA))
+                .endpoint(Endpoint.of("GET")
+                        .args(Paging.collectionArgs(node, false))
+                        .handler(request -> {
+                            var items = RestJson.NODES.arrayNode();
+                            items.addObject()
+                                    .put("per_page", Paging.of(request).perPage())
+                                    .put("context", request.context());
+                            return RestResponse.ok(items);
+                        })
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/nodes/(?P<id>[\\d]+)")
+                .schema(() -> schema(NODE_SCHEMA))
+                .endpoint(Endpoint.of("GET")
+                        .permission(request -> request.urlParams().get("id").equals("9")
+                                        && request.user().isEmpty()
+                                ? PermissionResult.forbidden(request)
+                                : PermissionResult.allowed())
+                        .handler(request -> {
+                            String id = request.urlParams().get("id");
+                            NODE_CALLS
+                                    .computeIfAbsent(id, key -> new AtomicInteger())
+                                    .incrementAndGet();
+                            return node(request, id);
+                        })
+                        .build())
+                .register();
+    }
+
+    /**
+     * Node {@code id} as a WordPress controller builds it: {@code id} and {@code context} as selected, and its links
+     * when {@code _links} or {@code _embedded} is.
+     */
+    private RestResponse node(RestRequest request, String id) {
+        Fields.Selection fields = Fields.forResponse(request, NODE);
+        ObjectNode body = RestJson.NODES.objectNode();
+        if (fields.includes("id")) {
+            body.put("id", Long.parseLong(id));
+        }
+        if (fields.includes("context")) {
+            body.put("context", request.context());
+        }
+        RestResponse response = RestResponse.ok(body);
+        if (fields.includes("_links") || fields.includes("_embedded")) {
+            response = response.withLinks(nodeLinks(id));
+        }
+        return response;
+    }
+
+    /**
+     * The links of node {@code id}: {@code self} always; node 1: {@code up} (embeddable) to node 2; node 3: {@code up}
+     * to node 1 (embeddable) and to node 2 (not embeddable), {@code author} (not embeddable) to node 7, and
+     * {@code related} (embeddable) to node 1 again; node 4: {@code up} (embeddable) to node 9; node 5:
+     * {@code https://api.w.org/sizes} (embeddable) to {@code /sizes} plain, with {@code per_page=2} and with
+     * {@code context=view}, {@code elsewhere} (embeddable) to node 1 on another host and through another host's
+     * {@code rest_route}, and {@code local} (embeddable) to node 1 through this site's {@code rest_route}.
+     */
+    Links nodeLinks(String id) {
+        Map<String, com.fasterxml.jackson.databind.JsonNode> embeddable =
+                Map.of("embeddable", com.fasterxml.jackson.databind.node.BooleanNode.TRUE);
+        Links links = Links.none().add("self", urls.route("/qp-test/v1/nodes/" + id));
+        switch (id) {
+            case "1" -> links = links.add("up", urls.route("/qp-test/v1/nodes/2"), embeddable);
+            case "3" ->
+                links = links.add("up", urls.route("/qp-test/v1/nodes/1"), embeddable)
+                        .add("up", urls.route("/qp-test/v1/nodes/2"))
+                        .add("author", urls.route("/qp-test/v1/nodes/7"))
+                        .add("related", urls.route("/qp-test/v1/nodes/1"), embeddable);
+            case "4" -> links = links.add("up", urls.route("/qp-test/v1/nodes/9"), embeddable);
+            case "5" ->
+                links = links.add("https://api.w.org/sizes", urls.route("/qp-test/v1/sizes"), embeddable)
+                        .add(
+                                "https://api.w.org/sizes",
+                                urls.route("/qp-test/v1/sizes", Map.of("per_page", "2")),
+                                embeddable)
+                        .add(
+                                "https://api.w.org/sizes",
+                                urls.route("/qp-test/v1/sizes", Map.of("context", "view")),
+                                embeddable)
+                        .add("elsewhere", "http://elsewhere.example/wp-json/qp-test/v1/nodes/1", embeddable)
+                        .add("elsewhere", "http://elsewhere.example/?rest_route=/qp-test/v1/nodes/1", embeddable)
+                        .add("local", urls.home() + "?rest_route=/qp-test/v1/nodes/1", embeddable);
+            default -> {}
+        }
+        return links;
     }
 
     static ObjectNode thingSchema() {
+        return schema(THING_SCHEMA);
+    }
+
+    static ObjectNode schema(String text) {
         try {
-            return (ObjectNode) RestJson.READER.readTree(THING_SCHEMA);
+            return (ObjectNode) RestJson.READER.readTree(text);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

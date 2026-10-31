@@ -127,6 +127,26 @@ public final class PhpValues {
         return !value.isEmpty();
     }
 
+    /**
+     * PHP's {@code empty()}: absent, null, false, 0, 0.0, {@code ""}, {@code "0"} and an empty array (WordPress's
+     * boolean sanitizing does not apply: the string {@code "false"} is not empty).
+     */
+    public static boolean isEmpty(JsonNode value) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return true;
+        }
+        if (value.isBoolean()) {
+            return !value.booleanValue();
+        }
+        if (value.isNumber()) {
+            return value.isIntegralNumber() ? value.bigIntegerValue().signum() == 0 : value.doubleValue() == 0.0;
+        }
+        if (value.isTextual()) {
+            return value.textValue().isEmpty() || value.textValue().equals("0");
+        }
+        return value.isContainerNode() && value.isEmpty();
+    }
+
     /** PHP's {@code (string)}: floats with 14 significant digits, true "1", false and null "", an array "Array". */
     public static String toPhpString(JsonNode value) {
         if (value == null || value.isNull()) {

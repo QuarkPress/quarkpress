@@ -27,6 +27,14 @@ public interface ServedRequest extends RestRequest {
     }
 
     /**
+     * What renders this request's links, resolving them against the server's routes and the site; null for a request
+     * whose links are rendered without target hints.
+     */
+    default LinkRenderer linkRenderer() {
+        return null;
+    }
+
+    /**
      * The selection of fields for {@code itemSchema}: {@code compute}'s answer, which the server's requests keep for
      * the request (one per schema), so that a controller asking once per item does the work once.
      */

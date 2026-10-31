@@ -38,7 +38,9 @@ import org.quarkpress.security.QuarkPressPrincipal;
  * data before any match), the route match, the JSON body check, the arguments' validation and sanitizing, the
  * endpoint's permission, then its handler; an exception that escapes the permission or the handler becomes the error
  * WordPress would answer. Every answer of a matched route, an error included, gets the {@code Allow} header for its
- * caller, and every such answer that is not an error is reduced to the request's {@code _fields}. Every answer then
+ * caller, and every such answer that is not an error is reduced to the request's {@code _fields}; then its links are
+ * rendered into it and, as the query's {@code _embed} asks, its embeddable links embedded (neither for HEAD, whose body
+ * is never sent). Every answer then
  * goes through WordPress's response stages (fixed headers, envelope, no-cache, cross-origin headers, pretty printing,
  * HEAD) and is encoded as PHP encodes it.
  */
@@ -304,15 +306,103 @@ public class RestServer {
                 incoming.query(),
                 match.urlParams(),
                 defaults(match));
-        Served request = new Served(
-                method, match.matchedRoute(), match.endpoint(), incoming.route(), sources, incoming.query(), this);
-        return withFields(request, withAllow(match.matchedRoute(), request, answer(incoming, match, sources, request)));
+        LinkRenderer links = new LinkRenderer(table(), urls);
+        Served request = served(
+                method, match.matchedRoute(), match.endpoint(), incoming.route(), sources, incoming.query(), links);
+        RestResponse answer = withFields(
+                request,
+                withAllow(match.matchedRoute(), request, answer(jsonFailure(incoming), match, sources, request)));
+        return toData(
+                answer,
+                request,
+                method.equals("HEAD") ? null : Embedder.parse(incoming.query().get("_embed")));
+    }
+
+    /** A request of this caller, matched to {@code matched} and {@code endpoint}. */
+    private Served served(
+            String method,
+            RouteTable.MatchedRoute matched,
+            Endpoint endpoint,
+            String path,
+            ParamSources sources,
+            ObjectNode query,
+            LinkRenderer links) {
+        return new Served(
+                method,
+                matched,
+                endpoint,
+                path,
+                sources,
+                query,
+                identity,
+                () -> QuarkPressPrincipal.of(identity).map(QuarkPressPrincipal::user),
+                urls,
+                links);
+    }
+
+    /**
+     * WordPress's conversion of an answer to the data it sends: the answer's links rendered for the caller and set as
+     * {@code _links} (last, or in place of a {@code _links} the body has), then, when {@code embed} asks for it, the
+     * embeddable links embedded. A list body with links becomes an object keyed by the indexes, as PHP's array does.
+     * {@code embed} null (a HEAD request, whose body is never sent) skips both.
+     */
+    private RestResponse toData(RestResponse response, Served caller, EmbedChoice embed) {
+        if (embed == null) {
+            return response;
+        }
+        JsonNode body = response.body();
+        if (!response.links().isEmpty()) {
+            body = CollectionItems.withLinks(body, caller.linkRenderer().compact(response.links(), caller));
+        }
+        if (embed.kind() != EmbedChoice.Kind.NONE) {
+            LinkRenderer links = caller.linkRenderer();
+            body = new Embedder(embed, href -> links.target(href).map(target -> embedded(target, links))).embed(body);
+        }
+        return new RestResponse(response.status(), body, response.headers(), Links.none());
+    }
+
+    /**
+     * An embedded link's data, as WordPress's embedding dispatches it: a GET of the link's route with its query (with
+     * {@code context=embed} unless it gives a context, and {@code per_page} at the endpoint argument's maximum unless
+     * it gives one), through the same matching, validation, permission, handler, {@code Allow} and {@code _fields}
+     * (the link's own) as a request of this caller, its links rendered and nothing embedded further. The site and the
+     * caller are this request's.
+     */
+    private JsonNode embedded(LinkRenderer.Target target, LinkRenderer links) {
+        ObjectNode query = target.query().deepCopy();
+        if (PhpValues.isEmpty(query.get("context"))) {
+            query.put("context", "embed");
+        }
+        Optional<RouteTable.Match> found = table().match(target.route(), "GET");
+        if (PhpValues.isEmpty(query.get("per_page")) && found.isPresent()) {
+            maximum(found.get().endpoint(), "per_page").ifPresent(maximum -> query.put("per_page", maximum));
+        }
+        if (found.isEmpty()) {
+            return error(NO_ROUTE).body();
+        }
+        RouteTable.Match match = found.get();
+        ParamSources sources = new ParamSources(
+                RestJson.NODES.objectNode(), RestJson.NODES.objectNode(), query, match.urlParams(), defaults(match));
+        Served request = served("GET", match.matchedRoute(), match.endpoint(), target.route(), sources, query, links);
+        RestResponse answer = withFields(
+                request, withAllow(match.matchedRoute(), request, answer(Optional.empty(), match, sources, request)));
+        return toData(answer, request, EmbedChoice.NONE).body();
+    }
+
+    /** The {@code maximum} of {@code endpoint}'s argument {@code name}, as PHP's (int) takes it, when declared. */
+    private static Optional<Long> maximum(Endpoint endpoint, String name) {
+        for (Arg arg : endpoint.args()) {
+            if (arg.name().equals(name)) {
+                JsonNode maximum = arg.schema().get("maximum");
+                return maximum == null || maximum.isNull() ? Optional.empty() : Optional.of(PhpValues.toLong(maximum));
+            }
+        }
+        return Optional.empty();
     }
 
     /** The matched request's answer: the JSON check, the arguments, the permission, then the handler. */
     private static RestResponse answer(
-            IncomingRequest incoming, RouteTable.Match match, ParamSources sources, Served request) {
-        Optional<RestJsonFailure> invalidJson = jsonFailure(incoming);
+            Optional<RestJsonFailure> invalidJson, RouteTable.Match match, ParamSources sources, Served request) {
         if (invalidJson.isPresent()) {
             return error(invalidJson(invalidJson.get()));
         }
@@ -349,10 +439,12 @@ public class RestServer {
                 incoming.query(),
                 matched.urlParams(),
                 RestJson.NODES.objectNode());
-        Served request = new Served("OPTIONS", matched, null, incoming.route(), sources, incoming.query(), this);
+        Served request = served(
+                "OPTIONS", matched, null, incoming.route(), sources, incoming.query(), new LinkRenderer(table(), urls));
         ObjectNode data = RouteData.of(matched.route(), "help", urls);
-        return withFields(
+        RestResponse answer = withFields(
                 request, withAllow(matched, request, RestResponse.ok(data == null ? NullNode.getInstance() : data)));
+        return toData(answer, request, Embedder.parse(incoming.query().get("_embed")));
     }
 
     /** {@code response} with the {@code Allow} header for this caller, set last; unchanged when nothing is allowed. */
@@ -483,7 +575,7 @@ public class RestServer {
         return params;
     }
 
-    private static ObjectNode defaults(RouteTable.Match match) {
+    static ObjectNode defaults(RouteTable.Match match) {
         ObjectNode defaults = RestJson.NODES.objectNode();
         for (Arg arg : match.endpoint().args()) {
             arg.defaultValue().ifPresent(value -> defaults.set(arg.name(), value.deepCopy()));
@@ -503,8 +595,11 @@ public class RestServer {
         return new ServedResponse(response.status(), headers, RestJson.encode(response.body(), false));
     }
 
-    /** A matched request as handlers see it. */
-    private static final class Served implements ServedRequest {
+    /**
+     * A matched request as handlers see it: the caller's identity, the site's URLs and the renderer of its links come
+     * with it (a link's target hints are computed with such a request built from the link).
+     */
+    static final class Served implements ServedRequest {
 
         private final String method;
         private final RouteTable.MatchedRoute matched;
@@ -512,7 +607,10 @@ public class RestServer {
         private final String path;
         private final ParamSources sources;
         private final ObjectNode query;
-        private final RestServer server;
+        private final SecurityIdentity identity;
+        private final Supplier<Optional<UserId>> user;
+        private final RestUrls urls;
+        private final LinkRenderer links;
         private List<String> fields;
         private final Map<ObjectNode, Fields.Selection> selections = new IdentityHashMap<>();
 
@@ -523,14 +621,25 @@ public class RestServer {
                 String path,
                 ParamSources sources,
                 ObjectNode query,
-                RestServer server) {
+                SecurityIdentity identity,
+                Supplier<Optional<UserId>> user,
+                RestUrls urls,
+                LinkRenderer links) {
             this.method = method;
             this.matched = matched;
             this.endpoint = endpoint;
             this.path = path;
             this.sources = sources;
             this.query = query;
-            this.server = server;
+            this.identity = identity;
+            this.user = user;
+            this.urls = urls;
+            this.links = links;
+        }
+
+        @Override
+        public LinkRenderer linkRenderer() {
+            return links;
         }
 
         @Override
@@ -578,12 +687,12 @@ public class RestServer {
 
         @Override
         public SecurityIdentity identity() {
-            return server.identity;
+            return identity;
         }
 
         @Override
         public Optional<UserId> user() {
-            return QuarkPressPrincipal.of(server.identity).map(QuarkPressPrincipal::user);
+            return user.get();
         }
 
         @Override
@@ -624,7 +733,7 @@ public class RestServer {
 
         @Override
         public String routeUrl() {
-            return server.urls.route(filled(matched.route().pattern().template(), matched.urlParams()));
+            return urls.route(filled(matched.route().pattern().template(), matched.urlParams()));
         }
     }
 

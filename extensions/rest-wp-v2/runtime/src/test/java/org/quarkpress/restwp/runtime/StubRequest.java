@@ -17,11 +17,23 @@ public final class StubRequest implements ServedRequest {
     private final ObjectNode params;
     private final String routeUrl;
     private final Set<String> declared;
+    private LinkRenderer links;
 
     public StubRequest(ObjectNode params, String routeUrl, Set<String> declared) {
         this.params = params;
         this.routeUrl = routeUrl;
         this.declared = declared;
+    }
+
+    /** This request, its links resolved by {@code renderer}. */
+    public StubRequest withLinkRenderer(LinkRenderer renderer) {
+        this.links = renderer;
+        return this;
+    }
+
+    @Override
+    public LinkRenderer linkRenderer() {
+        return links == null ? ServedRequest.super.linkRenderer() : links;
     }
 
     @Override
