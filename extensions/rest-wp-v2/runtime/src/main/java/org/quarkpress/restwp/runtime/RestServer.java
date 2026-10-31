@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.quarkpress.core.SiteNotResolvedException;
 import org.quarkpress.core.UserId;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Endpoint;
+import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.Links;
 import org.quarkpress.restwp.PermissionResult;
 import org.quarkpress.restwp.RestError;
@@ -36,8 +38,9 @@ import org.quarkpress.security.QuarkPressPrincipal;
  * data before any match), the route match, the JSON body check, the arguments' validation and sanitizing, the
  * endpoint's permission, then its handler; an exception that escapes the permission or the handler becomes the error
  * WordPress would answer. Every answer of a matched route, an error included, gets the {@code Allow} header for its
- * caller. Every answer then goes through WordPress's response stages (fixed headers, envelope, no-cache, cross-origin
- * headers, pretty printing, HEAD) and is encoded as PHP encodes it.
+ * caller, and every such answer that is not an error is reduced to the request's {@code _fields}. Every answer then
+ * goes through WordPress's response stages (fixed headers, envelope, no-cache, cross-origin headers, pretty printing,
+ * HEAD) and is encoded as PHP encodes it.
  */
 @ApplicationScoped
 public class RestServer {
@@ -303,7 +306,7 @@ public class RestServer {
                 defaults(match));
         Served request = new Served(
                 method, match.matchedRoute(), match.endpoint(), incoming.route(), sources, incoming.query(), this);
-        return withAllow(match.matchedRoute(), request, answer(incoming, match, sources, request));
+        return withFields(request, withAllow(match.matchedRoute(), request, answer(incoming, match, sources, request)));
     }
 
     /** The matched request's answer: the JSON check, the arguments, the permission, then the handler. */
@@ -348,7 +351,8 @@ public class RestServer {
                 RestJson.NODES.objectNode());
         Served request = new Served("OPTIONS", matched, null, incoming.route(), sources, incoming.query(), this);
         ObjectNode data = RouteData.of(matched.route(), "help", urls);
-        return withAllow(matched, request, RestResponse.ok(data == null ? NullNode.getInstance() : data));
+        return withFields(
+                request, withAllow(matched, request, RestResponse.ok(data == null ? NullNode.getInstance() : data)));
     }
 
     /** {@code response} with the {@code Allow} header for this caller, set last; unchanged when nothing is allowed. */
@@ -356,6 +360,22 @@ public class RestServer {
         return AllowHeader.compute(matched, request)
                 .map(allow -> response.withHeader("Allow", allow))
                 .orElse(response);
+    }
+
+    /**
+     * WordPress's server-level {@code _fields}: the answer's body reduced to the request's fields (from any source),
+     * before links are attached and before the envelope; an error (status 400 or more) is not reduced.
+     */
+    private static RestResponse withFields(Served request, RestResponse response) {
+        if (response.status() >= 400) {
+            return response;
+        }
+        List<String> fields = Fields.of(request);
+        if (fields.isEmpty()) {
+            return response;
+        }
+        return new RestResponse(
+                response.status(), FieldsFilter.reduce(response.body(), fields), response.headers(), response.links());
     }
 
     private static ServedResponse unexpected(Throwable failure, IncomingRequest incoming) {
@@ -493,6 +513,8 @@ public class RestServer {
         private final ParamSources sources;
         private final ObjectNode query;
         private final RestServer server;
+        private List<String> fields;
+        private final Map<ObjectNode, Fields.Selection> selections = new IdentityHashMap<>();
 
         Served(
                 String method,
@@ -580,6 +602,24 @@ public class RestServer {
                 }
             }
             return false;
+        }
+
+        @Override
+        public List<String> requestedFields() {
+            if (fields == null) {
+                fields = ServedRequest.super.requestedFields();
+            }
+            return fields;
+        }
+
+        @Override
+        public Fields.Selection selection(ObjectNode itemSchema, Supplier<Fields.Selection> compute) {
+            Fields.Selection known = selections.get(itemSchema);
+            if (known == null) {
+                known = compute.get();
+                selections.put(itemSchema, known);
+            }
+            return known;
         }
 
         @Override

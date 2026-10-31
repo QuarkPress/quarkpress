@@ -22,7 +22,9 @@ import org.quarkpress.core.TermId;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Endpoint;
+import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.Handler;
+import org.quarkpress.restwp.Links;
 import org.quarkpress.restwp.Paging;
 import org.quarkpress.restwp.Permission;
 import org.quarkpress.restwp.PermissionResult;
@@ -51,9 +53,10 @@ import org.quarkpress.taxonomy.TermException;
  * {@code /json} (GET and POST) answers {@code {"a"}}, the parameter {@code a}; {@code /things} answers GET (public,
  * WordPress's collection args, batching allowed) with a page of {@link #THINGS} things and their pagination headers,
  * and POST (the caller needs {@code manage_options}); {@code /things/(?P<id>[\d]+)} answers {@code {"method", "id"}}
- * to GET (public), POST, PUT and PATCH (one endpoint; the caller needs {@code edit_posts}) and DELETE (the caller needs
- * {@code manage_options}); {@code /offset-things} (GET) is {@code /things} with WordPress's {@code offset} arg;
- * {@code /hidden} (GET, public) is not shown in the index.
+ * (an integer id when {@code _fields} selects it, which it always does, and a self link when it selects
+ * {@code _links}) to GET (public), POST, PUT and PATCH (one endpoint; the caller needs {@code edit_posts}) and DELETE
+ * (the caller needs {@code manage_options}); {@code /offset-things} (GET) is {@code /things} with WordPress's
+ * {@code offset} arg; {@code /hidden} (GET, public) is not shown in the index.
  */
 @ApplicationScoped
 public class TestRoutes implements RestRouteProvider {
@@ -74,6 +77,9 @@ public class TestRoutes implements RestRouteProvider {
     static final String THING_SCHEMA = "{\"title\":\"thing\",\"type\":\"object\",\"properties\":{\"id\":"
             + "{\"description\":\"Unique identifier for the thing.\",\"type\":\"integer\","
             + "\"context\":[\"view\",\"embed\",\"edit\"],\"readonly\":true}}}";
+
+    /** The item schema the things' handler selects fields from (one instance, so a request selects once). */
+    private static final ObjectNode THING = thingSchema();
 
     @Inject
     SiteContext site;
@@ -166,7 +172,7 @@ public class TestRoutes implements RestRouteProvider {
                 .endpoint(Endpoint.of("POST")
                         .permission(can("manage_options"))
                         .allowBatch(true)
-                        .handler(TestRoutes::thing)
+                        .handler(this::thing)
                         .build())
                 .register();
         routes.route("qp-test/v1", "/offset-things")
@@ -180,19 +186,19 @@ public class TestRoutes implements RestRouteProvider {
         routes.route("qp-test/v1", "/hidden")
                 .endpoint(Endpoint.of("GET")
                         .showInIndex(false)
-                        .handler(TestRoutes::thing)
+                        .handler(this::thing)
                         .build())
                 .register();
         routes.route("qp-test/v1", "/things/(?P<id>[\\d]+)")
                 .schema(TestRoutes::thingSchema)
-                .endpoint(Endpoint.of("GET").handler(TestRoutes::thing).build())
+                .endpoint(Endpoint.of("GET").handler(this::thing).build())
                 .endpoint(Endpoint.of("POST", "PUT", "PATCH")
                         .permission(can("edit_posts"))
-                        .handler(TestRoutes::thing)
+                        .handler(this::thing)
                         .build())
                 .endpoint(Endpoint.of("DELETE")
                         .permission(can("manage_options"))
-                        .handler(TestRoutes::thing)
+                        .handler(this::thing)
                         .build())
                 .register();
     }
@@ -215,11 +221,28 @@ public class TestRoutes implements RestRouteProvider {
         return RestResponse.paged(page, THINGS, paging, request);
     }
 
-    private static RestResponse thing(RestRequest request) {
+    /**
+     * A thing as a WordPress controller builds it: {@code method} always (it is not in the schema, so only the server's
+     * reduction removes it), {@code id} when {@link Fields#forResponse} selects it (always, as it is in the schema),
+     * and a {@code self} link only when {@code _links} or {@code _embedded} is selected.
+     */
+    private RestResponse thing(RestRequest request) {
+        Fields.Selection fields = Fields.forResponse(request, THING);
+        String id = request.urlParams().get("id");
         ObjectNode body = RestJson.NODES.objectNode();
         body.put("method", request.method());
-        body.put("id", request.urlParams().get("id"));
-        return RestResponse.ok(body);
+        if (fields.includes("id")) {
+            if (id == null) {
+                body.putNull("id");
+            } else {
+                body.put("id", Long.parseLong(id));
+            }
+        }
+        RestResponse response = RestResponse.ok(body);
+        if (id != null && (fields.includes("_links") || fields.includes("_embedded"))) {
+            response = response.withLinks(Links.none().add("self", urls.route("/qp-test/v1/things/" + id)));
+        }
+        return response;
     }
 
     private Permission can(String capability) {

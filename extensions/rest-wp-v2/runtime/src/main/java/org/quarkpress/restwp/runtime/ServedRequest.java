@@ -1,5 +1,9 @@
 package org.quarkpress.restwp.runtime;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
+import java.util.function.Supplier;
+import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.RestRequest;
 
 /**
@@ -16,4 +20,17 @@ public interface ServedRequest extends RestRequest {
 
     /** Whether the matched endpoint declares an argument named {@code name}. */
     boolean declaresArg(String name);
+
+    /** The request's {@code _fields}, parsed; the server's requests parse them once. */
+    default List<String> requestedFields() {
+        return param("_fields").map(Fields::parse).orElse(List.of());
+    }
+
+    /**
+     * The selection of fields for {@code itemSchema}: {@code compute}'s answer, which the server's requests keep for
+     * the request (one per schema), so that a controller asking once per item does the work once.
+     */
+    default Fields.Selection selection(ObjectNode itemSchema, Supplier<Fields.Selection> compute) {
+        return compute.get();
+    }
 }

@@ -158,6 +158,13 @@ class AllowOptionsDbTest {
         Response item = Http.as(null).options("/wp-json/qp-test/v1/things/3");
         item.then().statusCode(200).header("Allow", "GET");
         assertThat(json(item.asString()).has("_links")).isFalse();
+        // the route data goes through _fields like any answer
+        Http.as(null)
+                .options("/wp-json/qp-test/v1/things/3?_fields=namespace")
+                .then()
+                .statusCode(200)
+                .header("Allow", "GET")
+                .body(equalTo("{\"namespace\":\"qp-test\\/v1\"}"));
         Http.as(null)
                 .header("X-HTTP-Method-Override", "OPTIONS")
                 .post("/wp-json/qp-test/v1/things")
