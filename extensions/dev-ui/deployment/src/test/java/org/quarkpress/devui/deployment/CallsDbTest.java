@@ -69,8 +69,8 @@ class CallsDbTest {
         JsonNode migrations = persistence.get("migrations");
         assertThat(texts(migrations, "version"))
                 .containsExactly(
-                        "1.001", "1.002", "1.003", "1.004", "1.005", "2.001", "3.001", "3.002", "4.001", "5.001",
-                        "5.002", "6.001");
+                        "1.001", "1.002", "1.003", "1.004", "1.005", "1.006", "2.001", "3.001", "3.002", "4.001",
+                        "5.001", "5.002", "6.001");
         assertThat(texts(migrations, "success")).containsOnly("true");
         assertThat(migrations.get(0).get("script").asText()).isEqualTo("V1_001__persistence_create_tables.sql");
     }

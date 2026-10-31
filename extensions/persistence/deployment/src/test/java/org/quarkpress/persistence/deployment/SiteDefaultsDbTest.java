@@ -81,8 +81,22 @@ class SiteDefaultsDbTest {
         expected.put("page_for_posts", IntNode.valueOf(0));
         expected.put("default_comment_status", TextNode.valueOf("open"));
         expected.put("default_ping_status", TextNode.valueOf("open"));
+        expected.put("use_smilies", TextNode.valueOf("1"));
+        expected.put("default_post_format", TextNode.valueOf("0"));
+        expected.put("site_icon", TextNode.valueOf("0"));
+        expected.put("WPLANG", TextNode.valueOf(""));
         expected.put("qp_features", JsonNodeFactory.instance.objectNode());
         return expected;
+    }
+
+    /**
+     * The options the migrations give a site that exists when they run, an installation's main site: a new site's,
+     * without {@code WPLANG}, which WordPress's installer does not write (a network's later sites get it empty).
+     */
+    private static Map<String, JsonNode> withoutLanguage(Map<String, JsonNode> options) {
+        Map<String, JsonNode> seeded = new LinkedHashMap<>(options);
+        seeded.remove("WPLANG");
+        return seeded;
     }
 
     @Test
@@ -107,10 +121,11 @@ class SiteDefaultsDbTest {
     void theMainSiteHasTheDefaults() throws Exception {
         SiteId main = SiteId.of(1);
         Map<String, JsonNode> stored = scope.call(main, () -> store.autoloaded(main));
-        SiteDefaults.forNewSite("QuarkPress").forEach((name, value) -> {
+        withoutLanguage(SiteDefaults.forNewSite("QuarkPress")).forEach((name, value) -> {
             assertThat(stored).containsKey(name);
             assertThat(stored.get(name).getNodeType()).as("type of %s", name).isEqualTo(value.getNodeType());
         });
+        assertThat(stored).doesNotContainKey("WPLANG");
     }
 
     @Test
@@ -121,9 +136,10 @@ class SiteDefaultsDbTest {
             runSeedMigration();
             Map<String, Stored> stored = storedOptions(site);
             assertThat(List.copyOf(stored.keySet()))
-                    .containsExactlyInAnyOrderElementsOf(expected(title).keySet());
-            assertThat(values(stored)).isEqualTo(expected(title));
-            assertThat(values(stored)).isEqualTo(SiteDefaults.forNewSite(title));
+                    .containsExactlyInAnyOrderElementsOf(
+                            withoutLanguage(expected(title)).keySet());
+            assertThat(values(stored)).isEqualTo(withoutLanguage(expected(title)));
+            assertThat(values(stored)).isEqualTo(withoutLanguage(SiteDefaults.forNewSite(title)));
             stored.forEach((name, option) ->
                     assertThat(option.autoload()).as("autoload of %s", name).isTrue());
         } finally {
@@ -144,11 +160,11 @@ class SiteDefaultsDbTest {
             assertThat(stored.get("posts_per_page")).isEqualTo(new Stored(IntNode.valueOf(25), false));
             ObjectNode features = JsonNodeFactory.instance.objectNode().put("demo-off", true);
             assertThat(stored.get("qp_features")).isEqualTo(new Stored(features, true));
-            Map<String, JsonNode> rest = new LinkedHashMap<>(expected("Seeded Name"));
+            Map<String, JsonNode> rest = withoutLanguage(expected("Seeded Name"));
             rest.keySet().removeAll(List.of("blogname", "posts_per_page", "qp_features"));
             rest.forEach((name, value) ->
                     assertThat(stored.get(name)).as("seeded %s", name).isEqualTo(new Stored(value, true)));
-            assertThat(stored).hasSize(15);
+            assertThat(stored).hasSize(18);
         } finally {
             deleteSite(site);
         }
@@ -246,9 +262,13 @@ class SiteDefaultsDbTest {
         return stored;
     }
 
-    /** Runs the seeding migration's own script again, as it ran when Flyway applied it. */
+    /** Runs the seeding migrations' own scripts again, in order, as they ran when Flyway applied them. */
     private void runSeedMigration() throws SQLException, IOException {
-        String path = "db/quarkpress/" + TestDb.kind() + "/V1_005__persistence_site_defaults.sql";
+        runScript("db/quarkpress/" + TestDb.kind() + "/V1_005__persistence_site_defaults.sql");
+        runScript("db/quarkpress/" + TestDb.kind() + "/V1_006__persistence_more_site_defaults.sql");
+    }
+
+    private void runScript(String path) throws SQLException, IOException {
         String script;
         try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(path)) {
             assertThat(in).as(path).isNotNull();

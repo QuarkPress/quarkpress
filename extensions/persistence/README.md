@@ -222,7 +222,9 @@ defaults. Site options and network options live in separate tables (`qp_option`,
   than the one the request is bound to is refused, as for any site-scoped row (the network scope may write any site's
   options); the internal `OptionWrites` bean that services use applies the same rule.
 - **Default options.** Every site gets WordPress's default options when it is created (and the sites that exist when
-  the `V1_005` migration runs get them then).
+  the `V1_005` and `V1_006` migrations run get them then). `WPLANG` (stored empty) is set for new sites only: like
+  WordPress's installer, the migrations leave the sites that already exist without it, so they read the default
+  language.
 - **Reads** of the store join the caller's transaction or run in a short one of their own. Reading another site's
   options from a site-bound request finds nothing (the filter); use a `SiteScope` for that site.
 - **Typed reads** (`string`, `number`, `flag`) and the **time zone** follow PHP's conversions and WordPress's rules,

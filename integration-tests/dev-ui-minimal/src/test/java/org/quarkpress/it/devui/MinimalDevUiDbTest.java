@@ -63,7 +63,7 @@ class MinimalDevUiDbTest {
     void thePersistenceMethodsWorkWithoutTheOtherModules() throws Exception {
         assertThat(devUi.call("features", Map.of("siteId", 1))).isEmpty();
         assertThat(texts(devUi.call("persistence").get("migrations"), "version"))
-                .containsExactly("1.001", "1.002", "1.003", "1.004", "1.005");
+                .containsExactly("1.001", "1.002", "1.003", "1.004", "1.005", "1.006");
         JsonNode result = devUi.call("setFeature", Map.of("siteId", 1, "key", "x", "enabled", true));
         assertThat(result.get("error").asText()).isEqualTo("unknown QuarkPress feature 'x'");
     }

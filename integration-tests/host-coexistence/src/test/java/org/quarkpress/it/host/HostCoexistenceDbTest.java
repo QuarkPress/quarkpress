@@ -38,7 +38,8 @@ class HostCoexistenceDbTest {
                                 "db/quarkpress/common/V1_002__persistence_main_site.sql",
                                 "db/quarkpress/common/V1_003__persistence_network_defaults.sql",
                                 "db/quarkpress/" + vendor() + "/V1_004__persistence_network_lock.sql",
-                                "db/quarkpress/" + vendor() + "/V1_005__persistence_site_defaults.sql"));
+                                "db/quarkpress/" + vendor() + "/V1_005__persistence_site_defaults.sql",
+                                "db/quarkpress/" + vendor() + "/V1_006__persistence_more_site_defaults.sql"));
     }
 
     @Test
