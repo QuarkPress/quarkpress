@@ -181,13 +181,13 @@ class RoutingDbTest {
                 .then()
                 .statusCode(200)
                 .header("Content-Type", "application/json; charset=UTF-8")
-                .body(equalTo("[]"));
+                .body(equalTo(TestRoutes.ITEMS));
         Http.as(null)
                 .urlEncodingEnabled(false)
                 .get("/?rest_route=%2Fqp-test%2Fv1%2Fitems%2F&_locale=user")
                 .then()
                 .statusCode(200)
-                .body(equalTo("[]"));
+                .body(equalTo(TestRoutes.ITEMS));
         Http.as(null)
                 .get("/wp-json/qp-test/v1/echo/5?_locale=user")
                 .then()

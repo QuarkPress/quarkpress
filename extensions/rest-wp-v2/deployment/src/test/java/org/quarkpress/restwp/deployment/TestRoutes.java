@@ -38,7 +38,10 @@ import org.quarkpress.taxonomy.TermException;
 
 /**
  * Routes of namespace {@code qp-test/v1} for the routing tests: {@code /echo/(?P<id>[\d]+)} (GET and POST) answers
- * {@code {"method", "id", "urlId", "params", "site", "root", "link", "home"}}; {@code /items} (GET) answers {@code []};
+ * {@code {"method", "id", "urlId", "params", "site", "root", "link", "home"}}; {@code /items} (GET) answers
+ * {@code [{"id":1},{"id":2}]} with {@code X-WP-Total: 2} and {@code X-WP-TotalPages: 1}; {@code /headers} (GET)
+ * answers {@code []} with {@code Last-Modified} and a lower-case {@code link}; {@code /nan} (GET) answers a body that
+ * cannot be encoded;
  * {@code /site} (GET) answers {@code {"site"}}; {@code /guarded} answers {@code {"method", "per_page", "order"}} to GET
  * (args {@code per_page} 1 to 100, validated, and {@code order} asc or desc, sanitized; the caller needs
  * {@code edit_posts}) and to DELETE (the caller needs {@code delete_others_posts}); {@code /denied} (GET) refuses with
@@ -47,6 +50,15 @@ import org.quarkpress.taxonomy.TermException;
  */
 @ApplicationScoped
 public class TestRoutes implements RestRouteProvider {
+
+    /** The body of {@code /items}. */
+    static final String ITEMS = "[{\"id\":1},{\"id\":2}]";
+
+    /** The {@code Last-Modified} of {@code /headers}. */
+    static final String LAST_MODIFIED = "Wed, 21 Oct 2026 07:28:00 GMT";
+
+    /** The {@code link} (lower-case) of {@code /headers}. */
+    static final String NEXT_LINK = "<http://localhost/wp-json/qp-test/v1/headers?page=2>; rel=\"next\"";
 
     @Inject
     SiteContext site;
@@ -65,8 +77,19 @@ public class TestRoutes implements RestRouteProvider {
                 .endpoint(Endpoint.of("POST").handler(echo).build())
                 .register();
         routes.route("qp-test/v1", "/items")
+                .endpoint(Endpoint.of("GET").handler(TestRoutes::items).build())
+                .register();
+        routes.route("qp-test/v1", "/headers")
                 .endpoint(Endpoint.of("GET")
-                        .handler(request -> RestResponse.ok(RestJson.NODES.arrayNode()))
+                        .handler(request -> RestResponse.ok(RestJson.NODES.arrayNode())
+                                .withHeader("Last-Modified", LAST_MODIFIED)
+                                .withHeader("link", NEXT_LINK))
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/nan")
+                .endpoint(Endpoint.of("GET")
+                        .handler(request ->
+                                RestResponse.ok(RestJson.NODES.objectNode().put("x", Double.NaN)))
                         .build())
                 .register();
         routes.route("qp-test/v1", "/site")
@@ -145,6 +168,14 @@ public class TestRoutes implements RestRouteProvider {
             case "rest" -> new RestException(RestError.of("rest_custom", "Custom.", 418));
             default -> new IllegalStateException("unexpected failure " + kind);
         };
+    }
+
+    /** Two items, with WordPress's collection totals. */
+    private static RestResponse items(RestRequest request) {
+        var items = RestJson.NODES.arrayNode();
+        items.addObject().put("id", 1);
+        items.addObject().put("id", 2);
+        return RestResponse.ok(items).withHeader("X-WP-Total", "2").withHeader("X-WP-TotalPages", "1");
     }
 
     private RestResponse echo(RestRequest request) {

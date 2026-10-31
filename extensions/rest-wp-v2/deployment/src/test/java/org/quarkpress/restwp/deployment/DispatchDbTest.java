@@ -454,6 +454,6 @@ class DispatchDbTest {
         } finally {
             scope.run(TestData.MAIN, () -> toggles.clearForSite("rest-wp-v2"));
         }
-        Http.as(null).get("/wp-json/qp-test/v1/items").then().statusCode(200).body(equalTo("[]"));
+        Http.as(null).get("/wp-json/qp-test/v1/items").then().statusCode(200).body(equalTo(TestRoutes.ITEMS));
     }
 }

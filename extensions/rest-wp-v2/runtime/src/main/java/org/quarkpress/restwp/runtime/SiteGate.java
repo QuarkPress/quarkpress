@@ -35,29 +35,58 @@ public class SiteGate {
     @Inject
     SiteContext site;
 
+    /**
+     * How the site decides a request before any route is matched.
+     */
+    public sealed interface Gate {
+
+        /** A redirect to the site's address, sent with the REST server's fixed headers. */
+        record Redirect(ServedResponse response) implements Gate {}
+
+        /** Refused before the REST server runs, sent as it is: none of the REST server's headers. */
+        record Died(ServedResponse response) implements Gate {}
+
+        /** No site to serve, or the REST feature is off: the REST server answers {@code rest_no_route}. */
+        record NoRoute() implements Gate {}
+
+        /** The answer as the gate alone renders it. */
+        default ServedResponse response() {
+            return switch (this) {
+                case Redirect redirect -> redirect.response();
+                case Died died -> died.response();
+                case NoRoute noRoute -> noRoute();
+            };
+        }
+    }
+
     /** The answer that ends the request here, or empty when the request may go on to the routes. */
     public Optional<ServedResponse> check(IncomingRequest request) {
+        return decide(request).map(Gate::response);
+    }
+
+    /** The site's decision, or empty when the request may go on to the routes. */
+    public Optional<Gate> decide(IncomingRequest request) {
         if (!site.isResolved()) {
-            return Optional.of(noRoute());
+            return Optional.of(new Gate.NoRoute());
         }
         SiteInfo info;
         try {
             info = site.site();
         } catch (SiteNotResolvedException missing) {
-            return Optional.of(noRoute());
+            return Optional.of(new Gate.NoRoute());
         }
         String method = RestServer.method(request);
         Optional<URI> redirect = site.redirect();
         if (redirect.isPresent() && (method.equals("GET") || method.equals("HEAD"))) {
-            return Optional.of(redirect(redirect.get(), request.target()));
+            return Optional.of(new Gate.Redirect(redirect(redirect.get(), request.target())));
         }
         SiteStatus status = info.status();
         if (status != SiteStatus.ACTIVE) {
             String message = status == SiteStatus.DELETED ? GONE : ARCHIVED;
-            return Optional.of(died(410, "wp_die", message, isJson(request)));
+            return Optional.of(new Gate.Died(died(410, "wp_die", message, isJson(request))));
         }
         if (!site.features().isEnabled(RestWpV2Feature.KEY)) {
-            return Optional.of(noRoute());
+            return Optional.of(new Gate.NoRoute());
         }
         return Optional.empty();
     }
@@ -70,8 +99,7 @@ public class SiteGate {
     }
 
     private static ServedResponse noRoute() {
-        return RestServer.error(
-                RestError.of("rest_no_route", "No route was found matching the URL and request method.", 404));
+        return RestServer.render(RestServer.error(RestServer.NO_ROUTE));
     }
 
     /** A 301 to {@code target} (the request's path and query) below the site's address. */
@@ -100,7 +128,7 @@ public class SiteGate {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         byte[] body;
         if (json) {
-            headers.put("Content-Type", List.of(RestServer.JSON_TYPE));
+            headers.put("Content-Type", List.of(ResponseHeaders.JSON_TYPE));
             ObjectNode error = RestError.of(code, message, status).toJson();
             error.putArray("additional_errors");
             body = RestJson.encode(error, false);

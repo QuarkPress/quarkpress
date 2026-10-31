@@ -2,6 +2,7 @@ package org.quarkpress.restwp.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -98,6 +99,22 @@ class MultisiteDispatchDbTest {
                 }
             }
         }
+        // the stages still run, but the API root Link is left out: the only address to name is the client's Host
+        for (String bearer : new String[] {null, "invalid"}) {
+            for (String url :
+                    List.of("/wp-json/qp-test/v1/site?_envelope", "/wp-json/qp-test/v1/site?_jsonp=cb", "/wp-json/")) {
+                for (Response response : List.of(
+                        Http.at(host, bearer)
+                                .header("Origin", "https://" + host)
+                                .get(url),
+                        Http.at(host, bearer).head(url))) {
+                    response.then().header("X-Robots-Tag", "noindex").header("Link", nullValue());
+                    for (Header header : response.headers()) {
+                        assertThat(header.getValue()).as(header.getName()).doesNotContain(host);
+                    }
+                }
+            }
+        }
         Http.at(host, null)
                 .contentType("application/json")
                 .body("{nope")
@@ -105,6 +122,35 @@ class MultisiteDispatchDbTest {
                 .then()
                 .statusCode(404)
                 .body(equalTo(NO_ROUTE));
+    }
+
+    @Test
+    void aSubdirectorySitesApiRootIsItsOwn() {
+        String link = "<http://localhost/" + news + "/wp-json/>; rel=\"https://api.w.org/\"";
+        for (String url : List.of(
+                "/" + news + "/wp-json/qp-test/v1/site",
+                "/" + news + "/?rest_route=/qp-test/v1/none",
+                "/" + news + "/wp-json/qp-test/v1/items?_jsonp=cb")) {
+            Http.as(null).get(url).then().header("Link", link).header("X-Robots-Tag", "noindex");
+        }
+        Http.as("invalid")
+                .get("/" + news + "/wp-json/qp-test/v1/site")
+                .then()
+                .statusCode(401)
+                .header("Link", link);
+        Http.as(null)
+                .get("/wp-json/qp-test/v1/site")
+                .then()
+                .header("Link", "<http://localhost/wp-json/>; rel=\"https://api.w.org/\"");
+        // the feature switched off: the site's 404 is a REST answer of its own
+        scope.run(newsId, () -> toggles.setForSite("rest-wp-v2", false));
+        Http.as(null)
+                .get("/" + news + "/wp-json/qp-test/v1/site?_envelope")
+                .then()
+                .statusCode(200)
+                .header("Link", link)
+                .header("Vary", "Origin")
+                .body(equalTo("{\"body\":" + NO_ROUTE + ",\"status\":404,\"headers\":[]}"));
     }
 
     @Test
@@ -119,10 +165,16 @@ class MultisiteDispatchDbTest {
         String location = "http://localhost/" + news + "/wp-json/qp-test/v1/items?x=1";
         for (String method : List.of("GET", "HEAD")) {
             Http.at(alias, null)
-                    .request(method, "/wp-json/qp-test/v1/items?x=1")
+                    .request(method, "/wp-json/qp-test/v1/items?x=1&_jsonp=cb&_envelope")
                     .then()
                     .statusCode(301)
-                    .header("Location", location);
+                    .header("Location", location + "&_jsonp=cb&_envelope")
+                    // the REST server's fixed headers, the site's own API root (never the alias), no content type
+                    .header("Link", "<http://localhost/" + news + "/wp-json/>; rel=\"https://api.w.org/\"")
+                    .header("X-Robots-Tag", "noindex")
+                    .header("Access-Control-Expose-Headers", "X-WP-Total, X-WP-TotalPages, Link")
+                    .header("Content-Type", nullValue())
+                    .body(emptyString());
         }
         Http.at(alias, null)
                 .get("/?rest_route=/qp-test/v1/items")

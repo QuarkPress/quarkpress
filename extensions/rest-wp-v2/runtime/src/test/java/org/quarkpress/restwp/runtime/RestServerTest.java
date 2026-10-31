@@ -70,6 +70,12 @@ class RestServerTest {
                 failure.run();
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<Gate> decide(IncomingRequest request) {
+                failure.run();
+                return Optional.empty();
+            }
         };
         return server;
     }
