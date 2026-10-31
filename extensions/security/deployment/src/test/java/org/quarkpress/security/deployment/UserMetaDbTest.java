@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.BooleanNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
@@ -198,6 +199,47 @@ class UserMetaDbTest {
             return null;
         });
         assertThat(meta.get(carolId, "k".repeat(255))).contains(TextNode.valueOf("v"));
+    }
+
+    @Test
+    void quarkPressKeysAreNeitherReadNorWrittenHere() throws Exception {
+        // the bootstrap mark, as provisioning keeps it in the profile's meta
+        Jdbc.update(
+                dataSource,
+                "update qp_user_profile set meta = " + TestDb.json() + " where id = ?",
+                "{\"quarkpress_bootstrap_profile\":true}",
+                carolId.value());
+        for (String key : List.of(ProfileProvisioning.BOOTSTRAP_MARK, "quarkpress_x", "QuarkPress_bootstrap_profile")) {
+            String refused = "user meta keys starting with quarkpress_ are reserved for QuarkPress's own marks: " + key;
+            assertThatThrownBy(() -> meta.get(carolId, key))
+                    .as("get %s", key)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage(refused);
+            // neither the user nor an administrator (edit_user) may set or clear it
+            for (SecurityIdentity caller : List.of(carol, admin)) {
+                assertThatThrownBy(() -> as(caller, () -> {
+                            meta.set(carolId, key, BooleanNode.FALSE);
+                            return null;
+                        }))
+                        .as("set %s", key)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(refused);
+                assertThatThrownBy(() -> as(caller, () -> meta.delete(carolId, key)))
+                        .as("delete %s", key)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(refused);
+            }
+        }
+        assertThat(Jdbc.strings(dataSource, "select meta from qp_user_profile where id = ?", carolId.value()))
+                .singleElement()
+                .satisfies(
+                        raw -> assertThat(json(raw).toString()).isEqualTo("{\"quarkpress_bootstrap_profile\":true}"));
+        // a key that only contains the prefix later is an ordinary key
+        as(carol, () -> {
+            meta.set(carolId, "my_quarkpress_x", TextNode.valueOf("v"));
+            return null;
+        });
+        assertThat(meta.get(carolId, "my_quarkpress_x")).contains(TextNode.valueOf("v"));
     }
 
     @Test

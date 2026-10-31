@@ -7,7 +7,8 @@ import org.quarkpress.core.UserId;
 
 /**
  * A user's meta: JSON values under keys of 1 to 255 characters that are not blank, stored with the profile in the order
- * they were first written. Keys are refused with {@link IllegalArgumentException} otherwise.
+ * they were first written. Keys starting with {@code quarkpress_} (in any ASCII case) are QuarkPress's own marks and are
+ * never read or written here. Keys are refused with {@link IllegalArgumentException} otherwise.
  */
 public interface UserMeta {
 

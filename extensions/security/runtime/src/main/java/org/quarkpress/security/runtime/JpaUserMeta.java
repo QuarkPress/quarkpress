@@ -15,7 +15,7 @@ import org.quarkpress.security.UserMeta;
 import org.quarkpress.security.UserTarget;
 
 /**
- * User meta in the profile's {@code meta} object. A change checks the capability first, then locks the profile row
+ * User meta in the profile's {@code meta} object, except the keys QuarkPress keeps there for itself. A change checks the capability first, then locks the profile row
  * (read again under the lock) and rewrites the object, keeping the order of its keys; so concurrent changes of one
  * user's meta, and a login that refreshes the profile, apply one after the other.
  */
@@ -24,6 +24,12 @@ public class JpaUserMeta implements UserMeta {
 
     /** The longest key. */
     static final int MAX_KEY = 255;
+
+    /**
+     * The prefix of the keys QuarkPress keeps for itself in the meta object (such as the bootstrap mark that
+     * {@link ProfileProvisioning} sets and clears), in any ASCII case: never read or written through this API.
+     */
+    static final String RESERVED_PREFIX = "quarkpress_";
 
     @Inject
     UserProfileRepository profiles;
@@ -112,6 +118,10 @@ public class JpaUserMeta implements UserMeta {
         if (key.length() > MAX_KEY) {
             throw new IllegalArgumentException(
                     "a user meta key has at most " + MAX_KEY + " characters: " + key.length());
+        }
+        if (key.regionMatches(true, 0, RESERVED_PREFIX, 0, RESERVED_PREFIX.length())) {
+            throw new IllegalArgumentException("user meta keys starting with " + RESERVED_PREFIX
+                    + " are reserved for QuarkPress's own marks: " + key);
         }
     }
 }

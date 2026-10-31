@@ -16,7 +16,9 @@ WordPress's capability checks, answered as WordPress 7.1.3 answers them.
 
 The extension brings `quarkpress-persistence`, `quarkus-oidc` (and with it `quarkus-security`) and
 `quarkpress-lib-wp-kses`. Configure OIDC as Quarkus documents it (`quarkus.oidc.auth-server-url` and the client in
-production); QuarkPress's users come from the default tenant only (see [Tenants](#tenants)). In dev and test, Dev
+production); QuarkPress's users come from the default tenant only (see [Tenants](#tenants)). The REST API module
+(`quarkpress-rest-wp-v2`) trusts only identities from an `Authorization: Bearer` token: a request a `web-app` or
+`hybrid` session cookie authenticates is anonymous there. In dev and test, Dev
 Services for Keycloak starts Keycloak with QuarkPress's dev realm (see [Dev mode](#dev-mode)). With the security module
 installed, the network services (`Sites`, `SiteDomains`) check capabilities for real; without it they allow every
 caller. The installation is a network when the multisite module is installed (decided at build time) and a single site
@@ -62,7 +64,9 @@ otherwise.
 - `UserProfileCreated` is fired when a profile is created. `UserProfiles.findAll(users)` reads several profiles at
   once, in the given order, skipping unknown ids.
 - **User meta.** `UserMeta` keeps JSON values per user under keys of 1 to 255 characters that are not blank, stored
-  with the profile in the order they were first written. `get` needs no capability; `set` and `delete` need
+  with the profile in the order they were first written. Keys starting with `quarkpress_` (in any ASCII case, such as
+  the bootstrap mark) are QuarkPress's own: `UserMeta` refuses to read, write or delete them, so no user or holder of
+  `edit_user` can set, clear or see the mark. `get` needs no capability; `set` and `delete` need
   `edit_user` on the user (oneself always) and lock the profile row, so concurrent changes of one user's meta and a
   login that refreshes the profile apply one after the other. `siteKey(site, name)` gives WordPress's per-site key:
   `wp_<name>` for site 1 and `wp_<site id>_<name>` for any other site, whichever site is the network's main one (the
