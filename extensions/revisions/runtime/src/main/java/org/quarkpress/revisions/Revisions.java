@@ -3,6 +3,7 @@ package org.quarkpress.revisions;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.RevisionId;
 import org.quarkpress.core.UserId;
@@ -35,6 +36,16 @@ public interface Revisions {
      */
     Optional<RevisionSnapshot> save(PostId post);
 
+    /**
+     * Runs {@code work} with the save observer silenced for the post, then saves the post's revision once, as the
+     * save would have (nothing when the post is unchanged since its latest regular revision, or no longer exists),
+     * unless {@code work} threw; the revision therefore holds meta written inside the work, as WordPress's REST
+     * update writes its meta before its revision. Calls nest: the innermost saves, the outer ones then find the post
+     * unchanged. Needs {@code edit_post} on the post before the work (the work makes its own checks); a missing post,
+     * or one of another site, is {@code invalid_post}. Returns what the work returned.
+     */
+    <T> T revisingAfter(PostId post, Supplier<T> work);
+
     /** The revision with this id on the current site, autosaves included; needs {@code edit_post} on its post. */
     Optional<RevisionSnapshot> find(RevisionId revision);
 
@@ -44,6 +55,13 @@ public interface Revisions {
      * post, or one of another site, is {@code invalid_post}.
      */
     List<RevisionSnapshot> ofPost(PostId post, RevisionQuery query);
+
+    /**
+     * The number of revisions {@link #ofPost} lists for {@code query}, its limit and offset ignored: 0 for a post
+     * whose limit is 0 unless the query turns that check off. Needs {@code edit_post} on the post; a missing post, or
+     * one of another site, is {@code invalid_post}.
+     */
+    long count(PostId post, RevisionQuery query);
 
     /**
      * The post's autosave by {@code user}, or without a user the latest autosave of any user (the newest by time,
@@ -64,15 +82,19 @@ public interface Revisions {
     /**
      * Autosaves the post for the caller (WordPress's REST autosaves endpoint). The post's type must be autosaved
      * ({@code autosave_not_supported}); the caller needs {@code edit_post} on the post; meta keys that are not
-     * revisioned for the type are refused with {@code IllegalArgumentException}. A draft or auto-draft of the caller's
-     * own is updated with the given fields through the full save path, creates no revision, ignores the given meta,
-     * and is the result. Otherwise the caller's autosave is updated (re-dated now; fields not given keep their
-     * values; given meta keys replace theirs) when a given field, after whitespace normalization, or any revisioned
-     * meta key, when meta is given, differs from the post; returned untouched when nothing differs; or created without
-     * comparison when the caller has none (fields not given stored empty, the post's revisioned meta copied, then the
-     * given keys). The limit and the revisions feature play no part. A missing post, or one of another site, is
-     * {@code invalid_post}. The system's autosave has no author; the system writes to the newest authorless autosave of
-     * the post.
+     * revisioned for the type are refused with {@code IllegalArgumentException}. The branch is chosen on the stored
+     * post, read under its row lock: a draft or auto-draft of the caller's own that no other user holds a fresh
+     * editor lock on (the posts module's {@code PostLocks.holder}) is updated with the given fields and the given
+     * {@code post} changes through the full save path, creates no revision, ignores the given meta, and is the
+     * result. Otherwise (another status, another author, or a locked own draft) the caller's autosave is updated
+     * (re-dated now; fields not given keep their values; given meta keys replace theirs) when a given field, after
+     * whitespace normalization, differs from the post or, when meta is given, the given value of any revisioned key
+     * (the empty text for a key not given) differs from the post's first stored value (a key the post does not store
+     * always differs); returned untouched when nothing differs; or created without comparison when the caller has
+     * none (fields not given stored empty, the post's revisioned meta copied, then the given keys); the given
+     * {@code post} changes are not applied. The limit and the revisions feature play no part. A missing post, or one
+     * of another site, is {@code invalid_post}. The system's autosave has no author; the system writes to the newest
+     * authorless autosave of the post.
      */
     AutosaveResult autosave(PostId post, AutosaveChanges changes);
 
@@ -85,7 +107,9 @@ public interface Revisions {
      * caller, dates a floating draft now, fires the post's events and saves a revision of the result unless it equals
      * the latest regular revision; then {@link RevisionRestored} fires; then the revision's revisioned meta replaces
      * the post's (a key the revision lacks ends empty), so the revision the restore just saved still carries the
-     * post's previous meta. Returns the post afterwards. A missing revision, or one of another site, is
+     * post's previous meta, and the post's {@code _edit_last} meta becomes the caller's user id (none for the system
+     * identity), as WordPress records the last editor after a restore. Returns the post afterwards. A missing
+     * revision, or one of another site, is
      * {@code rest_post_invalid_id}. A restore refused by the update's own input check (for example
      * {@code empty_content}) leaves the caller's transaction usable; the posts module marks its own failures after its
      * first write.

@@ -6,23 +6,28 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import org.quarkpress.posts.PostChanges;
 
 /**
  * What an autosave gives: a title, content or excerpt (a field not given is not compared and, on a new autosave, is
- * stored empty; on an updated one it keeps the autosave's value), and revisioned meta values by key (a key not given
- * keeps the autosave's value; a key that is not revisioned for the post's type is refused by the service).
+ * stored empty; on an updated one it keeps the autosave's value), revisioned meta values by key (a key not given
+ * keeps the autosave's value; a key that is not revisioned for the post's type is refused by the service), and
+ * {@code post}, the other prepared fields of a REST autosave request (a status, slug, dates and so on), which the
+ * service applies to the post together with the title, content and excerpt on the own-draft branch only.
  */
 public record AutosaveChanges(
         Optional<String> title,
         Optional<String> content,
         Optional<String> excerpt,
-        Optional<Map<String, JsonNode>> meta) {
+        Optional<Map<String, JsonNode>> meta,
+        Optional<PostChanges> post) {
 
     public AutosaveChanges {
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(content, "content");
         Objects.requireNonNull(excerpt, "excerpt");
         Objects.requireNonNull(meta, "meta");
+        Objects.requireNonNull(post, "post");
         meta = meta.filter(given -> !given.isEmpty()).map(AutosaveChanges::copy);
     }
 
@@ -54,6 +59,7 @@ public record AutosaveChanges(
         private String content;
         private String excerpt;
         private Map<String, JsonNode> meta;
+        private PostChanges post;
 
         private Builder() {}
 
@@ -83,12 +89,22 @@ public record AutosaveChanges(
             return this;
         }
 
+        /**
+         * The other fields to apply to the post on the own-draft branch (the title, content and excerpt given here
+         * replace those of {@code changes}); ignored on the autosave branch.
+         */
+        public Builder post(PostChanges changes) {
+            this.post = Objects.requireNonNull(changes, "changes");
+            return this;
+        }
+
         public AutosaveChanges build() {
             return new AutosaveChanges(
                     Optional.ofNullable(title),
                     Optional.ofNullable(content),
                     Optional.ofNullable(excerpt),
-                    Optional.ofNullable(meta));
+                    Optional.ofNullable(meta),
+                    Optional.ofNullable(post));
         }
     }
 }

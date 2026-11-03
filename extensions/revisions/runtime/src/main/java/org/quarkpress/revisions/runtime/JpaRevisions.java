@@ -1,5 +1,6 @@
 package org.quarkpress.revisions.runtime;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -11,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.RevisionId;
@@ -23,11 +25,13 @@ import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.Acting;
+import org.quarkpress.posts.runtime.JpaEditLocks;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
 import org.quarkpress.posts.runtime.PostDates;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostLocks;
 import org.quarkpress.posts.runtime.PostRepository;
+import org.quarkpress.posts.runtime.ProtectedMeta;
 import org.quarkpress.revisions.AutosaveChanges;
 import org.quarkpress.revisions.AutosaveResult;
 import org.quarkpress.revisions.RevisionCount;
@@ -59,7 +63,13 @@ public class JpaRevisions implements Revisions {
     Acting acting;
 
     @Inject
-    PostLocks locks;
+    PostLocks siteLocks;
+
+    @Inject
+    org.quarkpress.posts.PostLocks editLocks;
+
+    @Inject
+    ProtectedMeta protectedMeta;
 
     @Inject
     RevisionWrites writes;
@@ -99,6 +109,21 @@ public class JpaRevisions implements Revisions {
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public <T> T revisingAfter(PostId post, Supplier<T> work) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(work, "work");
+        SiteId siteId = site.siteId();
+        readableParent(siteId, post);
+        T result = Autosaving.silencing(post, work);
+        siteLocks.lock(siteId);
+        // the work may have removed the post: then there is nothing to revision
+        postRows.lockPost(siteId, post).ifPresent(row -> writes.saveRevision(siteId, row.toSnapshot()));
+        return result;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public Optional<RevisionSnapshot> find(RevisionId revision) {
         Objects.requireNonNull(revision, "revision");
         SiteId siteId = site.siteId();
@@ -123,6 +148,19 @@ public class JpaRevisions implements Revisions {
         return queries.ofPost(siteId, post, query).stream()
                 .map(RevisionEntity::toSnapshot)
                 .toList();
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public long count(PostId post, RevisionQuery query) {
+        Objects.requireNonNull(query, "query");
+        SiteId siteId = site.siteId();
+        PostSnapshot parent = readableParent(siteId, post);
+        if (query.checkEnabled() && !policy.enabled(parent)) {
+            return 0;
+        }
+        return queries.count(siteId, post, query);
     }
 
     @Override
@@ -190,11 +228,14 @@ public class JpaRevisions implements Revisions {
         });
         PostSnapshot parent = row.toSnapshot();
         Optional<UserId> user = acting.user();
+        // the stored post under its row lock decides: a draft of the caller's own that nobody else holds a lock on
         boolean ownDraft = (parent.status().equals("draft") || parent.status().equals("auto-draft"))
                 && user.isPresent()
-                && parent.author().equals(user);
+                && parent.author().equals(user)
+                && editLocks.holder(post, user).isEmpty();
         if (ownDraft) {
-            PostChanges.Builder update = PostChanges.builder();
+            PostChanges.Builder update =
+                    changes.post().map(PostChanges::toBuilder).orElseGet(PostChanges::builder);
             changes.title().ifPresent(update::title);
             changes.content().ifPresent(update::content);
             changes.excerpt().ifPresent(update::excerpt);
@@ -253,6 +294,10 @@ public class JpaRevisions implements Revisions {
             events.restored(siteId, PostDates.now(clock), before.id(), revision);
             PostEntity row =
                     postRows.lockPost(siteId, before.id()).orElseThrow(() -> PostException.invalidPost(before.id()));
+            // WordPress records the restoring user as the post's last editor, as text; the system identity has none
+            acting.user()
+                    .ifPresent(user -> protectedMeta.put(
+                            siteId, row, JpaEditLocks.EDIT_LAST, TextNode.valueOf(Long.toString(user.value()))));
             writes.restoreMeta(row, policy.metaKeys(before.type()), locked);
             postRows.flush();
             return row.toSnapshot();
@@ -273,7 +318,7 @@ public class JpaRevisions implements Revisions {
         if (found.isEmpty()) {
             return Optional.empty();
         }
-        locks.lock(siteId);
+        siteLocks.lock(siteId);
         // the parent row first, as every other write takes them: post rows, then revision rows
         postRows.lockPost(siteId, PostId.of(found.get().postId));
         Optional<RevisionEntity> locked = rows.lockRevision(siteId, revision);
@@ -317,7 +362,7 @@ public class JpaRevisions implements Revisions {
                 .map(PostEntity::toSnapshot)
                 .orElseThrow(() -> PostException.invalidPost(post));
         checks.accept(unlocked);
-        locks.lock(siteId);
+        siteLocks.lock(siteId);
         PostEntity row = postRows.lockPost(siteId, post).orElseThrow(() -> PostException.invalidPost(post));
         checks.accept(row.toSnapshot());
         return row;

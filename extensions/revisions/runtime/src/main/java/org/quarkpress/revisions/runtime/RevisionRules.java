@@ -119,8 +119,7 @@ public final class RevisionRules {
 
     /**
      * Whether an autosave of the given changes differs from the post: a given field in {@code fields} differs after
-     * normalization, or, when meta is given, any revisioned key is not stored by the post or its first stored value
-     * differs from the given one (an empty text when the key is not given).
+     * normalization, or, when meta is given, {@link #autosaveMetaDiffers} for every revisioned key.
      */
     public static boolean autosaveDiffers(
             Set<RevisionField> fields, Set<String> metaKeys, AutosaveChanges changes, PostSnapshot post) {
@@ -131,18 +130,26 @@ public final class RevisionRules {
                 return true;
             }
         }
-        if (changes.meta().isPresent()) {
-            Map<String, JsonNode> given = changes.meta().get();
-            for (String key : metaKeys) {
-                List<JsonNode> stored = post.meta(key);
-                if (stored.isEmpty()) {
-                    return true;
-                }
-                JsonNode before = stored.get(0);
-                JsonNode after = given.getOrDefault(key, TextNode.valueOf(""));
-                if (!JsonValues.sameValue(before, after)) {
-                    return true;
-                }
+        return changes.meta()
+                .map(given -> autosaveMetaDiffers(metaKeys, given, post))
+                .orElse(false);
+    }
+
+    /**
+     * WordPress's meta part of the autosave comparison, run when meta was sent: for every revisioned key of the
+     * type, not only the keys sent, the sent value (the empty text for a key absent from {@code given}) is compared
+     * with the post's first stored value of the key; a key the post does not store reads as null there, so it always
+     * differs, even from the empty text.
+     */
+    public static boolean autosaveMetaDiffers(Set<String> metaKeys, Map<String, JsonNode> given, PostSnapshot post) {
+        for (String key : metaKeys) {
+            List<JsonNode> stored = post.meta(key);
+            if (stored.isEmpty()) {
+                return true;
+            }
+            JsonNode sent = given.getOrDefault(key, TextNode.valueOf(""));
+            if (!JsonValues.sameValue(stored.get(0), sent)) {
+                return true;
             }
         }
         return false;

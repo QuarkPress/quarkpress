@@ -370,15 +370,19 @@ class RevisionRulesTest {
         assertThat(changes.meta().get().get("k").get("a").asInt()).isEqualTo(1);
         ObjectNode other = JsonNodeFactory.instance.objectNode().put("a", 1);
         AutosaveChanges direct = new AutosaveChanges(
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(Map.of("k", other)));
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(Map.of("k", other)),
+                Optional.empty());
         other.put("a", 2);
         assertThat(direct.meta().get().get("k").get("a").asInt()).isEqualTo(1);
     }
 
     @Test
     void anEmptyGivenMetaIsNotGivenMeta() {
-        AutosaveChanges direct =
-                new AutosaveChanges(Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(Map.of()));
+        AutosaveChanges direct = new AutosaveChanges(
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(Map.of()), Optional.empty());
         assertThat(direct.meta()).isEmpty();
         assertThat(RevisionRules.autosaveDiffers(
                         RevisionField.all(),

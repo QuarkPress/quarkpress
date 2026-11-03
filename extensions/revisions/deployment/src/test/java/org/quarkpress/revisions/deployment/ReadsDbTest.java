@@ -21,6 +21,7 @@ import org.quarkpress.core.UserId;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.revisions.RevisionCount;
 import org.quarkpress.revisions.RevisionException;
+import org.quarkpress.revisions.RevisionOrder;
 import org.quarkpress.revisions.RevisionQuery;
 import org.quarkpress.revisions.RevisionSnapshot;
 import org.quarkpress.revisions.Revisions;
@@ -110,8 +111,12 @@ class ReadsDbTest {
                 .hasMessage("offset must not be negative");
         assertThatThrownBy(() -> new RevisionQuery(
                         false,
+                        RevisionOrder.DATE,
                         OptionalInt.of(0),
                         OptionalInt.empty(),
+                        List.of(),
+                        List.of(),
+                        Optional.empty(),
                         Optional.empty(),
                         RevisionQuery.Autosaves.INCLUDE,
                         true))
@@ -119,8 +124,12 @@ class ReadsDbTest {
                 .hasMessage("limit must be at least 1");
         assertThatThrownBy(() -> new RevisionQuery(
                         false,
+                        RevisionOrder.DATE,
                         OptionalInt.empty(),
                         OptionalInt.of(-1),
+                        List.of(),
+                        List.of(),
+                        Optional.empty(),
                         Optional.empty(),
                         RevisionQuery.Autosaves.INCLUDE,
                         true))

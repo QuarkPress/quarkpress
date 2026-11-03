@@ -96,10 +96,14 @@ class RestoreEventsDbTest {
                         "created v2 meta=[\"[1]\"]",
                         "saved v2",
                         "restored " + v2.id().value() + " post-meta=[\"[1]\"]");
+        // the revision's meta restored, and the restoring user recorded as the last editor
         assertThat(Jdbc.strings(
                         dataSource,
                         "select meta from qp_post where id = ?",
                         post.id().value()))
-                .containsExactly("{\"footnotes\":[\"[0]\"]}");
+                .singleElement()
+                .satisfies(meta -> assertThat(meta)
+                        .contains("\"footnotes\":[\"[0]\"]")
+                        .contains("\"_edit_last\":[\"" + editor.value() + "\"]"));
     }
 }
