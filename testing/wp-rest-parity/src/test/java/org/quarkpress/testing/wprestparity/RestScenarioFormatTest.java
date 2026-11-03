@@ -126,6 +126,32 @@ class RestScenarioFormatTest {
                 .isEqualTo("/wp-json/wp/v2/posts/4/revisions/9");
     }
 
+    @Test
+    void aDraftStepDefinesAPostRef() {
+        String get = "{\"as\":\"carol\",\"method\":\"GET\",\"target\":\"/wp-json/wp/v2/posts/{p:new}?context=edit\"}";
+        RestScenario read =
+                RestScenarioJson.read(scenario("{\"draft\":\"p:new\",\"as\":\"carol\",\"type\":\"post\"}", get));
+        assertThat(read.setup()).containsExactly(new RestScenario.SetupStep.Draft("p:new", "carol", "post"));
+        assertThat(RestScenarioJson.read(RestScenarioJson.write(read)))
+                .usingRecursiveComparison()
+                .isEqualTo(read);
+        assertThat(RestScenario.resolve(read.requests().get(0), Map.of("p:new", 7L))
+                        .target())
+                .isEqualTo("/wp-json/wp/v2/posts/7?context=edit");
+        assertThatThrownBy(() -> RestScenarioJson.read(
+                        scenario("{\"draft\":\"r:new\",\"as\":\"carol\",\"type\":\"post\"}", get)))
+                .hasMessageContaining("r:new");
+        assertThatThrownBy(() -> RestScenarioJson.read(
+                        scenario("{\"draft\":\"p:new\",\"as\":\"anonymous\",\"type\":\"post\"}", get)))
+                .hasMessageContaining("unknown caller 'anonymous'");
+        assertThatThrownBy(() ->
+                        RestScenarioJson.read(scenario("{\"draft\":\"p:new\",\"as\":\"carol\",\"type\":\"\"}", get)))
+                .hasMessageContaining("a draft needs a type");
+        assertThatThrownBy(() -> RestScenarioJson.read(
+                        scenario("{\"draft\":\"p:new\",\"as\":\"carol\",\"type\":\"post\",\"title\":\"x\"}", get)))
+                .hasMessageContaining("unknown key title");
+    }
+
     static final String POST_A =
             "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"t\"}";
     static final String GET_ROOT = "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/\"}";

@@ -18,7 +18,13 @@
  *     so a type whose taxonomies are all outside REST can be observed.
  */
 
-add_action('init', static function (): void {
+/**
+ * Registers "book" when the current site's switch is set. Called at init for the served site, and by rest-setup.php
+ * after switch_to_blog() for an operation that needs the type's registration (an auto-draft's title and link follow
+ * the type's supports and registration, which the main site, where mu-plugins load, does not hold).
+ */
+function qp_parity_register_book(): void
+{
     if ('1' === get_option('qp_parity_book_type')) {
         register_post_type('book', [
             'labels' => ['name' => 'Books', 'singular_name' => 'Book'],
@@ -32,6 +38,10 @@ add_action('init', static function (): void {
             register_taxonomy_for_object_type('post_format', 'book');
         }
     }
+}
+
+add_action('init', static function (): void {
+    qp_parity_register_book();
     // The trash switch covers the types registered by now (WordPress's built-ins at init:0 and book above); a type
     // registered after init:10 would escape it.
     foreach (get_post_types() as $qp_type) {

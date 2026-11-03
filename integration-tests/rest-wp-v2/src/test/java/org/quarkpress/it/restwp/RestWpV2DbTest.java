@@ -87,6 +87,7 @@ class RestWpV2DbTest {
                 .statusCode(200)
                 .header("Link", "<http://localhost/wp-json/>; rel=\"https://api.w.org/\"")
                 .body("namespaces", contains("wp/v2", "quarkpress/v1"))
+                .body("routes", hasKey("/quarkpress/v1/drafts"))
                 .body("authentication.oidc.issuer", startsWith("http"));
         as(null).get("/?rest_route=/wp/v2").then().statusCode(200).body("namespace", equalTo("wp/v2"));
     }

@@ -36,6 +36,9 @@
  *   meta {site, post, key}         get_post_meta, every row; answers {values: [...]}
  *   set_meta {site, post, key, value}  update_post_meta; answers {updated}
  *   autosave {site, as, post, title, content}  wp_create_post_autosave as the user; answers {id} (or the error code)
+ *   auto_draft {site, as, type}    the auto-draft WordPress's new-post screen creates for the user: the new-post
+ *                                  default of the type, inserted (get_default_post_to_edit with create_in_db, as
+ *                                  post-new.php calls it; harness rule: no capability check, no lock); answers {id}
  *   taxonomy_args {name}           the public properties of the registered taxonomy object (get_taxonomy)
  *   type_args {name}               the public properties of the registered post type object (get_post_type_object)
  *   revoke_passwords {user}        deletes every application password of the user
@@ -516,6 +519,28 @@ function qp_autosave(array $input): array
     return ['id' => (int) $result];
 }
 
+/**
+ * Harness rule: the row post-new.php creates, without the screen's capability check and without the lock it takes
+ * (the auto-draft's capability rule and the lock are compared through the routes themselves).
+ */
+function qp_auto_draft(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    wp_set_current_user(qp_user_id($input, 'as'));
+    if (function_exists('qp_parity_register_book')) {
+        // the scenario site's custom type, registered by the mu-plugin for the served site only (harness rule)
+        qp_parity_register_book();
+    }
+    require_once ABSPATH . 'wp-admin/includes/post.php';
+    $post = get_default_post_to_edit((string) $input['type'], true);
+    wp_set_current_user(0);
+    restore_current_blog();
+    if (!($post instanceof WP_Post) || 'auto-draft' !== $post->post_status) {
+        return ['id' => 0, 'error' => 'no auto-draft was inserted'];
+    }
+    return ['id' => (int) $post->ID];
+}
+
 function qp_taxonomy_args(array $input): array
 {
     $taxonomy = get_taxonomy((string) $input['name']);
@@ -635,6 +660,7 @@ try {
         'meta' => qp_meta($qp_input),
         'set_meta' => qp_set_meta($qp_input),
         'autosave' => qp_autosave($qp_input),
+        'auto_draft' => qp_auto_draft($qp_input),
         'taxonomy_args' => qp_taxonomy_args($qp_input),
         'type_args' => qp_type_args($qp_input),
         'revoke_passwords' => qp_revoke_passwords($qp_input),

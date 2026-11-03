@@ -180,6 +180,15 @@ public interface Side extends AutoCloseable {
                         }
                         created.put(autosave.ref(), answer.get("id").longValue());
                     }
+                    case SetupStep.Draft draft -> {
+                        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+                        args.put("site", sitePath).put("as", draft.as()).put("type", draft.type());
+                        JsonNode answer = site.operation("auto_draft", args);
+                        if (answer.path("id").longValue() == 0) {
+                            throw new IllegalStateException("WordPress setup draft " + draft + ": " + answer);
+                        }
+                        created.put(draft.ref(), answer.get("id").longValue());
+                    }
                     case SetupStep.Lock lock -> {
                         ObjectNode args = OracleJson.MAPPER.createObjectNode();
                         args.put("site", sitePath)

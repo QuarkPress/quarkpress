@@ -1,0 +1,77 @@
+{
+  "id": "p13",
+  "rule": "the auto-draft a new post starts from (WordPress's new-post screen; QuarkPress's POST /quarkpress/v1/drafts): two posts of carol's with the site's default post format (the second one's generated slug), a page of bob's and a book of carol's, read in the edit context by their authors and the editor, in the view context by the editor, and refused to anonymous callers and to a contributor",
+  "setup": [
+    {
+      "option": "default_post_format",
+      "value": "aside"
+    },
+    {
+      "draft": "p:post",
+      "as": "carol",
+      "type": "post"
+    },
+    {
+      "draft": "p:post2",
+      "as": "carol",
+      "type": "post"
+    },
+    {
+      "draft": "p:page",
+      "as": "bob",
+      "type": "page"
+    },
+    {
+      "draft": "p:book",
+      "as": "carol",
+      "type": "book"
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?context=edit&_fields=id,date,date_gmt,guid,modified,modified_gmt,password,slug,status,type,link,title,content,excerpt,author,featured_media,comment_status,ping_status,sticky,template,format,meta,categories,tags,permalink_template,generated_slug"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?context=edit&_fields=id,date,date_gmt,guid,modified,modified_gmt,password,slug,status,type,link,title,content,excerpt,author,featured_media,comment_status,ping_status,sticky,template,format,meta,categories,tags,permalink_template,generated_slug"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?_fields=id,status,type,link,title,content,excerpt,author,format,categories,tags"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post2}?context=edit&_fields=id,slug,generated_slug,title,status"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:page}?context=edit&_fields=id,date,date_gmt,guid,modified,modified_gmt,password,slug,status,type,link,title,content,excerpt,author,featured_media,parent,menu_order,comment_status,ping_status,template,meta,permalink_template,generated_slug"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:page}?context=edit"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}?context=edit&_fields=id,date,date_gmt,guid,modified,modified_gmt,password,slug,status,type,link,title,content,excerpt,author,featured_media,template,meta"
+    }
+  ]
+}

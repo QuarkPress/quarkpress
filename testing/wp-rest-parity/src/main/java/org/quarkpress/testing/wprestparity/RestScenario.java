@@ -79,6 +79,13 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
         /** An autosave of a post by {@code as} (WordPress's autosave revision). */
         record Autosave(String ref, String as, String postRef, String title, String content) implements SetupStep {}
 
+        /**
+         * The auto-draft a new post of {@code type} starts from, as WordPress's new-post screen creates it for
+         * {@code as} (on QuarkPress's side through {@code POST /quarkpress/v1/drafts} as that user, who needs the
+         * type's {@code edit_posts} and {@code create_posts}).
+         */
+        record Draft(String ref, String as, String type) implements SetupStep {}
+
         /** {@code _edit_lock} of the post set to {@code "<now - ageSeconds>:<user>"}. */
         record Lock(String postRef, String user, int ageSeconds) implements SetupStep {}
 
@@ -226,6 +233,13 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
                     used(id, defined, autosave.postRef());
                     refKind(id, autosave.postRef(), 'p');
                     define(id, defined, autosave.ref(), 'r');
+                }
+                case SetupStep.Draft draft -> {
+                    caller(id, draft.as(), false);
+                    if (draft.type().isEmpty()) {
+                        throw new IllegalArgumentException(id + ": a draft needs a type");
+                    }
+                    define(id, defined, draft.ref(), 'p');
                 }
                 case SetupStep.Lock lock -> {
                     caller(id, lock.user(), false);

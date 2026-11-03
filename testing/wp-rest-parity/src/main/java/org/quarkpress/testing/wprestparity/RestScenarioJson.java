@@ -26,6 +26,7 @@ import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
  *             "fields": {"content": "...", "parent": "p:x", "categories": ["t:other"], "sticky": true}},
  *            {"revision": "r:v1", "as": "dave", "post": "p:draft", "title": "...", "content": "..."},
  *            {"autosave": "r:auto", "as": "bob", "post": "p:draft", "title": "...", "content": "..."},
+ *            {"draft": "p:new", "as": "carol", "type": "post"},
  *            {"lock": "p:draft", "user": "dave", "age": 10}, {"own_site": "dave"},
  *            {"option": "permalink_structure", "value": ""}, {"leave": "bob"}],
  *  "requests": [{"as": "alice", "method": "GET", "target": "/wp-json/wp/v2/users/{u:alice}",
@@ -40,6 +41,7 @@ public final class RestScenarioJson {
     private static final Set<String> POST_KEYS = Set.of("post", "as", "type", "status", "title", "fields");
     private static final Set<String> REVISION_KEYS = Set.of("revision", "as", "post", "title", "content");
     private static final Set<String> AUTOSAVE_KEYS = Set.of("autosave", "as", "post", "title", "content");
+    private static final Set<String> DRAFT_KEYS = Set.of("draft", "as", "type");
     private static final Set<String> LOCK_KEYS = Set.of("lock", "user", "age");
     private static final Set<String> OWN_SITE_KEYS = Set.of("own_site");
     private static final Set<String> TERM_KEYS = Set.of("term", "as", "taxonomy", "name", "parent");
@@ -102,6 +104,8 @@ public final class RestScenarioJson {
                             .put("post", autosave.postRef())
                             .put("title", autosave.title())
                             .put("content", autosave.content());
+                case SetupStep.Draft draft ->
+                    node.put("draft", draft.ref()).put("as", draft.as()).put("type", draft.type());
                 case SetupStep.Lock lock ->
                     node.put("lock", lock.postRef()).put("user", lock.user()).put("age", lock.ageSeconds());
                 case SetupStep.OwnSite ownSite -> node.put("own_site", ownSite.user());
@@ -178,6 +182,10 @@ public final class RestScenarioJson {
                     text(step, "title"),
                     text(step, "content"));
         }
+        if (step.has("draft")) {
+            keys(step, DRAFT_KEYS, id + " draft step");
+            return new SetupStep.Draft(text(step, "draft"), text(step, "as"), text(step, "type"));
+        }
         if (step.has("lock")) {
             keys(step, LOCK_KEYS, id + " lock step");
             JsonNode age = step.get("age");
@@ -208,8 +216,8 @@ public final class RestScenarioJson {
             return new SetupStep.Leave(text(step, "leave"));
         }
         throw new IllegalArgumentException(
-                id + ": a setup step is a post, a term, a revision, an autosave, a lock, an own_site, an option or a"
-                        + " leave: " + step);
+                id + ": a setup step is a post, a term, a revision, an autosave, a draft, a lock, an own_site, an"
+                        + " option or a leave: " + step);
     }
 
     private static RestCall request(String id, JsonNode request) {

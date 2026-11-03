@@ -147,6 +147,18 @@ final class QuarkPressSide implements Side {
                             "autosave " + autosave);
                     created.put(autosave.ref(), answer.json().get("id").longValue());
                 }
+                case SetupStep.Draft draft -> {
+                    // the route itself, as the user: what the admin shell calls to start a new post
+                    ObjectNode body = OracleJson.MAPPER.createObjectNode().put("type", draft.type());
+                    Exchange answer = expect(
+                            send(
+                                    sitePath,
+                                    RestCall.json(
+                                            draft.as(), "POST", "/wp-json/quarkpress/v1/drafts", body.toString())),
+                            201,
+                            "draft " + draft);
+                    created.put(draft.ref(), answer.json().get("id").longValue());
+                }
                 case SetupStep.Lock lock -> {
                     ObjectNode body = OracleJson.MAPPER
                             .createObjectNode()
