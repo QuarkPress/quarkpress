@@ -79,14 +79,22 @@ class IndexDbTest {
                 .isEqualTo("http://localhost/wp-json/wp/v2/types");
         // each namespace index sits right before its namespace's first route, as WordPress inserts it
         List<String> routes = fieldNames(index.get("routes"));
-        assertThat(routes).startsWith("/", "/wp/v2", "/wp/v2/types", "/wp/v2/types/(?P<type>[\\w-]+)");
+        assertThat(routes)
+                .startsWith(
+                        "/",
+                        "/wp/v2",
+                        "/wp/v2/posts",
+                        "/wp/v2/pages",
+                        "/wp/v2/types",
+                        "/wp/v2/types/(?P<type>[\\w-]+)");
         assertThat(routes.get(routes.indexOf("/qp-test/v1") + 1)).startsWith("/qp-test/v1/");
         assertThat(routes.indexOf("/qp-test/v1"))
                 .isGreaterThan(routes.indexOf("/wp/v2/taxonomies/(?P<taxonomy>[\\w-]+)"));
         // REST verification list item 19: gmt_offset is the JSON string "0" on a fresh site (type-strict)
         assertThat(index.get("gmt_offset")).isEqualTo(TextNode.valueOf("0"));
-        // namespaces lists wp/v2 and the test namespace in registration order
-        assertThat(index.get("namespaces").toString()).isEqualTo("[\"wp/v2\",\"qp-test/v1\"]");
+        // namespaces lists wp/v2, the test namespace and the locks' namespace in registration order (the two at
+        // order 1000 by class name)
+        assertThat(index.get("namespaces").toString()).isEqualTo("[\"wp/v2\",\"qp-test/v1\",\"quarkpress/v1\"]");
         // the route data as WordPress describes the index routes (REST verification list item 19)
         assertThat(index.at("/routes/~1").toString())
                 .isEqualTo("{\"namespace\":\"\",\"methods\":[\"GET\"],\"endpoints\":[{\"methods\":[\"GET\"],"
@@ -197,6 +205,8 @@ class IndexDbTest {
         assertThat(fieldNames(v2.get("routes")))
                 .containsExactly(
                         "/wp/v2",
+                        "/wp/v2/posts",
+                        "/wp/v2/pages",
                         "/wp/v2/types",
                         "/wp/v2/types/(?P<type>[\\w-]+)",
                         "/wp/v2/statuses",

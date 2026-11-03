@@ -66,6 +66,7 @@ site.
 |---|---|---|
 | `/` | GET | The site index: name, description, `url`, `home`, time zone and reading settings, the namespaces, the authentication schemes, every route's data, `site_logo`, `site_icon` and `site_icon_url`, and the `help` link; `?context=help` adds each route's schema. |
 | `/<namespace>` | GET | One namespace's index (`/wp/v2`, and every namespace an application registers); `?namespace=` names another one. |
+| `/wp/v2/posts`, `/wp/v2/pages`, `/wp/v2/<rest base>` | GET | The posts of each post type shown in REST (attachments and blocks excepted, their routes come later), at its REST base: the list, with WordPress's filters (`status` needs the type's `edit_posts` for anything but `publish`, as the posts module's queries do: `read_private_posts` alone admits nothing, where WordPress admits `private`), its callback errors and its paging, counting only what the caller may read (D27); the rendered fields run the registered filters (D26). |
 | `/wp/v2/types`, `/wp/v2/types/<type>` | GET | The post types registered to show in REST; the edit context needs the type's `edit_posts`. |
 | `/wp/v2/statuses`, `/wp/v2/statuses/<status>` | GET | The post statuses that are not internal, then `trash`; a status that is not public is shown only to callers who may edit posts of some REST type. |
 | `/wp/v2/taxonomies`, `/wp/v2/taxonomies/<taxonomy>` | GET | The taxonomies registered to show in REST (`?type=` names a post type); the edit context needs the taxonomy's `assign_terms`. |
@@ -74,7 +75,7 @@ site.
 | `/wp/v2/users`, `/wp/v2/users/<id>`, `/wp/v2/users/me` | GET, POST, PUT, PATCH, DELETE | The site's users with WordPress's visibility rules; the only write applied is a user's own `meta.persisted_preferences` (the editor's preferences, kept per site); creating, deleting and other changes answer 501 after WordPress's permission check (D10, D11). |
 | `/wp/v2/settings` | GET, POST, PUT, PATCH | The registered settings, for callers with `manage_options` on the site. |
 
-The term and user collections take WordPress's `context`, `page`, `per_page` (1 to 100, default 10), `search` and their
+The post, term and user collections take WordPress's `context`, `page`, `per_page` (1 to 100, default 10), `search` and their
 own filters, and answer `X-WP-Total`, `X-WP-TotalPages` and a `Link` header with the previous and next pages. Every
 answer of a matched route carries an `Allow` header listing the methods the caller may use there. The global parameters
 `_fields`, `_embed`, `_envelope`, `_pretty`, `_method` and the `X-HTTP-Method-Override` header work on every route as in
@@ -242,6 +243,8 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
 ## Limits
 
 - Only the routes listed above are served; the rest answer 404 `rest_no_route` until their release (D6).
+- A custom type's `link` for a private or trashed post uses `?<type>=<slug>`, by analogy with its published posts;
+  WordPress's recorded answers cover published and draft posts only.
 - Messages are English only (D14).
 - The schema keywords `pattern`, `patternProperties`, `anyOf` and `oneOf` are refused when a route or a setting is
   registered: `pattern` would need a regular expression run on request input, and the others are not implemented.
@@ -312,10 +315,13 @@ The rows below are the differences the parity tests know by label. Some further,
 | D19 | Site address and admin e-mail settings (single site; a network's sites have neither): the `url` setting is read-only. In `/wp/v2/settings`, `url` answers the site's own address, the same as the index's `url`. A write to it is accepted and has no effect: the answer shows the address unchanged. QuarkPress takes a site's address from its site record, while WordPress stores the value in its `siteurl` option, which moves the site. `email` reads and writes the `admin_email` option as WordPress does, but a new QuarkPress site has none, so it reads null until one is written. WordPress answers the address given at installation. |
 | D20 | Argument values that make WordPress fail with a PHP error (a 500) get the answer of a value that does not fit: an IPv6 address such as `1:2:3:4:5:6:7:8:9::` (format `ip`) answers 400 `rest_invalid_ip`, an array given to a `date-time` format without a type answers 400 `rest_invalid_date`, and an array sanitized with format `uri` or `hex-color` becomes `""`, as it does for the other formats. |
 | D21 | Answers that make WordPress fail with a PHP error (a 500) are kept as they are: under `_fields`, a scalar or null body, a list of scalars, and a PHP object as the body or as an item of a list body; a scalar body with links (a null body with links becomes `{"_links":...}`); and `?namespace[]=x` on a namespace's index answers 404 `rest_invalid_namespace`. |
-| D22 | List arguments hold at most 1000 entries (the terms' `include`, `exclude` and `slug`; the users' `include`, `exclude`, `slug`, `roles`, `capabilities`, `has_published_posts` and `search_columns`); a longer list answers 400 `rest_invalid_param` as a list over its `maxItems` does ("... must contain at most 1000 items."). WordPress has no bound. |
+| D22 | List arguments hold at most 1000 entries (the terms' `include`, `exclude` and `slug`; the users' `include`, `exclude`, `slug`, `roles`, `capabilities`, `has_published_posts` and `search_columns`; the posts' `include`, `exclude`, `slug`, `status`, `author`, `author_exclude`, `parent` and `parent_exclude`); a longer list answers 400 `rest_invalid_param` as a list over its `maxItems` does ("... must contain at most 1000 items."). WordPress has no bound. |
 | D23 | In pagination links, the bytes of a query parameter's name below 0x20, 0x7F and above are percent-encoded, so no name can break the header; WordPress writes them raw. A malformed UTF-8 sequence in a query value is read as U+FFFD and written back as `%EF%BF%BD`; WordPress keeps the raw bytes. |
 | D24 | Only a request carrying `Authorization: Bearer ...` has a caller. A request the application authenticated another way (an OIDC `web-app` or `hybrid` session cookie, a custom `HttpAuthenticationMechanism`) is served as anonymous: reads answer as to anyone, writes are refused as to an anonymous caller (401); so is one whose non-Bearer credential failed authentication (an expired session cookie), while a failed Bearer token is refused as D2 says. WordPress serves a cookie-authenticated request as its user when it carries a valid REST nonce, and as anonymous without one. |
 | D25 | A negative `offset` is made positive for the pagination headers as for the query, so `offset=-1` counts and links pages as `offset=1` does (a `prev` link included); WordPress's query uses the positive value while its headers use the raw one, so its pages and links do not match the items it lists. |
+| D26 | `title.rendered`, `content.rendered` and `excerpt.rendered` of posts run only the registered filters (none is built in): no paragraphs, texturizing, shortcodes or dynamic blocks; an empty excerpt is the content's text cut to `excerpt_length` words (55 by default) followed by ` [&hellip;]`. The raw fields match WordPress's. |
+| D27 | `X-WP-Total` and `X-WP-TotalPages` of post collections count only the posts the caller may read; WordPress counts the rows its query found and then drops those the caller may not read, so its totals can exceed the items it lists. |
+| D36 | QuarkPress-only namespace `quarkpress/v1`: WordPress has no such routes. The editor's lock routes `/quarkpress/v1/locks/{id}` (take, refresh, release) and `/quarkpress/v1/locks/{id}/takeover` are served there, so the index and the namespace list carry a namespace and routes WordPress lacks. |
 
 WordPress behaviour kept on purpose (not differences): `_fields` reduces a keyed collection by its keys
 (`/wp/v2/types?_fields=name` is `[]`), and a field below one already requested whole ends the list there
