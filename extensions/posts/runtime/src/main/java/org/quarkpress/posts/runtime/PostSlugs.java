@@ -2,6 +2,7 @@ package org.quarkpress.posts.runtime;
 
 import io.quarkus.arc.All;
 import io.quarkus.arc.InstanceHandle;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.LockModeType;
@@ -17,8 +18,9 @@ import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.SlugContext;
 
 /**
- * Unique slugs against the site's stored posts, then the slug filters. Lookups are locking reads, so inside a longer
- * transaction they still see posts other writers committed (the site's post lock orders the writers).
+ * Unique slugs against the site's stored posts, then the slug filters. The writers' lookups are locking reads, so
+ * inside a longer transaction they still see posts other writers committed (the site's post lock orders the writers);
+ * a reader that only asks what slug a post would get looks up without locks and never waits for a writer.
  */
 @ApplicationScoped
 public class PostSlugs {
@@ -36,6 +38,7 @@ public class PostSlugs {
     @All
     List<InstanceHandle<PostSlugFilter>> filters;
 
+    /** The slug a post being written gets, looked up under share locks. */
     public String unique(
             SiteId siteId,
             String slug,
@@ -44,6 +47,30 @@ public class PostSlugs {
             String status,
             String type,
             Optional<PostId> parent) {
+        return unique(siteId, slug, post, storedSlug, status, type, parent, true);
+    }
+
+    /** The slug a post would get, looked up without locks: a read that never waits for a writer. */
+    public String uniqueWithoutLock(
+            SiteId siteId,
+            String slug,
+            Optional<PostId> post,
+            Optional<String> storedSlug,
+            String status,
+            String type,
+            Optional<PostId> parent) {
+        return unique(siteId, slug, post, storedSlug, status, type, parent, false);
+    }
+
+    private String unique(
+            SiteId siteId,
+            String slug,
+            Optional<PostId> post,
+            Optional<String> storedSlug,
+            String status,
+            String type,
+            Optional<PostId> parent,
+            boolean locking) {
         if (UniqueSlugs.exempt(status, type)) {
             return slug;
         }
@@ -55,23 +82,28 @@ public class PostSlugs {
                 parent,
                 types.hierarchical(type),
                 site.options().string("permalink_structure", ""),
-                lookup(siteId));
+                lookup(siteId, locking));
         SlugContext context = new SlugContext(siteId, post, type, status, parent, slug);
         return Filters.apply(Filters.ordered(filters), unique, (filter, value) -> filter.apply(value, context));
     }
 
-    private UniqueSlugs.Lookup lookup(SiteId siteId) {
+    private UniqueSlugs.Lookup lookup(SiteId siteId, boolean locking) {
         Object site = TenantIds.param(siteId);
         return new UniqueSlugs.Lookup() {
             @Override
             public boolean anyType(String slug, Optional<PostId> exclude) {
-                return taken("siteId = ?1 and slug = ?2 and id <> ?3", site, slug, excluded(exclude));
+                return taken(locking, "siteId = ?1 and slug = ?2 and id <> ?3", site, slug, excluded(exclude));
             }
 
             @Override
             public boolean sameType(String slug, String type, Optional<PostId> exclude) {
                 return taken(
-                        "siteId = ?1 and slug = ?2 and id <> ?3 and type = ?4", site, slug, excluded(exclude), type);
+                        locking,
+                        "siteId = ?1 and slug = ?2 and id <> ?3 and type = ?4",
+                        site,
+                        slug,
+                        excluded(exclude),
+                        type);
             }
 
             @Override
@@ -82,22 +114,24 @@ public class PostSlugs {
                         + sameParent;
                 return parent.isPresent()
                         ? taken(
+                                locking,
                                 where,
                                 site,
                                 slug,
                                 excluded(exclude),
                                 type,
                                 parent.get().value())
-                        : taken(where, site, slug, excluded(exclude), type);
+                        : taken(locking, where, site, slug, excluded(exclude), type);
             }
         };
     }
 
-    private boolean taken(String where, Object... params) {
-        return posts.find(where, params)
-                .withLock(LockModeType.PESSIMISTIC_READ)
-                .firstResultOptional()
-                .isPresent();
+    private boolean taken(boolean locking, String where, Object... params) {
+        PanacheQuery<PostEntity> query = posts.find(where, params);
+        if (locking) {
+            query = query.withLock(LockModeType.PESSIMISTIC_READ);
+        }
+        return query.firstResultOptional().isPresent();
     }
 
     private static long excluded(Optional<PostId> post) {

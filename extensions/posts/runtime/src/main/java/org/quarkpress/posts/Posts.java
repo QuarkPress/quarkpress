@@ -115,6 +115,16 @@ public interface Posts {
     Optional<PostSnapshot> find(PostId post);
 
     /**
+     * The slug a post of {@code type} with {@code status} under {@code parent} would get for the sanitized
+     * {@code slug} (WordPress's {@code wp_unique_post_slug}), without writing anything: unique against the site's
+     * stored posts as a save makes it, {@code post} itself (empty while it is being created) never counting as a
+     * collision, then changed by the registered {@code PostSlugFilter}s as a save changes it. A draft, pending or
+     * auto-draft status keeps the slug as it is, as a save keeps it. The lookup takes no lock, so it never waits for
+     * a writer and may see a slug a concurrent writer is about to take. No capability is needed.
+     */
+    String uniqueSlug(String type, String slug, Optional<PostId> post, Optional<PostId> parent, String status);
+
+    /**
      * The post's ancestors, nearest first (WordPress's {@code get_post_ancestors}): the walk up the parents stops at
      * a post without parent, at a missing post, at the post itself or at a post already listed. A missing post, or one
      * of another site, is {@code invalid_post}; a non-public post needs {@code read_post}.

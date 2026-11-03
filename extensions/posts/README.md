@@ -31,7 +31,10 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
 ```
 
 - `Posts`: `create`, `update`, `publish`, `trash`, `untrash`, `delete`, `stick`, `unstick`, `stickyPosts`, `find`,
-  `ancestors`, `uri` and `query`. `PostMeta`: `get`, `all`, `add`, `update` and `delete` (a key, or the values of a
+  `ancestors`, `uri`, `query` and `uniqueSlug` (the slug a post would get, as a save would make it unique and filter
+  it, read without locks and without writing; it tells whether any post of the site holds a slug, drafts, private
+  and trashed ones included, and checks no capability, so it is for callers who may already edit the post, as
+  WordPress's sample permalink is). `PostMeta`: `get`, `all`, `add`, `update` and `delete` (a key, or the values of a
   key equal to a value).
 - `RegisteredMeta`: the registered meta keys (WordPress's `register_post_meta`) and the writes WordPress makes through
   them below its REST layer. `keys(type)`, `restKeys(type)` and `revisionedKeys(type)` list the definitions

@@ -52,6 +52,9 @@ public class JpaPosts implements Posts {
     PostWrites writes;
 
     @Inject
+    PostSlugs slugs;
+
+    @Inject
     PostLocks locks;
 
     @Inject
@@ -301,6 +304,20 @@ public class JpaPosts implements Posts {
         Optional<PostSnapshot> found = posts.findPost(siteId, post).map(PostEntity::toSnapshot);
         found.ifPresent(snapshot -> acting.requireReadable(siteId, facts.of(snapshot)));
         return found;
+    }
+
+    @Override
+    @Transactional
+    public String uniqueSlug(String type, String slug, Optional<PostId> post, Optional<PostId> parent, String status) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(slug, "slug");
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(parent, "parent");
+        Objects.requireNonNull(status, "status");
+        SiteId siteId = site.siteId();
+        Optional<String> storedSlug =
+                post.flatMap(id -> posts.findPost(siteId, id)).map(row -> row.slug);
+        return slugs.uniqueWithoutLock(siteId, slug, post, storedSlug, status, type, parent);
     }
 
     @Override
