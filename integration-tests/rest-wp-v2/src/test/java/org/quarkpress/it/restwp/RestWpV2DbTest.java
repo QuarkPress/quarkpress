@@ -357,6 +357,23 @@ class RestWpV2DbTest {
     }
 
     @Test
+    void locksAndOwnSitesThroughTheSetupResourceNeedManageOptions() {
+        // the setup resource's system writes are reachable for a site administrator only (carol is an author)
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("user", userId("carol"), "age", 0))
+                .put("/it/locks/1")
+                .then()
+                .statusCode(403);
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("user", userId("carol"), "path", "/" + token() + "/", "title", "own"))
+                .post("/it/own-sites")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
     void aSubdirectorySiteServesItsOwnApi() {
         // a network site in a subdirectory of localhost, created by alice (network administrator)
         String path = "/s-" + token() + "/";

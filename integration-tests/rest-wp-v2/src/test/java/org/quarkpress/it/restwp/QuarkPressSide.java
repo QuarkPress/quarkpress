@@ -20,8 +20,9 @@ import org.quarkpress.testing.wprestparity.WordPressRestSite;
 /**
  * The QuarkPress side of the REST parity comparison: this test application, reached over HTTP with the dev realm's
  * Keycloak tokens, every request naming {@code localhost} as its host (the network's domain). A scenario's site is
- * created by alice through the setup resource, with the five users given their WordPress roles there; posts, options
- * and a user's leaving the site go through the setup resource on that site, terms through the REST API.
+ * created by alice through the setup resource, with the five users given their WordPress roles there; posts (with
+ * their fields), revisions, autosaves, locks, own sites, options and a user's leaving the site go through the setup
+ * resource on that site, terms through the REST API. The application registers the custom type {@code book} itself.
  */
 final class QuarkPressSide implements Side {
 
@@ -115,11 +116,63 @@ final class QuarkPressSide implements Side {
                             .put("type", post.type())
                             .put("status", post.status())
                             .put("title", post.title());
+                    body.set("fields", Side.resolvedFields(post, known));
                     Exchange answer = expect(
                             send(sitePath, RestCall.json(post.as(), "POST", "/it/posts", body.toString())),
                             200,
                             "post " + post);
                     created.put(post.ref(), answer.json().get("id").longValue());
+                }
+                case SetupStep.Revision revision -> {
+                    ObjectNode body = OracleJson.MAPPER
+                            .createObjectNode()
+                            .put("post", Side.refId(known, revision.postRef()))
+                            .put("title", revision.title())
+                            .put("content", revision.content());
+                    Exchange answer = expect(
+                            send(sitePath, RestCall.json(revision.as(), "POST", "/it/revisions", body.toString())),
+                            200,
+                            "revision " + revision);
+                    created.put(revision.ref(), answer.json().get("id").longValue());
+                }
+                case SetupStep.Autosave autosave -> {
+                    ObjectNode body = OracleJson.MAPPER
+                            .createObjectNode()
+                            .put("post", Side.refId(known, autosave.postRef()))
+                            .put("title", autosave.title())
+                            .put("content", autosave.content());
+                    Exchange answer = expect(
+                            send(sitePath, RestCall.json(autosave.as(), "POST", "/it/autosaves", body.toString())),
+                            200,
+                            "autosave " + autosave);
+                    created.put(autosave.ref(), answer.json().get("id").longValue());
+                }
+                case SetupStep.Lock lock -> {
+                    ObjectNode body = OracleJson.MAPPER
+                            .createObjectNode()
+                            .put("user", userIds.get(lock.user()))
+                            .put("age", lock.ageSeconds());
+                    expect(
+                            send(
+                                    sitePath,
+                                    RestCall.json(
+                                            "alice",
+                                            "PUT",
+                                            "/it/locks/" + Side.refId(known, lock.postRef()),
+                                            body.toString())),
+                            200,
+                            "lock " + lock);
+                }
+                case SetupStep.OwnSite ownSite -> {
+                    ObjectNode body = OracleJson.MAPPER
+                            .createObjectNode()
+                            .put("user", userIds.get(ownSite.user()))
+                            .put("path", Side.ownSitePath(sitePath))
+                            .put("title", "Own site of " + ownSite.user());
+                    expect(
+                            send(sitePath, RestCall.json("alice", "POST", "/it/own-sites", body.toString())),
+                            200,
+                            "own site of " + ownSite.user());
                 }
                 case SetupStep.Term term -> {
                     Exchange answer = expect(

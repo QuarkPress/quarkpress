@@ -80,6 +80,7 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1posts* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1pages* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1books* D6 routes QuarkPress does not serve yet (the parity sites' custom type book)
 * req*:body:wp-only:*/routes/~1wp~1v2~1media* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1blocks* D6 routes QuarkPress does not serve yet
