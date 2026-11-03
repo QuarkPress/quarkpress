@@ -25,4 +25,12 @@ public interface PostsConfig {
      */
     @WithDefault("150s")
     Duration lockWindow();
+
+    /**
+     * How long a preview session and a lock release token live, and the span of a preview token: a preview token
+     * changes every half of this duration and stays valid for the half it was issued in and the one after, so a
+     * preview link works for at least this long and at most twice as long, as WordPress's nonces do.
+     */
+    @WithDefault("12h")
+    Duration previewLifetime();
 }

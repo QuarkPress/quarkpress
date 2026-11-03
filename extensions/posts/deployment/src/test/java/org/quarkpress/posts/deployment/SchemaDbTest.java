@@ -30,7 +30,8 @@ class SchemaDbTest {
                                 + " order by installed_rank"))
                 .containsSubsequence(
                         "db/quarkpress/" + TestDb.kind() + "/V3_001__security_create_tables.sql",
-                        "db/quarkpress/" + TestDb.kind() + "/V4_001__posts_create_tables.sql");
+                        "db/quarkpress/" + TestDb.kind() + "/V4_001__posts_create_tables.sql",
+                        "db/quarkpress/" + TestDb.kind() + "/V4_002__posts_tokens.sql");
     }
 
     @Test

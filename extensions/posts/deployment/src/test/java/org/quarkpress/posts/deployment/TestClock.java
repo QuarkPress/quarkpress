@@ -1,6 +1,7 @@
 package org.quarkpress.posts.deployment;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import org.quarkpress.core.QuarkPressClock;
@@ -18,5 +19,9 @@ public class TestClock implements QuarkPressClock {
 
     public void set(Instant instant) {
         now.set(instant);
+    }
+
+    public void plus(Duration duration) {
+        now.updateAndGet(instant -> instant.plus(duration));
     }
 }

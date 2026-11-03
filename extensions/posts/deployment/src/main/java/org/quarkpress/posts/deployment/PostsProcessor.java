@@ -69,7 +69,10 @@ class PostsProcessor {
 
     @BuildStep
     List<SiteScopedTableBuildItem> siteScopedTables() {
-        return List.of(new SiteScopedTableBuildItem("qp_post"), new SiteScopedTableBuildItem("qp_post_lock"));
+        return List.of(
+                new SiteScopedTableBuildItem("qp_post"),
+                new SiteScopedTableBuildItem("qp_post_lock"),
+                new SiteScopedTableBuildItem("qp_post_token"));
     }
 
     /**
