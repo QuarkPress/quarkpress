@@ -43,12 +43,28 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   that supports `editor`, `custom-fields` and `revisions`, decided once at startup after every type is registered
   (WordPress decides at `init` priority 20 and misses types registered later; QuarkPress has no late types, so there
   is no difference to record). Extensions register keys with `MetaKeyProvider` beans.
+- `PostLocks` is the editor's post lock, WordPress's `_edit_lock` (`"<epoch seconds>:<user id>"`): `holder(post,
+  acting)` answers the user whose fresh lock keeps `acting` out (a lock is fresh while its time is strictly later than
+  now minus `quarkpress.posts.lock-window`; the acting user's own lock never counts, the holder must be an existing
+  user, and a value without user part names the post's `_edit_last`); `take` and `refresh` set the lock to the caller
+  unless another user holds a fresh one, which they report as `Held` without writing (an absent or expired lock is
+  taken again even if it was another user's, as the heartbeat does); `takeOver` sets it whatever is stored; `release`
+  is a compare-and-set by the holder that does not delete the lock but backdates it to expire five seconds later
+  (`"<now - window + 5>:<caller>"`), answering whether it changed; `current` reads the stored value. The system
+  identity cannot hold a lock. Only the revisions module's autosave branch reads locks; every other read and write
+  ignores them, as WordPress's REST API does.
+- `FeaturedImages` (`_thumbnail_id`) and `PageTemplates` (`_wp_page_template`) read and write the two internal meta
+  keys the REST `featured_media` and `template` fields map to: `of(snapshot)` reads (0 and `""` when absent); `set`
+  follows WordPress's write (featured image: 0 removes, an attachment of the site is set by its absolute id, another
+  post of the site removes it, an unknown id changes nothing; template: stored as given, `""` included).
 - `PostChanges` holds the fields of a write; a field not given takes WordPress's default on `create` and keeps the
   stored value on `update`. `author` and `parent` use 0 for none. `date` is the local date in the site's zone,
   `dateGmt` the GMT date; `editDate` lets an update date a draft whose date floats (WordPress's `edit_date`).
 - With `expectedVersion`, an update of a post that changed since that version throws
   `jakarta.persistence.OptimisticLockException`. A post's version changes with every write of its row, meta writes
-  included, except sticking and unsticking and the parent change a deleted parent hands down.
+  included, except sticking and unsticking, the parent change a deleted parent hands down, and the internal meta
+  `PostLocks`, `FeaturedImages`, `PageTemplates` and the revisions module's `_edit_last` write (those change neither
+  the version nor the modification date, so an editor's heartbeat never makes another caller's update stale).
 - Invalid input throws `PostException` (an `IllegalArgumentException`) whose `code()` is WordPress's error code:
   `invalid_post` (no such post on this site), `invalid_author`, `invalid_parent`, `empty_content`, `invalid_date`,
   `invalid_post_type` (the type `revision`),
@@ -75,6 +91,7 @@ Checks follow WordPress's REST API (wp-admin's for restoring from the trash):
 | `find`, `ancestors`, `uri`, meta reads | nothing for a post whose effective status is public; `read_post` otherwise |
 | meta writes | `edit_post`; a key whose first printable-ASCII character is `_` is protected: `PostMeta` writes it only for the system identity, `RegisteredMeta` for a caller the key's auth allows |
 | `stick`, `unstick` | `edit_post` on the post, then the `post` type's `edit_others_posts` and `publish_posts` |
+| `PostLocks.take`, `refresh`, `takeOver`, `release`; `FeaturedImages.set`; `PageTemplates.set` | `edit_post`; `PostLocks.holder` and `current` check nothing (the REST layer checks `edit_post` before it shows lock state) |
 | `query` | statuses other than `publish` need every queried type's `edit_posts`; what each caller then sees is described on `PostQuery` |
 
 A type that is not registered is checked with the `post` type's capability names. Every save sanitizes the title,
@@ -225,6 +242,7 @@ not), never null; one that throws stops the call.
 | Key | Default | Meaning |
 |---|---|---|
 | `quarkpress.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. |
+| `quarkpress.posts.lock-window` | `150s` | WordPress's `wp_check_post_lock_window`: how long an editor's post lock stays fresh after it was taken or refreshed. |
 
 The module also reads the site options WordPress's post code reads: `default_comment_status`, `default_ping_status`,
 `posts_per_page`, `permalink_structure`, `show_on_front`, `page_on_front`, `page_for_posts` and
@@ -247,6 +265,16 @@ order: the network, a user's profile, a membership, the site's post lock, post r
 and an update that gives an author, share-locks the author's profile before the site's post lock, so the profile
 cannot be deleted meanwhile. A write inside a `SiteScope` that needs a lock already held by the transaction that
 opened the scope, and is waiting for it, is refused at once with `IllegalStateException` instead of waiting forever.
+
+The editor's post lock (`PostLocks`, the `_edit_lock` meta) and the other internal meta keys (`_edit_last`,
+`_thumbnail_id`, `_wp_page_template`) are written through the same locks, the site's post lock then the row lock, by
+the runtime's `ProtectedMeta`, which accepts only those four keys and writes the meta column alone with an update
+statement on the locked row that names no version, then reads the row again: the post's version and modification
+date stay as they are. `PostLocks.holder` and `current` read without any lock, so a second editor's check never waits
+for a save. A lock refresh therefore takes the site's post lock for a moment every heartbeat; that is kept for now
+because nothing has shown it to matter. If a measurement ever shows contention between refreshes and saves, the first
+thing to try is the row-only variant: `PostRepository.lockPost` alone for the lock writes, without the site's post
+lock, which is safe because a lock write changes no slug and no other row.
 
 ## Limits
 
@@ -324,6 +352,7 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 | D32 | `PostQueryFilter`s (`pre_get_posts`) do not run on the fetch of the sticky posts that `stickyFirst` adds; WordPress runs them on that inner query. |
 | D33 | `stickyFirst` stays on for a query with only paging arguments while the site shows a static front page; WordPress answers that query with the static front page itself (and so with no sticky posts). `types` has no one-element list form: one type with an archive always counts as that type's archive (no sticky posts first), as WordPress's `post_type => 'book'` does, where `post_type => ['book']` keeps them. |
 | D34 | The system identity holds every capability but `unfiltered_html`, the type's publish capability included, so a pending post it saves keeps its typed slug; WordPress's user 0 can publish nothing, so its pending posts lose the typed slug. |
+| D35 | Until the media module (M2e) knows attachment types, `FeaturedImages.set` treats any attachment of the site as an image; WordPress sets the featured image only for an attachment that is an image or has an image representation and removes it for any other attachment (a PDF). `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkPress's window. |
 
 The parity tests (`-Pwp-parity`) compare slugs, slug truncation, keys, post type and status registration, local and
 GMT date conversions, the save filters of titles, content and excerpts, and the search tokenizer with WordPress

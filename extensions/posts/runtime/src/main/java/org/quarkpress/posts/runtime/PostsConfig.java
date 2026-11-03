@@ -4,6 +4,7 @@ import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
+import java.time.Duration;
 
 /** Posts settings read when the application starts. */
 @ConfigMapping(prefix = "quarkpress.posts")
@@ -16,4 +17,12 @@ public interface PostsConfig {
      */
     @WithDefault("30")
     int emptyTrashDays();
+
+    /**
+     * How long an editor's post lock stays fresh after it was taken or refreshed (WordPress's
+     * {@code wp_check_post_lock_window}): a lock whose time is not strictly later than now minus this window has
+     * expired.
+     */
+    @WithDefault("150s")
+    Duration lockWindow();
 }
