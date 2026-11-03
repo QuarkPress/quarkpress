@@ -184,6 +184,22 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public void closeAll(UserId user) {
+        Objects.requireNonNull(user, "user");
+        SiteId siteId = site.siteId();
+        requireCaller(user);
+        entityManager()
+                .createQuery("delete from PostTokenEntity t where t.siteId = :site and t.kind = :kind"
+                        + " and t.userId = :user")
+                .setParameter("site", TenantIds.param(siteId))
+                .setParameter("kind", PostTokenEntity.PREVIEW_SESSION)
+                .setParameter("user", user.value())
+                .executeUpdate();
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public String issue(PostId post, UserId user, String lockValue) {
         Objects.requireNonNull(post, "post");
         Objects.requireNonNull(user, "user");

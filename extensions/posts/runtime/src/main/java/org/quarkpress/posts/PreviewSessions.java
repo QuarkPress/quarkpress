@@ -34,4 +34,10 @@ public interface PreviewSessions {
 
     /** Revokes a session of this site; an unknown or already closed token is ignored. */
     void close(String token);
+
+    /**
+     * Revokes every session of {@code user} on this site, expired ones included. The caller must be {@code user};
+     * otherwise {@code ForbiddenException}. A user without sessions is left as is.
+     */
+    void closeAll(UserId user);
 }
