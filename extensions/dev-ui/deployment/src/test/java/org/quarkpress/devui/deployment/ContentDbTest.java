@@ -102,7 +102,8 @@ class ContentDbTest {
                         "request-confirmed",
                         "request-failed",
                         "request-completed");
-        assertThat(texts(registries.get("taxonomies"), "key")).containsExactlyInAnyOrder("category", "post_tag");
+        assertThat(texts(registries.get("taxonomies"), "key"))
+                .containsExactlyInAnyOrder("category", "post_tag", "post_format");
         assertThat(find(registries.get("taxonomies"), "key", "category")
                         .get("hierarchical")
                         .asBoolean())
