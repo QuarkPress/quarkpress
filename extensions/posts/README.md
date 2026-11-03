@@ -33,6 +33,16 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
 - `Posts`: `create`, `update`, `publish`, `trash`, `untrash`, `delete`, `stick`, `unstick`, `stickyPosts`, `find`,
   `ancestors`, `uri` and `query`. `PostMeta`: `get`, `all`, `add`, `update` and `delete` (a key, or the values of a
   key equal to a value).
+- `RegisteredMeta`: the registered meta keys (WordPress's `register_post_meta`) and the writes WordPress makes through
+  them below its REST layer. `keys(type)`, `restKeys(type)` and `revisionedKeys(type)` list the definitions
+  (`MetaKeyDefinition`: key, subtype, JSON schema, single, REST name, sanitizer, revisions, auth); `updateSingle`,
+  `delete` and `replace` sanitize the value with the caller's identity (once), answer `UNCHANGED` for a single key
+  whose one stored row already equals the value (no permission needed, as in WordPress), `DENIED` unless the caller
+  holds `edit_post` and the key is allowed (not protected, or its auth says so), and otherwise change the rows under
+  the site's post lock. Built in: `wp_pattern_sync_status` for `wp_block` and `footnotes` for every type shown in REST
+  that supports `editor`, `custom-fields` and `revisions`, decided once at startup after every type is registered
+  (WordPress decides at `init` priority 20 and misses types registered later; QuarkPress has no late types, so there
+  is no difference to record). Extensions register keys with `MetaKeyProvider` beans.
 - `PostChanges` holds the fields of a write; a field not given takes WordPress's default on `create` and keeps the
   stored value on `update`. `author` and `parent` use 0 for none. `date` is the local date in the site's zone,
   `dateGmt` the GMT date; `editDate` lets an update date a draft whose date floats (WordPress's `edit_date`).
@@ -63,7 +73,7 @@ Checks follow WordPress's REST API (wp-admin's for restoring from the trash):
 | `publish` | `publish_post` |
 | `trash`, `untrash`, `delete` | `delete_post` |
 | `find`, `ancestors`, `uri`, meta reads | nothing for a post whose effective status is public; `read_post` otherwise |
-| meta writes | `edit_post`; a key whose first printable-ASCII character is `_` is protected and written only by the system identity |
+| meta writes | `edit_post`; a key whose first printable-ASCII character is `_` is protected: `PostMeta` writes it only for the system identity, `RegisteredMeta` for a caller the key's auth allows |
 | `stick`, `unstick` | `edit_post` on the post, then the `post` type's `edit_others_posts` and `publish_posts` |
 | `query` | statuses other than `publish` need every queried type's `edit_posts`; what each caller then sees is described on `PostQuery` |
 
@@ -199,6 +209,11 @@ not), never null; one that throws stops the call.
 - `PostSlugFilter` (the `wp_unique_post_slug` filter): the unique slug; not called for draft, pending and auto-draft
   posts.
 - `PostQueryFilter` (`pre_get_posts`): a query before it runs.
+- `MetaKeyProvider` (`register_post_meta`): beans asked once at startup, after every post type is registered, in
+  bean-class-name order; a key registered twice for one subtype, both for every type and for a subtype, shown in
+  REST as an array without schema `items`, or keeping revisions for a type without `revisions` support fails the
+  start. A `MetaSanitizer` runs on every value written through `RegisteredMeta`; a `MetaAuth` decides, with
+  `edit_post`, whether a caller may write the key.
 - `SlugSanitizer` (WordPress's `sanitize_title` in its save context, with the `en_US` accent rules) and
   `ContentSanitizer` (the title, content and excerpt save filters with lib-wp-kses) are replaceable beans.
 
@@ -286,7 +301,7 @@ opened the scope, and is waiting for it, is refused at once with `IllegalStateEx
 | D12 | Post ids are unique across the network; WordPress numbers posts per site. |
 | D13 | No pingback or enclosure markers (`_pingme`, `_encloseme`) are written, and nothing about comments happens yet (deleting a post deletes no comments). |
 | D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` (the taxonomy module assigns terms after the save) and `meta_input` are not stored; global styles are not filtered on save. |
-| D15 | `PostMeta` checks `edit_post` for meta writes, as WordPress's REST API maps the post meta capabilities; protected keys (leading `_`) are written only by the system identity; meta values are JSON values, so numbers and booleans keep their types. The meta capability names themselves (`edit_post_meta`, `add_post_meta`, `delete_post_meta`) are not mapped for direct checks. |
+| D15 | `PostMeta` checks `edit_post` for meta writes, as WordPress's REST API maps the post meta capabilities; protected keys (leading `_`) are written only by the system identity through `PostMeta`, and through `RegisteredMeta` only when the key's auth allows the caller (WordPress's `auth_post_meta_{key}` filter, which `RegisteredMeta` applies together with `edit_post`); meta values are JSON values, so numbers and booleans keep their types. The meta capability names themselves (`edit_post_meta`, `add_post_meta`, `delete_post_meta`) are not mapped for direct checks. |
 | D16 | The trash purge, the auto-draft purge and scheduled publishing are the scheduling module's jobs (`quarkpress-scheduling`: a poll every `quarkpress.scheduling.interval`, housekeeping every `quarkpress.scheduling.housekeeping-interval`, both gated per site by its `scheduling` feature); without that module nothing publishes a due post (`publishIfDue` and `publish` do it when called) and nothing empties the trash after `empty-trash-days`. WordPress runs the three from its page-load cron. |
 | D17 | Queries leave out calendar arguments other than date conditions, `rand`, `comment_count`, meta and taxonomy queries; ties are broken by id (WordPress leaves them in database order); when every ordering key is skipped the query orders newest first (WordPress orders nothing when the keys come as a list); statuses other than `publish` need `edit_posts`, and such a query by a caller other than the system identity leaves out the posts the caller may not read, with `found` counting only what it returns (`WP_Query` returns and counts them; the REST API drops them item by item but still counts them in `X-WP-Total`); without statuses the system identity counts as logged out. |
 | D18 | Post writes of one site are serialized; WordPress lets concurrent saves race (two saves of one title can get the same slug). |
