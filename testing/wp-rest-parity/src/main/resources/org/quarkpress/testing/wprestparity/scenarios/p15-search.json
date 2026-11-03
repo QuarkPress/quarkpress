@@ -1,0 +1,252 @@
+{
+  "id": "p15",
+  "rule": "the search route: the post handler lists published posts, pages and books for every caller (a draft and, for an anonymous search, a protected post left out), a subtype of another handler falls back to posts alone, include wins over exclude; the term handler lists categories and tags by name with the taxonomy as the type, any subtype of another handler meaning every taxonomy; the post-format handler lists the formats whose term exists, ignoring subtype and include; the context, type and subtype enums; a page past the end is an empty page with zero totals and a prev link; HEAD, _fields and OPTIONS",
+  "setup": [
+    {
+      "post": "p:alpha",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p15 alpha",
+      "fields": {
+        "content": "p15 words",
+        "date_gmt": "2026-06-01T10:00:00"
+      }
+    },
+    {
+      "post": "p:beta",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p15 beta",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:01"
+      }
+    },
+    {
+      "post": "p:aside",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p15 aside",
+      "fields": {
+        "format": "aside",
+        "date_gmt": "2026-06-01T10:00:02"
+      }
+    },
+    {
+      "post": "p:locked",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p15 locked",
+      "fields": {
+        "content": "p15secretword",
+        "password": "s3",
+        "date_gmt": "2026-06-01T10:00:03"
+      }
+    },
+    {
+      "post": "p:gamma",
+      "as": "bob",
+      "type": "book",
+      "status": "publish",
+      "title": "p15 gamma",
+      "fields": {
+        "slug": "p15-gamma",
+        "date_gmt": "2026-06-01T10:00:04"
+      }
+    },
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p15 draft"
+    },
+    {
+      "term": "t:cat",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p15cat"
+    },
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "p15tag"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=post&subtype=category"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=post&subtype=book"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=post&subtype=page,book"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=post&subtype=page,any"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&include={p:beta},{p:gamma}&exclude={p:gamma}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&exclude={p:gamma},{p:beta}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term&subtype=page"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term&subtype=post_tag"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term&exclude={t:cat}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term&include={t:cat}&context=embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?type=bogus"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?subtype=bogus"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15nothing&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&per_page=1&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&per_page=1&page=9"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=post&subtype=post&per_page=1&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term&per_page=1&page=5"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?type=post-format"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=aside&type=post-format"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=ASI&type=post-format"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=gallery&type=post-format"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?type=post-format&subtype=page&include=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?type=post-format&per_page=1&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15secretword"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15secretword"
+    },
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/search?search=p15&per_page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&_fields=subtype,title"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/search"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&subtype="
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/search?search=p15&type=term&subtype="
+    }
+  ]
+}
