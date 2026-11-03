@@ -1,6 +1,7 @@
 package org.quarkpress.restwp.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
@@ -21,25 +22,46 @@ import org.quarkpress.restwp.RestError;
  * {@code format} (for strings and untyped schemas). The check stops at the first failure inside a value. A schema
  * listing several types uses the first one the value fits.
  *
+ * <p>{@code oneOf} is checked before everything else: the value is checked against each of its schemas, and exactly one
+ * must accept it. Several accepting it fail with {@code rest_one_of_multiple_matches} naming their titles (data
+ * {@code positions}); none accepting it fail with {@code rest_no_matching_schema} naming the schema whose failure
+ * explains it, with that failure as the reason (data {@code position}): the only failing schema, or the only one
+ * that failed for something other than the value's own type; failing that, the titles of all.
+ *
  * <p>The {@code pattern} keyword is refused when a schema is registered: WordPress applies it as a regular expression
- * to request input, which this module does not run. So are {@code patternProperties}, {@code anyOf} and
- * {@code oneOf}, which this module does not implement.
+ * to request input, which this module does not run. So are {@code patternProperties} and {@code anyOf}, which this
+ * module does not implement, and a {@code oneOf} that is not a list of schemas each with a title.
  */
 public final class SchemaValidator {
 
-    private static final List<String> UNSUPPORTED = List.of("pattern", "patternProperties", "anyOf", "oneOf");
+    private static final List<String> UNSUPPORTED = List.of("pattern", "patternProperties", "anyOf");
+
+    private static final String ONE_OF = "oneOf";
 
     private SchemaValidator() {}
 
     /**
      * Throws {@code IllegalArgumentException("unsupported schema keyword: <keyword>")} when the schema, its
-     * {@code items}, its {@code properties} or its {@code additionalProperties} (at any depth) use a keyword this
-     * module does not check.
+     * {@code items}, its {@code properties}, its {@code additionalProperties} or its {@code oneOf} schemas (at any
+     * depth) use a keyword this module does not check, or a {@code oneOf} that is not a list of titled schemas.
      */
     public static void requireSupported(ObjectNode schema) {
         for (String keyword : UNSUPPORTED) {
             if (schema.has(keyword)) {
                 throw new IllegalArgumentException("unsupported schema keyword: " + keyword);
+            }
+        }
+        if (schema.has(ONE_OF)) {
+            if (!(schema.get(ONE_OF) instanceof ArrayNode schemas) || schemas.isEmpty()) {
+                throw untitled();
+            }
+            for (JsonNode entry : schemas) {
+                if (!(entry instanceof ObjectNode entrySchema)
+                        || !(entrySchema.get("title") instanceof JsonNode title)
+                        || !title.isTextual()) {
+                    throw untitled();
+                }
+                requireSupported(entrySchema);
             }
         }
         if (schema.get("items") instanceof ObjectNode items) {
@@ -57,12 +79,22 @@ public final class SchemaValidator {
         }
     }
 
+    private static IllegalArgumentException untitled() {
+        return new IllegalArgumentException("unsupported schema keyword: oneOf without a list of titled schemas");
+    }
+
     /** The first failure of {@code value} against {@code schema}, named after {@code param}; empty when valid. */
     public static Optional<RestError> validate(JsonNode value, ObjectNode schema, String param) {
         return Optional.ofNullable(check(value, schema, param));
     }
 
     private static RestError check(JsonNode value, ObjectNode schema, String param) {
+        if (schema.get(ONE_OF) instanceof ArrayNode schemas) {
+            RestError error = oneOf(value, schemas, param);
+            if (error != null) {
+                return error;
+            }
+        }
         JsonNode typeNode = schema.get("type");
         String type = null;
         if (typeNode != null && typeNode.isArray()) {
@@ -91,6 +123,64 @@ public final class SchemaValidator {
             return checkFormat(value, format.textValue(), param);
         }
         return null;
+    }
+
+    /** The failure of a value that not exactly one of the schemas accepts; null when one does. */
+    private static RestError oneOf(JsonNode value, ArrayNode schemas, String param) {
+        List<Integer> matching = new ArrayList<>();
+        List<Integer> failing = new ArrayList<>();
+        List<RestError> failures = new ArrayList<>();
+        for (int i = 0; i < schemas.size(); i++) {
+            RestError error = schemas.get(i) instanceof ObjectNode entry ? check(value, entry, param) : null;
+            if (error == null) {
+                matching.add(i);
+            } else {
+                failing.add(i);
+                failures.add(error);
+            }
+        }
+        if (matching.size() == 1) {
+            return null;
+        }
+        if (matching.size() > 1) {
+            List<String> titles = new ArrayList<>();
+            matching.forEach(i -> titles.add(title(schemas.get(i))));
+            return ValidationMessages.multipleMatches(param, titles, matching);
+        }
+        if (failures.size() == 1) {
+            return ValidationMessages.noMatchingSchema(
+                    param, title(schemas.get(failing.get(0))), failures.get(0), failing.get(0));
+        }
+        // a schema that failed only because the value is not of its type explains nothing
+        int explaining = -1;
+        int count = 0;
+        for (int k = 0; k < failures.size(); k++) {
+            if (!ownTypeError(failures.get(k), param)) {
+                explaining = k;
+                count++;
+            }
+        }
+        if (count == 1) {
+            return ValidationMessages.noMatchingSchema(
+                    param,
+                    title(schemas.get(failing.get(explaining))),
+                    failures.get(explaining),
+                    failing.get(explaining));
+        }
+        List<String> titles = new ArrayList<>();
+        failing.forEach(i -> titles.add(title(schemas.get(i))));
+        return ValidationMessages.noMatchingSchemas(param, titles);
+    }
+
+    private static boolean ownTypeError(RestError error, String param) {
+        return error.code().equals("rest_invalid_type")
+                && error.data() != null
+                && error.data().get("param") instanceof JsonNode named
+                && named.asText().equals(param);
+    }
+
+    private static String title(JsonNode schema) {
+        return schema.get("title") instanceof JsonNode title ? title.asText() : "";
     }
 
     static List<String> types(JsonNode typeNode) {

@@ -12,6 +12,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.quarkpress.core.PostId;
@@ -28,7 +29,6 @@ import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.SearchColumn;
-import org.quarkpress.posts.TaxClause;
 import org.quarkpress.posts.TaxQuery;
 import org.quarkpress.posts.runtime.Slugs;
 import org.quarkpress.restwp.Fields;
@@ -37,23 +37,24 @@ import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
+import org.quarkpress.restwp.runtime.ArgChecks;
 import org.quarkpress.restwp.runtime.CollectionItems;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.taxonomy.TermException;
 
 /**
  * A post type's collection as WordPress lists it: the arguments mapped to a post query ({@code include} wins over
  * {@code exclude}, {@code author_exclude} over {@code author}, {@code parent} over {@code parent_exclude}; dates are
  * exclusive bounds read in the site's zone; {@code sticky} selects or drops the sticky posts and {@code ignore_sticky}
- * off puts them first), the callback errors of the orderings, the page past the end, the offset's window with the
+ * off puts them first unless a term filter asks for terms; the term and format filters are one term query), the
+ * callback errors of the orderings, the page past the end, the offset's window with the
  * page parameter moving only the links, the items the caller may read (the totals count those only), and in the edit
  * context only the items the caller may edit. A {@code password} parameter renders the protected posts it matches
  * and refuses nothing. HEAD answers the headers alone.
  */
 @ApplicationScoped
 class PostCollection {
-
-    private static final String POST_FORMAT = "post_format";
 
     @Inject
     Posts posts;
@@ -87,11 +88,14 @@ class PostCollection {
             return RestResponse.paged(RestJson.NODES.arrayNode(), 0, links(paging), request);
         }
         PostQuery query = built.get().build();
-        PostPage page = posts.query(query);
+        PostPage page = run(routes, request, query);
         long total = page.found();
         if (total < 1 && paging.page() > 1) {
             // WordPress counts again without paging when a page past the first finds nothing
-            total = posts.query(query.toBuilder().perPage(1).page(1).offset(0).build())
+            total = run(
+                            routes,
+                            request,
+                            query.toBuilder().perPage(1).page(1).offset(0).build())
                     .found();
         }
         long maxPages = total <= 0 ? 0 : (total - 1) / paging.perPage() + 1;
@@ -122,6 +126,24 @@ class PostCollection {
                     fields.prepare(routes, post, selection, request.context(), request, lifted), request));
         }
         return RestResponse.paged(items, total, links(paging), request);
+    }
+
+    /**
+     * The query's page. A term filter whose children expansion passes the taxonomy module's cap is refused as an
+     * invalid parameter (WordPress runs such a query).
+     */
+    private PostPage run(PostRoutes routes, RestRequest request, PostQuery query) {
+        try {
+            return posts.query(query);
+        } catch (TermException refused) {
+            if (!refused.code().equals("term_filter_too_large")) {
+                throw refused;
+            }
+            String name =
+                    TermFilterArgs.expandingParam(request, routes.taxonomies()).orElse(TermFilterArgs.TAX_RELATION);
+            throw new RestException(
+                    ArgChecks.invalidParams(Map.of(name, RestError.noStatus(refused.code(), refused.getMessage()))));
+        }
     }
 
     /** The paging the links are built from: the page parameter, whatever window the offset selected. */
@@ -217,12 +239,15 @@ class PostCollection {
             stickyFirst = postIn.isEmpty()
                     && !request.param("ignore_sticky").map(PhpValues::toBoolean).orElse(true);
         }
+        List<String> formats =
+                routes.supports("post-formats") ? texts(request.param("format").orElse(null)) : List.of();
+        Optional<TaxQuery> terms = TermFilterArgs.query(request, routes.taxonomies(), formats);
+        // a filter asking for terms makes the list an archive, which puts no sticky post first: the posts module
+        // applies that rule itself
+        terms.ifPresent(query::taxQuery);
         query.postIn(postIn.toArray(PostId[]::new));
         query.postNotIn(postNotIn.toArray(PostId[]::new));
         query.stickyFirst(stickyFirst);
-        if (routes.supports("post-formats")) {
-            formats(request, query);
-        }
         query.perPage(paging.perPage()).page(paging.page()).offset(paging.offset());
         return Optional.of(query);
     }
@@ -314,24 +339,6 @@ class PostCollection {
             value = value * 10 + (text.charAt(at[0]) - '0');
         }
         return value;
-    }
-
-    /**
-     * The {@code format} filter: one group of alternatives over the post format taxonomy, {@code standard} being
-     * the posts without a format term and any other slug the posts with its term.
-     */
-    private static void formats(RestRequest request, PostQuery.Builder query) {
-        List<TaxClause> clauses = new ArrayList<>();
-        for (String format : texts(request.param("format").orElse(null))) {
-            clauses.add(
-                    format.equals("standard")
-                            ? new TaxClause.NotExists(POST_FORMAT)
-                            : new TaxClause.Slugs(POST_FORMAT, List.of("post-format-" + format)));
-        }
-        if (!clauses.isEmpty()) {
-            query.taxQuery(
-                    new TaxQuery(TaxClause.Relation.AND, List.of(new TaxClause.Group(TaxClause.Relation.OR, clauses))));
-        }
     }
 
     /** A sanitized list's items as texts; a scalar is one item; none when absent. */

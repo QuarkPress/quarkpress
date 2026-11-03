@@ -6,8 +6,9 @@ import java.util.List;
 import org.quarkpress.restwp.RestError;
 
 /**
- * WordPress's English messages and codes for argument checks. Only a type error carries data ({@code {"param": ...}});
- * the others carry none, and none carries a status.
+ * WordPress's English messages and codes for argument checks. A type error carries data ({@code {"param": ...}}) and
+ * so do the {@code oneOf} failures (the matching or explaining schemas' positions); the others carry none, and none
+ * carries a status.
  */
 public final class ValidationMessages {
 
@@ -101,6 +102,38 @@ public final class ValidationMessages {
         return RestError.noStatus(
                 "rest_too_many_properties",
                 param + " must contain at most " + count + " " + (count == 1 ? "property" : "properties") + ".");
+    }
+
+    /**
+     * A value several {@code oneOf} schemas accept: their titles, and their positions in the list as data.
+     */
+    static RestError multipleMatches(String param, List<String> titles, List<Integer> positions) {
+        ObjectNode data = RestJson.NODES.objectNode();
+        var list = data.putArray("positions");
+        positions.forEach(list::add);
+        return new RestError(
+                "rest_one_of_multiple_matches",
+                param + " matches " + list(titles) + ", but should match only one.",
+                data,
+                List.of(),
+                List.of());
+    }
+
+    /** A value no {@code oneOf} schema accepts, explained by the failure of the one at {@code position}. */
+    static RestError noMatchingSchema(String param, String title, RestError reason, int position) {
+        ObjectNode data = RestJson.NODES.objectNode();
+        data.put("position", position);
+        return new RestError(
+                "rest_no_matching_schema",
+                param + " is not a valid " + title + ". Reason: " + reason.message(),
+                data,
+                List.of(),
+                List.of());
+    }
+
+    /** A value no {@code oneOf} schema accepts, no single failure explaining it: every schema's title. */
+    static RestError noMatchingSchemas(String param, List<String> titles) {
+        return RestError.noStatus("rest_no_matching_schema", param + " is not a valid " + list(titles) + ".");
     }
 
     static RestError invalidDate() {

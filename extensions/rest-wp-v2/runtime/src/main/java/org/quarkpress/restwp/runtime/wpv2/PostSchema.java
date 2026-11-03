@@ -310,8 +310,9 @@ final class PostSchema {
      * The collection's arguments in WordPress's order: context, page, per_page, search, after, modified_after,
      * author and author_exclude (types with an author), before, modified_before, exclude, include, menu_order (page
      * attributes), search_semantics, offset, order, orderby, parent and parent_exclude (hierarchical types),
-     * search_columns, slug, status (its own permission-checked sanitizer), then for posts sticky and ignore_sticky,
-     * and format for types with post formats. Those after search are checked while the arguments are sanitized.
+     * search_columns, slug, status (its own permission-checked sanitizer), the term filters of the type's REST
+     * taxonomies, then for posts sticky and ignore_sticky, and format for types with post formats. Those after search
+     * are checked while the arguments are sanitized.
      *
      * @param allStatuses every registered status, the values {@code status} may name next to {@code any}
      * @param caller the caller whose capabilities decide which statuses may be asked for
@@ -378,6 +379,7 @@ final class PostSchema {
         slug.putObject("items").put("type", "string");
         args.add(query("slug", slug));
         args.add(statusArg(routes.key(), allStatuses, caller, permissions));
+        args.addAll(TermFilterArgs.args(routes.taxonomies()));
         if (routes.key().equals("post")) {
             ObjectNode sticky = RestJson.NODES.objectNode();
             sticky.put("description", "Limit result set to items that are sticky.");

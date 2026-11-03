@@ -549,11 +549,153 @@ class SchemaValidatorTest {
         assertThatCode(() -> SchemaValidator.requireSupported(
                         schema("{\"type\":\"object\",\"properties\":{\"pattern\":{\"type\":\"string\"}}}")))
                 .doesNotThrowAnyException();
-        for (String keyword : List.of("patternProperties", "anyOf", "oneOf")) {
+        for (String keyword : List.of("patternProperties", "anyOf")) {
             assertThatThrownBy(() -> SchemaValidator.requireSupported(schema("{\"" + keyword + "\":{}}")))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("unsupported schema keyword: " + keyword);
         }
+    }
+
+    @Test
+    void oneOfIsCheckedWhenTheSchemaIsRegistered() {
+        assertThatCode(() -> SchemaValidator.requireSupported(categories())).doesNotThrowAnyException();
+        // its schemas are checked like any other, and each needs a title (the messages name them)
+        assertThatThrownBy(() -> SchemaValidator.requireSupported(
+                        schema("{\"oneOf\":[{\"title\":\"A\",\"type\":\"string\",\"pattern\":\"^a\"}]}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported schema keyword: pattern");
+        assertThatThrownBy(() -> SchemaValidator.requireSupported(
+                        schema("{\"oneOf\":[{\"title\":\"A\",\"type\":\"string\",\"anyOf\":[]}]}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported schema keyword: anyOf");
+        for (String bad : List.of(
+                "{\"oneOf\":{}}",
+                "{\"oneOf\":[]}",
+                "{\"oneOf\":[{\"type\":\"string\"}]}",
+                "{\"oneOf\":[{\"title\":1,\"type\":\"string\"}]}",
+                "{\"oneOf\":[{\"title\":\"A\"},{\"title\":null}]}",
+                "{\"oneOf\":[1]}")) {
+            assertThatThrownBy(() -> SchemaValidator.requireSupported(schema(bad)))
+                    .as(bad)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("unsupported schema keyword: oneOf without a list of titled schemas");
+        }
+        assertThatThrownBy(
+                        () -> SchemaValidator.requireSupported(
+                                schema(
+                                        "{\"type\":\"object\",\"properties\":{\"k\":{\"oneOf\":[{\"title\":\"A\",\"pattern\":\"x\"}]}}}")))
+                .hasMessage("unsupported schema keyword: pattern");
+    }
+
+    record Expected(String code, String message, String data) {
+        Expected(String code, String message) {
+            this(code, message, null);
+        }
+    }
+
+    /** The categories argument's failure for the value (JSON when it parses, else a text), without its data. */
+    private static Expected error(String value) {
+        Expected full = errorWithData(value);
+        return new Expected(full.code(), full.message());
+    }
+
+    private static Expected errorWithData(String value) {
+        JsonNode node;
+        try {
+            node = RestJson.READER.readTree(value);
+        } catch (IOException notJson) {
+            node = text(value);
+        }
+        if (node == null || node.isMissingNode()) {
+            node = text(value);
+        }
+        RestError error =
+                SchemaValidator.validate(node, categories(), "categories").orElseThrow();
+        return new Expected(
+                error.code(),
+                error.message(),
+                error.data() == null ? null : error.data().toString());
+    }
+
+    @Test
+    void oneOfFollowsWordPress() {
+        assertThat(error("abc"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID List. Reason: categories[0] is not of type integer."));
+        assertThat(error("{\"terms\":[1],\"bogus\":1}"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID Taxonomy Query. Reason: bogus is not a valid property of"
+                                + " Object."));
+        assertThat(error("\"\""))
+                .isEqualTo(new Expected(
+                        "rest_one_of_multiple_matches",
+                        "categories matches Term ID List and Term ID Taxonomy Query, but should match only one."));
+        // the data WordPress sends with each (G 16)
+        assertThat(errorWithData("a"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID List. Reason: categories[0] is not of type integer.",
+                        "{\"position\":0}"));
+        assertThat(errorWithData("{\"terms\":[\"a\"]}"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID Taxonomy Query. Reason: categories[terms][0] is not of type"
+                                + " integer.",
+                        "{\"position\":1}"));
+        assertThat(errorWithData("{\"terms\":\"a\"}").data()).isEqualTo("{\"position\":1}");
+        // both schemas fail for something other than the value's own type: no schema explains it, so every title
+        // is named and there is no data (WordPress 7.1.3, parity p06 req28)
+        assertThat(errorWithData("[\"a\"]"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID List and Term ID Taxonomy Query.",
+                        null));
+        assertThat(errorWithData("\"\""))
+                .isEqualTo(new Expected(
+                        "rest_one_of_multiple_matches",
+                        "categories matches Term ID List and Term ID Taxonomy Query, but should match only one.",
+                        "{\"positions\":[0,1]}"));
+        // one schema matching: the value is valid, whichever it is
+        for (String ok : List.of(
+                "1,2",
+                "3",
+                "[1,2]",
+                "{\"terms\":\"4,5\"}",
+                "{\"terms\":[3],\"operator\":\"AND\"}",
+                "{\"include_children\":\"1\"}",
+                "{\"0\":\"3\",\"1\":\"4\"}")) {
+            assertThat(SchemaValidator.validate(
+                            ok.startsWith("[") || ok.startsWith("{") ? json(ok) : text(ok), categories(), "categories"))
+                    .as(ok)
+                    .isEmpty();
+        }
+        // a failure inside the taxonomy query that is not about the value's type names that schema
+        assertThat(error("{\"operator\":\"XOR\"}"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID Taxonomy Query. Reason: categories[operator] is not one of"
+                                + " AND and OR."));
+        assertThat(error("{\"include_children\":\"x\"}"))
+                .isEqualTo(new Expected(
+                        "rest_no_matching_schema",
+                        "categories is not a valid Term ID Taxonomy Query. Reason: categories[include_children] is"
+                                + " not of type boolean."));
+    }
+
+    /** The posts collection's {@code categories} argument as WordPress declares it. */
+    static ObjectNode categories() {
+        return schema("{\"description\":\"Limit result set to items with specific terms assigned in the categories"
+                + " taxonomy.\",\"type\":[\"object\",\"array\"],\"oneOf\":[{\"title\":\"Term ID List\","
+                + "\"description\":\"Match terms with the listed IDs.\",\"type\":\"array\",\"items\":{\"type\":"
+                + "\"integer\"}},{\"title\":\"Term ID Taxonomy Query\",\"description\":\"Perform an advanced term"
+                + " query.\",\"type\":\"object\",\"properties\":{\"terms\":{\"description\":\"Term IDs.\",\"type\":"
+                + "\"array\",\"items\":{\"type\":\"integer\"},\"default\":[]},\"include_children\":{\"description\":"
+                + "\"Whether to include child terms in the terms limiting the result set.\",\"type\":\"boolean\","
+                + "\"default\":false},\"operator\":{\"description\":\"Whether items must be assigned all or any of the"
+                + " specified terms.\",\"type\":\"string\",\"enum\":[\"AND\",\"OR\"],\"default\":\"OR\"}},"
+                + "\"additionalProperties\":false}]}");
     }
 
     @Test
