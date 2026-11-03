@@ -9,6 +9,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -23,7 +25,11 @@ import org.quarkpress.testing.wporacle.OracleJson;
  * the notes, to {@code target/wp-rest-parity/verification-facts.json} as {@code {"items": {item: [{request, status,
  * headers, body, bodyText}...]}, "notes": {item: {key: value}}}}. {@code body} is the parsed JSON when the body is
  * JSON, else the text; {@code bodyText} is always the body exactly as sent (escapes included). Header names are
- * lower-case, each with its lines in the order received.
+ * lower-case, each with its lines in the order received. A {@code text/html} answer (an admin or front-end page) is
+ * kept whole only under {@code target/wp-rest-parity/pages/<item>-<n>.html}; its entry holds, instead of the text, a
+ * summary: the page's path, byte length and SHA-256, its {@code <title>}, the {@code <body>} class, the first 4 KB and
+ * the fragments the items read ({@code postLock}, {@code initializeEditor}, {@code <time>} tags, the wp_die message),
+ * and no {@code bodyText}.
  */
 public final class VerificationFacts {
 
@@ -41,7 +47,100 @@ public final class VerificationFacts {
         Objects.requireNonNull(exchange, "exchange");
         JsonNode list = ITEMS.get(item);
         ArrayNode exchanges = list == null ? ITEMS.putArray(item) : (ArrayNode) list;
-        exchanges.add(toJson(exchange));
+        ObjectNode entry = toJson(exchange);
+        if (isHtml(exchange) && exchange.body().length > 0) {
+            Path page = DIRECTORY.resolve("pages").resolve(item + "-" + exchanges.size() + ".html");
+            writeBytes(page, exchange.body());
+            entry.set("body", htmlSummary(exchange.text(), exchange.body(), page));
+            entry.remove("bodyText");
+        }
+        exchanges.add(entry);
+    }
+
+    static boolean isHtml(Exchange exchange) {
+        return exchange.header("Content-Type")
+                .map(type -> type.startsWith("text/html"))
+                .orElse(false);
+    }
+
+    /** The summary that stands in for an HTML page in the facts (see the class comment). */
+    static ObjectNode htmlSummary(String text, byte[] bytes, Path page) {
+        ObjectNode summary = OracleJson.MAPPER.createObjectNode();
+        summary.put("page", DIRECTORY.relativize(page).toString());
+        summary.put("length", bytes.length);
+        summary.put("sha256", sha256(bytes));
+        summary.put("title", between(text, "<title>", "</title>"));
+        summary.put("bodyClass", bodyClass(text));
+        summary.put("head", text.substring(0, Math.min(text.length(), 4096)));
+        ObjectNode fragments = summary.putObject("fragments");
+        fragment(fragments, "postLock", text, "\"postLock\"", 400);
+        fragment(fragments, "initializeEditor", text, "initializeEditor", 300);
+        fragment(fragments, "wpDie", text, "class=\"wp-die-message\"", 400);
+        ArrayNode times = OracleJson.MAPPER.createArrayNode();
+        int from = 0;
+        while (times.size() < 20) {
+            int at = text.indexOf("<time", from);
+            int end = at < 0 ? -1 : text.indexOf("</time>", at);
+            if (end < 0) {
+                break;
+            }
+            times.add(text.substring(at, end + "</time>".length()));
+            from = end + "</time>".length();
+        }
+        if (!times.isEmpty()) {
+            fragments.set("time", times);
+        }
+        return summary;
+    }
+
+    private static void fragment(ObjectNode fragments, String key, String text, String marker, int length) {
+        int at = text.indexOf(marker);
+        if (at >= 0) {
+            fragments.put(key, text.substring(at, Math.min(text.length(), at + length)));
+        }
+    }
+
+    private static String between(String text, String open, String close) {
+        int at = text.indexOf(open);
+        int end = at < 0 ? -1 : text.indexOf(close, at + open.length());
+        return end < 0 ? "" : text.substring(at + open.length(), end);
+    }
+
+    private static String bodyClass(String text) {
+        int body = text.indexOf("<body");
+        int end = body < 0 ? -1 : text.indexOf('>', body);
+        if (end < 0) {
+            return "";
+        }
+        String tag = text.substring(body, end);
+        int at = tag.indexOf("class=\"");
+        if (at < 0) {
+            return "";
+        }
+        int close = tag.indexOf('"', at + "class=\"".length());
+        return close < 0 ? "" : tag.substring(at + "class=\"".length(), close);
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void writeBytes(Path file, byte[] bytes) {
+        try {
+            Files.createDirectories(file.getParent());
+            Files.write(file, bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot write " + file, e);
+        }
     }
 
     /** Records an observation about the item that is not an exchange (a count, a type, a reason). */

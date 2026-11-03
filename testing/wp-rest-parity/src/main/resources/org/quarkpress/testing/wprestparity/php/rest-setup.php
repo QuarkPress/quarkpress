@@ -13,7 +13,24 @@
  *                                  also rebuilds the rewrite rules)
  *   create_site {path, title}      creates a site on localhost at path with the five users, without sample content;
  *                                  answers {path, refs: {"t:uncategorized": id, "u:alice": id, ...}}
- *   post {site, as, type, status, title}  inserts a post on the site at path "site", written by "as"; answers {id}
+ *   post {site, as, type, status, title, fields?}  inserts a post on the site at path "site", written by "as"; answers
+ *                                  {id}. "fields" (all optional) are wp_insert_post arguments post_content,
+ *                                  post_excerpt, post_password, post_parent, post_date, post_date_gmt, post_name,
+ *                                  menu_order, plus sticky (bool), meta {key: value}, terms {taxonomy: [ids]},
+ *                                  format (slug), thumbnail (attachment id), template (slug). Type "attachment" is
+ *                                  inserted with wp_insert_attachment as a 1x1 PNG image written into the uploads
+ *                                  directory (harness rule)
+ *   update_post {site, as, id, fields}  wp_update_post with the same "fields" (harness rule: fields as above)
+ *   latest_post {site, type, status}  the highest id of that type and status on the site, or 0 (harness rule)
+ *   cookie_session {user}          a login session of the user: answers {cookies: [{name, value}] (the auth and
+ *                                  logged_in cookies), rest_nonce (action wp_rest), session (the session token)}
+ *   logout {user, session}         destroys that session token (WP_Session_Tokens::destroy); answers {destroyed}
+ *   nonce {user, session, action}  wp_create_nonce for the user in that session; answers {nonce}
+ *   meta {site, post, key}         get_post_meta, every row; answers {values: [...]}
+ *   set_meta {site, post, key, value}  update_post_meta; answers {updated}
+ *   autosave {site, as, post, title, content}  wp_create_post_autosave as the user; answers {id} (or the error code)
+ *   taxonomy_args {name}           the public properties of the registered taxonomy object (get_taxonomy)
+ *   type_args {name}               the public properties of the registered post type object (get_post_type_object)
  *   revoke_passwords {user}        deletes every application password of the user
  *   app_password {user}            creates an application password named "parity"; answers {password}
  *   archived_site {path}           creates a site on localhost at path and marks it archived; answers {id}
@@ -221,23 +238,235 @@ function qp_create_site(array $input): array
     return ['path' => (string) $input['path'], 'refs' => $refs];
 }
 
+/** The wp_insert_post / wp_update_post arguments among "fields" (harness rule: the keys the brief names). */
+const QP_POST_FIELDS = ['post_content', 'post_excerpt', 'post_password', 'post_parent', 'post_date', 'post_date_gmt',
+    'post_name', 'menu_order'];
+
+/** A 1x1 opaque PNG (harness rule: the image an attachment fixture holds). */
+const QP_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8DwHwAFAAH/'
+    . 'q842iQAAAABJRU5ErkJggg==';
+
 function qp_post(array $input): array
 {
     switch_to_blog(qp_site_id((string) $input['site']));
     $author = qp_user_id($input, 'as');
     wp_set_current_user($author);
-    $id = wp_insert_post([
+    $fields = isset($input['fields']) && is_array($input['fields']) ? $input['fields'] : [];
+    $args = [
         'post_type' => (string) $input['type'],
         'post_status' => (string) $input['status'],
         'post_title' => (string) $input['title'],
         'post_author' => $author,
-    ], true);
-    wp_set_current_user(0);
-    restore_current_blog();
+    ];
+    foreach (QP_POST_FIELDS as $field) {
+        if (array_key_exists($field, $fields)) {
+            $args[$field] = $fields[$field];
+        }
+    }
+    if ('attachment' === $args['post_type']) {
+        // Harness rule: an image attachment is a 1x1 PNG written into the uploads directory, as a media upload would.
+        $upload = wp_upload_bits('qp-' . sanitize_title((string) $input['title']) . '.png', null,
+            base64_decode(QP_PNG_BASE64));
+        if (!empty($upload['error'])) {
+            throw new RuntimeException('wp_upload_bits: ' . $upload['error']);
+        }
+        $args['post_mime_type'] = 'image/png';
+        $args['guid'] = $upload['url'];
+        $id = wp_insert_attachment($args, $upload['file'], (int) ($args['post_parent'] ?? 0), true);
+    } else {
+        $id = wp_insert_post($args, true);
+    }
     if (is_wp_error($id)) {
+        wp_set_current_user(0);
+        restore_current_blog();
         throw new RuntimeException('wp_insert_post: ' . $id->get_error_code());
     }
+    qp_apply_extras((int) $id, $fields);
+    wp_set_current_user(0);
+    restore_current_blog();
     return ['id' => (int) $id];
+}
+
+/** The non-column "fields": sticky, meta, terms, format, thumbnail, template (harness rule: applied after the row). */
+function qp_apply_extras(int $id, array $fields): void
+{
+    if (array_key_exists('sticky', $fields)) {
+        $fields['sticky'] ? stick_post($id) : unstick_post($id);
+    }
+    if (isset($fields['meta']) && is_array($fields['meta'])) {
+        foreach ($fields['meta'] as $key => $value) {
+            update_post_meta($id, (string) $key, $value);
+        }
+    }
+    if (isset($fields['terms']) && is_array($fields['terms'])) {
+        foreach ($fields['terms'] as $taxonomy => $ids) {
+            $set = wp_set_post_terms($id, array_map('intval', (array) $ids), (string) $taxonomy);
+            if (is_wp_error($set)) {
+                throw new RuntimeException("wp_set_post_terms($taxonomy): " . $set->get_error_code());
+            }
+        }
+    }
+    if (isset($fields['format'])) {
+        $set = set_post_format($id, (string) $fields['format']);
+        if (is_wp_error($set)) {
+            throw new RuntimeException('set_post_format: ' . $set->get_error_code());
+        }
+    }
+    if (isset($fields['thumbnail'])) {
+        if (!set_post_thumbnail($id, (int) $fields['thumbnail'])) {
+            throw new RuntimeException('set_post_thumbnail refused ' . $fields['thumbnail']);
+        }
+    }
+    if (array_key_exists('template', $fields)) {
+        update_post_meta($id, '_wp_page_template', (string) $fields['template']);
+    }
+}
+
+function qp_update_post(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    wp_set_current_user(qp_user_id($input, 'as'));
+    $fields = isset($input['fields']) && is_array($input['fields']) ? $input['fields'] : [];
+    $args = ['ID' => (int) $input['id']];
+    foreach (QP_POST_FIELDS as $field) {
+        if (array_key_exists($field, $fields)) {
+            $args[$field] = $fields[$field];
+        }
+    }
+    foreach (['post_title', 'post_status'] as $field) {
+        if (array_key_exists($field, $fields)) {
+            $args[$field] = $fields[$field];
+        }
+    }
+    $id = wp_update_post($args, true);
+    if (is_wp_error($id)) {
+        wp_set_current_user(0);
+        restore_current_blog();
+        throw new RuntimeException('wp_update_post: ' . $id->get_error_code());
+    }
+    qp_apply_extras((int) $id, $fields);
+    wp_set_current_user(0);
+    restore_current_blog();
+    return ['id' => (int) $id];
+}
+
+function qp_latest_post(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $found = get_posts([
+        'post_type' => (string) $input['type'],
+        'post_status' => (string) $input['status'],
+        'numberposts' => 1,
+        'orderby' => 'ID',
+        'order' => 'DESC',
+        'suppress_filters' => true,
+    ]);
+    restore_current_blog();
+    return ['id' => empty($found) ? 0 : (int) $found[0]->ID];
+}
+
+/** Harness rule: a login session as wp-login.php would create it, with its two cookies and the REST nonce. */
+function qp_cookie_session(array $input): array
+{
+    $user = qp_user_id($input);
+    $expiration = time() + 2 * DAY_IN_SECONDS;
+    $manager = WP_Session_Tokens::get_instance($user);
+    $token = $manager->create($expiration);
+    $auth = wp_generate_auth_cookie($user, $expiration, 'auth', $token);
+    $logged_in = wp_generate_auth_cookie($user, $expiration, 'logged_in', $token);
+    $_COOKIE[LOGGED_IN_COOKIE] = $logged_in;
+    wp_set_current_user($user);
+    $nonce = wp_create_nonce('wp_rest');
+    wp_set_current_user(0);
+    return [
+        'cookies' => [
+            ['name' => AUTH_COOKIE, 'value' => $auth],
+            ['name' => LOGGED_IN_COOKIE, 'value' => $logged_in],
+        ],
+        'rest_nonce' => $nonce,
+        'session' => $token,
+    ];
+}
+
+function qp_logout(array $input): array
+{
+    $user = qp_user_id($input);
+    $manager = WP_Session_Tokens::get_instance($user);
+    $existed = null !== $manager->get((string) $input['session']);
+    $manager->destroy((string) $input['session']);
+    return ['destroyed' => $existed];
+}
+
+function qp_nonce(array $input): array
+{
+    $user = qp_user_id($input);
+    // Harness rule: the nonce is bound to the session token, which WordPress reads from the logged_in cookie.
+    $_COOKIE[LOGGED_IN_COOKIE] = wp_generate_auth_cookie($user, time() + DAY_IN_SECONDS, 'logged_in',
+        (string) $input['session']);
+    wp_set_current_user($user);
+    $nonce = wp_create_nonce((string) $input['action']);
+    wp_set_current_user(0);
+    return ['nonce' => $nonce];
+}
+
+function qp_meta(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $values = get_post_meta((int) $input['post'], (string) $input['key'], false);
+    restore_current_blog();
+    return ['values' => array_values($values)];
+}
+
+function qp_set_meta(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $updated = update_post_meta((int) $input['post'], (string) $input['key'], $input['value']);
+    restore_current_blog();
+    return ['updated' => false !== $updated];
+}
+
+function qp_autosave(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    wp_set_current_user(qp_user_id($input, 'as'));
+    $post = get_post((int) $input['post']);
+    if (null === $post) {
+        wp_set_current_user(0);
+        restore_current_blog();
+        throw new InvalidArgumentException('no such post: ' . $input['post']);
+    }
+    require_once ABSPATH . 'wp-admin/includes/post.php';
+    $result = wp_create_post_autosave([
+        'post_ID' => $post->ID,
+        'post_type' => $post->post_type,
+        'post_title' => (string) $input['title'],
+        'post_content' => (string) $input['content'],
+        'post_excerpt' => $post->post_excerpt,
+    ]);
+    wp_set_current_user(0);
+    restore_current_blog();
+    if (is_wp_error($result)) {
+        return ['id' => 0, 'error' => $result->get_error_code()];
+    }
+    return ['id' => (int) $result];
+}
+
+function qp_taxonomy_args(array $input): array
+{
+    $taxonomy = get_taxonomy((string) $input['name']);
+    if (false === $taxonomy) {
+        throw new InvalidArgumentException('no such taxonomy: ' . $input['name']);
+    }
+    return ['args' => get_object_vars($taxonomy)];
+}
+
+function qp_type_args(array $input): array
+{
+    $type = get_post_type_object((string) $input['name']);
+    if (null === $type) {
+        throw new InvalidArgumentException('no such post type: ' . $input['name']);
+    }
+    return ['args' => get_object_vars($type)];
 }
 
 function qp_user_id(array $input, string $key = 'user'): int
@@ -330,6 +559,16 @@ try {
         'option' => qp_option($qp_input),
         'create_site' => qp_create_site($qp_input),
         'post' => qp_post($qp_input),
+        'update_post' => qp_update_post($qp_input),
+        'latest_post' => qp_latest_post($qp_input),
+        'cookie_session' => qp_cookie_session($qp_input),
+        'logout' => qp_logout($qp_input),
+        'nonce' => qp_nonce($qp_input),
+        'meta' => qp_meta($qp_input),
+        'set_meta' => qp_set_meta($qp_input),
+        'autosave' => qp_autosave($qp_input),
+        'taxonomy_args' => qp_taxonomy_args($qp_input),
+        'type_args' => qp_type_args($qp_input),
         'revoke_passwords' => qp_revoke_passwords($qp_input),
         'app_password' => qp_app_password($qp_input),
         'archived_site' => qp_archived_site($qp_input),

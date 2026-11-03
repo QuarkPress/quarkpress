@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -36,7 +37,9 @@ import org.quarkpress.testing.wpscenario.WordPressScenarioOracle;
  * realm's five users with one application password each, served by {@code php -S} on the loopback address. Every
  * request reaches WordPress as one to {@code localhost} on port 80 (a WordPress network cannot run on a port), so
  * WordPress's hrefs read {@code http://localhost/...}. The run's files and the server's log are kept in the module's
- * {@code target/wp-rest-parity/<database>/}.
+ * {@code target/wp-rest-parity/<database>/}. The harness's must-use plugin ({@code qp-parity-mu.php}: the custom type
+ * {@code book} and the per-site switches of the parity run) is written into the tree's {@code wp-content/mu-plugins/}
+ * before the server starts and removed in {@link #close()} whatever happened; its {@code qp-} prefix marks a leftover.
  */
 public final class WordPressRestSite implements AutoCloseable {
 
@@ -44,6 +47,7 @@ public final class WordPressRestSite implements AutoCloseable {
     public static final List<String> USERS = List.of("alice", "bob", "carol", "dave", "erin");
 
     static final String RESOURCES = "php/";
+    static final String MU_PLUGIN = "qp-parity-mu.php";
     static final Duration STARTUP = Duration.ofSeconds(30);
     static final long SETUP_TIMEOUT_MINUTES = 5;
 
@@ -68,6 +72,10 @@ public final class WordPressRestSite implements AutoCloseable {
     private URI root;
     private int operations;
     private boolean closed;
+    /** The must-use plugin written into the tree, removed in {@link #close()}; null until written. */
+    private Path muPlugin;
+
+    private boolean createdMuPlugins;
 
     private WordPressRestSite(Path wordpress, ScenarioDatabase database, String php, String databaseName, Path runDir) {
         this.wordpress = wordpress;
@@ -91,6 +99,7 @@ public final class WordPressRestSite implements AutoCloseable {
         WordPressRestSite site = new WordPressRestSite(tree, database, php, name, runDir);
         try {
             site.writeConfiguration();
+            site.installMuPlugin();
             ObjectNode input = OracleJson.MAPPER.createObjectNode();
             input.put("template", NetworkVariant.SUBDIRECTORY.templateDatabase());
             input.put("database", name);
@@ -186,21 +195,61 @@ public final class WordPressRestSite implements AutoCloseable {
         operation("option", args);
     }
 
-    /** Stops php -S and drops the site's database. */
+    /** Stops php -S, drops the site's database and removes the must-use plugin from the tree. */
     @Override
     public void close() {
         if (closed) {
             return;
         }
         closed = true;
-        if (server != null) {
-            destroyTree(server);
+        try {
+            if (server != null) {
+                destroyTree(server);
+            }
+            try (Connection connection = database.connect("");
+                    Statement statement = connection.createStatement()) {
+                statement.execute("DROP DATABASE IF EXISTS `" + databaseName + "`");
+            } catch (SQLException e) {
+                throw new IllegalStateException("cannot drop the REST site's database " + databaseName, e);
+            }
+        } finally {
+            removeMuPlugin();
         }
-        try (Connection connection = database.connect("");
-                Statement statement = connection.createStatement()) {
-            statement.execute("DROP DATABASE IF EXISTS `" + databaseName + "`");
-        } catch (SQLException e) {
-            throw new IllegalStateException("cannot drop the REST site's database " + databaseName, e);
+    }
+
+    /**
+     * Harness rule: writes {@value #MU_PLUGIN} (resource {@code php/qp-parity-mu.php}) into the shared tree's
+     * {@code wp-content/mu-plugins/} so that every request, and every setup operation, loads it; the directory is
+     * created when the tree has none and removed again with the file when this site made it.
+     */
+    private void installMuPlugin() throws IOException {
+        Path dir = wordpress.resolve("wp-content").resolve("mu-plugins");
+        if (!Files.isDirectory(dir)) {
+            Files.createDirectories(dir);
+            createdMuPlugins = true;
+        }
+        Path target = dir.resolve(MU_PLUGIN);
+        Files.writeString(target, resource(MU_PLUGIN), StandardCharsets.UTF_8);
+        muPlugin = target;
+    }
+
+    private void removeMuPlugin() {
+        if (muPlugin == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(muPlugin);
+            if (createdMuPlugins) {
+                try (var entries = Files.list(muPlugin.getParent())) {
+                    if (entries.findAny().isEmpty()) {
+                        Files.deleteIfExists(muPlugin.getParent());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot remove " + muPlugin, e);
+        } finally {
+            muPlugin = null;
         }
     }
 

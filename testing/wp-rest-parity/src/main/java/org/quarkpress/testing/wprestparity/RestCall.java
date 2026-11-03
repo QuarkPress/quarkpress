@@ -1,6 +1,7 @@
 package org.quarkpress.testing.wprestparity;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -45,5 +46,24 @@ public record RestCall(
                 Map.of(),
                 Optional.of("application/json"),
                 Optional.of(json.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    /**
+     * This call with one more header, sent as given ({@code Cookie} and {@code X-WP-Nonce} of a cookie session
+     * included); a header of the same name, compared without case, is replaced. A {@code Cookie} header makes the call
+     * a cookie session: {@link RestClient} then sends no application password for {@link #as()}, whatever the cookie
+     * holds.
+     */
+    public RestCall withHeader(String name, String value) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(value, "value");
+        Map<String, String> all = new LinkedHashMap<>();
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            if (!header.getKey().equalsIgnoreCase(name)) {
+                all.put(header.getKey(), header.getValue());
+            }
+        }
+        all.put(name, value);
+        return new RestCall(as, method, target, all, contentType, body);
     }
 }

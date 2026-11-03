@@ -14,8 +14,11 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Sends {@link RestCall}s to a server over HTTP/1.1 with {@code java.net.http}, following no redirects, and records
- * what came back. Any method goes, HEAD and OPTIONS included.
+ * Sends {@link RestCall}s to a server over HTTP/1.1 with {@code java.net.http} and records what came back. Any method
+ * goes, HEAD and OPTIONS included. Every header of the call is sent as given to the server's address (absolute paths
+ * under {@code 127.0.0.1:<port>}); redirects are never followed, so an admin page's {@code 302} to
+ * {@code http://localhost/...} comes back as the answer. The client keeps no cookie jar: a cookie session is a call
+ * carrying its own {@code Cookie} and {@code X-WP-Nonce} headers, and such a call sends no application password.
  */
 public final class RestClient {
 
@@ -30,7 +33,8 @@ public final class RestClient {
 
     /**
      * {@code authorization} maps {@link RestCall#as()} to an {@code Authorization} header value; empty for anonymous.
-     * A call that names its own {@code Authorization} header sends that one instead.
+     * A call that names its own {@code Authorization} header sends that one instead; a call with a {@code Cookie}
+     * header (a cookie session) sends none.
      */
     public RestClient(URI root, Function<String, Optional<String>> authorization) {
         String text = Objects.requireNonNull(root, "root").toString();
@@ -50,11 +54,12 @@ public final class RestClient {
                 .version(HttpClient.Version.HTTP_1_1)
                 .timeout(TIMEOUT)
                 .method(call.method(), body);
-        boolean ownAuthorization = false;
+        // A call that carries its own credential (an Authorization header, or a cookie session) gets no computed one.
+        boolean ownCredential = false;
         for (String name : call.headers().keySet()) {
-            ownAuthorization |= name.equalsIgnoreCase("Authorization");
+            ownCredential |= name.equalsIgnoreCase("Authorization") || name.equalsIgnoreCase("Cookie");
         }
-        if (!ownAuthorization) {
+        if (!ownCredential) {
             authorization.apply(call.as()).ifPresent(value -> request.header("Authorization", value));
         }
         call.contentType().ifPresent(type -> request.header("Content-Type", type));
