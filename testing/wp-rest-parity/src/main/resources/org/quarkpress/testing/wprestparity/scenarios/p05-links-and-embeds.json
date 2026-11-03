@@ -1,0 +1,177 @@
+{
+  "id": "p05",
+  "rule": "the links of a post in WordPress's order (self with its target hints, collection, about, author, replies, version-history with the revision count and predecessor-version, up, wp:attachment, wp:term, curies), the action links of the edit context by the caller's capabilities, the embeds of the author, the terms and the parent, a type without REST taxonomies, a featured image, the links inlined in a collection, and links selected or left out by _fields",
+  "setup": [
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p05 news"
+    },
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "p05 tag"
+    },
+    {
+      "post": "p:post",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p05 post",
+      "fields": {
+        "categories": [
+          "t:news"
+        ],
+        "tags": [
+          "t:tag"
+        ]
+      }
+    },
+    {
+      "post": "p:revised",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p05 revised"
+    },
+    {
+      "revision": "r:v1",
+      "as": "carol",
+      "post": "p:revised",
+      "title": "p05 revised v2",
+      "content": "p05 revised content v2"
+    },
+    {
+      "post": "p:page",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p05 page"
+    },
+    {
+      "post": "p:child",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p05 child",
+      "fields": {
+        "parent": "p:page"
+      }
+    },
+    {
+      "post": "p:draft",
+      "as": "dave",
+      "type": "post",
+      "status": "draft",
+      "title": "p05 dave draft"
+    },
+    {
+      "post": "p:book",
+      "as": "carol",
+      "type": "book",
+      "status": "publish",
+      "title": "p05 book"
+    },
+    {
+      "post": "p:image",
+      "as": "carol",
+      "type": "attachment",
+      "status": "inherit",
+      "title": "p05 image"
+    },
+    {
+      "post": "p:pictured",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p05 pictured",
+      "fields": {
+        "featured_media": "p:image"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?_embed"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?context=edit"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:draft}?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:child}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:child}?_embed=up"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:child}?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:pictured}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:pictured}?context=edit&_embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:revised}?_fields=id,_links"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?include={p:post}&_embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:post}?_fields=id,title"
+    }
+  ]
+}
