@@ -1,0 +1,54 @@
+{
+  "id": "p14",
+  "rule": "the front-end preview answers an anonymous visitor gets on a site with plain permalinks (application passwords do not authenticate front-end pages): a draft asked for as a preview is not found, a published post with a bad preview pair is refused as HTML and, for a JSON Accept, as the wp_die object, a published post asked for as a preview is redirected to its plain link, and the plain link answers the post",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": ""
+    },
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p14 draft carol"
+    },
+    {
+      "post": "p:published",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p14 published carol"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}&preview=true"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}&preview_id={p:published}&preview_nonce=bad"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}&preview_id={p:published}&preview_nonce=bad",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}&preview=true"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}"
+    }
+  ]
+}
