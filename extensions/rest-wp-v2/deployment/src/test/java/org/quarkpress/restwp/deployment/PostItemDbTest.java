@@ -451,7 +451,8 @@ class PostItemDbTest {
                         "meta",
                         "categories",
                         "tags",
-                        "class_list");
+                        "class_list",
+                        "_links");
         assertThat(fieldNames(view.get("guid"))).containsExactly("rendered");
         assertThat(fieldNames(view.get("title"))).containsExactly("rendered");
         assertThat(fieldNames(view.get("content"))).containsExactly("rendered", "protected");
@@ -485,7 +486,8 @@ class PostItemDbTest {
                         "tags",
                         "permalink_template",
                         "generated_slug",
-                        "class_list");
+                        "class_list",
+                        "_links");
         assertThat(fieldNames(edit.get("guid"))).containsExactly("rendered", "raw");
         assertThat(fieldNames(edit.get("title"))).containsExactly("raw", "rendered");
         assertThat(fieldNames(edit.get("content"))).containsExactly("raw", "rendered", "protected", "block_version");
@@ -498,7 +500,8 @@ class PostItemDbTest {
                 .extract()
                 .asString());
         assertThat(fieldNames(embed))
-                .containsExactly("id", "date", "slug", "type", "link", "title", "excerpt", "author", "featured_media");
+                .containsExactly(
+                        "id", "date", "slug", "type", "link", "title", "excerpt", "author", "featured_media", "_links");
         assertThat(fieldNames(embed.get("excerpt"))).containsExactly("rendered", "protected");
         JsonNode pageView = json(as(null).get("/wp-json/wp/v2/pages/" + page.value())
                 .then()
@@ -528,7 +531,8 @@ class PostItemDbTest {
                         "ping_status",
                         "template",
                         "meta",
-                        "class_list");
+                        "class_list",
+                        "_links");
         JsonNode pageEdit = edit(admin, "pages", page);
         assertThat(fieldNames(pageEdit))
                 .containsExactly(
@@ -556,14 +560,16 @@ class PostItemDbTest {
                         "meta",
                         "permalink_template",
                         "generated_slug",
-                        "class_list");
+                        "class_list",
+                        "_links");
         JsonNode pageEmbed = json(as(null).get("/wp-json/wp/v2/pages/" + page.value() + "?context=embed")
                 .then()
                 .statusCode(200)
                 .extract()
                 .asString());
         assertThat(fieldNames(pageEmbed))
-                .containsExactly("id", "date", "slug", "type", "link", "title", "excerpt", "author", "featured_media");
+                .containsExactly(
+                        "id", "date", "slug", "type", "link", "title", "excerpt", "author", "featured_media", "_links");
     }
 
     private static JsonNode edit(String bearer, String base, PostId id) {

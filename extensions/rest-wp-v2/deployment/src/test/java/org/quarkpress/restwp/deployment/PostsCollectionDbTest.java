@@ -528,7 +528,8 @@ class PostsCollectionDbTest {
                         "meta",
                         "categories",
                         "tags",
-                        "class_list");
+                        "class_list",
+                        "_links");
         assertThat(item.get("date").asText()).isEqualTo("2026-08-01T12:00:00");
         assertThat(item.get("date_gmt").asText()).isEqualTo("2026-08-01T10:00:00");
         assertThat(item.get("modified").asText()).isEqualTo("2026-08-01T12:30:00");
@@ -608,7 +609,8 @@ class PostsCollectionDbTest {
                         "ping_status",
                         "template",
                         "meta",
-                        "class_list");
+                        "class_list",
+                        "_links");
         assertThat(pageItem.get("link").asText()).isEqualTo("http://" + host + "/?page_id=" + page.value());
         assertThat(pageItem.get("parent").asLong()).isZero();
         // a book: no sticky, format, parent, menu_order or comment status; a published book links by its slug
@@ -641,7 +643,8 @@ class PostsCollectionDbTest {
                         "featured_media",
                         "template",
                         "meta",
-                        "class_list");
+                        "class_list",
+                        "_links");
         assertThat(bookItem.get("link").asText()).isEqualTo("http://" + host + "/?book=book-" + u.substring(0, 8));
         assertThat(bookItem.get("meta").toString()).isEqualTo("{\"footnotes\":\"\"}");
         // a draft book links by its id; a floating draft's date_gmt is its date converted from Europe/Paris
@@ -666,7 +669,8 @@ class PostsCollectionDbTest {
                         .asString())
                 .get(0);
         assertThat(fieldNames(embed))
-                .containsExactly("id", "date", "slug", "type", "link", "title", "excerpt", "author", "featured_media");
+                .containsExactly(
+                        "id", "date", "slug", "type", "link", "title", "excerpt", "author", "featured_media", "_links");
         // a protected post renders nothing of its content or excerpt
         PostId locked = PostFixtures.builder(site)
                 .author(carol)

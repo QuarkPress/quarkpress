@@ -293,7 +293,7 @@ public class TypesController implements RestRouteProvider {
     private RestResponse prepare(PostTypeDefinition type, RestRequest request) {
         Fields.Selection fields = Fields.forResponse(request, SCHEMA);
         TypeExtras extras = TypeExtras.of(type.key());
-        String base = type.restBase().filter(rest -> !rest.isEmpty()).orElse(type.key());
+        String base = PostRoutes.base(type);
         ObjectNode data = RestJson.NODES.objectNode();
         if (fields.includes("capabilities")) {
             data.set("capabilities", capabilities(type));

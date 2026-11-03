@@ -60,7 +60,8 @@ import org.quarkpress.taxonomy.Terms;
  * default, followed by WordPress's ellipsis); a post with a password (a stored {@code 0} or nothing is none, as for
  * WordPress) renders its content and excerpt as empty text unless the request lifted its protection, and says they
  * are protected either way. The link is the post's plain
- * permalink. A stored template {@code default} reads as none. The derived fields of a viewable public type are the
+ * permalink. A stored template {@code default} reads as none. The post's links come with the fields when the
+ * request selects them. The derived fields of a viewable public type are the
  * permalink template (the plain link), the slug the title would generate (made unique as for a published post, the
  * post itself never colliding with it) and the front-end class list of the post.
  */
@@ -108,6 +109,9 @@ class PostFields {
     SlugSanitizer slugSanitizer;
 
     @Inject
+    PostLinks links;
+
+    @Inject
     @All
     List<InstanceHandle<TitleFilter>> titleHandles;
 
@@ -130,14 +134,15 @@ class PostFields {
         excerptFilters = Filters.ordered(excerptHandles);
     }
 
-    /** The post's selected fields in WordPress's order, filtered by {@code context}; links are added later. */
+    /** The post's selected fields in WordPress's order, filtered by {@code context}, with the post's links. */
     RestResponse prepare(
             PostRoutes routes, PostSnapshot post, Fields.Selection fields, String context, RestRequest request) {
         return prepare(routes, post, fields, context, request, false);
     }
 
     /**
-     * The post's selected fields in WordPress's order, filtered by {@code context}; links are added later.
+     * The post's selected fields in WordPress's order, filtered by {@code context}, with the post's links when the
+     * request selects them.
      *
      * @param lifted whether the request lifted the post's password protection (the edit context of a caller who may
      *     edit it, or a matching password): the content and excerpt are rendered, while the protected flags and the
@@ -302,7 +307,11 @@ class PostFields {
                             publicTerms(post))
                     .forEach(classes::add);
         }
-        return RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+        RestResponse response = RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+        if (fields.includes("_links") || fields.includes("_embedded")) {
+            response = response.withLinks(links.of(routes, post, request));
+        }
+        return response;
     }
 
     /**
