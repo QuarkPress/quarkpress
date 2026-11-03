@@ -1,0 +1,353 @@
+{
+  "id": "p06",
+  "rule": "term and format filters of the posts collection (posts reference Part C, g16, g06): term id lists and taxonomy query objects, include_children, operator AND, tax_relation, the format group as one more clause, the oneOf refusals with their positions, and sticky-first turned off by a positive filter only",
+  "setup": [
+    {
+      "term": "t:c3",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p06-c3"
+    },
+    {
+      "term": "t:c7",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p06-c7",
+      "parent": "t:c3"
+    },
+    {
+      "term": "t:c8",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p06-c8",
+      "parent": "t:c3"
+    },
+    {
+      "term": "t:c4",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p06-c4"
+    },
+    {
+      "term": "t:t4",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "p06-t4"
+    },
+    {
+      "term": "t:t5",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "p06-t5"
+    },
+    {
+      "post": "p:in-c3",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 in c3",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:00",
+        "categories": [
+          "t:c3"
+        ]
+      }
+    },
+    {
+      "post": "p:in-c7",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 in c7",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:01",
+        "categories": [
+          "t:c7"
+        ],
+        "tags": [
+          "t:t5"
+        ]
+      }
+    },
+    {
+      "post": "p:in-c8",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 in c8",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:02",
+        "categories": [
+          "t:c8"
+        ]
+      }
+    },
+    {
+      "post": "p:in-c4",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 in c4",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:03",
+        "categories": [
+          "t:c4"
+        ],
+        "tags": [
+          "t:t4",
+          "t:t5"
+        ]
+      }
+    },
+    {
+      "post": "p:aside-c3",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 aside in c3",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:04",
+        "categories": [
+          "t:c3"
+        ],
+        "format": "aside"
+      }
+    },
+    {
+      "post": "p:aside",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 aside",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:05",
+        "format": "aside"
+      }
+    },
+    {
+      "post": "p:plain",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 plain",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:06",
+        "tags": [
+          "t:t4"
+        ]
+      }
+    },
+    {
+      "post": "p:sticky-c3",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 sticky in c3",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:07",
+        "categories": [
+          "t:c3"
+        ],
+        "sticky": true
+      }
+    },
+    {
+      "post": "p:sticky",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p06 sticky",
+      "fields": {
+        "date_gmt": "2026-06-01T10:00:08",
+        "sticky": true
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories=999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c3},999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories_exclude=999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[terms]={t:c3}&categories[include_children]=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[terms]={t:c3}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&tags[terms]={t:t4},{t:t5}&tags[operator]=AND"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&tags[terms]={t:t4},{t:t5}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c3}&tags={t:t5}&tax_relation=OR"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c3}&tags={t:t5}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&tags[terms]={t:t4},999&tags[operator]=AND"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c4}&format=aside&tax_relation=OR"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c3}&format=aside"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&format=standard"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&format=aside,standard"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories_exclude[terms]={t:c3}&categories_exclude[include_children]=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[terms]={t:c3},{t:c4}&categories[operator]=AND&categories[include_children]=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories=0,{t:c3}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[]={t:c3}&categories[]={t:c4}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c3}%20{t:c4}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories={t:c3}&exclude={p:aside-c3}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories="
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[terms]=a&categories="
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories=&categories[terms]=a"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories=abc"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[terms]={t:c3}&categories[bogus]=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[operator]=XOR"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[include_children]=x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories[]=a"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&tags[include_children]=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&categories_exclude[operator]=AND"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?per_page=100&_fields=id&tax_relation=XOR"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?ignore_sticky=false&per_page=2&_fields=id&categories={t:c3}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?ignore_sticky=false&per_page=2&_fields=id&format=aside"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?ignore_sticky=false&per_page=100&_fields=id&categories_exclude={t:c3}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?ignore_sticky=false&per_page=2&_fields=id&format=standard"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?ignore_sticky=false&per_page=2&_fields=id&format=standard&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages?categories=&tax_relation=XOR&_fields=id"
+    }
+  ]
+}

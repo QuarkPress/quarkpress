@@ -85,8 +85,12 @@ class IndexDbTest {
                         "/wp/v2",
                         "/wp/v2/posts",
                         "/wp/v2/posts/(?P<id>[\\d]+)",
+                        "/wp/v2/posts/(?P<parent>[\\d]+)/revisions",
+                        "/wp/v2/posts/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)",
                         "/wp/v2/pages",
                         "/wp/v2/pages/(?P<id>[\\d]+)",
+                        "/wp/v2/pages/(?P<parent>[\\d]+)/revisions",
+                        "/wp/v2/pages/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)",
                         "/wp/v2/types",
                         "/wp/v2/types/(?P<type>[\\w-]+)");
         assertThat(routes.get(routes.indexOf("/qp-test/v1") + 1)).startsWith("/qp-test/v1/");
@@ -210,8 +214,12 @@ class IndexDbTest {
                         "/wp/v2",
                         "/wp/v2/posts",
                         "/wp/v2/posts/(?P<id>[\\d]+)",
+                        "/wp/v2/posts/(?P<parent>[\\d]+)/revisions",
+                        "/wp/v2/posts/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)",
                         "/wp/v2/pages",
                         "/wp/v2/pages/(?P<id>[\\d]+)",
+                        "/wp/v2/pages/(?P<parent>[\\d]+)/revisions",
+                        "/wp/v2/pages/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)",
                         "/wp/v2/types",
                         "/wp/v2/types/(?P<type>[\\w-]+)",
                         "/wp/v2/statuses",
@@ -225,6 +233,7 @@ class IndexDbTest {
                         "/wp/v2/users",
                         "/wp/v2/users/(?P<id>[\\d]+)",
                         "/wp/v2/users/me",
+                        "/wp/v2/search",
                         "/wp/v2/settings");
         // REST verification list item 19
         Http.as(null)

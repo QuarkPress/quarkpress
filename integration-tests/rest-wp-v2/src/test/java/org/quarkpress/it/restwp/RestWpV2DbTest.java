@@ -88,6 +88,7 @@ class RestWpV2DbTest {
                 .header("Link", "<http://localhost/wp-json/>; rel=\"https://api.w.org/\"")
                 .body("namespaces", contains("wp/v2", "quarkpress/v1"))
                 .body("routes", hasKey("/quarkpress/v1/drafts"))
+                .body("routes", hasKey("/wp/v2/search"))
                 .body("authentication.oidc.issuer", startsWith("http"));
         as(null).get("/?rest_route=/wp/v2").then().statusCode(200).body("namespace", equalTo("wp/v2"));
     }
@@ -106,6 +107,10 @@ class RestWpV2DbTest {
                 .statusCode(200)
                 .body("viewable", equalTo(true));
         as(null).get("/wp-json/wp/v2/statuses/publish").then().statusCode(200).body("name", equalTo("Published"));
+        as(null).get("/wp-json/wp/v2/search?type=term&per_page=1")
+                .then()
+                .statusCode(200)
+                .header("Allow", "GET");
         as(null).get("/wp-json/wp/v2/taxonomies")
                 .then()
                 .statusCode(200)

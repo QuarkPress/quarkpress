@@ -39,3 +39,7 @@ p13-new-drafts.json
 p14-preview-anonymous.json
 p03-item-and-password.json
 p04-derived-fields.json
+p15-search.json
+p05-links-and-embeds.json
+p06-term-filters.json
+p11-revisions.json
