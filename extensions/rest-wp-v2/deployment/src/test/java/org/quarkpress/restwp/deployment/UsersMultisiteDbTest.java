@@ -239,6 +239,64 @@ class UsersMultisiteDbTest {
                 .header("Allow", "GET");
     }
 
+    @Test
+    void frankSendingOnlyRolesForCarolPassesThePermissionAndGetsTheExternalUsersAnswer() {
+        // frank holds promote_user on carol (an author of his site) but not edit_user: WordPress lets a request made
+        // of exactly id and roles through on promote_user alone, and the write then answers as every user write does
+        expect(
+                Http.as("test-" + frank)
+                        .contentType("application/json")
+                        .body("{\"roles\":[\"author\"]}")
+                        .put("/wp-json/wp/v2/users/" + carol),
+                501,
+                "quarkpress_users_managed_externally",
+                "Users are managed by the identity provider.");
+        // the same through the form body and the query string: every source counts
+        expect(
+                Http.as("test-" + frank)
+                        .contentType("application/x-www-form-urlencoded")
+                        .formParam("roles[]", "author")
+                        .post("/wp-json/wp/v2/users/" + carol),
+                501,
+                "quarkpress_users_managed_externally",
+                "Users are managed by the identity provider.");
+        expect(
+                Http.as("test-" + frank)
+                        .contentType("application/json")
+                        .body("{\"roles\":[\"author\"]}")
+                        .put("/wp-json/wp/v2/users/" + carol + "?_locale=user"),
+                403,
+                "rest_cannot_edit",
+                "Sorry, you are not allowed to edit this user.");
+        expect(
+                Http.as("test-" + frank)
+                        .contentType("application/json")
+                        .body("{\"roles\":[\"author\"],\"name\":\"x\"}")
+                        .put("/wp-json/wp/v2/users/" + carol),
+                403,
+                "rest_cannot_edit",
+                "Sorry, you are not allowed to edit this user.");
+        // roles alone, but none to set: promote_user is not asked, edit_user is
+        expect(
+                Http.as("test-" + frank)
+                        .contentType("application/json")
+                        .body("{\"roles\":[]}")
+                        .put("/wp-json/wp/v2/users/" + carol),
+                403,
+                "rest_cannot_edit",
+                "Sorry, you are not allowed to edit this user.");
+        // a subscriber has no promote_user
+        expect(
+                Http.as("test-" + erin)
+                        .contentType("application/json")
+                        .body("{\"roles\":[\"author\"]}")
+                        .put("/wp-json/wp/v2/users/" + carol),
+                403,
+                "rest_cannot_edit_roles",
+                "Sorry, you are not allowed to edit roles of this user.");
+        assertThat(Jdbc.profileMeta(carol)).doesNotContain("persisted_preferences");
+    }
+
     private static void expect(Response response, int status, String code, String message) {
         response.then().statusCode(status).body("code", equalTo(code)).body("message", equalTo(message));
         assertThat(json(response.asString()).at("/data/status").intValue()).isEqualTo(status);

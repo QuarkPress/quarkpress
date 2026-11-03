@@ -84,6 +84,54 @@ class EmbedParamTest {
     }
 
     @Test
+    void embeddedItemsStopAtTheWorkBudget() throws Exception {
+        // a fetch answering a 100-item list per href; 200 distinct embeddable hrefs: the first 100 embed their lists
+        // (10 000 items), every later one embeds [] and is not fetched at all
+        ArrayNode hundred = RestJson.NODES.arrayNode();
+        for (int i = 0; i < 100; i++) {
+            hundred.add(RestJson.NODES.objectNode().put("n", i));
+        }
+        List<String> fetched = new ArrayList<>();
+        Embedder embedder = new Embedder(EmbedChoice.ALL, href -> {
+            fetched.add(href);
+            return Optional.of(hundred);
+        });
+        ArrayNode list = RestJson.NODES.arrayNode();
+        for (int i = 0; i < 200; i++) {
+            list.add(RestJson.READER.readTree("{\"_links\":{\"up\":[{\"embeddable\":true,\"href\":\"h" + i + "\"}]}}"));
+        }
+        JsonNode embedded = embedder.embed(list);
+        assertThat(Embedder.MAX_EMBEDDED_ITEMS).isEqualTo(10_000);
+        assertThat(embedded.at("/0/_embedded/up/0").size()).isEqualTo(100);
+        assertThat(embedded.at("/99/_embedded/up/0").size()).isEqualTo(100);
+        // the 101st embeds [] (a relation holding nothing is left out) and is not asked for
+        assertThat(embedded.get(100).has("_embedded")).isFalse();
+        assertThat(embedded.get(199).has("_embedded")).isFalse();
+        assertThat(fetched).hasSize(100).first().isEqualTo("h0");
+        assertThat(fetched).last().isEqualTo("h99");
+        // the budget is per Embedder, which the server builds once per answer: another answer starts afresh
+        assertThat(new Embedder(EmbedChoice.ALL, href -> Optional.of(hundred))
+                        .embed(list.get(199))
+                        .at("/_embedded/up/0")
+                        .size())
+                .isEqualTo(100);
+        // the same href embedded 101 times costs its items each time: one fetch, the 101st link gets []
+        fetched.clear();
+        ArrayNode same = RestJson.NODES.arrayNode();
+        for (int i = 0; i < 101; i++) {
+            same.add(RestJson.READER.readTree("{\"_links\":{\"up\":[{\"embeddable\":true,\"href\":\"one\"}]}}"));
+        }
+        JsonNode repeated = new Embedder(EmbedChoice.ALL, href -> {
+                    fetched.add(href);
+                    return Optional.of(hundred);
+                })
+                .embed(same);
+        assertThat(repeated.at("/99/_embedded/up/0").size()).isEqualTo(100);
+        assertThat(repeated.get(100).has("_embedded")).isFalse();
+        assertThat(fetched).containsExactly("one");
+    }
+
+    @Test
     void listedRelationsAreComparedAsGiven() throws Exception {
         List<String> many = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {

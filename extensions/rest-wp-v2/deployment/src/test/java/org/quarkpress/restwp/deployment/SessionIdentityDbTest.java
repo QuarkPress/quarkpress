@@ -38,6 +38,11 @@ class SessionIdentityDbTest {
         return Http.as(null).cookie(TestBearer.SESSION, "test-" + user);
     }
 
+    /** A request with a session cookie {@link TestBearer} refuses, as an expired one, and no {@code Authorization}. */
+    static RequestSpecification expired() {
+        return Http.as(null).cookie(TestBearer.SESSION, "expired");
+    }
+
     @Test
     void aSessionIdentityIsAnonymousToTheRestApi() {
         session(administrator)
@@ -60,6 +65,41 @@ class SessionIdentityDbTest {
                 .statusCode(401)
                 .body("code", equalTo("rest_forbidden_context"))
                 .body("message", equalTo("Sorry, you are not allowed to edit terms in this taxonomy."));
+    }
+
+    @Test
+    void anExpiredSessionCookieIsServedAsAnonymous() {
+        // a session cookie the mechanism refuses (as an expired one): the request is served as anonymous, not refused
+        expired().get("/wp-json/wp/v2/types").then().statusCode(200);
+        expired()
+                .get("/wp-json/wp/v2/users/me")
+                .then()
+                .statusCode(401)
+                .body("code", equalTo("rest_not_logged_in"))
+                .body("message", equalTo("You are not currently logged in."))
+                .header("Allow", equalTo("GET"))
+                .header("Cache-Control", nullValue());
+        // the anonymous answer to a write refusal, through the form entry as well
+        expired()
+                .contentType("application/x-www-form-urlencoded")
+                .formParam("rest_route", "/wp/v2/categories")
+                .formParam("name", "Expired " + u)
+                .post("/")
+                .then()
+                .statusCode(401)
+                .body("code", equalTo("rest_cannot_create"))
+                .body("message", equalTo("Sorry, you are not allowed to create terms in this taxonomy."));
+        // a failing Bearer credential is still refused before matching, on a public route too; an empty token is
+        // a Bearer credential that fails, not the absence of one
+        for (String token : new String[] {"invalid", ""}) {
+            Http.as(token)
+                    .get("/wp-json/wp/v2/types")
+                    .then()
+                    .statusCode(401)
+                    .body("code", equalTo("rest_invalid_token"))
+                    .body("message", equalTo("The access token is invalid or has expired."))
+                    .header("Allow", nullValue());
+        }
     }
 
     @Test

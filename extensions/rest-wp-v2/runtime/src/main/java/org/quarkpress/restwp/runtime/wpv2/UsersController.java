@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.RoleDefinition;
 import org.quarkpress.core.SiteContext;
@@ -79,6 +80,9 @@ public class UsersController implements RestRouteProvider {
     private static final String PREFERENCES = "persisted_preferences";
 
     private static final String PREFERENCES_PARAM = "meta." + PREFERENCES;
+
+    /** The parameters of an update WordPress lets through on {@code promote_user} alone. */
+    private static final Set<String> ROLES_ONLY = Set.of("id", "roles");
 
     private static final DateTimeFormatter REGISTERED =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'+00:00'").withZone(ZoneOffset.UTC);
@@ -243,13 +247,19 @@ public class UsersController implements RestRouteProvider {
         if (target.isEmpty()) {
             return PermissionResult.denied(invalidId());
         }
-        // roles to set are checked first, against promote_user
-        if (request.param("roles").filter(roles -> !PhpValues.isEmpty(roles)).isPresent()
-                && !capabilities.can(
-                        request.identity(),
-                        "promote_user",
-                        Optional.of(new UserTarget(target.get().id())))) {
-            return denied(request, "rest_cannot_edit_roles", "Sorry, you are not allowed to edit roles of this user.");
+        // roles to set are checked first, against promote_user; a request made of nothing but the id and the roles
+        // then needs no more, as WordPress lets a user who may promote others set their roles alone
+        if (given(request, "roles")) {
+            if (!capabilities.can(
+                    request.identity(),
+                    "promote_user",
+                    Optional.of(new UserTarget(target.get().id())))) {
+                return denied(
+                        request, "rest_cannot_edit_roles", "Sorry, you are not allowed to edit roles of this user.");
+            }
+            if (ROLES_ONLY.equals(request.paramNames())) {
+                return PermissionResult.allowed();
+            }
         }
         if (!canEdit(request.identity(), target.get().id())) {
             return denied(request, "rest_cannot_edit", "Sorry, you are not allowed to edit this user.");

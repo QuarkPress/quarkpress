@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongFunction;
+import java.util.function.UnaryOperator;
 import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestRequest;
@@ -21,8 +22,8 @@ import org.quarkpress.restwp.runtime.SchemaValidator;
 /**
  * The list arguments of the collections ({@code include}, {@code exclude}, {@code slug} and the like), held at
  * {@value #MAX_ITEMS} entries each (WordPress has no bound): a longer one is refused as WordPress refuses a list over
- * its schema's {@code maxItems}; and WordPress's readings of their items (texts, absolute ids, positive ids) and of a
- * scalar request value.
+ * its schema's {@code maxItems}; and WordPress's readings of their items (texts, absolute ids, positive ids), of a
+ * slug list and of a scalar request value.
  */
 final class ListArgs {
 
@@ -53,6 +54,41 @@ final class ListArgs {
             throw new RestException(ArgChecks.invalidParams(Map.of(name, tooMany)));
         }
         return items;
+    }
+
+    /**
+     * WordPress's slug list, such as the posts' {@code status}: a list's scalar items, or any other value's text split
+     * on runs of commas and whitespace (an object, which the schema refuses first, reads as its empty text); each
+     * item passed through {@code sanitize}, those left empty dropped, each kept once in
+     * the order of its first appearance. At most {@value #MAX_ITEMS} items are read, as a list argument holds at most
+     * that many; the endpoint's schema refuses a longer list.
+     */
+    static List<String> slugList(JsonNode value, UnaryOperator<String> sanitize) {
+        if (value == null || value.isNull()) {
+            return List.of();
+        }
+        List<String> raw = new ArrayList<>();
+        if (value.isArray()) {
+            for (JsonNode item : value) {
+                if (raw.size() == MAX_ITEMS) {
+                    break;
+                }
+                if (item.isValueNode() && !item.isNull()) {
+                    raw.add(item.asText());
+                }
+            }
+        } else {
+            List<String> pieces = PhpValues.parseList(value.asText());
+            raw.addAll(pieces.size() > MAX_ITEMS ? pieces.subList(0, MAX_ITEMS) : pieces);
+        }
+        Set<String> slugs = new LinkedHashSet<>();
+        for (String item : raw) {
+            String slug = sanitize.apply(item);
+            if (slug != null && !slug.isEmpty()) {
+                slugs.add(slug);
+            }
+        }
+        return List.copyOf(slugs);
     }
 
     /** A scalar request value as PHP prints it (null as ""); a list or an object as "". */

@@ -19,18 +19,26 @@ import java.util.function.Function;
  * {@code _links} that is asked for gets, under {@code _embedded}, one entry per link: the linked resource's data for
  * an embeddable link, {@code []} for any other. A relation none of whose entries holds anything is left out, and so is
  * {@code _embedded} when no relation is left. Each href is asked for once per answer, one that leads nowhere
- * included; at most {@link #MAX_FETCHES} different hrefs are asked for, later ones get {@code []}.
+ * included; at most {@link #MAX_FETCHES} different hrefs are asked for, and at most {@link #MAX_EMBEDDED_ITEMS} items
+ * are embedded in one answer (a list counts its size, anything else one); past either bound a link gets {@code []}.
  */
 public final class Embedder {
 
     /** The most different hrefs one answer asks for, those that lead nowhere included (WordPress has no bound). */
     public static final int MAX_FETCHES = 1000;
 
+    /**
+     * The most items one answer embeds, a list's items counted one each and any other value as one, however many
+     * links share an href (WordPress has no bound).
+     */
+    public static final int MAX_EMBEDDED_ITEMS = 10_000;
+
     private final EmbedChoice choice;
     private final Function<String, Optional<JsonNode>> fetch;
     private final int maxFetches;
     private final Set<String> listed;
     private final Map<String, JsonNode> cache = new HashMap<>();
+    private long embeddedItems;
 
     /**
      * @param fetch an href's data, empty when the href leads nowhere in this site's API
@@ -151,18 +159,22 @@ public final class Embedder {
 
     /**
      * The href's data, asked for once; {@code []} when it leads nowhere (remembered as such, so it counts toward the
-     * bound) or the bound is reached.
+     * href bound), when that bound is reached, or when the answer has embedded all the items it may (then nothing is
+     * asked for any more).
      */
     private JsonNode fetched(String href) {
-        JsonNode known = cache.get(href);
-        if (known != null) {
-            return known;
-        }
-        if (cache.size() >= maxFetches) {
+        if (embeddedItems >= MAX_EMBEDDED_ITEMS) {
             return RestJson.NODES.arrayNode();
         }
-        JsonNode data = fetch.apply(href).orElseGet(RestJson.NODES::arrayNode);
-        cache.put(href, data);
-        return data;
+        JsonNode known = cache.get(href);
+        if (known == null) {
+            if (cache.size() >= maxFetches) {
+                return RestJson.NODES.arrayNode();
+            }
+            known = fetch.apply(href).orElseGet(RestJson.NODES::arrayNode);
+            cache.put(href, known);
+        }
+        embeddedItems += known.isArray() ? known.size() : 1;
+        return known;
     }
 }

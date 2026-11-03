@@ -2,10 +2,12 @@ package org.quarkpress.restwp.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * A request's parameters by source, as WordPress keeps them: the JSON body, the form body, the query string, the
@@ -73,6 +75,15 @@ public final class ParamSources {
 
     public boolean has(String name) {
         return get(name).isPresent();
+    }
+
+    /** The names every source holds, JSON null values included, in source order and each once. */
+    public Set<String> names() {
+        Set<String> names = new LinkedHashSet<>();
+        for (ObjectNode source : order()) {
+            source.fieldNames().forEachRemaining(names::add);
+        }
+        return names;
     }
 
     /** Whether some source holds {@code name}, with any value, JSON null included. */

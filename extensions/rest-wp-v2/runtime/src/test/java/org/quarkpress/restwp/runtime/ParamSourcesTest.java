@@ -30,6 +30,19 @@ class ParamSourcesTest {
     }
 
     @Test
+    void namesComeFromEverySourceNullValuesIncluded() {
+        ParamSources sources = new ParamSources(
+                json("{\"a\":null,\"j\":1}"),
+                form("b=body"),
+                query("a=q&c=q"),
+                Map.of("id", "5"),
+                json("{\"d\":\"default\"}"));
+        assertThat(sources.names()).containsExactly("a", "j", "b", "c", "id", "d");
+        assertThat(new ParamSources(empty(), empty(), empty(), Map.of(), empty()).names())
+                .isEmpty();
+    }
+
+    @Test
     void absentEverywhereIsAbsent() {
         ParamSources sources = new ParamSources(json("{\"a\":null}"), empty(), empty(), Map.of(), empty());
         assertThat(sources.get("a")).isEmpty();

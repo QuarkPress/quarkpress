@@ -26,10 +26,14 @@ import org.jboss.logging.Logger;
 import org.quarkpress.restwp.RestError;
 
 /**
- * Answers a REST request whose credentials failed authentication with the REST error {@code rest_invalid_token}
- * (status 401), rendered by {@link RestServer#serveAuthFailure} like every other REST answer, instead of the empty
- * challenge the security layer would send. The refusal comes before any route is matched, so even a public route
- * never answers a client whose token is invalid or expired; no {@code WWW-Authenticate} header is sent.
+ * Answers a REST request whose credentials failed authentication instead of the empty challenge the security layer
+ * would send. A request that carried {@code Authorization: Bearer ...} (an empty token too) gets the REST error
+ * {@code rest_invalid_token}
+ * (status 401), rendered by {@link RestServer#serveAuthFailure} like every other REST answer: the refusal comes before
+ * any route is matched, so even a public route never answers a client whose token is invalid or expired. A request
+ * whose credentials came any other way (a session cookie the application no longer accepts) is served as anonymous by
+ * {@link RestServer#serveAnonymous}, as one whose such credentials passed would be. No {@code WWW-Authenticate} header
+ * is sent either way.
  *
  * <p>Registered as a failure handler of the router, ahead of the security layer's own handlers; it looks only at
  * requests the {@link RestRequestFilter} re-routed, and only at authentication failures. Everything else goes on.
@@ -141,8 +145,9 @@ public class AuthFailureHandler {
     /**
      * Answers the failed request as the entry resource would have answered it up to authentication: a request
      * refused for its {@code rest_route} gets that refusal (WordPress reads it before authenticating); one that turns
-     * out not to be a REST request keeps the security layer's own answer; every other gets the token error. The form
-     * is parsed, the route decided and the answer rendered on a worker, never on the event loop.
+     * out not to be a REST request keeps the security layer's own answer; every other gets the token error when it
+     * carried a Bearer credential, and the anonymous answer of its route otherwise. The form is parsed, the route
+     * decided and the answer rendered on a worker, never on the event loop.
      */
     private void answer(RoutingContext context, RestRequestFilter.Entry entry, byte[] body) {
         HttpServerResponse response = context.response();
@@ -202,7 +207,9 @@ public class AuthFailureHandler {
             current.setCurrent(context);
             return switch (decision) {
                 case RestEntryResource.Decision.Route route ->
-                    server.serveAuthFailure(request.withRoute(route.route()), INVALID_TOKEN);
+                    RestServer.bearerScheme(request)
+                            ? server.serveAuthFailure(request.withRoute(route.route()), INVALID_TOKEN)
+                            : server.serveAnonymous(request.withRoute(route.route()));
                 case RestEntryResource.Decision.Refused refused ->
                     server.refuse(request, refused.code(), refused.message());
                 case RestEntryResource.Decision.NotRest notRest ->

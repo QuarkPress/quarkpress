@@ -43,13 +43,14 @@ as in WordPress. Every href the API writes (`_links`, `Location`, pagination `Li
 
 Send `Authorization: Bearer <access token>` with a token of the security module's default OIDC tenant; the caller is
 then the QuarkPress user of that token, with their roles on the requested site. A request without credentials is
-anonymous. A token that fails authentication (invalid, expired, signed by an unknown issuer) is refused before any
-route is matched, on every route including public ones: 401 `rest_invalid_token` "The access token is invalid or has
-expired." with no `Allow` header (D2). There are no cookies, nonces or application passwords: only a request that
+anonymous. A token that fails authentication (invalid, expired, signed by an unknown issuer), or the `Bearer` scheme
+sent without a token, is refused before any route is matched, on every route including public ones: 401
+`rest_invalid_token` "The access token is invalid or has expired." with no `Allow` header (D2). There are no cookies, nonces or application passwords: only a request that
 carries `Authorization: Bearer ...` has a caller. A request the application authenticated any other way (such as the
 session cookie of an OIDC `web-app` or `hybrid` tenant, or a custom `HttpAuthenticationMechanism`) is served as
 anonymous, its permissions and the services it calls included, so a page of another site cannot make a browser write
-with the user's rights (D24). The index's
+with the user's rights; and so is one whose such credential failed authentication (an expired session cookie, say)
+(D24). The index's
 `authentication` names the default tenant's issuer, `{"oidc":{"issuer":"<quarkus.oidc.auth-server-url>"}}`, when that
 tenant is enabled and configured, else `[]` (D3).
 
@@ -255,7 +256,8 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
 - Quarkus's path-based HTTP permission policies (`quarkus.http.auth.permission.*.paths`) and OIDC tenant resolution by
   path see the internal path the request is re-routed to, never `/wp-json/...`. Check REST callers in permissions and
   handlers instead.
-- At most 1000 distinct hrefs are embedded per answer, counting those that lead nowhere; later ones get `[]` (D18).
+- At most 1000 distinct hrefs are embedded per answer, counting those that lead nowhere, and at most 10 000 embedded
+  items per answer (a list counts its items, anything else one); later ones get `[]` (D18).
   A link whose route starts with `//` after the API root embeds `[]` (PHP would read a host there).
 - A negative `offset` is made positive for the query and for the pagination headers alike; WordPress's headers use the
   raw value while its query uses the positive one (D25).
@@ -290,7 +292,7 @@ The rows below are the differences the parity tests know by label. Some further,
 | Label | Difference |
 |---|---|
 | D1 | REST hrefs (`_links`, `Location`, pagination, the API-root `Link`) always use the `/wp-json/` form and `/wp-json/` is served whatever the permalink structure; front-end `link` fields use plain permalinks (`?cat=`, `?tag=`, `?author=`) until themes and permalinks arrive. WordPress uses the `?rest_route=` form (`index.php?rest_route=` in hrefs and pagination links) and does not serve `/wp-json/` when the site has plain permalinks: it redirects `/wp-json/...` with a 301 and answers `/wp-json/` with the front page. A request made with `?rest_route=` gets pagination links that keep it in their query: `.../wp-json/wp/v2/tags?rest_route=%2Fwp%2Fv2%2Ftags&page=2`. |
-| D2 | Authentication is Bearer tokens only: no cookie and nonce, no application passwords. An invalid or expired token answers 401 `rest_invalid_token` "The access token is invalid or has expired." before matching, on every route, with no `Allow`. WordPress falls back to anonymous for failed application passwords because of its hook order; QuarkPress answers 401 so token clients know to refresh (the admin's Bearer middleware relies on it) and never silently gets public data. |
+| D2 | Authentication is Bearer tokens only: no cookie and nonce, no application passwords. An invalid or expired token, or the `Bearer` scheme without a token, answers 401 `rest_invalid_token` "The access token is invalid or has expired." before matching, on every route, with no `Allow`. WordPress falls back to anonymous for failed application passwords because of its hook order; QuarkPress answers 401 so token clients know to refresh (the admin's Bearer middleware relies on it) and never silently gets public data. |
 | D3 | The index's `authentication` advertises `{"oidc":{"issuer":...}}` when OIDC is configured; WordPress shows `[]` or its application-passwords endpoint. |
 | D4 | No `Access-Control-Allow-Origin` unless the origin is listed in `quarkpress.rest-wp-v2.cors.origins`; a listed origin also gets `X-HTTP-Method-Override` among allowed headers and `Allow`, `X-WP-Upload-Attachment-ID` among exposed ones. WordPress reflects any origin with credentials. |
 | D5 | `_jsonp` is always refused with 400 `rest_callback_disabled` "JSONP support is disabled on this site.", WordPress's answer when JSONP is disabled (`application/json; charset=UTF-8`, with only the content type, `X-Robots-Tag`, the API-root `Link` and `X-Content-Type-Options`). WordPress serves JSONP by default (`application/javascript`) and refuses an invalid callback name with `rest_callback_invalid`. |
@@ -306,13 +308,13 @@ The rows below are the differences the parity tests know by label. Some further,
 | D15 | The index never carries `image_sizes`, `image_size_threshold`, `image_strip_meta` or `image_max_bit_depth`: QuarkPress never enables client-side media processing. WordPress 7.1 adds them to an editor's index (not a subscriber's or an anonymous caller's) when the site is served in a secure context such as `localhost`. |
 | D16 | A requested route longer than 2048 bytes in UTF-8 matches no route and answers 404 `rest_no_route`; WordPress has no bound and matches it (a 2053-byte `/wp/v2/types/...` route answers its `rest_type_invalid` with `Allow`). |
 | D17 | Embedding follows only links into this site's own API (below its API root, or its home with a `rest_route`) and embeds `[]` for any other; WordPress also dispatches another host's `?rest_route=` link, on this site. |
-| D18 | At most 1000 distinct hrefs are embedded per answer (counting those that lead nowhere), later ones get `[]`; WordPress has no bound. |
+| D18 | At most 1000 distinct hrefs are embedded per answer (counting those that lead nowhere) and at most 10 000 embedded items per answer, later ones get `[]`; WordPress has no bound. |
 | D19 | Site address and admin e-mail settings (single site; a network's sites have neither): the `url` setting is read-only. In `/wp/v2/settings`, `url` answers the site's own address, the same as the index's `url`. A write to it is accepted and has no effect: the answer shows the address unchanged. QuarkPress takes a site's address from its site record, while WordPress stores the value in its `siteurl` option, which moves the site. `email` reads and writes the `admin_email` option as WordPress does, but a new QuarkPress site has none, so it reads null until one is written. WordPress answers the address given at installation. |
 | D20 | Argument values that make WordPress fail with a PHP error (a 500) get the answer of a value that does not fit: an IPv6 address such as `1:2:3:4:5:6:7:8:9::` (format `ip`) answers 400 `rest_invalid_ip`, an array given to a `date-time` format without a type answers 400 `rest_invalid_date`, and an array sanitized with format `uri` or `hex-color` becomes `""`, as it does for the other formats. |
 | D21 | Answers that make WordPress fail with a PHP error (a 500) are kept as they are: under `_fields`, a scalar or null body, a list of scalars, and a PHP object as the body or as an item of a list body; a scalar body with links (a null body with links becomes `{"_links":...}`); and `?namespace[]=x` on a namespace's index answers 404 `rest_invalid_namespace`. |
 | D22 | List arguments hold at most 1000 entries (the terms' `include`, `exclude` and `slug`; the users' `include`, `exclude`, `slug`, `roles`, `capabilities`, `has_published_posts` and `search_columns`); a longer list answers 400 `rest_invalid_param` as a list over its `maxItems` does ("... must contain at most 1000 items."). WordPress has no bound. |
 | D23 | In pagination links, the bytes of a query parameter's name below 0x20, 0x7F and above are percent-encoded, so no name can break the header; WordPress writes them raw. A malformed UTF-8 sequence in a query value is read as U+FFFD and written back as `%EF%BF%BD`; WordPress keeps the raw bytes. |
-| D24 | Only a request carrying `Authorization: Bearer ...` has a caller. A request the application authenticated another way (an OIDC `web-app` or `hybrid` session cookie, a custom `HttpAuthenticationMechanism`) is served as anonymous: reads answer as to anyone, writes are refused as to an anonymous caller (401). WordPress serves a cookie-authenticated request as its user when it carries a valid REST nonce, and as anonymous without one. |
+| D24 | Only a request carrying `Authorization: Bearer ...` has a caller. A request the application authenticated another way (an OIDC `web-app` or `hybrid` session cookie, a custom `HttpAuthenticationMechanism`) is served as anonymous: reads answer as to anyone, writes are refused as to an anonymous caller (401); so is one whose non-Bearer credential failed authentication (an expired session cookie), while a failed Bearer token is refused as D2 says. WordPress serves a cookie-authenticated request as its user when it carries a valid REST nonce, and as anonymous without one. |
 | D25 | A negative `offset` is made positive for the pagination headers as for the query, so `offset=-1` counts and links pages as `offset=1` does (a `prev` link included); WordPress's query uses the positive value while its headers use the raw one, so its pages and links do not match the items it lists. |
 
 WordPress behaviour kept on purpose (not differences): `_fields` reduces a keyed collection by its keys

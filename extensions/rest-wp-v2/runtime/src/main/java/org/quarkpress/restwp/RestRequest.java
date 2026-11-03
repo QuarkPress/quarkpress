@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.quarkpress.core.UserId;
 
 /** A REST request as a handler sees it. */
@@ -39,10 +40,22 @@ public interface RestRequest {
     /**
      * Sets the request's {@code context} parameter to {@code context} from now on, over every source, as WordPress's
      * handlers do before they prepare their answer (a created or updated term is answered in the edit context, a
-     * deleted one's previous state in the view context). The server then computes the answer's {@code Allow} header
-     * with that context, as WordPress does. A request the REST server did not build ignores it.
+     * deleted one's previous state in the view context). Only a request the REST server built honours it: from then on
+     * {@link #context()} and {@link #isEditContext()} answer with that context, and the server computes the answer's
+     * {@code Allow} header, after the handler, with it, as WordPress does. A request that wraps another ignores it, as
+     * it answers the served-request accessor {@link #paramNames()} with its default.
      */
     default void useContext(String context) {}
+
+    /**
+     * The names of the request's parameters from every source (the JSON body, the form body, the query string, the
+     * route's groups and the endpoint's defaults), the set WordPress lists for a request's parameters, a parameter sent
+     * as JSON null included. A request the REST server built answers it from its sources; any other answers an empty
+     * set.
+     */
+    default Set<String> paramNames() {
+        return Set.of();
+    }
 
     /**
      * Whether the {@code context} parameter is the text {@code edit} (WordPress compares it strictly, so only a string

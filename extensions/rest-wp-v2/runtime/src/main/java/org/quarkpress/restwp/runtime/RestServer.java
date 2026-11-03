@@ -150,11 +150,17 @@ public class RestServer {
      * object, never as the server's own error page.
      *
      * <p>The caller is the request's identity only when the request carried {@code Authorization: Bearer ...} (the
-     * token then passed authentication). An identity the request got any other way, such as a session cookie of an
+     * token then passed authentication); the Bearer scheme without a token is refused as an invalid token before any
+     * route is matched. An identity the request got any other way, such as a session cookie of an
      * OIDC web application, is not trusted: the request is served as anonymous, permissions and the services it calls
      * included, so a page of another site cannot make a browser send a write that runs with the user's rights.
      */
     public ServedResponse serve(IncomingRequest incoming) {
+        if (bearerScheme(incoming) && !bearer(incoming)) {
+            // the Bearer scheme without a token: a credential that fails, which no mechanism reports (the header
+            // reaches the server trimmed, so it carries no token for a mechanism to refuse)
+            return serveAuthFailure(incoming, AuthFailureHandler.INVALID_TOKEN);
+        }
         return respond(incoming, () -> dispatch(incoming), true);
     }
 
@@ -167,6 +173,20 @@ public class RestServer {
     }
 
     /**
+     * Whether the request carried an {@code Authorization} header of the {@code Bearer} scheme, with or without a
+     * token after it (the scheme alone, as a header sent with an empty token reaches the server once its trailing
+     * whitespace is trimmed): an empty token is a Bearer credential that fails, not the absence of one.
+     */
+    static boolean bearerScheme(IncomingRequest incoming) {
+        String authorization = incoming.header("Authorization");
+        int scheme = BEARER.length() - 1;
+        return authorization != null
+                && authorization.length() >= scheme
+                && authorization.regionMatches(true, 0, BEARER, 0, scheme)
+                && (authorization.length() == scheme || authorization.charAt(scheme) == ' ');
+    }
+
+    /**
      * Answers {@code error}, decided before any route was matched (an authentication failure), through the same stages
      * as {@link #serve}: the site gate first, then the JSONP refusal, then the error in place of the route's answer,
      * with the fixed, no-cache and cross-origin headers, the envelope, pretty printing and HEAD. The caller counts as
@@ -174,6 +194,17 @@ public class RestServer {
      */
     public ServedResponse serveAuthFailure(IncomingRequest incoming, RestError error) {
         return respond(incoming, () -> error(error), false);
+    }
+
+    /**
+     * Answers a REST request whose credentials, carried any other way than an {@code Authorization: Bearer} header
+     * (a session cookie the application no longer accepts, say), failed authentication: as such an identity would not
+     * be trusted had it passed, the request is served as anonymous, through every stage of {@link #serve}, with the
+     * anonymous identity in place of the failed one.
+     */
+    public ServedResponse serveAnonymous(IncomingRequest incoming) {
+        association.setIdentity(ANONYMOUS);
+        return respond(incoming, () -> dispatch(incoming), true);
     }
 
     /**
@@ -748,6 +779,14 @@ public class RestServer {
         @Override
         public boolean sentParam(String name) {
             return sources.holds(name);
+        }
+
+        @Override
+        public Set<String> paramNames() {
+            Set<String> names = sources.names();
+            // the route chooser of a plain-form request is not one of its parameters, as WordPress lists them
+            names.remove("rest_route");
+            return Set.copyOf(names);
         }
 
         @Override
