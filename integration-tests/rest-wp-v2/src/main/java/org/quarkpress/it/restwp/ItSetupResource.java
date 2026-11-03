@@ -49,6 +49,7 @@ import org.quarkpress.security.Capabilities;
 import org.quarkpress.security.Memberships;
 import org.quarkpress.security.QuarkPressPrincipal;
 import org.quarkpress.security.SystemIdentity;
+import org.quarkpress.taxonomy.PostFormats;
 import org.quarkpress.taxonomy.TermRef;
 import org.quarkpress.taxonomy.Terms;
 
@@ -76,8 +77,8 @@ public class ItSetupResource {
      * A post to create on the bound site, written by the caller. {@code fields} (all optional): {@code content},
      * {@code excerpt}, {@code password}, {@code parent} (a post id), {@code date_gmt} ({@code yyyy-MM-ddTHH:mm:ss}),
      * {@code slug}, {@code menu_order}, {@code comment_status}, {@code sticky}, {@code categories} and {@code tags}
-     * (term ids), {@code featured_media} (an attachment id), {@code template}, {@code meta} ({key: value});
-     * {@code format} is not wired yet and answers 501.
+     * (term ids), {@code format} (a post format slug), {@code featured_media} (an attachment id), {@code template},
+     * {@code meta} ({key: value}).
      */
     public record PostRequest(String type, String status, String title, JsonNode fields) {}
 
@@ -113,6 +114,9 @@ public class ItSetupResource {
 
     @Inject
     Terms terms;
+
+    @Inject
+    PostFormats postFormats;
 
     @Inject
     Revisions revisions;
@@ -187,11 +191,6 @@ public class ItSetupResource {
     @Consumes(MediaType.APPLICATION_JSON)
     public Map<String, Object> post(PostRequest request) {
         JsonNode fields = request.fields() == null ? JsonNodeFactory.instance.objectNode() : request.fields();
-        if (fields.has("format")) {
-            throw new WebApplicationException(Response.status(501)
-                    .entity(Map.of("error", "the format field is not wired yet"))
-                    .build());
-        }
         PostChanges.Builder changes = PostChanges.builder();
         if (request.type() != null) {
             changes.type(request.type());
@@ -233,12 +232,16 @@ public class ItSetupResource {
             fields.get("meta").fields().forEachRemaining(entry -> meta.put(entry.getKey(), entry.getValue()));
         }
         boolean sticky = fields.path("sticky").asBoolean(false);
-        boolean hasTerms = fields.has("categories") || fields.has("tags");
+        boolean hasTerms = fields.has("categories") || fields.has("tags") || fields.has("format");
         if (sticky || hasTerms || !meta.isEmpty()) {
-            // as WordPress's stick_post, wp_set_post_terms and update_post_meta, these check no capability
+            // as WordPress's stick_post, wp_set_post_terms, set_post_format and update_post_meta, these check no
+            // capability
             asSystem(site.siteId(), () -> {
                 if (sticky) {
                     posts.stick(created);
+                }
+                if (fields.has("format")) {
+                    postFormats.set(created, fields.get("format").asText());
                 }
                 for (String key : List.of("categories", "tags")) {
                     if (fields.has(key)) {

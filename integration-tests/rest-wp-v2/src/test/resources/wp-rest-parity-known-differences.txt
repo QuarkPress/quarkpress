@@ -132,9 +132,6 @@ d20 req6:status D8 the revision type is not registered in QuarkPress: 404 where 
 d20 req7:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
 d20 req6:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
 d20 req7:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
-d21 req2:status D8 the post_format taxonomy is not registered in QuarkPress: 404 where WordPress refuses 401
-d21 req2:header:allow D8 the post_format taxonomy: WordPress refuses in the permission (no Allow), QuarkPress in the handler
-d21 req2:body* D8 the post_format taxonomy: QuarkPress rest_taxonomy_invalid, WordPress rest_forbidden
 rest-b-060 req3:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category
 
 # D10: users are managed by the identity provider.
