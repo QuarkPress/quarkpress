@@ -140,6 +140,28 @@ query without taxonomies walks no hierarchy, as in WordPress: a positive `parent
 hierarchical taxonomy's post types in turn, as WordPress computes them.
 `count` is `wp_count_terms`: it hides empty terms only when `hideEmpty` is turned on.
 
+### Post formats
+
+`PostFormats` is WordPress's `get_post_format`/`set_post_format`: a format is a term of the built-in `post_format`
+taxonomy whose slug and name are `post-format-{slug}`, created on first use; `standard` is no term at all. `of` answers
+the post's format slug, `set` needs `edit_post` on the post only (WordPress assigns formats without the taxonomy's
+`assign_terms`) and refuses a slug outside `PostFormats.SLUGS`; `exists` says whether the site has the term.
+`post_format` is registered as WordPress registers it (public, flat, no admin screens, outside REST, labelled
+`Formats`/`Format`, managed with `manage_categories` and assigned with `edit_posts`).
+
+### Post term filters
+
+The posts module's `PostQuery.taxQuery` holds the term filters; this module answers them through the posts module's
+`TermConditionProvider` SPI (`JpaTermConditions`) with WordPress's tax query semantics: ids are made positive, zeros
+dropped and duplicates removed, then resolved within the taxonomy on the site; `IN` matches posts with any resolved
+term (none → the clause matches nothing), `AND` posts with every one (any listed id unknown → nothing), `NOT IN` posts
+with none (none resolved → no condition); slugs are an `IN` by slug; a not-exists clause matches posts with no term of
+the taxonomy. `includeChildren` on a hierarchical taxonomy replaces each term by itself and all its descendants, read
+level by level (one query per level, never a recursive call, a parent loop ends the walk). Every id list is bound in
+chunks of at most 1000 ids, each its own parameter; an expansion that would exceed
+`JpaTermConditions.MAX_EXPANDED_IDS` (10 000 ids per clause) is refused with `TermException` code
+`term_filter_too_large` (D23). Every condition names the site explicitly.
+
 ### Events
 
 Events are `SiteEvent`s, fired synchronously inside the transaction that caused them and again to `@ObservesAsync`
@@ -174,7 +196,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 ## Limits
 
 - Names and slugs hold at most 200 characters; longer ones are refused with `db_insert_error` or `db_update_error`.
-- Posts cannot be queried by term yet (the posts module's queries come without taxonomy conditions).
+- A term filter with `includeChildren` expands to at most 10 000 ids per clause (`term_filter_too_large` beyond it, D23).
 - Term meta has a column but no API yet.
 - On MySQL, InnoDB stops cascading deletes at 15 levels, so a site with a chain of term parents (in any hierarchical
   taxonomy) about that deep cannot be deleted in one statement. Delete its deepest terms first.
@@ -209,7 +231,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 | D7 | No `alias_of` or term groups: every term's group is 0, and ordering by `term_group` orders by id. |
 | D8 | Assignments name terms as `TermRef.id` or `TermRef.name` (WordPress reads the text "5" as a name and the number 5 as an id); the post must exist on the site (`invalid_post`), where WordPress accepts any object id. |
 | D9 | A failed call changes nothing: an assignment whose later name fails leaves no term created and nothing assigned, where WordPress keeps what it wrote before the failure. |
-| D10 | The built-in taxonomies are `category` and `post_tag`; menus, link categories, post formats and the block-theme taxonomies come with their modules. A taxonomy registered twice fails the build; WordPress replaces the earlier registration. A default term named "" or "0" is no default term in either form; WordPress ignores such a text `default_term` too, but keeps an array one, creating a term "0" (and failing silently for ""). Rewrite rules, query variables, meta boxes, `args` and `update_count_callback` are not kept. |
+| D10 | The built-in taxonomies are `category`, `post_tag` and `post_format`; menus, link categories and the block-theme taxonomies come with their modules. A taxonomy registered twice fails the build; WordPress replaces the earlier registration. A default term named "" or "0" is no default term in either form; WordPress ignores such a text `default_term` too, but keeps an array one, creating a term "0" (and failing silently for ""). Rewrite rules, query variables, meta boxes, `args` and `update_count_callback` are not kept. |
 | D11 | Default terms of custom taxonomies are ensured at startup (on every site, at every startup) and when a site is created, not on every request; one renamed while the application runs is looked up again at the next startup. On save they go to posts whose caller may assign the taxonomy's terms, the system identity included, where WordPress's user 0 never gets them on save; the same rule holds on publish (`Posts.publish`), where WordPress's `wp_publish_post` gives them whoever the caller is. |
 | D12 | `PostChanges` has no `post_category`, `tags_input` or `tax_input`: callers assign terms after the save, as WordPress's REST API does. |
 | D13 | A term whose name gives no slug gets its id as slug, made unique when another term of the taxonomy holds that text; WordPress stores the duplicate. |
@@ -222,6 +244,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 | D20 | Posts of every type registered for `category` get the default category, on save and on publish; WordPress gives it on save only to `post` (and the types of its `default_category_post_types` filter), and on publish to any type with categories. |
 | D21 | An attachment saved other than by `Posts.publish` gets no default terms, and its terms are not recounted when such a save changes its status, because the posts module announces no save of an attachment (the media module will); WordPress gives saved attachments the default terms of their custom taxonomies and recounts their terms when their status moves into or out of `publish`. |
 | D22 | Deleting a post removes its assignments in every taxonomy, recomputes their counts and announces nothing; WordPress's `wp_delete_post` removes only the terms of the taxonomies of the post's type (through `wp_remove_object_terms`, which fires `delete_term_relationships` and `deleted_term_relationships`). |
+| D23 | A term filter whose `includeChildren` expansion exceeds 10 000 ids in one clause is refused with `term_filter_too_large` (the REST layer answers 400); WordPress runs the query with every descendant. Term ids given directly are bounded by their callers and not counted. |
 
 The parity tests (`-Pwp-parity`) compare taxonomy registration, the save filters of names, descriptions and slugs, ASCII
 lower-casing, PHP's integer cast of ids and order normalization with WordPress 7.1.3's functions (Tier A,

@@ -63,7 +63,7 @@ class TaxonomyParityTest {
     };
 
     /** The built-in taxonomies WordPress registers that QuarkPress registers too, in registration order. */
-    static final List<String> BUILT_IN_KEYS = List.of("category", "post_tag");
+    static final List<String> BUILT_IN_KEYS = List.of("category", "post_tag", "post_format");
 
     /** Half of the first green run's 7780 comparisons, rounded down to a multiple of 50. */
     static final int MIN_COMPARISONS = 3850;
@@ -353,6 +353,30 @@ class TaxonomyParityTest {
      * The arguments create_initial_taxonomies passes for a built-in (labels not given; rewrite and query vars unused).
      */
     static ObjectNode builtInArgs(String key) {
+        if (key.equals("post_format")) {
+            // the recorded registration arguments of WordPress's post_format taxonomy
+            ObjectNode args = OracleJson.MAPPER
+                    .createObjectNode()
+                    .put("hierarchical", false)
+                    .put("public", true)
+                    .put("publicly_queryable", true)
+                    .put("show_ui", false)
+                    .put("show_in_menu", false)
+                    .put("show_in_nav_menus", true)
+                    .put("show_tagcloud", false)
+                    .put("show_in_quick_edit", false)
+                    .put("show_admin_column", false)
+                    .put("_builtin", true)
+                    .put("show_in_rest", false)
+                    .put("label", "Formats");
+            args.putObject("labels").put("name", "Formats").put("singular_name", "Format");
+            args.putObject("capabilities")
+                    .put("manage_terms", "manage_categories")
+                    .put("edit_terms", "manage_categories")
+                    .put("delete_terms", "manage_categories")
+                    .put("assign_terms", "edit_posts");
+            return args;
+        }
         ObjectNode args = OracleJson.MAPPER
                 .createObjectNode()
                 .put("hierarchical", key.equals("category"))

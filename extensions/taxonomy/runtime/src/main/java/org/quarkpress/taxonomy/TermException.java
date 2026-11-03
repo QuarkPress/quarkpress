@@ -9,8 +9,9 @@ import org.quarkpress.core.TermId;
  * invalid_term} (no such term in the taxonomy on this site), {@code empty_term_name}, {@code invalid_term_name} (a
  * name that sanitizes to nothing), {@code term_exists} (a duplicate name; {@link #existing()} names the term),
  * {@code duplicate_term_slug}, {@code missing_parent}, {@code rest_taxonomy_not_hierarchical} (a parent in a flat
- * taxonomy), or {@code db_insert_error} / {@code db_update_error} (a value its column cannot hold). The messages are
- * WordPress's English ones.
+ * taxonomy), {@code db_insert_error} / {@code db_update_error} (a value its column cannot hold), or
+ * {@code term_filter_too_large} (a post term filter whose children expansion passes the module's cap; QuarkPress's
+ * own). The messages are WordPress's English ones.
  */
 public class TermException extends IllegalArgumentException {
 
@@ -45,6 +46,10 @@ public class TermException extends IllegalArgumentException {
     /** For {@code term_exists}, the term that holds the name already. */
     public Optional<TermId> existing() {
         return Optional.ofNullable(existing).map(TermId::new);
+    }
+
+    public static TermException filterTooLarge() {
+        return new TermException("term_filter_too_large", "The term filter expands to too many terms.");
     }
 
     public static TermException invalidTaxonomy(String taxonomy) {

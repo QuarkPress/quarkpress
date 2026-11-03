@@ -101,7 +101,7 @@ class RegistriesDbTest {
     @Test
     void annotatedTaxonomiesFollowTheBuiltInsInKeyOrder() {
         assertThat(taxonomies.all().stream().map(TaxonomyDefinition::key))
-                .containsExactly("category", "post_tag", "genre", "lima", "mood", "shade", "zulu");
+                .containsExactly("category", "post_tag", "post_format", "genre", "lima", "mood", "shade", "zulu");
         TaxonomyDefinition genre = taxonomies.find("genre").orElseThrow();
         assertThat(genre.objectTypes()).containsExactly("post", "page");
         assertThat(genre.labels())
@@ -127,7 +127,7 @@ class RegistriesDbTest {
     @Test
     void typesListTheirTaxonomiesInRegistrationOrder() {
         assertThat(taxonomies.forType("post").stream().map(TaxonomyDefinition::key))
-                .containsExactly("category", "post_tag", "genre", "lima", "mood", "shade", "zulu");
+                .containsExactly("category", "post_tag", "post_format", "genre", "lima", "mood", "shade", "zulu");
         assertThat(taxonomies.forType("page").stream().map(TaxonomyDefinition::key))
                 .containsExactly("genre");
         assertThat(taxonomies.forType("attachment")).isEmpty();
