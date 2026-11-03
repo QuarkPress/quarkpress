@@ -245,3 +245,136 @@ none * D24 the harness has no session cookie mechanism: every caller authenticat
 # D36: the QuarkPress-only namespace quarkpress/v1 (the editor's lock routes) appears in the index bodies; WordPress has no such routes.
 * req*:body:*/namespaces/1 D36 the namespaces list holds quarkpress/v1 after wp/v2, where WordPress lists its own next namespace
 * req*:body:*/routes/~1quarkpress~1v1* D36 the index describes /quarkpress/v1 and its lock routes, which WordPress does not have
+
+# D6, until the writers of the item routes exist: WordPress lists the writing methods in Allow for a caller who may edit the post (GET, POST, PUT, PATCH, DELETE on an answer; POST, PUT, PATCH, DELETE on the incorrect-password 403); QuarkPress serves GET only.
+p03 req11:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req12:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req13:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req14:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req15:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req16:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req17:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req18:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req19:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req20:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req21:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req22:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req23:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req24:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req25:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req26:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req27:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req28:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req29:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req30:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req31:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req32:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req33:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req34:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req35:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req36:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req37:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req38:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p03 req39:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req1:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req2:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req3:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req4:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req5:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req6:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req7:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req8:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req9:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req10:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req11:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req12:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+p04 req21:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+
+# D6, until the post links exist: a single post carries no _links.
+p04 req*:body:/_links D6 the links of a post (self, collection, about, author, replies, version-history, wp:attachment, wp:term, curies) are not served yet
+
+# D26: the rendered content and excerpt of a post whose protection the request lifted.
+p03 req2:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req2:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req12:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req12:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req22:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req22:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req32:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req32:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req42:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req42:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req52:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req52:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req14:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req14:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req24:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req24:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req34:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req34:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req64:body:/0/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req64:body:/1/content/rendered D26 the content "p03 open content" of a post without password: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req67:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+
+# D35: the minimal front-end page instead of the theme's template (p14, anonymous).
+p14 req1:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
+p14 req1:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req2:body D13 the 403 "Sorry, you are not allowed to preview drafts." page is WordPress's wp_die page with its styles and title; QuarkPress's is the minimal error page with the same sentence
+p14 req5:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
+p14 req5:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+
+# D6, until the item update and delete endpoints exist: an item's Allow header lists GET only.
+p13 req1:header:allow D6 the author's edit-context read of her auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+p13 req2:header:allow D6 the editor's edit-context read of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+p13 req3:header:allow D6 the editor's view-context read of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+p13 req4:header:allow D6 the anonymous refusal of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+p13 req7:header:allow D6 the editor's edit-context read of the page auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+p13 req9:header:allow D6 the author's edit-context read of the book auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+
+# D1: the guid is the plain permalink; WordPress keeps the pretty permalink a post was published with, and names a custom type's post ?p=<id>.
+p04 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req6:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req10:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req11:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req13:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req14:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req15:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req16:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req20:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req2:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req4:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req5:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req6:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req9:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req10:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req11:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req12:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p04 req7:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
+p04 req8:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
+p04 req17:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
+p04 req7:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
+p04 req8:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
+
+# D6, until the writers of the item routes exist: the index lists the item routes with GET only.
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/1 D6 the update and delete endpoints of the posts item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/2 D6 the update and delete endpoints of the posts item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/3 D6 the update and delete endpoints of the posts item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/4 D6 the update and delete endpoints of the posts item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/endpoints/1 D6 the update and delete endpoints of the posts item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/endpoints/2 D6 the update and delete endpoints of the posts item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/1 D6 the update and delete endpoints of the pages item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/2 D6 the update and delete endpoints of the pages item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/3 D6 the update and delete endpoints of the pages item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/4 D6 the update and delete endpoints of the pages item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/endpoints/1 D6 the update and delete endpoints of the pages item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/endpoints/2 D6 the update and delete endpoints of the pages item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/1 D6 the update and delete endpoints of the books item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/2 D6 the update and delete endpoints of the books item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/3 D6 the update and delete endpoints of the books item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/4 D6 the update and delete endpoints of the books item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/endpoints/1 D6 the update and delete endpoints of the books item route are not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/endpoints/2 D6 the update and delete endpoints of the books item route are not served yet

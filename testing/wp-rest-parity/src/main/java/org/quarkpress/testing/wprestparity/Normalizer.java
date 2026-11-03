@@ -160,6 +160,14 @@ public final class Normalizer {
     private static final Set<String> POST_TYPES = Set.of("post", "page", "book", "attachment", "wp_block");
     private static final Set<String> TAXONOMIES = Set.of("category", "post_tag");
     private static final Set<String> DATE_KEYS = Set.of("date", "date_gmt", "modified", "modified_gmt");
+
+    /** A post's term-id arrays, named by the taxonomies' REST bases. */
+    private static final Set<String> TERM_LISTS = Set.of("categories", "tags");
+
+    /** The {@code class_list} prefixes followed by an id, and the kind of the id. */
+    private static final Map<String, Kind> CLASS_PREFIXES =
+            Map.of("post", Kind.POST, "category", Kind.TERM, "tag", Kind.TERM);
+
     private static final List<String> LOCAL_HOSTS = List.of("localhost", "127.0.0.1", "[::1]");
 
     /** How far from the moment a request was sent a date still counts as {@code {now}}. */
@@ -276,6 +284,26 @@ public final class Normalizer {
                 if (idKind != null && value.isIntegralNumber()) {
                     Kind looked = key.equals("parent") ? parentKind(own) : idKind == Kind.ANY ? own : idKind;
                     field.setValue(TextNode.valueOf(id(value.longValue(), looked, refs)));
+                } else if (key.equals("class_list") && value.isArray()) {
+                    ArrayNode array = (ArrayNode) value;
+                    for (int i = 0; i < array.size(); i++) {
+                        JsonNode item = array.get(i);
+                        array.set(
+                                i,
+                                item.isTextual()
+                                        ? TextNode.valueOf(postClass(item.textValue(), refs))
+                                        : walk(item, refs, sitePath, kind, sentAt));
+                    }
+                } else if (TERM_LISTS.contains(key) && value.isArray()) {
+                    ArrayNode array = (ArrayNode) value;
+                    for (int i = 0; i < array.size(); i++) {
+                        JsonNode item = array.get(i);
+                        array.set(
+                                i,
+                                item.isIntegralNumber()
+                                        ? TextNode.valueOf(id(item.longValue(), Kind.TERM, refs))
+                                        : walk(item, refs, sitePath, kind, sentAt));
+                    }
                 } else if (key.equals("additional_data") && value.isArray()) {
                     ArrayNode array = (ArrayNode) value;
                     for (int i = 0; i < array.size(); i++) {
@@ -417,6 +445,32 @@ public final class Normalizer {
             }
         }
         return fallback;
+    }
+
+    /**
+     * A post class with its id as a ref: {@code post-<id>} names the post, {@code category-<id>} and {@code tag-<id>}
+     * a term whose slug is numeric or empty (WordPress names such terms by their id); any other class is kept.
+     */
+    static String postClass(String name, Refs refs) {
+        for (Map.Entry<String, Kind> prefix : CLASS_PREFIXES.entrySet()) {
+            String start = prefix.getKey() + "-";
+            if (name.startsWith(start) && isDigits(name.substring(start.length()))) {
+                return start + id(Long.parseLong(name.substring(start.length())), prefix.getValue(), refs);
+            }
+        }
+        return name;
+    }
+
+    private static boolean isDigits(String text) {
+        if (text.isEmpty() || text.length() > 18) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) < '0' || text.charAt(i) > '9') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String id(long id, Kind kind, Refs refs) {

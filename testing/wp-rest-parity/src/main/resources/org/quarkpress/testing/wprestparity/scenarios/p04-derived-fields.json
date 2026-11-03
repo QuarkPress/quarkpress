@@ -1,0 +1,236 @@
+{
+  "id": "p04",
+  "rule": "the derived fields of a single post without a field selection: the permalink template and the generated slug of drafts and published posts, pages, a child page and books in the edit context (the generated slug comes from the title, made unique as for a published post), the class list of a formatted and categorised post and of a post with a password, the template rule for a stored default and an unknown stored value, the embed context, and the alternate Link of GET and HEAD",
+  "setup": [
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "p04 news"
+    },
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "p04 tag"
+    },
+    {
+      "post": "p:hello-there",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "Hello There"
+    },
+    {
+      "post": "p:hello",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello"
+    },
+    {
+      "post": "p:hello-again",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "Hello"
+    },
+    {
+      "post": "p:foo",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "Bar",
+      "fields": {
+        "slug": "foo"
+      }
+    },
+    {
+      "post": "p:page",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "P04 Page"
+    },
+    {
+      "post": "p:child",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "P04 Child",
+      "fields": {
+        "parent": "p:page"
+      }
+    },
+    {
+      "post": "p:book",
+      "as": "carol",
+      "type": "book",
+      "status": "publish",
+      "title": "P04 Book",
+      "fields": {
+        "slug": "p04-book"
+      }
+    },
+    {
+      "post": "p:book-draft",
+      "as": "carol",
+      "type": "book",
+      "status": "draft",
+      "title": "P04 Book Draft"
+    },
+    {
+      "post": "p:aside",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "P04 Aside",
+      "fields": {
+        "format": "aside",
+        "categories": [
+          "t:news"
+        ],
+        "tags": [
+          "t:tag"
+        ]
+      }
+    },
+    {
+      "post": "p:secret",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "P04 Secret",
+      "fields": {
+        "password": "s3"
+      }
+    },
+    {
+      "post": "p:default-template",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "P04 Default",
+      "fields": {
+        "template": "default"
+      }
+    },
+    {
+      "post": "p:gone-template",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "P04 Gone",
+      "fields": {
+        "template": "gone-template"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hello-there}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hello}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hello-again}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:foo}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:page}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:child}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book-draft}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:aside}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:secret}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:default-template}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:gone-template}?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:aside}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:secret}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:child}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:aside}?context=embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/posts/{p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:gone-template}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hello-there}?context=edit"
+    }
+  ]
+}

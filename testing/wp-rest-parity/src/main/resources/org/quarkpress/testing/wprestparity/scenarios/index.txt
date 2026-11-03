@@ -35,3 +35,7 @@ x05-outsider.json
 x06-list-bound.json
 p01-read-matrix.json
 p02-collection-params.json
+p13-new-drafts.json
+p14-preview-anonymous.json
+p03-item-and-password.json
+p04-derived-fields.json

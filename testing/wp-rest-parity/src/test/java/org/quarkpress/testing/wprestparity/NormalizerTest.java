@@ -91,6 +91,27 @@ class NormalizerTest {
     }
 
     @Test
+    void postClassesNameTheirPostAndNumericTermsByRef() {
+        Normalizer.Refs refs = Normalizer.Refs.of(Map.of("p:aside", 30L, "t:num", 30L, "t:news", 7L));
+        JsonNode body = json("{\"class_list\":[\"post-30\",\"post\",\"type-post\",\"status-publish\","
+                + "\"format-aside\",\"hentry\",\"category-7\",\"category-news\",\"tag-30\",\"tag-301\","
+                + "\"post_format-post-format-aside\",\"post-\"]}");
+        assertThat(normalizer.body(body, refs, "/s1/", Normalizer.Kind.POST).toString())
+                .isEqualTo("{\"class_list\":[\"post-p:aside\",\"post\",\"type-post\",\"status-publish\","
+                        + "\"format-aside\",\"hentry\",\"category-t:news\",\"category-news\",\"tag-t:num\","
+                        + "\"tag-#?301\",\"post_format-post-format-aside\",\"post-\"]}");
+    }
+
+    @Test
+    void aPostsTermListsHoldTermRefs() {
+        Normalizer.Refs refs = Normalizer.Refs.of(Map.of("t:news", 7L, "t:tag", 9L, "p:aside", 7L));
+        JsonNode body = json("{\"id\":7,\"categories\":[7,8],\"tags\":[9],\"other\":[7]}");
+        assertThat(normalizer.body(body, refs, "/s1/", Normalizer.Kind.POST).toString())
+                .isEqualTo(
+                        "{\"id\":\"p:aside\",\"categories\":[\"t:news\",\"#?8\"],\"tags\":[\"t:tag\"],\"other\":[7]}");
+    }
+
+    @Test
     void idsAreLookedUpAmongTheRefsOfTheirKind() {
         // on WordPress a subsite's terms and posts start again at 1, so user 3 and term 3 can share a number
         Normalizer.Refs refs = Normalizer.Refs.of(Map.of("u:carol", 3L, "t:news", 3L, "p:draft", 3L));
