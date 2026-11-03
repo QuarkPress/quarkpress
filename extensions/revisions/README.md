@@ -140,8 +140,9 @@ Beans run in a chain, higher `@Priority` first, the opposite of WordPress:
 - `RevisionFieldsFilter` (`_wp_post_revision_fields`): the revisioned fields among `RevisionField.TITLE`, `CONTENT`,
   `EXCERPT`; a filter may leave fields out. It runs for the save, the change check, the autosave comparison and the
   restore.
-- `RevisionMetaKeysFilter` (`wp_post_revision_meta_keys`): the revisioned meta keys by type; `footnotes` for every type
-  supporting an editor, custom fields and revisions.
+- `RevisionMetaKeysFilter` (`wp_post_revision_meta_keys`): the revisioned meta keys by type, given the keys the posts
+  module's meta registry keeps revisions for (`RegisteredMeta.revisionedKeys`: `footnotes` for every type shown in
+  REST that supports an editor, custom fields and revisions, and every registered key with revisions enabled).
 - `RevisionChangeFilter` (`wp_save_post_revision_post_has_changed`): the change decision, after the built-in field and
   meta comparison, with the latest regular revision; it runs only when one exists.
 
@@ -216,7 +217,7 @@ where several are locked, though trimming during a restore may lock lower ids af
 | D17 | Trimming, the revision and the save are one transaction: a failure after the first write rolls everything back; WordPress keeps what it wrote before a failure. |
 | D18 | Revision times are kept to the second and ties are broken by id in the query's direction; WordPress leaves ties to the database (with an id tie-break only in its `date ID` order). |
 | D19 | The posts module refuses the type `revision` (`invalid_post_type`); WordPress refuses only a revision of a revision. |
-| D20 | WordPress sanitizes the `footnotes` meta for users without `unfiltered_html` (a value that is not a JSON array of `{id, content}` objects becomes `[]`, valid values are re-encoded); QuarkPress stores the value it is given. Tier B scenarios use canonical values. |
+| D20 | WordPress sanitizes the `footnotes` meta for users without `unfiltered_html` (a value that is not a JSON list of `{id, content}` objects becomes empty, valid values are re-encoded). The posts module's `RegisteredMeta` does the same (the REST path); `PostMeta`, which the revisions module and Tier B scenarios write through, stores the value it is given. Tier B scenarios use canonical values. |
 | D21 | A post's revisions are deleted when `PostDeleting` fires, before the posts module re-parents the post's children; WordPress deletes them after re-parenting, so a `RevisionDeleted` observer may see children not yet re-parented. |
 
 The parity tests (`-Pwp-parity`) compare the limit, the revisioned fields, a revision's row data, whitespace

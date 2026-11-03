@@ -12,6 +12,7 @@ import org.quarkpress.core.Filters;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
+import org.quarkpress.posts.RegisteredMeta;
 import org.quarkpress.revisions.RevisionChangeFilter;
 import org.quarkpress.revisions.RevisionField;
 import org.quarkpress.revisions.RevisionFieldsFilter;
@@ -29,14 +30,14 @@ public class RevisionPolicy {
     /** The per-site switch: off, a site saves and lists no revisions. */
     public static final String SITE_FEATURE = "revisions";
 
-    /** The meta key revisioned for every type with an editor, custom fields and revisions. */
-    public static final String DEFAULT_META_KEY = "footnotes";
-
     @Inject
     RevisionsConfig config;
 
     @Inject
     PostTypes types;
+
+    @Inject
+    RegisteredMeta meta;
 
     @Inject
     SiteContext context;
@@ -78,14 +79,13 @@ public class RevisionPolicy {
                 Filters.ordered(fieldFilters), RevisionField.all(), (filter, value) -> filter.apply(value, post))));
     }
 
-    /** The revisioned meta keys of the type, unmodifiable, in the order the filters left them. */
+    /**
+     * The revisioned meta keys of the type, unmodifiable, in the order the filters left them: the registered keys
+     * that keep revisions (the posts module's registry, where {@code footnotes} is registered for every REST type
+     * supporting an editor, custom fields and revisions), then the filters.
+     */
     public Set<String> metaKeys(String type) {
-        Set<String> keys = new LinkedHashSet<>();
-        if (types.supports(type, "editor")
-                && types.supports(type, "custom-fields")
-                && types.supports(type, "revisions")) {
-            keys.add(DEFAULT_META_KEY);
-        }
+        Set<String> keys = new LinkedHashSet<>(meta.revisionedKeys(type));
         return Collections.unmodifiableSet(new LinkedHashSet<>(
                 Filters.apply(Filters.ordered(keyFilters), keys, (filter, value) -> filter.apply(value, type))));
     }
