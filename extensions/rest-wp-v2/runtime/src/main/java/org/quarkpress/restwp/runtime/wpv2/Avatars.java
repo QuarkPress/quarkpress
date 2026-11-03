@@ -8,15 +8,16 @@ import java.util.HexFormat;
 import java.util.Optional;
 import org.quarkpress.core.SiteOptions;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.security.UserProfile;
 
 /**
- * A user's avatar URLs as WordPress gives them: Gravatar addresses at sizes 24, 48 and 96, keyed by the SHA-256 of the
- * e-mail address trimmed and lower-cased (a user without an address, or with "0", gets the address without a hash),
- * with the site's default image ({@code avatar_default}, {@code mystery} when the option is missing; {@code mystery}
- * and {@code mysteryman} are sent as {@code mm}; {@code gravatar_default} and an empty value send none) and rating
- * ({@code avatar_rating}, {@code G} when the option is missing, sent lower-cased; an empty value sends none); with the
- * {@code initials} default, the name's initials as a last {@code initials} parameter. None when the site's
- * {@code show_avatars} option is off.
+ * A user's avatar URLs as WordPress gives them: Gravatar addresses at sizes 24, 48 and 96 (or one address at any size,
+ * as the editor's lock dialogs need 64 and 128 pixels), keyed by the SHA-256 of the e-mail address trimmed and
+ * lower-cased (a user without an address, or with "0", gets the address without a hash), with the site's default image
+ * ({@code avatar_default}, {@code mystery} when the option is missing; {@code mystery} and {@code mysteryman} are sent
+ * as {@code mm}; {@code gravatar_default} and an empty value send none) and rating ({@code avatar_rating}, {@code G}
+ * when the option is missing, sent lower-cased; an empty value sends none); with the {@code initials} default, the
+ * name's initials as a last {@code initials} parameter. None when the site's {@code show_avatars} option is off.
  */
 public final class Avatars {
 
@@ -25,6 +26,11 @@ public final class Avatars {
     private static final String BASE = "https://secure.gravatar.com/avatar/";
 
     private Avatars() {}
+
+    /** The name a user's initials come from: its display name, else its nicename. */
+    static String initialsName(UserProfile profile) {
+        return profile.displayName().isEmpty() ? profile.nicename() : profile.displayName();
+    }
 
     /** The avatar URLs by size of a user without a name, as text keys; empty when the site does not show avatars. */
     public static Optional<ObjectNode> urls(Optional<String> email, SiteOptions options) {
@@ -39,9 +45,44 @@ public final class Avatars {
         if (!options.flag("show_avatars", true)) {
             return Optional.empty();
         }
-        String address = email.orElse("");
-        // PHP's truth: no hash for an empty address or "0"
-        String hash = address.isEmpty() || address.equals("0") ? "" : sha256(asciiLower(phpTrim(address)));
+        String path = hash(email.orElse("")) + "?s=";
+        String query = query(name, options);
+        ObjectNode urls = RestJson.NODES.objectNode();
+        for (int size : SIZES) {
+            urls.put(Integer.toString(size), BASE + path + size + query);
+        }
+        return Optional.of(urls);
+    }
+
+    /**
+     * One avatar URL of {@code size} pixels for a user without a name, built as {@link #urls} builds each of its
+     * entries (the same hash, default image and rating); empty when the site does not show avatars.
+     */
+    public static Optional<String> url(String email, int size, SiteOptions options) {
+        return url(Optional.of(email), "", size, options);
+    }
+
+    /**
+     * One avatar URL of {@code size} pixels, built as {@link #urls} builds each of its entries; {@code name} gives the
+     * {@code initials} parameter with that default image. Empty when the site does not show avatars.
+     */
+    public static Optional<String> url(Optional<String> email, String name, int size, SiteOptions options) {
+        if (size <= 0) {
+            throw new IllegalArgumentException("an avatar size is a positive number of pixels: " + size);
+        }
+        if (!options.flag("show_avatars", true)) {
+            return Optional.empty();
+        }
+        return Optional.of(BASE + hash(email.orElse("")) + "?s=" + size + query(name, options));
+    }
+
+    /** The hash of the address: none for an empty address or "0" (PHP's truth). */
+    private static String hash(String address) {
+        return address.isEmpty() || address.equals("0") ? "" : sha256(asciiLower(phpTrim(address)));
+    }
+
+    /** The parameters after the size: the default image, the rating and, with the initials image, the initials. */
+    private static String query(String name, SiteOptions options) {
         String image = options.string("avatar_default", "mystery");
         image = switch (image) {
             case "mystery", "mysteryman" -> "mm";
@@ -63,11 +104,7 @@ public final class Avatars {
                 query.append("&initials=").append(encode(initials));
             }
         }
-        ObjectNode urls = RestJson.NODES.objectNode();
-        for (int size : SIZES) {
-            urls.put(Integer.toString(size), BASE + hash + "?s=" + size + query);
-        }
-        return Optional.of(urls);
+        return query.toString();
     }
 
     /**

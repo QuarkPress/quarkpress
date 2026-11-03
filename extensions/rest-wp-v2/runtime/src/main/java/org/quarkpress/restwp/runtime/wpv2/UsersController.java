@@ -485,7 +485,7 @@ public class UsersController implements RestRouteProvider {
             data.set("extra_capabilities", extra);
         }
         if (fields.includesExactly("avatar_urls")) {
-            Avatars.urls(profile.email(), avatarName(profile), site.options())
+            Avatars.urls(profile.email(), Avatars.initialsName(profile), site.options())
                     .ifPresent(avatars -> data.set("avatar_urls", avatars));
         }
         if (fields.includesExactly("meta")) {
@@ -538,10 +538,6 @@ public class UsersController implements RestRouteProvider {
     }
 
     /** The name WordPress takes initials from: the display name, else the login (the nicename here). */
-    private static String avatarName(UserProfile profile) {
-        return profile.displayName().isEmpty() ? profile.nicename() : profile.displayName();
-    }
-
     private Map<String, RoleDefinition> roleTable() {
         Map<String, RoleDefinition> table = new LinkedHashMap<>();
         for (RoleDefinition role : siteRoles.roles(site.siteId())) {

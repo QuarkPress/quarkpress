@@ -1,6 +1,7 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -100,6 +101,32 @@ class AvatarsTest {
         assertThat(named("a@b.c", "Jane Doe", Map.of())).endsWith("?s=24&d=mm&r=g");
         assertThat(named("a@b.c", "Jane Doe", Map.of("avatar_default", "initials", "avatar_rating", "")))
                 .endsWith("?s=24&d=initials&initials=JD");
+    }
+
+    @Test
+    void oneUrlOfAnySizeIsBuiltAsTheSetIs() {
+        String hash = sha256Hex("a@b.c");
+        assertThat(Avatars.url("A@b.c ", 64, options(Map.of())))
+                .contains("https://secure.gravatar.com/avatar/" + hash + "?s=64&d=mm&r=g");
+        assertThat(Avatars.url("a@b.c", 128, options(Map.of("avatar_default", "identicon", "avatar_rating", "PG"))))
+                .contains("https://secure.gravatar.com/avatar/" + hash + "?s=128&d=identicon&r=pg");
+        assertThat(Avatars.url(Optional.of("a@b.c"), "Jane Doe", 128, options(Map.of("avatar_default", "initials"))))
+                .contains("https://secure.gravatar.com/avatar/" + hash + "?s=128&d=initials&r=g&initials=JD");
+        // the two-argument form has no name, so no initials; no address, no hash
+        assertThat(Avatars.url("a@b.c", 64, options(Map.of("avatar_default", "initials"))))
+                .contains("https://secure.gravatar.com/avatar/" + hash + "?s=64&d=initials&r=g");
+        assertThat(Avatars.url(Optional.empty(), "", 64, options(Map.of())))
+                .contains("https://secure.gravatar.com/avatar/?s=64&d=mm&r=g");
+        // the same honouring of show_avatars as the set
+        assertThat(Avatars.url("a@b.c", 64, options(Map.of("show_avatars", "0"))))
+                .isEmpty();
+        assertThat(Avatars.url(Optional.of("a@b.c"), "Jane Doe", 128, options(Map.of("show_avatars", ""))))
+                .isEmpty();
+        assertThatThrownBy(() -> Avatars.url("a@b.c", 0, options(Map.of())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("an avatar size is a positive number of pixels: 0");
+        assertThatThrownBy(() -> Avatars.url("a@b.c", -64, options(Map.of("show_avatars", "0"))))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private static String named(String email, String name, Map<String, String> values) {
