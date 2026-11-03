@@ -1,9 +1,12 @@
 package org.quarkpress.testing.wprestparity;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,10 +28,65 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
     public static final List<String> STARTING_REFS =
             List.of("t:uncategorized", "u:alice", "u:bob", "u:carol", "u:dave", "u:erin");
 
+    /** The kinds of refs: terms, users, posts, created items ({@code c:}) and revisions or autosaves. */
+    static final String REF_KINDS = "tupcr";
+
+    /** The keys a post step's {@code fields} may hold. */
+    public static final Set<String> POST_FIELDS = Set.of(
+            "content",
+            "excerpt",
+            "password",
+            "parent",
+            "date_gmt",
+            "slug",
+            "menu_order",
+            "comment_status",
+            "sticky",
+            "categories",
+            "tags",
+            "format",
+            "featured_media",
+            "template",
+            "meta");
+
     /** One step that prepares the scenario's site through the side's own API. */
     public sealed interface SetupStep {
-        /** A post written by {@code as} ({@code type} post or page). */
-        record Post(String ref, String as, String type, String status, String title) implements SetupStep {}
+        /**
+         * A post written by {@code as} ({@code type} post, page, book or attachment). {@code fields} (absent = the
+         * defaults): {@code content}, {@code excerpt}, {@code password}, {@code parent} (a {@code p:} ref),
+         * {@code date_gmt} ({@code yyyy-MM-ddTHH:mm:ss}), {@code slug}, {@code menu_order}, {@code comment_status},
+         * {@code sticky}, {@code categories} and {@code tags} ({@code t:} refs), {@code format}, {@code featured_media}
+         * (a {@code p:} ref), {@code template}, {@code meta} ({key: value}).
+         */
+        record Post(String ref, String as, String type, String status, String title, ObjectNode fields)
+                implements SetupStep {
+            public Post {
+                fields = fields == null ? JsonNodeFactory.instance.objectNode() : fields.deepCopy();
+            }
+
+            /** A post with the default fields. */
+            public Post(String ref, String as, String type, String status, String title) {
+                this(ref, as, type, status, title, null);
+            }
+        }
+
+        /**
+         * A regular revision of a post: an update by {@code as} of title and content (WordPress's revision on
+         * update).
+         */
+        record Revision(String ref, String as, String postRef, String title, String content) implements SetupStep {}
+
+        /** An autosave of a post by {@code as} (WordPress's autosave revision). */
+        record Autosave(String ref, String as, String postRef, String title, String content) implements SetupStep {}
+
+        /** {@code _edit_lock} of the post set to {@code "<now - ageSeconds>:<user>"}. */
+        record Lock(String postRef, String user, int ageSeconds) implements SetupStep {}
+
+        /**
+         * The user leaves the scenario's site and becomes administrator of a new site {@code /<scenario>-own/}. Never
+         * alice, the super admin.
+         */
+        record OwnSite(String user) implements SetupStep {}
 
         /** A term of {@code taxonomy} (category or post_tag) created by {@code as} through the REST API. */
         record Term(String ref, String as, String taxonomy, String name, Optional<String> parentRef)
@@ -109,7 +167,7 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
         if (text.charAt(start) != '{' || start + 3 >= text.length() || text.charAt(start + 2) != ':') {
             return -1;
         }
-        if ("tupc".indexOf(text.charAt(start + 1)) < 0) {
+        if (REF_KINDS.indexOf(text.charAt(start + 1)) < 0) {
             return -1;
         }
         int i = start + 3;
@@ -119,9 +177,12 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
         return i > start + 3 && i < text.length() && text.charAt(i) == '}' ? i : -1;
     }
 
-    /** Whether {@code ref} is a well-formed ref name: {@code t:}, {@code u:}, {@code p:} or {@code c:} and a name. */
+    /**
+     * Whether {@code ref} is a well-formed ref name: {@code t:}, {@code u:}, {@code p:}, {@code c:} or {@code r:} and a
+     * name.
+     */
     static boolean isRef(String ref) {
-        if (ref.length() < 3 || "tupc".indexOf(ref.charAt(0)) < 0 || ref.charAt(1) != ':') {
+        if (ref.length() < 3 || REF_KINDS.indexOf(ref.charAt(0)) < 0 || ref.charAt(1) != ':') {
             return false;
         }
         for (int i = 2; i < ref.length(); i++) {
@@ -151,7 +212,34 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
             switch (step) {
                 case SetupStep.Post post -> {
                     caller(id, post.as(), false);
+                    postFields(id, defined, post.fields());
                     define(id, defined, post.ref(), 'p');
+                }
+                case SetupStep.Revision revision -> {
+                    caller(id, revision.as(), false);
+                    used(id, defined, revision.postRef());
+                    refKind(id, revision.postRef(), 'p');
+                    define(id, defined, revision.ref(), 'r');
+                }
+                case SetupStep.Autosave autosave -> {
+                    caller(id, autosave.as(), false);
+                    used(id, defined, autosave.postRef());
+                    refKind(id, autosave.postRef(), 'p');
+                    define(id, defined, autosave.ref(), 'r');
+                }
+                case SetupStep.Lock lock -> {
+                    caller(id, lock.user(), false);
+                    used(id, defined, lock.postRef());
+                    refKind(id, lock.postRef(), 'p');
+                    if (lock.ageSeconds() < 0) {
+                        throw new IllegalArgumentException(id + ": a lock's age is not negative");
+                    }
+                }
+                case SetupStep.OwnSite ownSite -> {
+                    caller(id, ownSite.user(), false);
+                    if (ownSite.user().equals("alice")) {
+                        throw new IllegalArgumentException(id + ": alice, the super admin, never leaves a site");
+                    }
                 }
                 case SetupStep.Term term -> {
                     caller(id, term.as(), false);
@@ -197,10 +285,52 @@ public record RestScenario(String id, String rule, List<SetupStep> setup, List<R
         }
     }
 
-    private static void define(String id, Set<String> defined, String ref, char kind) {
+    /** The fields of a post step: known keys, values of the right shape, refs of the right kind already defined. */
+    private static void postFields(String id, Set<String> defined, ObjectNode fields) {
+        for (Iterator<Map.Entry<String, JsonNode>> it = fields.fields(); it.hasNext(); ) {
+            Map.Entry<String, JsonNode> field = it.next();
+            String key = field.getKey();
+            JsonNode value = field.getValue();
+            if (!POST_FIELDS.contains(key)) {
+                throw new IllegalArgumentException(id + " post step fields: unknown key " + key);
+            }
+            boolean fine = switch (key) {
+                case "menu_order" -> value.isIntegralNumber();
+                case "sticky" -> value.isBoolean();
+                case "meta" -> value.isObject();
+                case "categories", "tags" -> value.isArray();
+                default -> value.isTextual();
+            };
+            if (!fine) {
+                throw new IllegalArgumentException(id + ": the post field " + key + " has the wrong shape: " + value);
+            }
+            switch (key) {
+                case "parent", "featured_media" -> {
+                    used(id, defined, value.textValue());
+                    refKind(id, value.textValue(), 'p');
+                }
+                case "categories", "tags" -> {
+                    for (JsonNode term : value) {
+                        if (!term.isTextual()) {
+                            throw new IllegalArgumentException(id + ": " + key + " holds t: refs: " + value);
+                        }
+                        used(id, defined, term.textValue());
+                        refKind(id, term.textValue(), 't');
+                    }
+                }
+                default -> {}
+            }
+        }
+    }
+
+    private static void refKind(String id, String ref, char kind) {
         if (!isRef(ref) || ref.charAt(0) != kind) {
             throw new IllegalArgumentException(id + ": not a " + kind + ": ref: " + ref);
         }
+    }
+
+    private static void define(String id, Set<String> defined, String ref, char kind) {
+        refKind(id, ref, kind);
         if (!defined.add(ref)) {
             throw new IllegalArgumentException(id + ": ref " + ref + " is defined twice");
         }

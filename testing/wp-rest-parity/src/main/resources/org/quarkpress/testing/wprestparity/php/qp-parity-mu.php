@@ -7,8 +7,9 @@
  * wp-content/mu-plugins/ of the WordPress tree before php -S starts and removes it when the site closes (the qp-
  * prefix marks a leftover). It calls WordPress's public registration functions and filters only:
  *   - when the site option qp_parity_book_type is "1", registers the custom post type "book" (public, in REST under
- *     "books", supporting title, editor, author, excerpt, thumbnail, revisions, custom-fields and autosave), the
- *     custom type both sides of the comparison hold; a site without the switch sees WordPress's built-in types only;
+ *     "books", labelled Books/Book, supporting title, editor, author, excerpt, thumbnail, revisions, custom-fields
+ *     and autosave), the custom type both sides of the comparison hold, with the labels QuarkPress's test application
+ *     gives it; a site without the switch sees WordPress's built-in types only;
  *   - when the site option qp_parity_no_trash is "1", makes every post type non-trashable through the
  *     rest_{type}_trashable filter, so WordPress's "trash not supported" answer can be recorded;
  *   - when the site option qp_parity_no_revisions is "1", keeps no revisions (wp_revisions_to_keep filter answers 0),
@@ -20,6 +21,7 @@
 add_action('init', static function (): void {
     if ('1' === get_option('qp_parity_book_type')) {
         register_post_type('book', [
+            'labels' => ['name' => 'Books', 'singular_name' => 'Book'],
             'public' => true,
             'show_in_rest' => true,
             'rest_base' => 'books',

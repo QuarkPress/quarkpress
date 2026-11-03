@@ -22,7 +22,11 @@ import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
  * <pre>{@code
  * {"id": "d03", "rule": "REST verification list item 3: ...",
  *  "setup": [{"term": "t:other", "as": "alice", "taxonomy": "category", "name": "d03-other", "parent": "t:x"},
- *            {"post": "p:draft", "as": "dave", "type": "post", "status": "draft", "title": "..."},
+ *            {"post": "p:draft", "as": "dave", "type": "post", "status": "draft", "title": "...",
+ *             "fields": {"content": "...", "parent": "p:x", "categories": ["t:other"], "sticky": true}},
+ *            {"revision": "r:v1", "as": "dave", "post": "p:draft", "title": "...", "content": "..."},
+ *            {"autosave": "r:auto", "as": "bob", "post": "p:draft", "title": "...", "content": "..."},
+ *            {"lock": "p:draft", "user": "dave", "age": 10}, {"own_site": "dave"},
  *            {"option": "permalink_structure", "value": ""}, {"leave": "bob"}],
  *  "requests": [{"as": "alice", "method": "GET", "target": "/wp-json/wp/v2/users/{u:alice}",
  *                "headers": {"Accept": "application/json"}, "contentType": "application/json", "body": "{}"}]}
@@ -33,7 +37,11 @@ import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
 public final class RestScenarioJson {
 
     private static final Set<String> SCENARIO_KEYS = Set.of("id", "rule", "setup", "requests");
-    private static final Set<String> POST_KEYS = Set.of("post", "as", "type", "status", "title");
+    private static final Set<String> POST_KEYS = Set.of("post", "as", "type", "status", "title", "fields");
+    private static final Set<String> REVISION_KEYS = Set.of("revision", "as", "post", "title", "content");
+    private static final Set<String> AUTOSAVE_KEYS = Set.of("autosave", "as", "post", "title", "content");
+    private static final Set<String> LOCK_KEYS = Set.of("lock", "user", "age");
+    private static final Set<String> OWN_SITE_KEYS = Set.of("own_site");
     private static final Set<String> TERM_KEYS = Set.of("term", "as", "taxonomy", "name", "parent");
     private static final Set<String> OPTION_KEYS = Set.of("option", "value");
     private static final Set<String> LEAVE_KEYS = Set.of("leave");
@@ -72,12 +80,31 @@ public final class RestScenarioJson {
         for (SetupStep step : scenario.setup()) {
             ObjectNode node = setup.addObject();
             switch (step) {
-                case SetupStep.Post post ->
+                case SetupStep.Post post -> {
                     node.put("post", post.ref())
                             .put("as", post.as())
                             .put("type", post.type())
                             .put("status", post.status())
                             .put("title", post.title());
+                    if (!post.fields().isEmpty()) {
+                        node.set("fields", post.fields());
+                    }
+                }
+                case SetupStep.Revision revision ->
+                    node.put("revision", revision.ref())
+                            .put("as", revision.as())
+                            .put("post", revision.postRef())
+                            .put("title", revision.title())
+                            .put("content", revision.content());
+                case SetupStep.Autosave autosave ->
+                    node.put("autosave", autosave.ref())
+                            .put("as", autosave.as())
+                            .put("post", autosave.postRef())
+                            .put("title", autosave.title())
+                            .put("content", autosave.content());
+                case SetupStep.Lock lock ->
+                    node.put("lock", lock.postRef()).put("user", lock.user()).put("age", lock.ageSeconds());
+                case SetupStep.OwnSite ownSite -> node.put("own_site", ownSite.user());
                 case SetupStep.Term term -> {
                     node.put("term", term.ref())
                             .put("as", term.as())
@@ -116,14 +143,52 @@ public final class RestScenarioJson {
         if (!step.isObject()) {
             throw new IllegalArgumentException(id + ": a setup step is an object");
         }
-        if (step.has("post")) {
+        if (step.has("post") && !step.has("revision") && !step.has("autosave")) {
             keys(step, POST_KEYS, id + " post step");
+            ObjectNode fields = null;
+            if (step.has("fields")) {
+                if (!step.get("fields").isObject()) {
+                    throw new IllegalArgumentException(id + ": a post step's fields is an object");
+                }
+                fields = (ObjectNode) step.get("fields");
+            }
             return new SetupStep.Post(
                     text(step, "post"),
                     text(step, "as"),
                     text(step, "type"),
                     text(step, "status"),
-                    text(step, "title"));
+                    text(step, "title"),
+                    fields);
+        }
+        if (step.has("revision")) {
+            keys(step, REVISION_KEYS, id + " revision step");
+            return new SetupStep.Revision(
+                    text(step, "revision"),
+                    text(step, "as"),
+                    text(step, "post"),
+                    text(step, "title"),
+                    text(step, "content"));
+        }
+        if (step.has("autosave")) {
+            keys(step, AUTOSAVE_KEYS, id + " autosave step");
+            return new SetupStep.Autosave(
+                    text(step, "autosave"),
+                    text(step, "as"),
+                    text(step, "post"),
+                    text(step, "title"),
+                    text(step, "content"));
+        }
+        if (step.has("lock")) {
+            keys(step, LOCK_KEYS, id + " lock step");
+            JsonNode age = step.get("age");
+            if (age == null || !age.isIntegralNumber()) {
+                throw new IllegalArgumentException(id + ": a lock step's age is an integer (seconds)");
+            }
+            return new SetupStep.Lock(text(step, "lock"), text(step, "user"), age.intValue());
+        }
+        if (step.has("own_site")) {
+            keys(step, OWN_SITE_KEYS, id + " own_site step");
+            return new SetupStep.OwnSite(text(step, "own_site"));
         }
         if (step.has("term")) {
             keys(step, TERM_KEYS, id + " term step");
@@ -142,7 +207,9 @@ public final class RestScenarioJson {
             keys(step, LEAVE_KEYS, id + " leave step");
             return new SetupStep.Leave(text(step, "leave"));
         }
-        throw new IllegalArgumentException(id + ": a setup step is a post, a term, an option or a leave: " + step);
+        throw new IllegalArgumentException(
+                id + ": a setup step is a post, a term, a revision, an autosave, a lock, an own_site, an option or a"
+                        + " leave: " + step);
     }
 
     private static RestCall request(String id, JsonNode request) {

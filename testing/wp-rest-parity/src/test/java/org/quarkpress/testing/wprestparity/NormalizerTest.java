@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -134,8 +136,7 @@ class NormalizerTest {
 
     @Test
     void theComparisonReportsEachDifferingLeafAndKeepsEmptyListAndObjectApart() {
-        ParityRun run =
-                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        ParityRun run = new ParityRun("t", ParitySkipList.empty(), Path.of("target", "normalizer-test.json"));
         RestComparison comparison = new RestComparison(Map.of("t:a", 5L), Map.of("t:a", 9L), "/s1/");
         RestCall call = RestCall.get("anonymous", "/wp-json/wp/v2/tags");
         Exchange wp = new Exchange(
@@ -152,8 +153,7 @@ class NormalizerTest {
 
     @Test
     void routesOnlyWordPressServesAreDroppedAndRecorded() {
-        ParityRun run =
-                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        ParityRun run = new ParityRun("t", ParitySkipList.empty(), Path.of("target", "normalizer-test.json"));
         RestComparison comparison = new RestComparison(Map.of(), Map.of(), "/s1/");
         RestCall call = RestCall.get("anonymous", "/wp-json/");
         Exchange wp = new Exchange(
@@ -174,8 +174,7 @@ class NormalizerTest {
 
     @Test
     void routesOnlyWordPressServesAreAlsoDroppedInsideAnEnvelope() {
-        ParityRun run =
-                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        ParityRun run = new ParityRun("t", ParitySkipList.empty(), Path.of("target", "normalizer-test.json"));
         RestComparison comparison = new RestComparison(Map.of(), Map.of(), "/s1/");
         RestCall call = RestCall.get("anonymous", "/wp-json/?_envelope");
         Exchange wp = new Exchange(
@@ -201,8 +200,7 @@ class NormalizerTest {
 
     /** The mismatching aspects of comparing one request's two bodies. */
     static List<String> aspects(String target, String wordpress, String quarkpress) {
-        ParityRun run =
-                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        ParityRun run = new ParityRun("t", ParitySkipList.empty(), Path.of("target", "normalizer-test.json"));
         RestCall call = RestCall.get("anonymous", target);
         new RestComparison(Map.of(), Map.of(), "/s1/")
                 .compare(
@@ -322,8 +320,7 @@ class NormalizerTest {
                 .isEqualTo("{\"id\":\"t:x\",\"name\":<absent>,\"link\":\"http://{host}{site}/?tag=x\","
                         + "\"auth\":\"{auth}\"}");
         // the raw comparison of a byte-level scenario sees escapes and the order of keys
-        ParityRun run =
-                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        ParityRun run = new ParityRun("t", ParitySkipList.empty(), Path.of("target", "normalizer-test.json"));
         RestCall call = RestCall.get("anonymous", "/wp-json/wp/v2/tags/1");
         RestComparison comparison = new RestComparison(Map.of(), Map.of(), "/d14/");
         RestScenario d14 = new RestScenario("d14", "test", List.of(), List.of(call, call, call));
@@ -348,8 +345,7 @@ class NormalizerTest {
 
     @Test
     void securityHeadersAreComparedAndCorsHeadersWhenAnOriginWasSent() {
-        ParityRun run =
-                new ParityRun("t", ParitySkipList.empty(), java.nio.file.Path.of("target", "normalizer-test.json"));
+        ParityRun run = new ParityRun("t", ParitySkipList.empty(), Path.of("target", "normalizer-test.json"));
         RestCall plain = RestCall.get("anonymous", "/wp-json/wp/v2/tags");
         RestCall origin = new RestCall(
                 "anonymous",
@@ -399,6 +395,85 @@ class NormalizerTest {
         assertThat(RestComparison.json(bytes("{bad"))).isEqualTo(Optional.empty());
         assertThat(normalizer.text("<a href=\"http://localhost/s1/wp-json/\">", Map.of(), "/s1/"))
                 .isEqualTo("<a href=\"http://{host}{site}/wp-json/\">");
+    }
+
+    @Test
+    void previewNoncesLocksAndRecentDatesAreNormalised() {
+        Instant sentAt = Instant.parse("2026-11-03T10:00:00Z");
+        JsonNode body = json(
+                "{\"preview_link\":\"http://localhost/s/?p=12&preview_id=12&preview_nonce=b8341e5552&preview=true\","
+                        + "\"new_lock\":\"1793388766:3\",\"date\":\"2026-11-03T09:58:30\",\"modified\":\"2020-01-01T00:00:00\","
+                        + "\"date_gmt\":\"2026-11-03T09:57:00\",\"modified_gmt\":\"2026-11-03T10:01:59\"}");
+        assertThat(normalizer
+                        .body(body, Map.of(12L, "p:a", 3L, "u:carol"), "/s/", sentAt)
+                        .toString())
+                .isEqualTo(
+                        "{\"preview_link\":\"http://{host}{site}/?p=p:a&preview_id=p:a&preview_nonce={nonce}&preview=true\","
+                                + "\"new_lock\":\"{lock}:u:carol\",\"date\":\"{now}\",\"modified\":\"2020-01-01T00:00:00\","
+                                + "\"date_gmt\":\"2026-11-03T09:57:00\",\"modified_gmt\":\"{now}\"}");
+        // a lock value anywhere under a lock key keeps its holder (unknown here), a nonce in a header, other keys and
+        // shapes kept
+        assertThat(normalizer
+                        .body(
+                                json("{\"meta\":{\"_edit_lock\":[\"1793388766:3\",\"x:1\"],\"block_version\":1},"
+                                        + "\"date\":\"not a date\",\"other\":\"1793388766:3\"}"),
+                                Map.of(),
+                                "/s/",
+                                sentAt)
+                        .toString())
+                .isEqualTo("{\"meta\":{\"_edit_lock\":[\"{lock}:#?3\",\"x:1\"],\"block_version\":1},"
+                        + "\"date\":\"not a date\",\"other\":\"1793388766:3\"}");
+        assertThat(normalizer.header(
+                        "Location",
+                        "http://localhost/s/x/?preview_nonce=AbCdEfGhIjKlMnOpQrStUvWxYz0&preview=true",
+                        Map.of(),
+                        "/s/"))
+                .isEqualTo("http://{host}{site}/x/?preview_nonce={nonce}&preview=true");
+        // without a send time no date is {now}
+        assertThat(normalizer
+                        .body(json("{\"date\":\"2026-11-03T09:58:30\"}"), Map.of(), "/s/")
+                        .toString())
+                .isEqualTo("{\"date\":\"2026-11-03T09:58:30\"}");
+    }
+
+    @Test
+    void revisionAndFeaturedMediaIdsAreLookedUpByTheirKind() {
+        Normalizer.Refs refs = Normalizer.Refs.of(Map.of("p:a", 3L, "r:v1", 3L, "u:carol", 3L, "p:img", 7L));
+        // a revision answer: its id is a revision, its parent the post; the link ids by their base
+        assertThat(normalizer
+                        .body(
+                                json("{\"id\":3,\"parent\":3,\"author\":3,\"_links\":{\"parent\":[{\"href\":"
+                                        + "\"http://localhost/s/wp-json/wp/v2/posts/3\"}],\"self\":[{\"href\":"
+                                        + "\"http://localhost/s/wp-json/wp/v2/posts/3/revisions/3\"}]}}"),
+                                refs,
+                                "/s/",
+                                Normalizer.Kind.ofTarget("/wp-json/wp/v2/posts/3/revisions/3"))
+                        .toString())
+                .isEqualTo(
+                        "{\"id\":\"r:v1\",\"parent\":\"p:a\",\"author\":\"u:carol\",\"_links\":{\"parent\":[{\"href\":"
+                                + "\"http://{host}{site}/wp-json/wp/v2/posts/p:a\"}],\"self\":[{\"href\":"
+                                + "\"http://{host}{site}/wp-json/wp/v2/posts/p:a/revisions/r:v1\"}]}}");
+        // a post answer: featured_media and a page's parent are posts, predecessor-version ids revisions
+        assertThat(normalizer
+                        .body(
+                                json(
+                                        "{\"id\":3,\"type\":\"page\",\"parent\":3,\"featured_media\":7,\"_links\":{"
+                                                + "\"predecessor-version\":[{\"id\":3,\"href\":\"http://localhost/s/wp-json/wp/v2/pages/3/revisions/3\"}],"
+                                                + "\"wp:featuredmedia\":[{\"href\":\"http://localhost/s/wp-json/wp/v2/media/7\"}]}}"),
+                                refs,
+                                "/s/",
+                                Normalizer.Kind.ofTarget("/wp-json/wp/v2/pages/3?preview_id=3"))
+                        .toString())
+                .isEqualTo(
+                        "{\"id\":\"p:a\",\"type\":\"page\",\"parent\":\"p:a\",\"featured_media\":\"p:img\",\"_links\":{"
+                                + "\"predecessor-version\":[{\"id\":\"r:v1\",\"href\":\"http://{host}{site}/wp-json/wp/v2/pages/p:a/revisions/r:v1\"}],"
+                                + "\"wp:featuredmedia\":[{\"href\":\"http://{host}{site}/wp-json/wp/v2/media/p:img\"}]}}");
+        assertThat(normalizer.header(
+                        "Location",
+                        "http://localhost/s/wp-json/wp/v2/books/3?preview_id=3&p=7",
+                        Map.of(3L, "p:a", 7L, "p:img"),
+                        "/s/"))
+                .isEqualTo("http://{host}{site}/wp-json/wp/v2/books/p:a?preview_id=p:a&p=p:img");
     }
 
     static byte[] bytes(String text) {

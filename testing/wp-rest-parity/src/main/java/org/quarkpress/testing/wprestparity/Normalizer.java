@@ -5,11 +5,19 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -23,13 +31,22 @@ import java.util.TreeSet;
  * preferences' {@code _modified} stamp {@code {stamp}}. {@code targetHints} and {@code Allow}
  * are left as they are: they are compared per caller.
  *
- * <p>Users, terms and posts are numbered apart (on WordPress a subsite's terms and posts start again at 1), so an id
- * is looked up among the refs of its kind ({@code u:}, {@code t:}, {@code p:}): {@code author} and {@code reassign}
- * are users; {@code parent}, {@code term_id}, {@code default_category}, {@code cat}, {@code tag},
- * {@code categories} and {@code tags} terms; {@code post}, {@code page_on_front} and {@code page_for_posts} posts; an
- * {@code id} (and {@code include}, {@code exclude} in URLs) takes the kind of its object (a {@code taxonomy} field
- * makes a term, {@code avatar_urls}, {@code username} or {@code roles} a user) or else of the request's route; an id
- * of no known kind is looked up among all refs.
+ * <p>Users, terms, posts and revisions are numbered apart (on WordPress a subsite's terms and posts start again at
+ * 1), so an id is looked up among the refs of its kind ({@code u:}, {@code t:}, {@code p:}, {@code r:}):
+ * {@code author} and {@code reassign} are users; {@code term_id}, {@code default_category}, {@code cat}, {@code tag},
+ * {@code categories} and {@code tags} terms; {@code post}, {@code featured_media}, {@code page_on_front},
+ * {@code page_for_posts}, {@code p}, {@code page_id} and {@code preview_id} posts; {@code parent} a term in a term,
+ * a post in a post or a revision; an {@code id} (and {@code include}, {@code exclude} in URLs) takes the kind of its
+ * object (a {@code taxonomy} field makes a term, {@code avatar_urls}, {@code username} or {@code roles} a user, a
+ * {@code type} naming a post type a post, a taxonomy a term, an {@code href} the kind of its route) or else of the
+ * request's route; an id of no known kind is looked up among all refs.
+ *
+ * <p>Values that differ by nature are replaced by a shape: a {@code preview_nonce=} value in any text by
+ * {@code {nonce}}; a lock value ({@code <time>:<user id>}) under a key naming a lock by {@code {lock}:<user ref>}
+ * (the holder still compares); the dates
+ * {@code date}, {@code date_gmt}, {@code modified} and {@code modified_gmt} that lie within two minutes of the moment
+ * the request was sent by {@code {now}} (both sides run within seconds of each other), older dates compared as they
+ * are.
  */
 public final class Normalizer {
 
@@ -38,6 +55,7 @@ public final class Normalizer {
         USER('u'),
         TERM('t'),
         POST('p'),
+        REVISION('r'),
         ANY('?');
 
         final char prefix;
@@ -46,7 +64,7 @@ public final class Normalizer {
             this.prefix = prefix;
         }
 
-        /** The first letter of this kind's refs ({@code u}, {@code t}, {@code p}). */
+        /** The first letter of this kind's refs ({@code u}, {@code t}, {@code p}, {@code r}). */
         public char prefix() {
             return prefix;
         }
@@ -107,15 +125,21 @@ public final class Normalizer {
         }
     }
 
+    /**
+     * The id fields and their kinds; {@code ANY} takes the object's kind, {@code parent} follows it (see
+     * {@link #parentKind}).
+     */
     static final Map<String, Kind> ID_FIELDS = Map.of(
             "id", Kind.ANY,
-            "parent", Kind.TERM,
+            "parent", Kind.ANY,
             "author", Kind.USER,
             "term_id", Kind.TERM,
             "post", Kind.POST,
+            "featured_media", Kind.POST,
             "default_category", Kind.TERM,
             "page_on_front", Kind.POST,
             "page_for_posts", Kind.POST);
+
     static final Map<String, Kind> ID_QUERY_KEYS = Map.ofEntries(
             Map.entry("cat", Kind.TERM),
             Map.entry("tag", Kind.TERM),
@@ -127,21 +151,41 @@ public final class Normalizer {
             Map.entry("reassign", Kind.USER),
             Map.entry("p", Kind.POST),
             Map.entry("page_id", Kind.POST),
+            Map.entry("preview_id", Kind.POST),
             Map.entry("post", Kind.POST),
             Map.entry("id", Kind.ANY),
             Map.entry("include", Kind.ANY),
             Map.entry("exclude", Kind.ANY));
     private static final Set<String> USER_HINTS = Set.of("avatar_urls", "username", "roles", "registered_date");
+    private static final Set<String> POST_TYPES = Set.of("post", "page", "book", "attachment", "wp_block");
+    private static final Set<String> TAXONOMIES = Set.of("category", "post_tag");
+    private static final Set<String> DATE_KEYS = Set.of("date", "date_gmt", "modified", "modified_gmt");
     private static final List<String> LOCAL_HOSTS = List.of("localhost", "127.0.0.1", "[::1]");
+
+    /** How far from the moment a request was sent a date still counts as {@code {now}}. */
+    static final Duration NOW_WINDOW = Duration.ofMinutes(2);
 
     /** The normalised copy of a JSON body; {@code refs} maps ids to refs, each typed by its ref's prefix. */
     public JsonNode body(JsonNode body, Map<Long, String> refs, String sitePath) {
         return body(body, Refs.ofIds(refs), sitePath, Kind.ANY);
     }
 
+    /** The normalised copy of a JSON body of a request sent at {@code sentAt} (the {@code {now}} window). */
+    public JsonNode body(JsonNode body, Map<Long, String> refs, String sitePath, Instant sentAt) {
+        return body(body, Refs.ofIds(refs), sitePath, Kind.ANY, Optional.of(sentAt));
+    }
+
     /** The normalised copy of a JSON body; an {@code id} of an object that does not tell its kind is {@code kind}. */
     public JsonNode body(JsonNode body, Refs refs, String sitePath, Kind kind) {
-        JsonNode copy = walk(body.deepCopy(), refs, sitePath, kind);
+        return body(body, refs, sitePath, kind, Optional.empty());
+    }
+
+    /**
+     * The normalised copy of a JSON body; an {@code id} of an object that does not tell its kind is {@code kind}; a
+     * date within {@link #NOW_WINDOW} of {@code sentAt} is {@code {now}} (none when {@code sentAt} is empty).
+     */
+    public JsonNode body(JsonNode body, Refs refs, String sitePath, Kind kind, Optional<Instant> sentAt) {
+        JsonNode copy = walk(body.deepCopy(), refs, sitePath, kind, sentAt);
         authentication(copy);
         if (copy.isObject() && copy.path("body").isObject() && copy.has("status") && copy.has("headers")) {
             authentication(copy.get("body"));
@@ -171,7 +215,7 @@ public final class Normalizer {
         return text(text, Refs.ofIds(refs), sitePath);
     }
 
-    /** A text with every local URL in it normalised. */
+    /** A text with every local URL in it normalised and every {@code preview_nonce=} value {@code {nonce}}. */
     public String text(String text, Refs refs, String sitePath) {
         StringBuilder out = new StringBuilder(text.length());
         int i = 0;
@@ -189,10 +233,38 @@ public final class Normalizer {
             out.append(url(text.substring(start, end), refs, sitePath));
             i = end;
         }
-        return out.toString();
+        return nonces(out.toString());
     }
 
-    private JsonNode walk(JsonNode node, Refs refs, String sitePath, Kind kind) {
+    /**
+     * {@code text} with the value of every {@code preview_nonce=} (up to {@code &} or the end of a URL) as
+     * {@code {nonce}}.
+     */
+    static String nonces(String text) {
+        String key = "preview_nonce=";
+        int at = text.indexOf(key);
+        if (at < 0) {
+            return text;
+        }
+        StringBuilder out = new StringBuilder(text.length());
+        int i = 0;
+        while (at >= 0) {
+            int valueStart = at + key.length();
+            int end = valueStart;
+            while (end < text.length()
+                    && text.charAt(end) != '&'
+                    && text.charAt(end) != '#'
+                    && !isUrlEnd(text.charAt(end))) {
+                end++;
+            }
+            out.append(text, i, valueStart).append("{nonce}");
+            i = end;
+            at = text.indexOf(key, i);
+        }
+        return out.append(text, i, text.length()).toString();
+    }
+
+    private JsonNode walk(JsonNode node, Refs refs, String sitePath, Kind kind, Optional<Instant> sentAt) {
         if (node.isObject()) {
             ObjectNode object = (ObjectNode) node;
             Kind own = objectKind(object, kind);
@@ -202,22 +274,37 @@ public final class Normalizer {
                 JsonNode value = field.getValue();
                 Kind idKind = ID_FIELDS.get(key);
                 if (idKind != null && value.isIntegralNumber()) {
-                    field.setValue(TextNode.valueOf(id(value.longValue(), idKind == Kind.ANY ? own : idKind, refs)));
+                    Kind looked = key.equals("parent") ? parentKind(own) : idKind == Kind.ANY ? own : idKind;
+                    field.setValue(TextNode.valueOf(id(value.longValue(), looked, refs)));
                 } else if (key.equals("additional_data") && value.isArray()) {
                     ArrayNode array = (ArrayNode) value;
                     for (int i = 0; i < array.size(); i++) {
                         if (array.get(i).isIntegralNumber()) {
                             array.set(i, TextNode.valueOf(id(array.get(i).longValue(), Kind.TERM, refs)));
                         } else {
-                            array.set(i, walk(array.get(i), refs, sitePath, kind));
+                            array.set(i, walk(array.get(i), refs, sitePath, kind, sentAt));
                         }
                     }
                 } else if (key.equals("registered_date") && value.isTextual()) {
                     field.setValue(TextNode.valueOf("{date:" + shape(value.textValue()) + "}"));
                 } else if (key.equals("_modified") && value.isTextual()) {
                     field.setValue(TextNode.valueOf("{stamp}"));
+                } else if (DATE_KEYS.contains(key) && value.isTextual() && isNow(value.textValue(), sentAt)) {
+                    field.setValue(TextNode.valueOf("{now}"));
+                } else if (isLockKey(key) && value.isTextual() && isLockValue(value.textValue())) {
+                    field.setValue(TextNode.valueOf(lock(value.textValue(), refs)));
+                } else if (isLockKey(key) && value.isArray()) {
+                    ArrayNode array = (ArrayNode) value;
+                    for (int i = 0; i < array.size(); i++) {
+                        JsonNode item = array.get(i);
+                        array.set(
+                                i,
+                                item.isTextual() && isLockValue(item.textValue())
+                                        ? TextNode.valueOf(lock(item.textValue(), refs))
+                                        : walk(item, refs, sitePath, kind, sentAt));
+                    }
                 } else {
-                    field.setValue(walk(value, refs, sitePath, kind));
+                    field.setValue(walk(value, refs, sitePath, kind, sentAt));
                 }
             }
             return object;
@@ -225,7 +312,7 @@ public final class Normalizer {
         if (node.isArray()) {
             ArrayNode array = (ArrayNode) node;
             for (int i = 0; i < array.size(); i++) {
-                array.set(i, walk(array.get(i), refs, sitePath, kind));
+                array.set(i, walk(array.get(i), refs, sitePath, kind, sentAt));
             }
             return array;
         }
@@ -247,6 +334,63 @@ public final class Normalizer {
         return out.toString();
     }
 
+    /**
+     * Whether a date ({@code yyyy-MM-ddTHH:mm:ss}, an offset or {@code Z} allowed) lies within the window of
+     * {@code sentAt}.
+     */
+    static boolean isNow(String date, Optional<Instant> sentAt) {
+        if (sentAt.isEmpty()) {
+            return false;
+        }
+        Instant value;
+        try {
+            value = date.length() > 19 && (date.charAt(19) == '+' || date.charAt(19) == '-' || date.charAt(19) == 'Z')
+                    ? OffsetDateTime.parse(date).toInstant()
+                    : LocalDateTime.parse(date).toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+        return Duration.between(value, sentAt.get()).abs().compareTo(NOW_WINDOW) <= 0;
+    }
+
+    /** Whether a key names a lock ({@code new_lock}, {@code _edit_lock}, {@code activePostLock}, ...). */
+    private static boolean isLockKey(String key) {
+        return key.toLowerCase(Locale.ROOT).contains("lock")
+                && !key.toLowerCase(Locale.ROOT).contains("block");
+    }
+
+    /**
+     * A lock value {@code <time>:<user id>} as {@code {lock}:<user ref>}: the time differs by nature, the holder does
+     * not.
+     */
+    private static String lock(String value, Refs refs) {
+        return "{lock}:" + id(Long.parseLong(value.substring(value.indexOf(':') + 1)), Kind.USER, refs);
+    }
+
+    /** Whether a value has the shape of a WordPress edit lock: {@code <digits>:<digits>}. */
+    static boolean isLockValue(String value) {
+        int colon = value.indexOf(':');
+        if (colon <= 0 || colon == value.length() - 1) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (i != colon && (c < '0' || c > '9')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The kind of a {@code parent} id: a term's parent is a term, a post's or a revision's parent a post. */
+    private static Kind parentKind(Kind own) {
+        return switch (own) {
+            case TERM -> Kind.TERM;
+            case POST, REVISION -> Kind.POST;
+            default -> Kind.ANY;
+        };
+    }
+
     private static Kind objectKind(ObjectNode object, Kind fallback) {
         if (object.has("taxonomy")) {
             return Kind.TERM;
@@ -254,6 +398,22 @@ public final class Normalizer {
         for (String hint : USER_HINTS) {
             if (object.has(hint)) {
                 return Kind.USER;
+            }
+        }
+        JsonNode type = object.get("type");
+        if (type != null && type.isTextual()) {
+            if (POST_TYPES.contains(type.textValue())) {
+                return Kind.POST;
+            }
+            if (TAXONOMIES.contains(type.textValue())) {
+                return Kind.TERM;
+            }
+        }
+        JsonNode href = object.get("href");
+        if (href != null && href.isTextual()) {
+            Kind linked = routeKind(href.textValue());
+            if (linked != Kind.ANY) {
+                return linked;
             }
         }
         return fallback;
@@ -266,13 +426,22 @@ public final class Normalizer {
 
     /** The kind of the {@code /wp/v2/<base>} route in a path; ANY for other routes. */
     static Kind routeKind(String path) {
-        if (path.contains("/wp/v2/users")) {
+        int query = path.indexOf('?');
+        String route = query < 0 ? path : path.substring(0, query);
+        if (route.contains("/wp/v2/users")) {
             return Kind.USER;
         }
-        if (path.contains("/wp/v2/categories") || path.contains("/wp/v2/tags")) {
+        if (route.contains("/wp/v2/categories") || route.contains("/wp/v2/tags")) {
             return Kind.TERM;
         }
-        if (path.contains("/wp/v2/posts") || path.contains("/wp/v2/pages") || path.contains("/wp/v2/media")) {
+        if (route.contains("/revisions") || route.contains("/autosaves")) {
+            return Kind.REVISION;
+        }
+        if (route.contains("/wp/v2/posts")
+                || route.contains("/wp/v2/pages")
+                || route.contains("/wp/v2/media")
+                || route.contains("/wp/v2/books")
+                || route.contains("/wp/v2/blocks")) {
             return Kind.POST;
         }
         return Kind.ANY;
@@ -364,7 +533,8 @@ public final class Normalizer {
         return switch (segment) {
             case "users" -> Kind.USER;
             case "categories", "tags" -> Kind.TERM;
-            case "posts", "pages", "media", "blocks" -> Kind.POST;
+            case "posts", "pages", "media", "blocks", "books" -> Kind.POST;
+            case "revisions", "autosaves" -> Kind.REVISION;
             default -> null;
         };
     }
@@ -377,10 +547,14 @@ public final class Normalizer {
             int end = amp < 0 ? query.length() : amp;
             String pair = query.substring(i, end);
             int equals = pair.indexOf('=');
-            Kind kind = equals > 0 ? ID_QUERY_KEYS.get(baseKey(pair.substring(0, equals))) : null;
+            String key = equals > 0 ? baseKey(pair.substring(0, equals)) : "";
+            Kind kind = equals > 0 ? ID_QUERY_KEYS.get(key) : null;
             if (kind != null) {
-                out.append(pair, 0, equals + 1)
-                        .append(idList(pair.substring(equals + 1), kind == Kind.ANY ? routeKind : kind, refs));
+                // a parent in a query is a term's, unless the route is a post type's (pages?parent=)
+                Kind looked = key.equals("parent") && (routeKind == Kind.POST || routeKind == Kind.REVISION)
+                        ? Kind.POST
+                        : kind == Kind.ANY ? routeKind : kind;
+                out.append(pair, 0, equals + 1).append(idList(pair.substring(equals + 1), looked, refs));
             } else {
                 out.append(pair);
             }
@@ -426,7 +600,7 @@ public final class Normalizer {
 
     private static int indexOfIgnoreCase(String text, String needle, int from) {
         int upper = text.indexOf(needle, from);
-        int lower = text.indexOf(needle.toLowerCase(java.util.Locale.ROOT), from);
+        int lower = text.indexOf(needle.toLowerCase(Locale.ROOT), from);
         return upper < 0 ? lower : lower < 0 ? upper : Math.min(upper, lower);
     }
 

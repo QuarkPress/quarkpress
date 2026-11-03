@@ -11,16 +11,23 @@
  *   prepare  {template, database}  clones the template network into the site's database and sets it up
  *   option   {name, value, site?}  update_option on the main site, or on the site at path "site" (permalink_structure
  *                                  also rebuilds the rewrite rules)
- *   create_site {path, title}      creates a site on localhost at path with the five users, without sample content;
+ *   create_site {path, title}      creates a site on localhost at path with the five users, without sample content,
+ *                                  with /%postname%/ permalinks and the custom type book (qp_parity_book_type);
  *                                  answers {path, refs: {"t:uncategorized": id, "u:alice": id, ...}}
  *   post {site, as, type, status, title, fields?}  inserts a post on the site at path "site", written by "as"; answers
  *                                  {id}. "fields" (all optional) are wp_insert_post arguments post_content,
  *                                  post_excerpt, post_password, post_parent, post_date, post_date_gmt, post_name,
- *                                  menu_order, plus sticky (bool), meta {key: value}, terms {taxonomy: [ids]},
- *                                  format (slug), thumbnail (attachment id), template (slug). Type "attachment" is
- *                                  inserted with wp_insert_attachment as a 1x1 PNG image written into the uploads
- *                                  directory (harness rule)
+ *                                  menu_order, comment_status, plus sticky (bool), meta {key: value},
+ *                                  terms {taxonomy: [ids]}, format (slug), thumbnail (attachment id), template
+ *                                  (slug). Type "attachment" is inserted with wp_insert_attachment as a 1x1 PNG
+ *                                  image written into the uploads directory (harness rule)
  *   update_post {site, as, id, fields}  wp_update_post with the same "fields" (harness rule: fields as above)
+ *   revision {site, as, id, title, content}  wp_update_post of title and content as the user, which makes WordPress's
+ *                                  revision on update; answers {id} of the newest revision the update made
+ *   lock {site, post, user, age}   _edit_lock of the post set to "<now - age>:<user id>" (update_post_meta); answers
+ *                                  {value}
+ *   own_site {site, user, path, title}  creates a site on localhost at path with the user as its administrator and
+ *                                  removes the user from the site at path "site"; answers {id}
  *   latest_post {site, type, status}  the highest id of that type and status on the site, or 0 (harness rule)
  *   cookie_session {user}          a login session of the user: answers {cookies: [{name, value}] (the auth and
  *                                  logged_in cookies), rest_nonce (action wp_rest), session (the session token)}
@@ -230,6 +237,13 @@ function qp_create_site(array $input): array
             throw new RuntimeException("add_user_to_blog($login): " . $added->get_error_code());
         }
     }
+    // Harness rule: the scenario site has the main site's /%postname%/ permalinks (a network's subdirectory site
+    // defaults to a dated structure) and holds the custom type book, as QuarkPress's test application does.
+    global $wp_rewrite;
+    update_option('permalink_structure', '/%postname%/');
+    $wp_rewrite->init();
+    flush_rewrite_rules();
+    update_option('qp_parity_book_type', '1');
     $refs = ['t:uncategorized' => (int) get_option('default_category')];
     foreach (['alice', 'bob', 'carol', 'dave', 'erin'] as $login) {
         $refs['u:' . $login] = qp_user_id(['user' => $login]);
@@ -240,7 +254,7 @@ function qp_create_site(array $input): array
 
 /** The wp_insert_post / wp_update_post arguments among "fields" (harness rule: the keys the brief names). */
 const QP_POST_FIELDS = ['post_content', 'post_excerpt', 'post_password', 'post_parent', 'post_date', 'post_date_gmt',
-    'post_name', 'menu_order'];
+    'post_name', 'menu_order', 'comment_status'];
 
 /** A 1x1 opaque PNG (harness rule: the image an attachment fixture holds). */
 const QP_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8DwHwAFAAH/'
@@ -347,6 +361,57 @@ function qp_update_post(array $input): array
     qp_apply_extras((int) $id, $fields);
     wp_set_current_user(0);
     restore_current_blog();
+    return ['id' => (int) $id];
+}
+
+/** Harness rule: an update of title and content as the user; the revision WordPress makes on update is the answer. */
+function qp_revision(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    wp_set_current_user(qp_user_id($input, 'as'));
+    $post = (int) $input['id'];
+    $before = array_keys(wp_get_post_revisions($post));
+    $updated = wp_update_post([
+        'ID' => $post,
+        'post_title' => (string) $input['title'],
+        'post_content' => (string) $input['content'],
+    ], true);
+    if (is_wp_error($updated)) {
+        wp_set_current_user(0);
+        restore_current_blog();
+        throw new RuntimeException('wp_update_post: ' . $updated->get_error_code());
+    }
+    $new = array_values(array_diff(array_keys(wp_get_post_revisions($post)), $before));
+    wp_set_current_user(0);
+    restore_current_blog();
+    if (empty($new)) {
+        throw new RuntimeException("the update of post $post made no revision");
+    }
+    return ['id' => (int) max($new), 'made' => count($new)];
+}
+
+/** Harness rule: the edit lock as the editor writes it, aged by "age" seconds. */
+function qp_lock(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $value = (time() - (int) $input['age']) . ':' . qp_user_id($input);
+    update_post_meta((int) $input['post'], '_edit_lock', $value);
+    restore_current_blog();
+    return ['value' => $value];
+}
+
+/** Harness rule: the user becomes administrator of a new site and leaves the scenario's site. */
+function qp_own_site(array $input): array
+{
+    $user = qp_user_id($input);
+    $id = wpmu_create_blog('localhost', (string) $input['path'], (string) $input['title'], $user);
+    if (is_wp_error($id)) {
+        throw new RuntimeException('wpmu_create_blog: ' . $id->get_error_code());
+    }
+    $removed = remove_user_from_blog($user, qp_site_id((string) $input['site']));
+    if (is_wp_error($removed)) {
+        throw new RuntimeException('remove_user_from_blog: ' . $removed->get_error_code());
+    }
     return ['id' => (int) $id];
 }
 
@@ -560,6 +625,9 @@ try {
         'create_site' => qp_create_site($qp_input),
         'post' => qp_post($qp_input),
         'update_post' => qp_update_post($qp_input),
+        'revision' => qp_revision($qp_input),
+        'lock' => qp_lock($qp_input),
+        'own_site' => qp_own_site($qp_input),
         'latest_post' => qp_latest_post($qp_input),
         'cookie_session' => qp_cookie_session($qp_input),
         'logout' => qp_logout($qp_input),

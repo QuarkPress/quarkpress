@@ -1,6 +1,7 @@
 package org.quarkpress.testing.wprestparity;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.HashMap;
@@ -14,7 +15,8 @@ import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
 
 /**
  * One side of the comparison: WordPress ({@code php -S}) or QuarkPress (the test application). Each scenario gets a
- * fresh subdirectory site with the five users; the setup runs through the side's own API; then the requests are sent.
+ * fresh subdirectory site with the five users, {@code /%postname%/} permalinks and the custom type {@code book}; the
+ * setup runs through the side's own API; then the requests are sent.
  */
 public interface Side extends AutoCloseable {
 
@@ -57,6 +59,44 @@ public interface Side extends AutoCloseable {
         String prefix = sitePath.endsWith("/") ? sitePath.substring(0, sitePath.length() - 1) : sitePath;
         return new RestCall(
                 call.as(), call.method(), prefix + call.target(), call.headers(), call.contentType(), call.body());
+    }
+
+    /** The path of the site a user gets by an own-site step of the scenario at {@code sitePath}. */
+    static String ownSitePath(String sitePath) {
+        String site = sitePath.endsWith("/") ? sitePath.substring(0, sitePath.length() - 1) : sitePath;
+        return site + "-own/";
+    }
+
+    /** The id of a ref among {@code refs}; an unknown ref fails. */
+    static long refId(Map<String, Long> refs, String ref) {
+        Long id = refs.get(ref);
+        if (id == null) {
+            throw new IllegalArgumentException("unknown ref " + ref);
+        }
+        return id;
+    }
+
+    /**
+     * A post step's fields with every ref replaced by its id on this side ({@code parent}, {@code featured_media},
+     * the term lists).
+     */
+    static ObjectNode resolvedFields(SetupStep.Post post, Map<String, Long> refs) {
+        ObjectNode fields = post.fields().deepCopy();
+        for (String key : List.of("parent", "featured_media")) {
+            if (fields.has(key)) {
+                fields.put(key, refId(refs, fields.get(key).textValue()));
+            }
+        }
+        for (String key : List.of("categories", "tags")) {
+            if (fields.has(key)) {
+                ArrayNode ids = OracleJson.MAPPER.createArrayNode();
+                for (JsonNode term : fields.get(key)) {
+                    ids.add(refId(refs, term.textValue()));
+                }
+                fields.set(key, ids);
+            }
+        }
+        return fields;
     }
 
     /** The JSON body of a term step's REST request, with the parent's id when it has one. */
@@ -111,9 +151,50 @@ public interface Side extends AutoCloseable {
                                 .put("type", post.type())
                                 .put("status", post.status())
                                 .put("title", post.title());
+                        args.set("fields", postFields(resolvedFields(post, known)));
                         created.put(
                                 post.ref(),
                                 site.operation("post", args).path("id").longValue());
+                    }
+                    case SetupStep.Revision revision -> {
+                        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+                        args.put("site", sitePath)
+                                .put("as", revision.as())
+                                .put("id", refId(known, revision.postRef()))
+                                .put("title", revision.title())
+                                .put("content", revision.content());
+                        created.put(
+                                revision.ref(),
+                                site.operation("revision", args).path("id").longValue());
+                    }
+                    case SetupStep.Autosave autosave -> {
+                        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+                        args.put("site", sitePath)
+                                .put("as", autosave.as())
+                                .put("post", refId(known, autosave.postRef()))
+                                .put("title", autosave.title())
+                                .put("content", autosave.content());
+                        JsonNode answer = site.operation("autosave", args);
+                        if (answer.path("id").longValue() == 0) {
+                            throw new IllegalStateException("WordPress setup autosave " + autosave + ": " + answer);
+                        }
+                        created.put(autosave.ref(), answer.get("id").longValue());
+                    }
+                    case SetupStep.Lock lock -> {
+                        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+                        args.put("site", sitePath)
+                                .put("post", refId(known, lock.postRef()))
+                                .put("user", lock.user())
+                                .put("age", lock.ageSeconds());
+                        site.operation("lock", args);
+                    }
+                    case SetupStep.OwnSite ownSite -> {
+                        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+                        args.put("site", sitePath)
+                                .put("user", ownSite.user())
+                                .put("path", ownSitePath(sitePath))
+                                .put("title", "Own site of " + ownSite.user());
+                        site.operation("own_site", args);
                     }
                     case SetupStep.Term term -> {
                         // the rest_route form reaches the REST API whatever permalinks an earlier option step set
@@ -145,6 +226,40 @@ public interface Side extends AutoCloseable {
                 known.putAll(created);
             }
             return created;
+        }
+
+        /**
+         * A post step's resolved fields as the {@code post} operation takes them: the column fields under their
+         * {@code post_} names ({@code date_gmt} as both {@code post_date} and {@code post_date_gmt}, the site's clock
+         * being UTC), the term lists under {@code terms}, {@code featured_media} as {@code thumbnail}.
+         */
+        static ObjectNode postFields(ObjectNode fields) {
+            ObjectNode out = OracleJson.MAPPER.createObjectNode();
+            Map<String, String> columns = Map.of(
+                    "content", "post_content",
+                    "excerpt", "post_excerpt",
+                    "password", "post_password",
+                    "parent", "post_parent",
+                    "slug", "post_name",
+                    "menu_order", "menu_order",
+                    "comment_status", "comment_status");
+            for (Iterator<Map.Entry<String, JsonNode>> it = fields.fields(); it.hasNext(); ) {
+                Map.Entry<String, JsonNode> field = it.next();
+                String key = field.getKey();
+                JsonNode value = field.getValue();
+                switch (key) {
+                    case "date_gmt" -> {
+                        String mysql = value.textValue().replace('T', ' ');
+                        out.put("post_date", mysql).put("post_date_gmt", mysql);
+                    }
+                    case "categories", "tags" ->
+                        out.withObject("terms").set(key.equals("categories") ? "category" : "post_tag", value);
+                    case "featured_media" -> out.set("thumbnail", value);
+                    case "sticky", "meta", "format", "template" -> out.set(key, value);
+                    default -> out.set(columns.get(key), value);
+                }
+            }
+            return out;
         }
 
         @Override

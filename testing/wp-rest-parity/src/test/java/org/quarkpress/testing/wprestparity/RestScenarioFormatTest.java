@@ -88,6 +88,110 @@ class RestScenarioFormatTest {
     }
 
     @Test
+    void contentStepsReadAndValidate() {
+        String get = "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/wp/v2/posts/{p:a}/revisions/{r:v1}\"}";
+        String steps =
+                "{\"post\":\"p:img\",\"as\":\"alice\",\"type\":\"attachment\",\"status\":\"inherit\",\"title\":\"i\"},"
+                        + "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"t\","
+                        + "\"fields\":{\"content\":\"c\",\"excerpt\":\"e\",\"password\":\"s3\",\"date_gmt\":\"2026-07-15T10:00:00\","
+                        + "\"slug\":\"s\",\"menu_order\":2,\"comment_status\":\"closed\",\"sticky\":true,"
+                        + "\"categories\":[\"t:uncategorized\"],\"tags\":[],\"format\":\"aside\",\"featured_media\":\"p:img\","
+                        + "\"template\":\"\",\"meta\":{\"footnotes\":\"[]\"}}},"
+                        + "{\"post\":\"p:child\",\"as\":\"bob\",\"type\":\"page\",\"status\":\"draft\",\"title\":\"c\",\"fields\":{\"parent\":\"p:a\"}},"
+                        + "{\"revision\":\"r:v1\",\"as\":\"carol\",\"post\":\"p:a\",\"title\":\"t2\",\"content\":\"c2\"},"
+                        + "{\"autosave\":\"r:auto\",\"as\":\"bob\",\"post\":\"p:a\",\"title\":\"t3\",\"content\":\"c3\"},"
+                        + "{\"lock\":\"p:a\",\"user\":\"carol\",\"age\":10},"
+                        + "{\"own_site\":\"dave\"}";
+        RestScenario read = RestScenarioJson.read(scenario(steps, get));
+        assertThat(read.setup()).hasSize(7);
+        RestScenario.SetupStep.Post post =
+                (RestScenario.SetupStep.Post) read.setup().get(1);
+        assertThat(post.fields().get("menu_order").intValue()).isEqualTo(2);
+        assertThat(post.fields().get("categories").get(0).textValue()).isEqualTo("t:uncategorized");
+        assertThat(((RestScenario.SetupStep.Post) read.setup().get(0)).fields().isEmpty())
+                .isTrue();
+        assertThat(read.setup().get(3))
+                .isEqualTo(new RestScenario.SetupStep.Revision("r:v1", "carol", "p:a", "t2", "c2"));
+        assertThat(read.setup().get(4))
+                .isEqualTo(new RestScenario.SetupStep.Autosave("r:auto", "bob", "p:a", "t3", "c3"));
+        assertThat(read.setup().get(5)).isEqualTo(new RestScenario.SetupStep.Lock("p:a", "carol", 10));
+        assertThat(read.setup().get(6)).isEqualTo(new RestScenario.SetupStep.OwnSite("dave"));
+        assertThat(RestScenarioJson.read(RestScenarioJson.write(read)))
+                .usingRecursiveComparison()
+                .isEqualTo(read);
+        assertThat(RestScenarioJson.write(read)).doesNotContain("\"fields\" : { }");
+        // an r: ref is defined by a revision or an autosave step only, and resolves like the others
+        assertThat(RestScenario.resolve(read.requests().get(0), Map.of("p:a", 4L, "r:v1", 9L))
+                        .target())
+                .isEqualTo("/wp-json/wp/v2/posts/4/revisions/9");
+    }
+
+    static final String POST_A =
+            "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"t\"}";
+    static final String GET_ROOT = "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/\"}";
+
+    @Test
+    void anRRefIsDefinedByARevisionOrAnAutosaveOnly() {
+        String get = "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/wp/v2/posts/{p:a}/revisions/{r:v1}\"}";
+        String postA = POST_A;
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(postA, get)))
+                .hasMessageContaining("r:v1 is used before it is defined");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        postA
+                                + ",{\"revision\":\"p:v1\",\"as\":\"carol\",\"post\":\"p:a\",\"title\":\"t\",\"content\":\"c\"}",
+                        get)))
+                .hasMessageContaining("not a r: ref: p:v1");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"r:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"t\"}",
+                        GET_ROOT)))
+                .hasMessageContaining("not a p: ref: r:a");
+    }
+
+    @Test
+    void aRevisionAnAutosaveOrALockNamesADefinedPostAndALockAKnownUser() {
+        String postA = POST_A;
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"autosave\":\"r:x\",\"as\":\"carol\",\"post\":\"p:zz\",\"title\":\"t\",\"content\":\"c\"}",
+                        GET_ROOT)))
+                .hasMessageContaining("p:zz is used before it is defined");
+        assertThatThrownBy(() -> RestScenarioJson.read(
+                        scenario(postA + ",{\"lock\":\"t:uncategorized\",\"user\":\"carol\",\"age\":1}", GET_ROOT)))
+                .hasMessageContaining("not a p: ref: t:uncategorized");
+        assertThatThrownBy(() -> RestScenarioJson.read(
+                        scenario(postA + ",{\"lock\":\"p:a\",\"user\":\"mallory\",\"age\":1}", GET_ROOT)))
+                .hasMessageContaining("unknown caller 'mallory'");
+    }
+
+    @Test
+    void anOwnSiteStepRefusesAlice() {
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("{\"own_site\":\"alice\"}", GET_ROOT)))
+                .hasMessageContaining("alice, the super admin, never leaves a site");
+    }
+
+    @Test
+    void thePostFieldsAreCheckedForKeysShapesAndRefs() {
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"t\",\"fields\":{\"nope\":1}}",
+                        GET_ROOT)))
+                .hasMessageContaining("unknown key nope");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"t\","
+                                + "\"fields\":{\"categories\":[\"u:alice\"]}}",
+                        GET_ROOT)))
+                .hasMessageContaining("not a t: ref: u:alice");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"page\",\"status\":\"draft\",\"title\":\"t\","
+                                + "\"fields\":{\"parent\":\"p:zz\"}}",
+                        GET_ROOT)))
+                .hasMessageContaining("p:zz is used before it is defined");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"t\","
+                                + "\"fields\":{\"sticky\":\"yes\"}}",
+                        GET_ROOT)))
+                .hasMessageContaining("sticky");
+    }
+
+    @Test
     void generatedScenariosAreReproduciblePerSeedAndValid() {
         List<RestScenario> first = RestScenarios.generated("rest-a", RestScenarios.GENERATED);
         List<RestScenario> again = RestScenarios.generated("rest-a", RestScenarios.GENERATED);

@@ -3,6 +3,7 @@ package org.quarkpress.testing.wprestparity;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,15 +11,25 @@ import java.util.Objects;
 import java.util.Optional;
 import org.quarkpress.testing.wporacle.OracleJson;
 
-/** A request and the response it got: the status, the header lines by name, and the body as sent. */
-public record Exchange(RestCall call, int status, Map<String, List<String>> headers, byte[] body) {
+/**
+ * A request and the response it got: the status, the header lines by name, the body as sent, and {@code sentAt}, the
+ * moment the request was sent (neither side records a request time; the comparison uses it to tell a fresh date from a
+ * stored one).
+ */
+public record Exchange(RestCall call, int status, Map<String, List<String>> headers, byte[] body, Instant sentAt) {
 
     public Exchange {
         Objects.requireNonNull(call, "call");
         Objects.requireNonNull(headers, "headers");
         Objects.requireNonNull(body, "body");
+        Objects.requireNonNull(sentAt, "sentAt");
         headers = Map.copyOf(headers);
         body = body.clone();
+    }
+
+    /** An exchange sent now. */
+    public Exchange(RestCall call, int status, Map<String, List<String>> headers, byte[] body) {
+        this(call, status, headers, body, Instant.now());
     }
 
     /** The header's lines joined with {@code ", "}, the name compared without case; empty when it is absent. */

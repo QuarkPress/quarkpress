@@ -7,6 +7,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
@@ -17,7 +18,8 @@ import java.util.function.Function;
  * Sends {@link RestCall}s to a server over HTTP/1.1 with {@code java.net.http} and records what came back. Any method
  * goes, HEAD and OPTIONS included. Every header of the call is sent as given to the server's address (absolute paths
  * under {@code 127.0.0.1:<port>}); redirects are never followed, so an admin page's {@code 302} to
- * {@code http://localhost/...} comes back as the answer. The client keeps no cookie jar: a cookie session is a call
+ * {@code http://localhost/...} comes back as the answer. Each {@link Exchange} carries the moment its request was sent.
+ * The client keeps no cookie jar: a cookie session is a call
  * carrying its own {@code Cookie} and {@code X-WP-Nonce} headers, and such a call sends no application password.
  */
 public final class RestClient {
@@ -66,8 +68,9 @@ public final class RestClient {
         for (Map.Entry<String, String> header : call.headers().entrySet()) {
             request.header(header.getKey(), header.getValue());
         }
+        Instant sentAt = Instant.now();
         HttpResponse<byte[]> response = http.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
-        return new Exchange(call, response.statusCode(), response.headers().map(), response.body());
+        return new Exchange(call, response.statusCode(), response.headers().map(), response.body(), sentAt);
     }
 
     /**
