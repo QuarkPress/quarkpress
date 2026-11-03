@@ -25,7 +25,7 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
       - uses: shivammathur/setup-php@2.37.2
-        if: matrix.java == 21 && matrix.db == 'postgresql'
+        if: matrix.java == 21
         with:
           php-version: '8.4'
           extensions: mbstring, intl, json, pcntl, iconv, xml, dom, simplexml, xmlreader, hash, sodium, mysqli, pdo_mysql
@@ -36,6 +36,9 @@ jobs:
       - name: Build and test
         if: matrix.java != 21 || matrix.db != 'postgresql'
         run: mvn -B -ntp verify -DtestDb=${{ matrix.db }}
+      - name: WordPress REST parity on MySQL
+        if: matrix.java == 21 && matrix.db == 'mysql'
+        run: mvn -B -ntp -pl integration-tests/rest-wp-v2 -am verify -Pwp-parity -Dtest=RestParityDbTest -Dsurefire.failIfNoSpecifiedTests=false -DtestDb=mysql
       - name: Check formatting
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check
