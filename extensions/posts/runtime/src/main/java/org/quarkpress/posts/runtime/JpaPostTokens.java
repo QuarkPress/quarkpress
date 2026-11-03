@@ -196,6 +196,15 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
         requireEditable(siteId, post);
         Instant now = clock.now();
         purgeExpired(siteId, now);
+        // only the newest lock value can release, so the user's earlier tokens for the post are dead weight
+        entityManager()
+                .createQuery("delete from PostTokenEntity t where t.siteId = :site and t.kind = :kind"
+                        + " and t.postId = :post and t.userId = :user")
+                .setParameter("site", TenantIds.param(siteId))
+                .setParameter("kind", PostTokenEntity.LOCK_RELEASE)
+                .setParameter("post", post.value())
+                .setParameter("user", user.value())
+                .executeUpdate();
         String token = randomToken();
         store(PostTokenEntity.LOCK_RELEASE, post, user, token, lockValue, now, config.previewLifetime());
         return token;

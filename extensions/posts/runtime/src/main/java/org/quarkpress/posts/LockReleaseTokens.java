@@ -16,7 +16,8 @@ public interface LockReleaseTokens {
      * A new token for the caller, who must be {@code user} (otherwise {@code ForbiddenException}) and needs
      * {@code edit_post} on the post; a missing post is refused with {@link PostException} {@code invalid_post}, a lock
      * value longer than a stored lock with {@link IllegalArgumentException}. Expired sessions and release tokens of the
-     * site are purged first, in a bounded batch.
+     * site are purged first, in a bounded batch, and the user's earlier release tokens for this post are deleted:
+     * one token per user and post, the one of the newest lock value (the only value that can still release).
      */
     String issue(PostId post, UserId user, String lockValue);
 

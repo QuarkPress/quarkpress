@@ -290,6 +290,35 @@ class PostTokensDbTest {
     }
 
     @Test
+    void issuingAgainKeepsOneReleaseTokenPerUserAndPost() throws Exception {
+        String lock = NOW + ":" + carol.value();
+        String newer = (NOW + 1) + ":" + carol.value();
+        String bobs = NOW + ":" + bob.value();
+        as(carol, () -> sessions.open(carol));
+        String first = as(carol, () -> releases.issue(post, carol, lock));
+        String second = as(carol, () -> releases.issue(post, carol, newer));
+        String bobsToken = as(bob, () -> releases.issue(post, bob, bobs));
+        String other = as(carol, () -> releases.issue(otherPost, carol, lock));
+        // the session, bob's token, carol's token of the other post and carol's newest token of this post
+        assertThat(tokenRows(site)).isEqualTo(4);
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select count(*) from qp_post_token where site_id = ? and kind = 'lock_release'"
+                                + " and post_id = ? and user_id = ?",
+                        site.value(),
+                        post.value(),
+                        carol.value()))
+                .isEqualTo(1);
+        assertThat(as(carol, () -> releases.consume(post, carol, first, lock))).isFalse();
+        assertThat(as(carol, () -> releases.consume(post, carol, second, newer)))
+                .isTrue();
+        assertThat(as(bob, () -> releases.consume(post, bob, bobsToken, bobs))).isTrue();
+        assertThat(as(carol, () -> releases.consume(otherPost, carol, other, lock)))
+                .isTrue();
+        assertThat(tokenRows(site)).isEqualTo(1);
+    }
+
+    @Test
     void deletingThePostDeletesItsReleaseTokens() throws Exception {
         String lock = NOW + ":" + carol.value();
         as(carol, () -> releases.issue(post, carol, lock));
