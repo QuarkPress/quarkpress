@@ -372,6 +372,10 @@ function qp_revision(array $input): array
 {
     switch_to_blog(qp_site_id((string) $input['site']));
     wp_set_current_user(qp_user_id($input, 'as'));
+    if (function_exists('qp_parity_register_book')) {
+        // the scenario site's custom type, registered by the mu-plugin for the served site only (harness rule)
+        qp_parity_register_book();
+    }
     $post = (int) $input['id'];
     $before = array_keys(wp_get_post_revisions($post));
     $updated = wp_update_post([
@@ -496,6 +500,10 @@ function qp_set_meta(array $input): array
 function qp_autosave(array $input): array
 {
     switch_to_blog(qp_site_id((string) $input['site']));
+    if (function_exists('qp_parity_register_book')) {
+        // the scenario site's custom type, registered by the mu-plugin for the served site only (harness rule)
+        qp_parity_register_book();
+    }
     wp_set_current_user(qp_user_id($input, 'as'));
     $post = get_post((int) $input['post']);
     if (null === $post) {

@@ -1,0 +1,390 @@
+{
+  "id": "p11",
+  "rule": "the revisions routes: the list of a post with two revisions and an autosave (every user's rows, newest first), its paging without and with per_page, the offset and page quirks and their errors, the orderings and their callback errors, who may read, the parent and revision lookups and their 404s, the fields per type and context, the search, HEAD, _fields, OPTIONS of the item and the DELETE that is always refused",
+  "setup": [
+    {
+      "post": "p:seven",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p11 seven",
+      "fields": {
+        "content": "p11 seven words"
+      }
+    },
+    {
+      "revision": "r:v1",
+      "as": "bob",
+      "post": "p:seven",
+      "title": "p11 seven v1",
+      "content": "p11 first words"
+    },
+    {
+      "revision": "r:v2",
+      "as": "bob",
+      "post": "p:seven",
+      "title": "p11 seven v2",
+      "content": "p11 second words"
+    },
+    {
+      "autosave": "r:auto",
+      "as": "alice",
+      "post": "p:seven",
+      "title": "p11 seven autosave",
+      "content": "p11 alice's words"
+    },
+    {
+      "post": "p:twelve",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p11 twelve"
+    },
+    {
+      "revision": "r:other",
+      "as": "bob",
+      "post": "p:twelve",
+      "title": "p11 twelve v1",
+      "content": "p11 twelve words"
+    },
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p11 carol's draft"
+    },
+    {
+      "revision": "r:draft",
+      "as": "carol",
+      "post": "p:draft",
+      "title": "p11 carol's draft v1",
+      "content": "p11 draft words"
+    },
+    {
+      "post": "p:empty",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p11 empty"
+    },
+    {
+      "post": "p:page",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p11 page"
+    },
+    {
+      "revision": "r:page",
+      "as": "bob",
+      "post": "p:page",
+      "title": "p11 page v1",
+      "content": "p11 page words"
+    },
+    {
+      "post": "p:book",
+      "as": "bob",
+      "type": "book",
+      "status": "publish",
+      "title": "p11 book"
+    },
+    {
+      "revision": "r:book",
+      "as": "bob",
+      "post": "p:book",
+      "title": "p11 book v1",
+      "content": "p11 book words"
+    },
+    {
+      "post": "p:search",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p11 search"
+    },
+    {
+      "revision": "r:s1",
+      "as": "bob",
+      "post": "p:search",
+      "title": "p11 one",
+      "content": "p11 banana split"
+    },
+    {
+      "revision": "r:s2",
+      "as": "bob",
+      "post": "p:search",
+      "title": "p11 split and banana",
+      "content": "p11 cherry banana"
+    },
+    {
+      "revision": "r:s3",
+      "as": "bob",
+      "post": "p:search",
+      "title": "p11 banana split",
+      "content": "p11 three"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?_fields=id,slug,author,parent"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?order=asc&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=2&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=2&page=2&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=2&page=3&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?offset=3&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?offset=1&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?page=2&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=1&page=2&offset=0&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=1&offset=-1&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=2&offset=1&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=include&include={r:v2},{r:v1},{r:auto}&order=desc&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=include&include={r:v2},{r:auto}&order=asc&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=include_slugs&order=desc&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=slug&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=slug&order=asc&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?exclude={r:v2}&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=include"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=relevance"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?orderby=relevance&search="
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?_fields=id"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=0"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/999999/revisions"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:page}/revisions"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/999999"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:other}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:auto}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}?context=embed"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?context=embed"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/revisions?_fields=id,slug,parent"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:empty}/revisions?page=9"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:page}/revisions/{r:page}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:page}/revisions/{r:page}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}/revisions/{r:book}"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}?force=true"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}"
+    },
+    {
+      "as": "dave",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}"
+    },
+    {
+      "as": "anonymous",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:other}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}?_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:search}/revisions?search=banana&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:search}/revisions?search=banana%20split&orderby=relevance&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:search}/revisions?search=%22cherry%20banana%22&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:search}/revisions?search=banana%20-cherry&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:search}/revisions?search=durian&_fields=id"
+    },
+    {
+      "as": "alice",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions?per_page=2"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/pages/{p:page}/revisions"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}"
+    }
+  ]
+}

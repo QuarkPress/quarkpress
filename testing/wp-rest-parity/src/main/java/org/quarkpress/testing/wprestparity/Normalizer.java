@@ -170,6 +170,9 @@ public final class Normalizer {
 
     private static final List<String> LOCAL_HOSTS = List.of("localhost", "127.0.0.1", "[::1]");
 
+    /** The start of the revisions controller's parent mismatch message, which carries the parent's id. */
+    private static final String MISMATCH = "The revision does not belong to the specified parent with id of \"";
+
     /** How far from the moment a request was sent a date still counts as {@code {now}}. */
     static final Duration NOW_WINDOW = Duration.ofMinutes(2);
 
@@ -284,6 +287,21 @@ public final class Normalizer {
                 if (idKind != null && value.isIntegralNumber()) {
                     Kind looked = key.equals("parent") ? parentKind(own) : idKind == Kind.ANY ? own : idKind;
                     field.setValue(TextNode.valueOf(id(value.longValue(), looked, refs)));
+                } else if (own == Kind.REVISION && key.equals("slug") && value.isTextual()) {
+                    field.setValue(TextNode.valueOf(revisionSlug(value.textValue(), refs)));
+                } else if (own == Kind.REVISION && key.equals("guid") && value.isObject()) {
+                    ObjectNode guid = (ObjectNode) value;
+                    for (Iterator<Map.Entry<String, JsonNode>> g = guid.fields(); g.hasNext(); ) {
+                        Map.Entry<String, JsonNode> entry = g.next();
+                        if (entry.getValue().isTextual()) {
+                            entry.setValue(TextNode.valueOf(
+                                    text(revisionGuid(entry.getValue().textValue(), refs), refs, sitePath)));
+                        }
+                    }
+                } else if (key.equals("message")
+                        && value.isTextual()
+                        && value.textValue().startsWith(MISMATCH)) {
+                    field.setValue(TextNode.valueOf(mismatch(value.textValue(), refs)));
                 } else if (key.equals("class_list") && value.isArray()) {
                     ArrayNode array = (ArrayNode) value;
                     for (int i = 0; i < array.size(); i++) {
@@ -408,6 +426,60 @@ public final class Normalizer {
             }
         }
         return true;
+    }
+
+    /**
+     * A revision's slug {@code <post id>-revision-v1} or {@code <post id>-autosave-v1} with the post's id as its
+     * ref; any other slug as it is.
+     */
+    static String revisionSlug(String slug, Refs refs) {
+        int dash = slug.indexOf('-');
+        if (dash <= 0 || !isDigits(slug.substring(0, dash))) {
+            return slug;
+        }
+        String rest = slug.substring(dash);
+        if (!rest.startsWith("-revision-v") && !rest.startsWith("-autosave-v")) {
+            return slug;
+        }
+        return id(Long.parseLong(slug.substring(0, dash)), Kind.POST, refs) + rest;
+    }
+
+    /**
+     * A revision's guid {@code ...?p=<revision id>} with the revision's id as its ref (the {@code p} of any other
+     * URL names a post), before the URL itself is normalised.
+     */
+    static String revisionGuid(String guid, Refs refs) {
+        String key = "?p=";
+        int at = guid.indexOf(key);
+        if (at < 0) {
+            return guid;
+        }
+        int start = at + key.length();
+        int end = start;
+        while (end < guid.length() && Character.isDigit(guid.charAt(end))) {
+            end++;
+        }
+        if (!isDigits(guid.substring(start, end))) {
+            return guid;
+        }
+        return guid.substring(0, start)
+                + id(Long.parseLong(guid.substring(start, end)), Kind.REVISION, refs)
+                + guid.substring(end);
+    }
+
+    /** The mismatch message with the quoted parent id as its post ref. */
+    static String mismatch(String message, Refs refs) {
+        int start = MISMATCH.length();
+        int end = start;
+        while (end < message.length() && Character.isDigit(message.charAt(end))) {
+            end++;
+        }
+        if (!isDigits(message.substring(start, end))) {
+            return message;
+        }
+        return message.substring(0, start)
+                + id(Long.parseLong(message.substring(start, end)), Kind.POST, refs)
+                + message.substring(end);
     }
 
     /** The kind of a {@code parent} id: a term's parent is a term, a post's or a revision's parent a post. */
