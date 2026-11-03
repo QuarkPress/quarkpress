@@ -4,7 +4,8 @@ package org.quarkpress.posts;
  * What a query orders by: WordPress's orderby keys. Keys are applied in the order given, then the id breaks ties in the
  * first key's direction. {@code DATE} is the post date (the modification date while a draft's date floats), {@code
  * TITLE} ignores case, and {@code AUTHOR} and {@code PARENT} count a missing one as 0. {@code POST_IN} orders by
- * position in the post-in list (its direction is ignored) and is skipped without that list. {@code RELEVANCE} ranks
+ * position in the post-in list and {@code NAME_IN} by position in the name-in list (their direction is ignored); each
+ * is skipped without its list. {@code RELEVANCE} ranks
  * search results when it comes first, and the keys given after it are then dropped; anywhere else, or without a
  * search, it is skipped. Its direction applies to the date and id that follow the rank, never to the rank itself. A
  * search with no key orders as a descending {@code RELEVANCE}. A search of excluded terms alone has no rank, so a
@@ -26,6 +27,7 @@ public enum OrderKey {
     ID,
     MENU_ORDER,
     POST_IN,
+    NAME_IN,
     RELEVANCE,
     NONE
 }

@@ -162,6 +162,9 @@ is not built in, the module tells the security module its meta capability names,
 included), authors, parents, ids, slug, exact title, menu order, search, date conditions (`DateCondition` with
 `DateBound`s on `DateColumn`s), ordering (`OrderKey`, then the id in the first key's direction), paging with the
 site's `posts_per_page` option as default, and sticky posts first (`stickyFirst`, off by default as in `get_posts`).
+It also takes a slug list (`nameIn`, ordered by `OrderKey.NAME_IN`), the columns a search looks in (`searchColumns`),
+an exact search (`exactSearch`, whole columns) and term filters (`taxQuery`, whose conditions come from the taxonomy
+module's `TermConditionProvider`; a positive clause makes the query an archive without sticky posts first).
 Without statuses a query shows published posts and, to a logged-in user, the private posts it may read; the system
 identity counts as logged out. A query by id or slug is never paged and checks each post it finds as WordPress checks a
 single post. `PostPage` holds the posts, the number of matching posts and the number of pages. The Javadoc of

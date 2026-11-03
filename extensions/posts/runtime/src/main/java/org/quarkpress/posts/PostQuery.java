@@ -3,6 +3,7 @@ package org.quarkpress.posts;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -36,15 +37,19 @@ import org.quarkpress.core.UserId;
  * <p>{@code authorNotIn} wins over {@code author} and {@code authorIn}; {@code parent} (0 means top level) over {@code
  * parentIn}, which wins over {@code parentNotIn}; {@code id} over {@code postIn}, which wins over {@code postNotIn}.
  * {@code name} and {@code title} are trimmed as PHP trims, and a blank one applies no condition; {@code title} matches
- * the whole title, ignoring case. {@code menuOrder} counts as its absolute value. {@code perPage} absent or 0 takes the
+ * the whole title, ignoring case. {@code nameIn} (WordPress's {@code post_name__in}) matches posts whose slug is one of
+ * the slugs given, each sanitized as a slug from a URL, next to {@code name}; a query by it alone is not for one post.
+ * {@code menuOrder} counts as its absolute value. {@code perPage} absent or 0 takes the
  * site's {@code posts_per_page} option (0 there means 1); -1 means no paging; below -1 counts as its absolute value.
  * {@code page} counts from 1 (0 means 1; a negative page counts as its absolute value); {@code offset} replaces the
  * page's start.
  *
  * <p>{@code search} (WordPress's {@code s}) is split into terms as WordPress splits it, or is one term with {@code
  * sentence}; an empty search, or one longer than {@link #MAX_SEARCH_BYTES} bytes, searches nothing. Each term must
- * appear in the title, the excerpt or the content, and a term starting with a hyphen in none of them. Matching ignores
- * case but not accents, and {@code %} and {@code _} match themselves. A caller that is not logged in (the system
+ * appear in the title, the excerpt or the content (or in the {@code searchColumns} given, when any), and a term
+ * starting with a hyphen in none of them. Matching ignores case but not accents, and {@code %} and {@code _} match
+ * themselves; with {@code exactSearch} (WordPress's {@code exact}) a term must be the whole column, not part of it,
+ * both when matching and when ranking. A caller that is not logged in (the system
  * included) finds no password-protected post. Without types, a query given a search (even an empty or over-long one)
  * that does not look for one post by id or slug covers every searchable type; both are judged before the query filters
  * run, which can still give types. With no order, or
@@ -53,15 +58,25 @@ import org.quarkpress.core.UserId;
  *
  * <p>{@code dates} are WordPress's date conditions, all of which must hold; see {@link DateCondition}.
  *
+ * <p>{@code taxQuery} holds the term filters, which the application's {@link TermConditionProvider} (the taxonomy
+ * module) turns into conditions; a query with clauses is refused without one. Each clause of the query is asked for in
+ * turn and the answers combine by the query's relation as WordPress combines them: under {@code AND} a clause that
+ * matches nothing empties the query, which then runs no statement and counts no post, and a clause with no condition
+ * is skipped; under {@code OR} both are dropped, and the query is empty when every clause matched nothing. A {@link
+ * TaxClause.Group} combines its own clauses the same way and counts as one clause. The term filters hold next to every
+ * other condition.
+ *
  * <p>{@code stickyFirst} (off by default, as in WordPress's {@code get_posts}) puts sticky posts first as WordPress's
  * main query does, and only where it does: on the first page (a query without paging always counts as on it, and
  * {@code offset} does not move it off), and not for a query for one post, a query given a search (even an empty or
- * over-long one), one given {@code author}, or one given exactly one type whose registration has an archive. Sticky
+ * over-long one), one given {@code author}, one given exactly one type whose registration has an archive, or one whose
+ * term filters ask for posts that have terms ({@link TaxQuery#positive()}; filters that only exclude terms keep the
+ * sticky posts first, even one the exclusion would drop). Sticky
  * posts the page holds move to its front in the page's order; then the published sticky posts of the queried types
  * that the page lacks and {@code postNotIn} does not name are inserted after them, newest first, whatever the query's
  * other conditions, so the page can hold more posts than its size. The count of matching posts is unchanged.
- * Whether the query is for one post, a search, an author's posts or one type's archive is judged before the query
- * filters run; a query filter does not change the fetch of the added sticky posts.
+ * Whether the query is for one post, a search, an author's posts, one type's archive or an archive of terms is judged
+ * before the query filters run; a query filter does not change the fetch of the added sticky posts.
  */
 public record PostQuery(
         List<String> types,
@@ -76,11 +91,15 @@ public record PostQuery(
         List<PostId> postIn,
         Set<PostId> postNotIn,
         Optional<String> name,
+        List<String> nameIn,
         Optional<String> title,
         OptionalInt menuOrder,
         Optional<String> search,
         boolean sentence,
+        Set<SearchColumn> searchColumns,
+        boolean exactSearch,
         List<DateCondition> dates,
+        TaxQuery taxQuery,
         boolean stickyFirst,
         List<PostOrder> orderBy,
         OptionalInt perPage,
@@ -106,10 +125,13 @@ public record PostQuery(
         postIn = List.copyOf(postIn);
         postNotIn = Set.copyOf(postNotIn);
         Objects.requireNonNull(name, "name");
+        nameIn = List.copyOf(nameIn);
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(menuOrder, "menuOrder");
         Objects.requireNonNull(search, "search");
+        searchColumns = Set.copyOf(searchColumns);
         dates = List.copyOf(dates);
+        Objects.requireNonNull(taxQuery, "taxQuery");
         orderBy = List.copyOf(orderBy);
         Objects.requireNonNull(perPage, "perPage");
         Objects.requireNonNull(offset, "offset");
@@ -179,11 +201,15 @@ public record PostQuery(
         builder.postIn.addAll(postIn);
         builder.postNotIn.addAll(postNotIn);
         builder.name = name;
+        builder.nameIn.addAll(nameIn);
         builder.title = title;
         builder.menuOrder = menuOrder;
         builder.search = search;
         builder.sentence = sentence;
+        builder.searchColumns.addAll(searchColumns);
+        builder.exactSearch = exactSearch;
         builder.dates.addAll(dates);
+        builder.taxQuery = taxQuery;
         builder.stickyFirst = stickyFirst;
         builder.orderBy.addAll(orderBy);
         builder.perPage = perPage;
@@ -205,11 +231,15 @@ public record PostQuery(
         private final List<PostId> postIn = new ArrayList<>();
         private final Set<PostId> postNotIn = new LinkedHashSet<>();
         private Optional<String> name = Optional.empty();
+        private final List<String> nameIn = new ArrayList<>();
         private Optional<String> title = Optional.empty();
         private OptionalInt menuOrder = OptionalInt.empty();
         private Optional<String> search = Optional.empty();
         private boolean sentence;
+        private final Set<SearchColumn> searchColumns = EnumSet.noneOf(SearchColumn.class);
+        private boolean exactSearch;
         private final List<DateCondition> dates = new ArrayList<>();
+        private TaxQuery taxQuery = TaxQuery.NONE;
         private boolean stickyFirst;
         private final List<PostOrder> orderBy = new ArrayList<>();
         private OptionalInt perPage = OptionalInt.empty();
@@ -283,6 +313,12 @@ public record PostQuery(
             return this;
         }
 
+        /** Slugs, any of which the post's slug must match once sanitized as a slug from a URL. */
+        public Builder nameIn(String... values) {
+            nameIn.addAll(Arrays.asList(values));
+            return this;
+        }
+
         /** An exact title. */
         public Builder title(String value) {
             this.title = Optional.of(value);
@@ -311,9 +347,27 @@ public record PostQuery(
             return this;
         }
 
+        /** The columns the search looks in (WordPress's {@code search_columns}); none means all three. */
+        public Builder searchColumns(SearchColumn... columns) {
+            searchColumns.addAll(Arrays.asList(columns));
+            return this;
+        }
+
+        /** Matches each search term against whole columns, not parts of them (WordPress's {@code exact}). */
+        public Builder exactSearch(boolean value) {
+            this.exactSearch = value;
+            return this;
+        }
+
         /** Appends a date condition; all of them must hold. */
         public Builder date(DateCondition condition) {
             dates.add(Objects.requireNonNull(condition, "condition"));
+            return this;
+        }
+
+        /** The term filters (WordPress's {@code tax_query}). */
+        public Builder taxQuery(TaxQuery value) {
+            this.taxQuery = Objects.requireNonNull(value, "value");
             return this;
         }
 
@@ -359,11 +413,15 @@ public record PostQuery(
                     postIn,
                     postNotIn,
                     name,
+                    nameIn,
                     title,
                     menuOrder,
                     search,
                     sentence,
+                    searchColumns,
+                    exactSearch,
                     dates,
+                    taxQuery,
                     stickyFirst,
                     orderBy,
                     perPage,

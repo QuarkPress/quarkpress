@@ -3,6 +3,7 @@ package org.quarkpress.posts.runtime;
 import io.quarkus.arc.All;
 import io.quarkus.arc.InstanceHandle;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
@@ -38,6 +39,10 @@ import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.QueryContext;
+import org.quarkpress.posts.SearchColumn;
+import org.quarkpress.posts.TaxClause;
+import org.quarkpress.posts.TermCondition;
+import org.quarkpress.posts.TermConditionProvider;
 import org.quarkpress.security.PostFacts;
 import org.quarkpress.security.PostTypeCapabilities;
 
@@ -76,6 +81,9 @@ public class PostQueries {
     @All
     List<InstanceHandle<PostQueryFilter>> filters;
 
+    @Inject
+    Instance<TermConditionProvider> termConditions;
+
     /**
      * The conditions of a query and their parameters, and the parameters of its ordering, which the count query
      * leaves out. The first condition names the site.
@@ -102,6 +110,11 @@ public class PostQueries {
             String name = "q" + next++;
             orderParams.put(name, value);
             return ":" + name;
+        }
+
+        /** Binds a condition parameter named by a term condition provider. */
+        void bind(String name, Object value) {
+            params.put(name, value);
         }
 
         void and(String condition) {
@@ -136,6 +149,9 @@ public class PostQueries {
         parentCondition(query, where);
         idCondition(query, where);
         query.slug().ifPresent(slug -> where.and("p.slug = " + where.param(Slugs.sanitizeTitleForQuery(slug))));
+        if (!query.nameIn().isEmpty()) {
+            where.and("p.slug in " + where.param(slugsForQuery(query.nameIn())));
+        }
         query.exactTitle().ifPresent(title -> where.and("lower(p.title) = lower(" + where.param(title) + ")"));
         if (query.menuOrder().isPresent()) {
             long menuOrder = Math.abs((long) query.menuOrder().getAsInt());
@@ -144,9 +160,12 @@ public class PostQueries {
         Optional<SearchTerms.Parsed> parsed = query.searching()
                 ? Optional.of(SearchTerms.parse(query.search().get(), query.sentence()))
                 : Optional.empty();
-        parsed.ifPresent(terms -> searchCondition(terms, where));
+        parsed.ifPresent(terms -> searchCondition(terms, query, where));
         for (DateCondition condition : query.dates()) {
             dateCondition(condition, where);
+        }
+        if (!termConditions(siteId, query, where)) {
+            return new PostPage(stickyFirst(siteId, requested, query, queriedTypes, perPage(query), List.of()), 0, 0);
         }
         TypedQuery<PostEntity> select = posts.getEntityManager()
                 .createQuery(
@@ -471,23 +490,149 @@ public class PostQueries {
         }
     }
 
+    /** The given slugs, each sanitized as a slug from a URL, without repeats. */
+    private static List<String> slugsForQuery(List<String> slugs) {
+        Set<String> result = new LinkedHashSet<>();
+        for (String slug : slugs) {
+            result.add(Slugs.sanitizeTitleForQuery(slug));
+        }
+        return new ArrayList<>(result);
+    }
+
     /**
-     * The search condition: each term in the title, the excerpt or the content, each excluded term in none of them;
-     * password-protected posts only for a logged-in caller.
+     * The search condition: each term in one of the searched columns (the title, the excerpt and the content unless
+     * the query names some of them), each excluded term in none of them, as parts of the column or, for an exact
+     * search, as the whole of it; password-protected posts only for a logged-in caller.
      */
-    private void searchCondition(SearchTerms.Parsed parsed, Where where) {
+    private void searchCondition(SearchTerms.Parsed parsed, PostQuery query, Where where) {
+        List<String> columns = new ArrayList<>();
+        for (SearchColumn column : SearchColumn.values()) {
+            if (query.searchColumns().isEmpty() || query.searchColumns().contains(column)) {
+                columns.add(column(column));
+            }
+        }
         for (String term : parsed.positive()) {
-            String like = where.param(like(term));
-            where.and(contains("p.title", like) + " or " + contains("p.excerpt", like) + " or "
-                    + contains("p.content", like));
+            String like = where.param(pattern(term, query.exactSearch()));
+            List<String> parts = new ArrayList<>();
+            for (String column : columns) {
+                parts.add(contains(column, like));
+            }
+            where.and(String.join(" or ", parts));
         }
         for (String term : parsed.excluded()) {
-            String like = where.param(like(term));
-            where.and(lacks("p.title", like) + " and " + lacks("p.excerpt", like) + " and " + lacks("p.content", like));
+            String like = where.param(pattern(term, query.exactSearch()));
+            List<String> parts = new ArrayList<>();
+            for (String column : columns) {
+                parts.add(lacks(column, like));
+            }
+            where.and(String.join(" and ", parts));
         }
         if (!acting.loggedIn()) {
             where.and("p.password = ''");
         }
+    }
+
+    private static String column(SearchColumn column) {
+        return switch (column) {
+            case TITLE -> "p.title";
+            case EXCERPT -> "p.excerpt";
+            case CONTENT -> "p.content";
+        };
+    }
+
+    /** The pattern a term is matched by: as a part of the column, or as the whole of it for an exact search. */
+    private static String pattern(String term, boolean exact) {
+        return exact ? escaped(term) : like(term);
+    }
+
+    /**
+     * The term conditions of the query's term filters, combined as {@link PostQuery} describes; false when the
+     * combined condition matches nothing, so that the query runs no statement. A query with clauses needs the
+     * application's provider.
+     */
+    private boolean termConditions(SiteId siteId, PostQuery query, Where where) {
+        if (query.taxQuery().isEmpty()) {
+            return true;
+        }
+        if (termConditions.isUnsatisfied()) {
+            throw new IllegalStateException("term filters need the taxonomy module");
+        }
+        TermCondition combined = combined(
+                siteId,
+                termConditions.get(),
+                query.taxQuery().relation(),
+                query.taxQuery().clauses(),
+                "t");
+        switch (combined) {
+            case TermCondition.Jpql jpql -> {
+                jpql.params().forEach(where::bind);
+                where.and(jpql.text());
+            }
+            case TermCondition.Nothing nothing -> {
+                return false;
+            }
+            case TermCondition.None none -> {}
+        }
+        return true;
+    }
+
+    /**
+     * The clauses' conditions combined by {@code relation}: under AND one that matches nothing makes the whole match
+     * nothing and one with no condition is skipped; under OR both are dropped, and the whole matches nothing when
+     * every clause did. A group is combined the same way and counts as one clause; a slugs clause naming no slug adds
+     * nothing and is not asked for. The clauses' parameters are named from {@code prefix} and their position; the
+     * combined condition carries those of the clauses it kept.
+     */
+    private TermCondition combined(
+            SiteId siteId,
+            TermConditionProvider provider,
+            TaxClause.Relation relation,
+            List<TaxClause> clauses,
+            String prefix) {
+        List<String> parts = new ArrayList<>();
+        Map<String, Object> params = new LinkedHashMap<>();
+        boolean nothing = false;
+        for (int i = 0; i < clauses.size(); i++) {
+            TaxClause clause = clauses.get(i);
+            String clausePrefix = prefix + i + "_";
+            if (clause instanceof TaxClause.Slugs slugs && slugs.slugs().isEmpty()) {
+                continue;
+            }
+            TermCondition condition = clause instanceof TaxClause.Group group
+                    ? combined(siteId, provider, group.relation(), group.clauses(), clausePrefix)
+                    : provided(siteId, provider, clause, clausePrefix);
+            switch (condition) {
+                case TermCondition.Jpql jpql -> {
+                    parts.add(jpql.text());
+                    params.putAll(jpql.params());
+                }
+                case TermCondition.Nothing empty -> nothing = true;
+                case TermCondition.None none -> {}
+            }
+        }
+        if (nothing && (relation == TaxClause.Relation.AND || parts.isEmpty())) {
+            return new TermCondition.Nothing();
+        }
+        if (parts.isEmpty()) {
+            return new TermCondition.None();
+        }
+        String joint = relation == TaxClause.Relation.AND ? ") and (" : ") or (";
+        return new TermCondition.Jpql("(" + String.join(joint, parts) + ")", params);
+    }
+
+    /** The provider's condition for one clause; a parameter named outside the prefix is refused. */
+    private static TermCondition provided(
+            SiteId siteId, TermConditionProvider provider, TaxClause clause, String prefix) {
+        TermCondition condition = provider.condition(siteId, clause, "p.id", prefix);
+        if (condition instanceof TermCondition.Jpql jpql) {
+            for (String name : jpql.params().keySet()) {
+                if (!name.startsWith(prefix)) {
+                    throw new IllegalArgumentException(
+                            "the term condition parameter " + name + " does not start with " + prefix);
+                }
+            }
+        }
+        return condition;
     }
 
     /** {@code column} holds the pattern bound to {@code like}, ignoring case. */
@@ -502,7 +647,12 @@ public class PostQueries {
 
     /** {@code %text%} with {@code !}, {@code %} and {@code _} escaped by {@code !}. */
     static String like(String text) {
-        StringBuilder out = new StringBuilder(text.length() + 2).append('%');
+        return "%" + escaped(text) + "%";
+    }
+
+    /** {@code text} with {@code !}, {@code %} and {@code _} escaped by {@code !}: a pattern for the whole column. */
+    static String escaped(String text) {
+        StringBuilder out = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (c == '!' || c == '%' || c == '_') {
@@ -510,7 +660,7 @@ public class PostQueries {
             }
             out.append(c);
         }
-        return out.append('%').toString();
+        return out.toString();
     }
 
     /**
@@ -568,9 +718,9 @@ public class PostQueries {
      * Sticky posts first, as WordPress's main query puts them (see {@link PostQuery}): the page's sticky posts move to
      * its front in the page's order, then the published sticky posts of the queried types that the page lacks and
      * {@code postNotIn} does not name follow, newest first, whatever the other conditions. Whether the query is for
-     * one post, a search, an author's posts or one type's archive is read from the query as requested, before the
-     * query filters ran, as WordPress decides it before {@code pre_get_posts}; the rest from the filtered query. The
-     * fetch of the added posts runs no query filter.
+     * one post, a search, an author's posts, one type's archive or an archive of terms is read from the query as
+     * requested, before the query filters ran, as WordPress decides it before {@code pre_get_posts}; the rest from the
+     * filtered query. The fetch of the added posts runs no query filter.
      */
     private List<PostSnapshot> stickyFirst(
             SiteId siteId,
@@ -584,6 +734,7 @@ public class PostQueries {
                 || requested.search().isPresent()
                 || requested.author().isPresent()
                 || typeArchive(requested)
+                || requested.taxQuery().positive()
                 || (perPage != -1 && page(query) > 1)) {
             return rows;
         }
@@ -637,7 +788,7 @@ public class PostQueries {
             String direction =
                     direction(!requested.isEmpty() && requested.get(0).ascending());
             String byDate = expression(OrderKey.DATE) + direction + ", " + expression(OrderKey.ID) + direction;
-            return rank(parsed.get(), where)
+            return rank(parsed.get(), query.exactSearch(), where)
                     .map(rank -> " order by " + rank + ", " + byDate)
                     .orElse(" order by " + byDate);
         }
@@ -646,7 +797,9 @@ public class PostQueries {
             if (order.key() == OrderKey.NONE) {
                 return "";
             }
-            if ((order.key() == OrderKey.POST_IN && query.postIn().isEmpty()) || order.key() == OrderKey.RELEVANCE) {
+            if ((order.key() == OrderKey.POST_IN && query.postIn().isEmpty())
+                    || (order.key() == OrderKey.NAME_IN && query.nameIn().isEmpty())
+                    || order.key() == OrderKey.RELEVANCE) {
                 continue;
             }
             orders.add(order);
@@ -657,12 +810,14 @@ public class PostQueries {
         List<String> parts = new ArrayList<>();
         for (PostOrder order : orders) {
             parts.add(
-                    order.key() == OrderKey.POST_IN
-                            ? postInPosition(query.postIn(), where)
-                            : codePointOrdered(order.key()) + direction(order.ascending()));
+                    switch (order.key()) {
+                        case POST_IN -> position("p.id", postIds(query.postIn()), where);
+                        case NAME_IN -> position("p.slug", slugsForQuery(query.nameIn()), where);
+                        default -> codePointOrdered(order.key()) + direction(order.ascending());
+                    });
         }
         PostOrder first = orders.get(0);
-        if (first.key() != OrderKey.POST_IN) {
+        if (first.key() != OrderKey.POST_IN && first.key() != OrderKey.NAME_IN) {
             parts.add(expression(OrderKey.ID) + direction(first.ascending()));
         }
         return " order by " + String.join(", ", parts);
@@ -674,19 +829,19 @@ public class PostQueries {
      * positive terms and a hyphen starting a word). With several raw tokens: the whole string in the title, every
      * positive term in the title (up to six terms), any of them (two to six terms), the whole string in the excerpt,
      * then in the content (the whole string only when no hyphen starts a word), then the rest. With one token: title
-     * matches first.
+     * matches first. An exact search ranks by whole columns, as it matches.
      */
-    private static Optional<String> rank(SearchTerms.Parsed parsed, Where where) {
+    private static Optional<String> rank(SearchTerms.Parsed parsed, boolean exact, Where where) {
         List<String> positive = parsed.positive();
         if (positive.isEmpty() || PostRules.phpEmpty(parsed.cleaned())) {
             return Optional.empty();
         }
         if (parsed.rawCount() <= 1) {
-            return Optional.of(
-                    "case when " + contains("p.title", where.orderParam(like(positive.get(0)))) + " then 0 else 1 end");
+            return Optional.of("case when " + contains("p.title", where.orderParam(pattern(positive.get(0), exact)))
+                    + " then 0 else 1 end");
         }
         boolean sentenceRank = !parsed.sentenceRankSkipped();
-        String whole = sentenceRank ? where.orderParam(like(parsed.cleaned())) : null;
+        String whole = sentenceRank ? where.orderParam(pattern(parsed.cleaned(), exact)) : null;
         StringBuilder rank = new StringBuilder();
         if (sentenceRank) {
             rank.append(" when ").append(contains("p.title", whole)).append(" then 1");
@@ -694,7 +849,7 @@ public class PostQueries {
         if (positive.size() < 7) {
             List<String> titleTerms = new ArrayList<>();
             for (String term : positive) {
-                titleTerms.add(contains("p.title", where.orderParam(like(term))));
+                titleTerms.add(contains("p.title", where.orderParam(pattern(term, exact))));
             }
             rank.append(" when ").append(String.join(" and ", titleTerms)).append(" then 2");
             if (positive.size() > 1) {
@@ -741,20 +896,25 @@ public class PostQueries {
             case TYPE -> "p.type";
             case ID -> "p.id";
             case MENU_ORDER -> "p.menuOrder";
-            case POST_IN, RELEVANCE, NONE -> throw new IllegalArgumentException("no expression for " + key);
+            case POST_IN, NAME_IN, RELEVANCE, NONE -> throw new IllegalArgumentException("no expression for " + key);
         };
     }
 
-    /** The position of the post in the post-in list, as an ascending rank (ids not listed would come last). */
-    private static String postInPosition(List<PostId> postIn, Where where) {
+    /**
+     * The position of {@code column}'s value in {@code values}, as an ascending rank (a value not listed would come
+     * last).
+     */
+    private static String position(String column, List<?> values, Where where) {
         StringBuilder position = new StringBuilder("case");
-        for (int i = 0; i < postIn.size(); i++) {
-            position.append(" when p.id = ")
-                    .append(where.orderParam(postIn.get(i).value()))
+        for (int i = 0; i < values.size(); i++) {
+            position.append(" when ")
+                    .append(column)
+                    .append(" = ")
+                    .append(where.orderParam(values.get(i)))
                     .append(" then ")
                     .append(i);
         }
-        return position.append(" else ").append(postIn.size()).append(" end").toString();
+        return position.append(" else ").append(values.size()).append(" end").toString();
     }
 
     private static List<Long> userIds(Set<UserId> users) {
