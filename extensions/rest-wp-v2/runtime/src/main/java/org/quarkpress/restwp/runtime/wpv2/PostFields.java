@@ -1,5 +1,6 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.arc.All;
@@ -14,7 +15,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.quarkpress.core.ContentFilter;
 import org.quarkpress.core.ExcerptFilter;
@@ -30,7 +35,11 @@ import org.quarkpress.core.UserId;
 import org.quarkpress.lib.wpkses.Kses;
 import org.quarkpress.posts.FeaturedImages;
 import org.quarkpress.posts.PageTemplates;
+import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostSnapshot;
+import org.quarkpress.posts.Posts;
+import org.quarkpress.posts.SlugContext;
+import org.quarkpress.posts.SlugSanitizer;
 import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
@@ -39,6 +48,7 @@ import org.quarkpress.restwp.runtime.ContextFilter;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
 import org.quarkpress.taxonomy.PostFormats;
+import org.quarkpress.taxonomy.Taxonomies;
 import org.quarkpress.taxonomy.TermSnapshot;
 import org.quarkpress.taxonomy.Terms;
 
@@ -47,8 +57,12 @@ import org.quarkpress.taxonomy.Terms;
  * order, filtered by the context. Dates are the site's local time and GMT; a floating draft's GMT date is its local
  * date converted with the site's zone. The rendered title, content and excerpt run the registered filter chains (an
  * empty excerpt is the content's text cut to {@code excerpt_length} words, {@value #DEFAULT_EXCERPT_LENGTH} by
- * default, followed by WordPress's ellipsis); a post with a password renders its content and excerpt as empty text.
- * The link is the post's plain permalink.
+ * default, followed by WordPress's ellipsis); a post with a password (a stored {@code 0} or nothing is none, as for
+ * WordPress) renders its content and excerpt as empty text unless the request lifted its protection, and says they
+ * are protected either way. The link is the post's plain
+ * permalink. A stored template {@code default} reads as none. The derived fields of a viewable public type are the
+ * permalink template (the plain link), the slug the title would generate (made unique as for a published post, the
+ * post itself never colliding with it) and the front-end class list of the post.
  */
 @ApplicationScoped
 class PostFields {
@@ -56,6 +70,9 @@ class PostFields {
     static final int DEFAULT_EXCERPT_LENGTH = 55;
 
     static final String EXCERPT_MORE = " [&hellip;]";
+
+    /** The stored template that means none. */
+    private static final String DEFAULT_TEMPLATE = "default";
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
@@ -80,6 +97,15 @@ class PostFields {
 
     @Inject
     MetaFields meta;
+
+    @Inject
+    Posts posts;
+
+    @Inject
+    Taxonomies taxonomies;
+
+    @Inject
+    SlugSanitizer slugSanitizer;
 
     @Inject
     @All
@@ -107,6 +133,23 @@ class PostFields {
     /** The post's selected fields in WordPress's order, filtered by {@code context}; links are added later. */
     RestResponse prepare(
             PostRoutes routes, PostSnapshot post, Fields.Selection fields, String context, RestRequest request) {
+        return prepare(routes, post, fields, context, request, false);
+    }
+
+    /**
+     * The post's selected fields in WordPress's order, filtered by {@code context}; links are added later.
+     *
+     * @param lifted whether the request lifted the post's password protection (the edit context of a caller who may
+     *     edit it, or a matching password): the content and excerpt are rendered, while the protected flags and the
+     *     class list still say the password is there
+     */
+    RestResponse prepare(
+            PostRoutes routes,
+            PostSnapshot post,
+            Fields.Selection fields,
+            String context,
+            RestRequest request,
+            boolean lifted) {
         ZoneId zone = site.zone();
         ObjectNode data = RestJson.NODES.objectNode();
         if (fields.includes("id")) {
@@ -151,7 +194,8 @@ class PostFields {
         if (fields.includes("link")) {
             data.put("link", link(routes.type(), post));
         }
-        boolean hidden = post.passwordProtected();
+        boolean protectedPost = PostPasswords.required(post);
+        boolean hidden = protectedPost && !lifted;
         Rendering rendering = new Rendering(post.site());
         if (routes.has("title") && fields.includes("title")) {
             ObjectNode title = data.putObject("title");
@@ -180,7 +224,7 @@ class PostFields {
                                         (filter, value) -> filter.apply(value, rendering)));
             }
             if (fields.includes("content.protected")) {
-                content.put("protected", hidden);
+                content.put("protected", protectedPost);
             }
             if (fields.includes("content.block_version")) {
                 content.put("block_version", post.content().contains(BLOCK_DELIMITER) ? 1 : 0);
@@ -195,7 +239,7 @@ class PostFields {
                 excerpt.put("rendered", hidden ? "" : renderedExcerpt(post, rendering, request));
             }
             if (fields.includes("excerpt.protected")) {
-                excerpt.put("protected", hidden);
+                excerpt.put("protected", protectedPost);
             }
         }
         if (routes.has("author") && fields.includes("author")) {
@@ -220,7 +264,8 @@ class PostFields {
             data.put("sticky", post.sticky());
         }
         if (fields.includes("template")) {
-            data.put("template", PageTemplates.of(post));
+            String template = PageTemplates.of(post);
+            data.put("template", template.equals(DEFAULT_TEMPLATE) ? "" : template);
         }
         if (routes.has("format") && fields.includes("format")) {
             data.put("format", formats.of(post.id()));
@@ -237,7 +282,152 @@ class PostFields {
                 }
             }
         }
+        // the derived fields cost lookups: skipped in the contexts where the filter would drop them
+        boolean edit = context.equals("edit");
+        if (edit && routes.has("permalink_template") && fields.includes("permalink_template")) {
+            data.put("permalink_template", link(routes.type(), post));
+        }
+        if (edit && routes.has("generated_slug") && fields.includes("generated_slug")) {
+            data.put("generated_slug", generatedSlug(post));
+        }
+        if (!context.equals("embed") && routes.has("class_list") && fields.includes("class_list")) {
+            ArrayNode classes = data.putArray("class_list");
+            String format = routes.supports("post-formats") ? formats.of(post.id()) : "";
+            classList(
+                            post,
+                            routes,
+                            format,
+                            PostPasswords.required(post),
+                            FeaturedImages.of(post) > 0,
+                            publicTerms(post))
+                    .forEach(classes::add);
+        }
         return RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+    }
+
+    /**
+     * The {@code password} parameter of a request, from any source, when it is a text that is not empty in PHP's
+     * sense: what lifts the protection of the posts it matches.
+     */
+    static Optional<String> givenPassword(RestRequest request) {
+        return request.param("password")
+                .filter(JsonNode::isTextual)
+                .filter(value -> !PhpValues.isEmpty(value))
+                .map(JsonNode::textValue);
+    }
+
+    /**
+     * The slug the post's title would generate: the title sanitized (the post id when that gives nothing), made
+     * unique as for a published post of the type under the post's parent, the post itself never colliding.
+     */
+    private String generatedSlug(PostSnapshot post) {
+        String candidate = slugSanitizer.sanitize(
+                post.title(),
+                new SlugContext(
+                        post.site(), Optional.of(post.id()), post.type(), post.status(), post.parent(), post.title()));
+        if (candidate.isEmpty()) {
+            candidate = Long.toString(post.id().value());
+        }
+        return posts.uniqueSlug(post.type(), candidate, Optional.of(post.id()), post.parent(), "publish");
+    }
+
+    /** The post's terms of every public taxonomy of its type, in the taxonomies' registration order. */
+    private Map<String, List<TermSnapshot>> publicTerms(PostSnapshot post) {
+        Map<String, List<TermSnapshot>> result = new LinkedHashMap<>();
+        for (TaxonomyDefinition taxonomy : taxonomies.forType(post.type())) {
+            if (taxonomy.publicly()) {
+                result.put(taxonomy.key(), terms.postTerms(post.id(), taxonomy.key()));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * WordPress's front-end classes of a post as REST lists them: {@code post-<id>}, the type, {@code type-<type>},
+     * {@code status-<status>}, {@code format-<slug>} for a type with post formats ({@code standard} when the post has
+     * none), {@code post-password-required} when the post has a password (a REST lift never changes the list),
+     * {@code has-post-thumbnail} for a featured image on a post without password, {@code hentry}, then one class per
+     * term of every public taxonomy of the type ({@code category-<slug>}, {@code tag-<slug>}, else
+     * {@code <taxonomy>-<slug>}; a slug that is empty or reads as a PHP number is replaced by the term's id), each
+     * class once.
+     *
+     * @param format the post's format slug, or empty for none; ignored for a type without post formats
+     * @param publicTerms the post's terms by public taxonomy of the type, in registration order
+     */
+    static List<String> classList(
+            PostSnapshot post,
+            PostRoutes routes,
+            String format,
+            boolean passwordRequired,
+            boolean hasThumbnail,
+            Map<String, List<TermSnapshot>> publicTerms) {
+        Set<String> classes = new LinkedHashSet<>();
+        classes.add("post-" + post.id().value());
+        classes.add(post.type());
+        classes.add("type-" + post.type());
+        classes.add("status-" + post.status());
+        if (routes.supports("post-formats")) {
+            classes.add("format-" + (format.isEmpty() ? "standard" : format));
+        }
+        if (passwordRequired) {
+            classes.add("post-password-required");
+        }
+        if (hasThumbnail && !passwordRequired) {
+            classes.add("has-post-thumbnail");
+        }
+        classes.add("hentry");
+        publicTerms.forEach((taxonomy, terms) -> {
+            String prefix = switch (taxonomy) {
+                case "category" -> "category";
+                case "post_tag" -> "tag";
+                default -> taxonomy;
+            };
+            for (TermSnapshot term : terms) {
+                String slug = term.slug();
+                String name = slug.isEmpty() || phpNumeric(slug)
+                        ? Long.toString(term.id().value())
+                        : slug;
+                classes.add(prefix + "-" + name);
+            }
+        });
+        return List.copyOf(classes);
+    }
+
+    /**
+     * Whether PHP's {@code is_numeric} holds for a slug: digits, or digits with one {@code e} exponent that may carry
+     * a sign (the other numeric forms hold characters a slug never has).
+     */
+    static boolean phpNumeric(String slug) {
+        int i = 0;
+        int length = slug.length();
+        int digits = 0;
+        while (i < length && isDigit(slug.charAt(i))) {
+            i++;
+            digits++;
+        }
+        if (digits == 0) {
+            return false;
+        }
+        if (i == length) {
+            return true;
+        }
+        if (slug.charAt(i) != 'e') {
+            return false;
+        }
+        i++;
+        if (i < length && (slug.charAt(i) == '-' || slug.charAt(i) == '+')) {
+            i++;
+        }
+        int exponent = 0;
+        while (i < length && isDigit(slug.charAt(i))) {
+            i++;
+            exponent++;
+        }
+        return exponent > 0 && i == length;
+    }
+
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
     }
 
     private static String gmt(Instant instant) {

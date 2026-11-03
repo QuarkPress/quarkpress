@@ -527,7 +527,8 @@ class PostsCollectionDbTest {
                         "format",
                         "meta",
                         "categories",
-                        "tags");
+                        "tags",
+                        "class_list");
         assertThat(item.get("date").asText()).isEqualTo("2026-08-01T12:00:00");
         assertThat(item.get("date_gmt").asText()).isEqualTo("2026-08-01T10:00:00");
         assertThat(item.get("modified").asText()).isEqualTo("2026-08-01T12:30:00");
@@ -606,7 +607,8 @@ class PostsCollectionDbTest {
                         "comment_status",
                         "ping_status",
                         "template",
-                        "meta");
+                        "meta",
+                        "class_list");
         assertThat(pageItem.get("link").asText()).isEqualTo("http://" + host + "/?page_id=" + page.value());
         assertThat(pageItem.get("parent").asLong()).isZero();
         // a book: no sticky, format, parent, menu_order or comment status; a published book links by its slug
@@ -638,7 +640,8 @@ class PostsCollectionDbTest {
                         "author",
                         "featured_media",
                         "template",
-                        "meta");
+                        "meta",
+                        "class_list");
         assertThat(bookItem.get("link").asText()).isEqualTo("http://" + host + "/?book=book-" + u.substring(0, 8));
         assertThat(bookItem.get("meta").toString()).isEqualTo("{\"footnotes\":\"\"}");
         // a draft book links by its id; a floating draft's date_gmt is its date converted from Europe/Paris

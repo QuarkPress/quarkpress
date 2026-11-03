@@ -478,6 +478,11 @@ final class PostSchema {
         }
     }
 
+    /** The item GET's arguments in WordPress's order: context, excerpt_length, password. */
+    static List<Arg> itemArgs(PostRoutes routes) {
+        return List.of(Paging.contextArg(routes.schema()), excerptLengthArg(), passwordArg());
+    }
+
     /** The item route's {@code id}: an integer, checked while the arguments are sanitized. */
     static Arg idArg() {
         ObjectNode id = RestJson.NODES.objectNode();

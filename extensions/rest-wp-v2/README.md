@@ -67,6 +67,7 @@ site.
 | `/` | GET | The site index: name, description, `url`, `home`, time zone and reading settings, the namespaces, the authentication schemes, every route's data, `site_logo`, `site_icon` and `site_icon_url`, and the `help` link; `?context=help` adds each route's schema. |
 | `/<namespace>` | GET | One namespace's index (`/wp/v2`, and every namespace an application registers); `?namespace=` names another one. |
 | `/wp/v2/posts`, `/wp/v2/pages`, `/wp/v2/<rest base>` | GET | The posts of each post type shown in REST (attachments and blocks excepted, their routes come later), at its REST base: the list, with WordPress's filters (`status` needs the type's `edit_posts` for anything but `publish`, as the posts module's queries do: `read_private_posts` alone admits nothing, where WordPress admits `private`), its callback errors and its paging, counting only what the caller may read (D27); the rendered fields run the registered filters (D26). |
+| `/wp/v2/posts/<id>`, `/wp/v2/pages/<id>`, `/wp/v2/<rest base>/<id>` | GET | One post of the type, looked up on the request's site: a missing id, another type's or another site's post is 404 `rest_post_invalid_id`. The checks run in WordPress's order: the edit context needs `edit_post` (`rest_forbidden_context`), a non-empty `password` in the query string that differs from the stored one is 403 `rest_post_incorrect_password` (also on a post without password), then the post must be readable (`rest_forbidden`). The edit context of a caller who may edit the post, or a `password` from any source that matches, renders the content and excerpt of a post with a password; the protected flags and the class list say the password is there either way. `permalink_template` is the plain link, `generated_slug` the title's slug (the id when the title gives none) made unique as for a published post of the type under the post's parent, `class_list` WordPress's front-end classes; a stored template `default` reads as `""`, any other stored value as stored. For a viewable type the only `Link` header is the permalink's `rel="alternate"` line, on HEAD too; the collections keep the API root's. |
 | `/wp/v2/types`, `/wp/v2/types/<type>` | GET | The post types registered to show in REST; the edit context needs the type's `edit_posts`. |
 | `/wp/v2/statuses`, `/wp/v2/statuses/<status>` | GET | The post statuses that are not internal, then `trash`; a status that is not public is shown only to callers who may edit posts of some REST type. |
 | `/wp/v2/taxonomies`, `/wp/v2/taxonomies/<taxonomy>` | GET | The taxonomies registered to show in REST (`?type=` names a post type); the edit context needs the taxonomy's `assign_terms`. |
@@ -74,6 +75,7 @@ site.
 | `/wp/v2/<rest base>/<id>` | GET, POST, PUT, PATCH, DELETE | One term: read, update, delete (`force=true` is required, terms have no trash). |
 | `/wp/v2/users`, `/wp/v2/users/<id>`, `/wp/v2/users/me` | GET, POST, PUT, PATCH, DELETE | The site's users with WordPress's visibility rules; the only write applied is a user's own `meta.persisted_preferences` (the editor's preferences, kept per site); creating, deleting and other changes answer 501 after WordPress's permission check (D10, D11). |
 | `/wp/v2/settings` | GET, POST, PUT, PATCH | The registered settings, for callers with `manage_options` on the site. |
+| `/quarkpress/v1/drafts` | POST | QuarkPress-only (D36): the auto-draft a new post starts from, as WordPress's new-post screen creates it: body `{type}` (a post type shown in REST; attachments and blocks are refused with `rest_type_invalid`), the caller needs the type's `edit_posts` and `create_posts` (else `rest_cannot_create`); the row has status `auto-draft`, the title "Auto Draft" when the type has one, the caller as author, a floating date, no slug, the type's comment defaults, no term, and the site's `default_post_format` when the type supports formats; answers 201 with the post in the edit context and a `Location` header; no lock is taken (the shell takes one through the lock routes next). |
 
 The post, term and user collections take WordPress's `context`, `page`, `per_page` (1 to 100, default 10), `search` and their
 own filters, and answer `X-WP-Total`, `X-WP-TotalPages` and a `Link` header with the previous and next pages. Every
@@ -188,6 +190,7 @@ refused for the REST name and for the option; `SettingsRegistry` lists what is r
 |---|---|---|
 | `quarkpress.rest-wp-v2.path` | `/wp-json` | The base of the API below each site's path, WordPress's `rest_get_url_prefix`. It must name a path below the site, not `/`. |
 | `quarkpress.rest-wp-v2.cors.origins` | none | The origins answered with `Access-Control-Allow-Origin` (compared ignoring ASCII case; printable ASCII without spaces or commas). None by default, so no answer carries that header (D4). |
+| `quarkpress.rest-wp-v2.fallback-front-end` | `true` | Whether site-root requests naming a post (`?p=`, `?page_id=`, `?attachment_id=`, `?post_type=…&p=`) or asking for a preview (`?preview=`) get the minimal front-end page (the site's name, the post's title, date and content) until themes exist. Off, no front-end request is answered by this module (D35). |
 
 The API uses the application's OIDC configuration for its index's issuer (`quarkus.oidc.auth-server-url`), and
 `quarkus.http.limits.max-body-size` bounds the bodies it reads.
@@ -202,6 +205,14 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
    (`/_quarkpress/rest-wp-v2/route` below the REST application path and the HTTP root path, computed at build time;
    the build fails when Quarkus REST cannot deploy it there). That resource answers a request that reaches it any
    other way with an empty 404.
+   The minimal front-end page is served through the same mechanism: a second filter at the same priority decides
+   whether a `GET` or `HEAD` of the site's root (its path, or `index.php` there) names a post or asks for a preview
+   without any `rest_route`, and re-routes it to the internal `PreviewPage` resource (`/_quarkpress/front-end/page`,
+   computed at build time like the REST entry path); that resource renders inside the normal request, after
+   authentication, with the request scope and the site binding active. The filter reads no cookie and calls no
+   service; the resource alone reads the `quarkpress_preview` session cookie (set by
+   `POST /quarkpress/v1/preview/session`, cleared by `DELETE`) and swaps the request's identity for the session's
+   user while it renders, as the REST server does for its Bearer identities; no REST route ever reads that cookie.
 2. **Authentication.** The security module authenticates the token. A token that fails goes straight to the answer
    stages below with 401 `rest_invalid_token`, after the site gate, with no route matched.
 3. **The route.** `rest_route` comes from the form (for a form POST) or the query, and must be the same text in both;
@@ -321,7 +332,8 @@ The rows below are the differences the parity tests know by label. Some further,
 | D25 | A negative `offset` is made positive for the pagination headers as for the query, so `offset=-1` counts and links pages as `offset=1` does (a `prev` link included); WordPress's query uses the positive value while its headers use the raw one, so its pages and links do not match the items it lists. |
 | D26 | `title.rendered`, `content.rendered` and `excerpt.rendered` of posts run only the registered filters (none is built in): no paragraphs, texturizing, shortcodes or dynamic blocks; an empty excerpt is the content's text cut to `excerpt_length` words (55 by default) followed by ` [&hellip;]`. The raw fields match WordPress's. |
 | D27 | `X-WP-Total` and `X-WP-TotalPages` of post collections count only the posts the caller may read; WordPress counts the rows its query found and then drops those the caller may not read, so its totals can exceed the items it lists. |
-| D36 | QuarkPress-only namespace `quarkpress/v1`: WordPress has no such routes. The editor's lock routes `/quarkpress/v1/locks/{id}` (take, refresh, release) and `/quarkpress/v1/locks/{id}/takeover` are served there, so the index and the namespace list carry a namespace and routes WordPress lacks. |
+| D35 | Without a theme, front-end requests `?p=`, `?page_id=`, `?attachment_id=`, `?post_type=…&p=`, `?preview=` get a minimal page (site name, title, date, content) instead of the theme's template; a password-protected post shows WordPress's "This content is password protected…" notice without the password form (no cookie lifts it; an editor previewing sees the content); `?<type>=<slug>` links of published custom types are not served, so the 301 a custom-type post gets for `?post_type=<type>&p=<id>&preview=true` (WordPress's `Location`) lands on a 404 until themes and permalinks arrive. |
+| D36 | QuarkPress-only namespace `quarkpress/v1`: WordPress has no such routes. The editor's lock routes `/quarkpress/v1/locks/{id}` (take, refresh, release) and `/quarkpress/v1/locks/{id}/takeover` are served there, so the index and the namespace list carry a namespace and routes WordPress lacks. `/quarkpress/v1/drafts` (the auto-draft a new post starts from, WordPress's `post-new.php` row) is served there too. |
 
 WordPress behaviour kept on purpose (not differences): `_fields` reduces a keyed collection by its keys
 (`/wp/v2/types?_fields=name` is `[]`), and a field below one already requested whole ends the list there

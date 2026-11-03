@@ -22,6 +22,7 @@ import org.quarkpress.posts.DateColumn;
 import org.quarkpress.posts.DateCondition;
 import org.quarkpress.posts.OrderKey;
 import org.quarkpress.posts.PostPage;
+import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
@@ -46,7 +47,8 @@ import org.quarkpress.restwp.runtime.RestJson;
  * exclusive bounds read in the site's zone; {@code sticky} selects or drops the sticky posts and {@code ignore_sticky}
  * off puts them first), the callback errors of the orderings, the page past the end, the offset's window with the
  * page parameter moving only the links, the items the caller may read (the totals count those only), and in the edit
- * context only the items the caller may edit. HEAD answers the headers alone.
+ * context only the items the caller may edit. A {@code password} parameter renders the protected posts it matches
+ * and refuses nothing. HEAD answers the headers alone.
  */
 @ApplicationScoped
 class PostCollection {
@@ -106,13 +108,18 @@ class PostCollection {
         boolean edit = request.isEditContext();
         SecurityIdentity identity = request.identity();
         Fields.Selection selection = Fields.forResponse(request, routes.schema());
+        Optional<String> password = PostFields.givenPassword(request);
         ArrayNode items = RestJson.NODES.arrayNode();
         for (PostSnapshot post : page.posts()) {
             if (edit && !permissions.can(identity, "edit_post", post)) {
                 continue;
             }
+            // the edit context lists only posts the caller may edit, which lifts their protection; so does the
+            // request's password for the posts it matches, and a wrong one refuses nothing here
+            boolean lifted = edit
+                    || password.map(given -> PostPasswords.matches(post, given)).orElse(false);
             items.add(CollectionItems.inline(
-                    fields.prepare(routes, post, selection, request.context(), request), request));
+                    fields.prepare(routes, post, selection, request.context(), request, lifted), request));
         }
         return RestResponse.paged(items, total, links(paging), request);
     }

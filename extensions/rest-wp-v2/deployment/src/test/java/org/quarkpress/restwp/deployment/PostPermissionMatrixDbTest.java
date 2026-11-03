@@ -25,7 +25,8 @@ import org.quarkpress.core.UserId;
  * The read permission matrix of the post collection: role (anonymous, administrator, editor bob, author carol,
  * contributor dave, subscriber erin, the outsider gina with no role on the site, and frank, administrator of another
  * site only) by status (publish, future, draft, pending, private, trash, auto-draft) by own and others' posts (carol's
- * and bob's). Later tasks grow it with the item, create, update and delete decisions.
+ * and bob's), for the collection and for the item in the view and the edit context. Later tasks grow it with the
+ * create, update and delete decisions.
  */
 class PostPermissionMatrixDbTest {
 
@@ -174,6 +175,60 @@ class PostPermissionMatrixDbTest {
             assertThat(answer.header("X-WP-Total")).as(what).isEqualTo(Long.toString(row.total()));
             for (JsonNode item : json(answer.asString())) {
                 assertThat(item.get("status").asText()).as(what).isEqualTo(row.status());
+            }
+        }
+    }
+
+    /** One cell of the item matrix: the status the caller gets for the post, in the view or the edit context. */
+    record Cell(String caller, long post, boolean edit, int status) {}
+
+    /**
+     * {@code GET /posts/<id>} and {@code ?context=edit} for every caller, status and own or others' post: a published
+     * post reads for everyone; the other statuses for whoever may edit the post (an author her own, an editor any),
+     * a private one also for {@code read_private_posts}; the edit context needs {@code edit_post} on every status, so
+     * an author is refused on a colleague's published post. Refusals are 401 for the anonymous caller, 403 for the
+     * others; frank and gina see published posts only.
+     */
+    @Test
+    void itemVisibility() {
+        List<Cell> cells = new ArrayList<>();
+        for (String status : STATUSES) {
+            boolean published = status.equals("publish");
+            for (long post : POSTS.get(status)) {
+                boolean carols = post == own(status, carol).get(0);
+                cells.add(new Cell("anonymous", post, false, published ? 200 : 401));
+                cells.add(new Cell("anonymous", post, true, 401));
+                for (String outsider : List.of("erin", "gina", "frank", "dave")) {
+                    cells.add(new Cell(outsider, post, false, published ? 200 : 403));
+                    cells.add(new Cell(outsider, post, true, 403));
+                }
+                cells.add(new Cell("carol", post, false, published || carols ? 200 : 403));
+                cells.add(new Cell("carol", post, true, carols ? 200 : 403));
+                for (String editor : List.of("bob", "administrator")) {
+                    cells.add(new Cell(editor, post, false, 200));
+                    cells.add(new Cell(editor, post, true, 200));
+                }
+            }
+        }
+        for (Cell cell : cells) {
+            String what = cell.caller() + " GET /posts/" + cell.post() + (cell.edit() ? "?context=edit" : "");
+            Response answer = as(CALLERS.get(cell.caller()))
+                    .get("/wp-json/wp/v2/posts/" + cell.post() + (cell.edit() ? "?context=edit" : ""));
+            assertThat(answer.statusCode()).as(what + ": " + answer.asString()).isEqualTo(cell.status());
+            JsonNode body = json(answer.asString());
+            if (cell.status() == 200) {
+                assertThat(body.get("id").asLong()).as(what).isEqualTo(cell.post());
+                assertThat(body.has("password")).as(what).isEqualTo(cell.edit());
+            } else {
+                assertThat(body.get("code").asText())
+                        .as(what)
+                        .isEqualTo(cell.edit() ? "rest_forbidden_context" : "rest_forbidden");
+                assertThat(body.get("message").asText())
+                        .as(what)
+                        .isEqualTo(
+                                cell.edit()
+                                        ? "Sorry, you are not allowed to edit this post."
+                                        : "Sorry, you are not allowed to do that.");
             }
         }
     }
