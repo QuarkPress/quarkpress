@@ -18,6 +18,7 @@ import java.util.TreeMap;
  * @param body the raw body, empty when there is none
  * @param form the form fields PHP itself reads (a POST with a form content type), empty otherwise
  * @param target the path and query the client asked for, as sent, such as {@code /wp-json/wp/v2/posts?page=2}
+ * @param secure whether the request came over HTTPS (a TLS connection, or a trusted proxy's forwarded scheme)
  */
 public record IncomingRequest(
         String method,
@@ -26,7 +27,8 @@ public record IncomingRequest(
         Map<String, List<String>> headers,
         byte[] body,
         ObjectNode form,
-        String target) {
+        String target,
+        boolean secure) {
 
     private static final String FORM = "application/x-www-form-urlencoded";
 
@@ -46,7 +48,19 @@ public record IncomingRequest(
         headers = copy;
     }
 
-    /** A request whose target is its route (for requests built in code). */
+    /** A request over plain HTTP. */
+    public IncomingRequest(
+            String method,
+            String route,
+            ObjectNode query,
+            Map<String, List<String>> headers,
+            byte[] body,
+            ObjectNode form,
+            String target) {
+        this(method, route, query, headers, body, form, target, false);
+    }
+
+    /** A request whose target is its route (for requests built in code), over plain HTTP. */
     public IncomingRequest(
             String method,
             String route,
@@ -59,7 +73,7 @@ public record IncomingRequest(
 
     /** This request with {@code route} as its route. */
     public IncomingRequest withRoute(String route) {
-        return new IncomingRequest(method, route, query, headers, body, form, target);
+        return new IncomingRequest(method, route, query, headers, body, form, target, secure);
     }
 
     /**

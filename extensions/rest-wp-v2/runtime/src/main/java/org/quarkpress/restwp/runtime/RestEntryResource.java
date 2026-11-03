@@ -86,8 +86,8 @@ public class RestEntryResource {
         }
         byte[] body = rawBody == null ? new byte[0] : rawBody;
         ObjectNode form = form(entry, context.request().getHeader("Content-Type"), body);
-        IncomingRequest request =
-                new IncomingRequest(entry.method(), "/", entry.query(), headers(context), body, form, entry.target());
+        IncomingRequest request = new IncomingRequest(
+                entry.method(), "/", entry.query(), headers(context), body, form, entry.target(), secure(context));
         return switch (route(entry, form)) {
             case Decision.Route route -> response(server.serve(request.withRoute(route.route())));
             case Decision.Refused refused -> response(server.refuse(request, refused.code(), refused.message()));
@@ -141,6 +141,15 @@ public class RestEntryResource {
             return new Decision.Route(RestPaths.trimRoute(PhpQuery.rawDecode(entry.pathRoute())));
         }
         return new Decision.NotRest();
+    }
+
+    /**
+     * Whether the request came over HTTPS: its scheme as Vert.x reports it, which is the forwarded one when Quarkus's
+     * proxy settings honour {@code X-Forwarded-Proto} or {@code Forwarded}.
+     */
+    static boolean secure(RoutingContext context) {
+        return context.request().isSSL()
+                || "https".equalsIgnoreCase(context.request().scheme());
     }
 
     static Map<String, List<String>> headers(RoutingContext context) {

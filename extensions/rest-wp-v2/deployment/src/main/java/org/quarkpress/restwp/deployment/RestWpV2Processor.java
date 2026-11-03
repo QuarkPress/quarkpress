@@ -20,6 +20,7 @@ import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestWpV2Feature;
 import org.quarkpress.restwp.SettingsProvider;
 import org.quarkpress.restwp.SettingsRegistry;
+import org.quarkpress.restwp.runtime.PreviewPage;
 import org.quarkpress.restwp.runtime.RestEntryResource;
 import org.quarkpress.restwp.runtime.RestPaths;
 import org.quarkpress.restwp.runtime.RestWpConfig;
@@ -86,9 +87,10 @@ class RestWpV2Processor {
     }
 
     /**
-     * Where REST requests are re-routed: the entry resource's path below the REST application path (from
-     * {@code quarkus.rest.path} or an {@code @ApplicationPath}) and the HTTP root path. The build fails when Quarkus
-     * REST does not deploy the entry resource, as no REST request could then be served.
+     * Where REST requests and front-end page requests are re-routed: the entry resource's and the preview page's paths
+     * below the REST application path (from {@code quarkus.rest.path} or an {@code @ApplicationPath}) and the HTTP
+     * root path. The build fails when Quarkus REST does not deploy either resource, as no REST request (or no
+     * front-end page) could then be served.
      */
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
@@ -97,22 +99,35 @@ class RestWpV2Processor {
             Optional<ResteasyReactiveDeploymentBuildItem> deployment,
             Optional<ResteasyReactiveResourceMethodEntriesBuildItem> methods,
             RestWpRecorder recorder) {
-        String entryClass = RestEntryResource.class.getName();
+        requireDeployed(deployment, methods, RestEntryResource.class.getName(), "no REST request can be served");
+        requireDeployed(deployment, methods, PreviewPage.class.getName(), "no front-end page can be served");
+        String root = httpRoot.getRootPath();
+        String application = deployment.get().getApplicationPath();
+        String entry;
+        String preview;
+        try {
+            entry = RestPaths.entryPath(root, application);
+            preview = RestPaths.previewPath(root, application);
+        } catch (IllegalArgumentException unusable) {
+            throw new ConfigurationException("quarkpress-rest-wp-v2: " + unusable.getMessage());
+        }
+        recorder.entryPath(entry);
+        recorder.previewPath(preview);
+    }
+
+    private static void requireDeployed(
+            Optional<ResteasyReactiveDeploymentBuildItem> deployment,
+            Optional<ResteasyReactiveResourceMethodEntriesBuildItem> methods,
+            String resource,
+            String consequence) {
         boolean deployed = deployment.isPresent()
                 && methods.isPresent()
                 && methods.get().getEntries().stream()
                         .anyMatch(entry ->
-                                entry.getActualClassInfo().name().toString().equals(entryClass));
+                                entry.getActualClassInfo().name().toString().equals(resource));
         if (!deployed) {
-            throw new ConfigurationException("quarkpress-rest-wp-v2: Quarkus REST does not deploy " + entryClass
-                    + ", so no REST request can be served; do not exclude it from the build");
+            throw new ConfigurationException("quarkpress-rest-wp-v2: Quarkus REST does not deploy " + resource + ", so "
+                    + consequence + "; do not exclude it from the build");
         }
-        String path;
-        try {
-            path = RestPaths.entryPath(httpRoot.getRootPath(), deployment.get().getApplicationPath());
-        } catch (IllegalArgumentException unusable) {
-            throw new ConfigurationException("quarkpress-rest-wp-v2: " + unusable.getMessage());
-        }
-        recorder.entryPath(path);
     }
 }

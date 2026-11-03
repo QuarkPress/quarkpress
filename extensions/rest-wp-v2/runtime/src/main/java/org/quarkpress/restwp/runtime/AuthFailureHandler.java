@@ -191,8 +191,15 @@ public class AuthFailureHandler {
         if (decision instanceof RestEntryResource.Decision.NotRest) {
             return Optional.empty();
         }
-        IncomingRequest request =
-                new IncomingRequest(entry.method(), "/", entry.query(), headers, body, form, entry.target());
+        IncomingRequest request = new IncomingRequest(
+                entry.method(),
+                "/",
+                entry.query(),
+                headers,
+                body,
+                form,
+                entry.target(),
+                RestEntryResource.secure(context));
         return Optional.of(serve(context, request, decision));
     }
 

@@ -163,7 +163,8 @@ public final class LinkRenderer {
                     caller.identity(),
                     caller::user,
                     urls,
-                    this);
+                    this,
+                    caller.secure());
             allowed = AllowHeader.methods(match.matchedRoute(), request);
         } catch (RuntimeException failure) {
             return Optional.empty();

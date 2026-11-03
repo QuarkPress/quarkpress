@@ -19,6 +19,14 @@ public interface RestWpConfig {
     /** Cross-origin requests. */
     Cors cors();
 
+    /**
+     * Whether front-end requests of a site's root ({@code ?p=}, {@code ?page_id=}, {@code ?attachment_id=},
+     * {@code ?post_type=...&p=}, {@code ?preview=}) get the minimal page (the site's name, the post's title, date and
+     * content) until themes exist; when off, no front-end request is answered by this module.
+     */
+    @WithDefault("true")
+    boolean fallbackFrontEnd();
+
     /** Which other origins may call the REST API from a browser. */
     interface Cors {
 

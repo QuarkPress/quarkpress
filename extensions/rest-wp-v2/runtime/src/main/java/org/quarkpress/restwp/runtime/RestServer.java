@@ -403,7 +403,14 @@ public class RestServer {
                 defaults(match));
         LinkRenderer links = new LinkRenderer(table(), urls);
         Served request = served(
-                method, match.matchedRoute(), match.endpoint(), incoming.route(), sources, incoming.query(), links);
+                method,
+                match.matchedRoute(),
+                match.endpoint(),
+                incoming.route(),
+                sources,
+                incoming.query(),
+                links,
+                incoming.secure());
         RestResponse answer = withFields(
                 request,
                 withAllow(match.matchedRoute(), request, answer(jsonFailure(incoming), match, sources, request)));
@@ -421,7 +428,8 @@ public class RestServer {
             String path,
             ParamSources sources,
             ObjectNode query,
-            LinkRenderer links) {
+            LinkRenderer links,
+            boolean secure) {
         return new Served(
                 method,
                 matched,
@@ -432,7 +440,8 @@ public class RestServer {
                 identity,
                 () -> QuarkPressPrincipal.of(identity).map(QuarkPressPrincipal::user),
                 urls,
-                links);
+                links,
+                secure);
     }
 
     /**
@@ -451,7 +460,9 @@ public class RestServer {
         }
         if (embed.kind() != EmbedChoice.Kind.NONE) {
             LinkRenderer links = caller.linkRenderer();
-            body = new Embedder(embed, href -> links.target(href).map(target -> embedded(target, links))).embed(body);
+            body = new Embedder(
+                            embed, href -> links.target(href).map(target -> embedded(target, links, caller.secure())))
+                    .embed(body);
         }
         return new RestResponse(response.status(), body, response.headers(), Links.none());
     }
@@ -463,7 +474,7 @@ public class RestServer {
      * (the link's own) as a request of this caller, its links rendered and nothing embedded further. The site and the
      * caller are this request's.
      */
-    private JsonNode embedded(LinkRenderer.Target target, LinkRenderer links) {
+    private JsonNode embedded(LinkRenderer.Target target, LinkRenderer links, boolean secure) {
         ObjectNode query = target.query().deepCopy();
         if (PhpValues.isEmpty(query.get("context"))) {
             query.put("context", "embed");
@@ -478,7 +489,8 @@ public class RestServer {
         RouteTable.Match match = found.get();
         ParamSources sources = new ParamSources(
                 RestJson.NODES.objectNode(), RestJson.NODES.objectNode(), query, match.urlParams(), defaults(match));
-        Served request = served("GET", match.matchedRoute(), match.endpoint(), target.route(), sources, query, links);
+        Served request =
+                served("GET", match.matchedRoute(), match.endpoint(), target.route(), sources, query, links, secure);
         RestResponse answer = withFields(
                 request, withAllow(match.matchedRoute(), request, answer(Optional.empty(), match, sources, request)));
         return toData(answer, request, EmbedChoice.NONE).body();
@@ -535,7 +547,14 @@ public class RestServer {
                 matched.urlParams(),
                 RestJson.NODES.objectNode());
         Served request = served(
-                "OPTIONS", matched, null, incoming.route(), sources, incoming.query(), new LinkRenderer(table(), urls));
+                "OPTIONS",
+                matched,
+                null,
+                incoming.route(),
+                sources,
+                incoming.query(),
+                new LinkRenderer(table(), urls),
+                incoming.secure());
         ObjectNode data = RouteData.of(matched.route(), "help", urls);
         RestResponse answer = withFields(
                 request, withAllow(matched, request, RestResponse.ok(data == null ? NullNode.getInstance() : data)));
@@ -706,6 +725,7 @@ public class RestServer {
         private final Supplier<Optional<UserId>> user;
         private final RestUrls urls;
         private final LinkRenderer links;
+        private final boolean secure;
         private List<String> fields;
         private final Map<ObjectNode, Fields.Selection> selections = new IdentityHashMap<>();
         private JsonNode context;
@@ -720,7 +740,8 @@ public class RestServer {
                 SecurityIdentity identity,
                 Supplier<Optional<UserId>> user,
                 RestUrls urls,
-                LinkRenderer links) {
+                LinkRenderer links,
+                boolean secure) {
             this.method = method;
             this.matched = matched;
             this.endpoint = endpoint;
@@ -731,6 +752,7 @@ public class RestServer {
             this.user = user;
             this.urls = urls;
             this.links = links;
+            this.secure = secure;
         }
 
         @Override
@@ -787,6 +809,11 @@ public class RestServer {
             // the route chooser of a plain-form request is not one of its parameters, as WordPress lists them
             names.remove("rest_route");
             return Set.copyOf(names);
+        }
+
+        @Override
+        public boolean secure() {
+            return secure;
         }
 
         @Override

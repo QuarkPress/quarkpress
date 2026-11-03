@@ -43,9 +43,18 @@ public interface RestRequest {
      * deleted one's previous state in the view context). Only a request the REST server built honours it: from then on
      * {@link #context()} and {@link #isEditContext()} answer with that context, and the server computes the answer's
      * {@code Allow} header, after the handler, with it, as WordPress does. A request that wraps another ignores it, as
-     * it answers the served-request accessor {@link #paramNames()} with its default.
+     * it answers the served-request accessors {@link #paramNames()} and {@link #secure()} with their defaults.
      */
     default void useContext(String context) {}
+
+    /**
+     * Whether the request came over HTTPS: a TLS connection, or a proxy's {@code X-Forwarded-Proto: https} (or a
+     * {@code Forwarded} header's {@code proto=https}) when Quarkus's proxy settings ({@code quarkus.http.proxy.*})
+     * honour it. A request the REST server built answers it from the connection; any other answers false.
+     */
+    default boolean secure() {
+        return false;
+    }
 
     /**
      * The names of the request's parameters from every source (the JSON body, the form body, the query string, the

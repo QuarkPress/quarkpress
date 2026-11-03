@@ -134,7 +134,7 @@ public class SiteGate {
             body = RestJson.encode(error, false);
         } else {
             headers.put("Content-Type", List.of(HTML_TYPE));
-            body = page(message, status == 410 ? "noindex, nofollow" : "noindex, follow");
+            body = page(message, status == 403 || status == 410 ? "noindex, nofollow" : "noindex, follow");
         }
         headers.put("Expires", List.of("Wed, 11 Jan 1984 05:00:00 GMT"));
         headers.put("Cache-Control", List.of("no-cache, must-revalidate, max-age=0, no-store, private"));
