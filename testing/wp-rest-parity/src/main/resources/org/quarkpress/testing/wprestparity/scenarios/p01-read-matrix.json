@@ -1,0 +1,348 @@
+{
+  "id": "p01",
+  "rule": "the read permission matrix of the posts collection: each caller (anonymous, the administrator, the editor bob, the author carol, dave as administrator of another site only, erin as a member of another site only) asks for each status of carol's and bob's posts; the status sanitizer refuses what the caller may not ask for, the totals count the rows the caller reads",
+  "setup": [
+    {
+      "leave": "erin"
+    },
+    {
+      "own_site": "dave"
+    },
+    {
+      "post": "p:publish-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p01 publish carol"
+    },
+    {
+      "post": "p:publish-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p01 publish bob"
+    },
+    {
+      "post": "p:future-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "future",
+      "title": "p01 future carol",
+      "fields": {
+        "date_gmt": "2030-01-01T10:00:00"
+      }
+    },
+    {
+      "post": "p:future-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "future",
+      "title": "p01 future bob",
+      "fields": {
+        "date_gmt": "2030-01-01T10:00:00"
+      }
+    },
+    {
+      "post": "p:draft-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p01 draft carol"
+    },
+    {
+      "post": "p:draft-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "p01 draft bob"
+    },
+    {
+      "post": "p:pending-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "pending",
+      "title": "p01 pending carol"
+    },
+    {
+      "post": "p:pending-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "pending",
+      "title": "p01 pending bob"
+    },
+    {
+      "post": "p:private-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "private",
+      "title": "p01 private carol"
+    },
+    {
+      "post": "p:private-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "private",
+      "title": "p01 private bob"
+    },
+    {
+      "post": "p:trash-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "trash",
+      "title": "p01 trash carol"
+    },
+    {
+      "post": "p:trash-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "trash",
+      "title": "p01 trash bob"
+    },
+    {
+      "post": "p:auto-draft-carol",
+      "as": "carol",
+      "type": "post",
+      "status": "auto-draft",
+      "title": "p01 auto-draft carol"
+    },
+    {
+      "post": "p:auto-draft-bob",
+      "as": "bob",
+      "type": "post",
+      "status": "auto-draft",
+      "title": "p01 auto-draft bob"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=publish&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=future&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=pending&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=trash&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=auto-draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=publish&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=future&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=pending&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=trash&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=auto-draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=publish&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=future&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=pending&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=trash&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=auto-draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=publish&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=future&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=pending&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=trash&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=auto-draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=publish&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=future&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=pending&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=trash&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=auto-draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=publish&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=future&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=pending&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=trash&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=auto-draft&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=Draft,private&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=any&orderby=id&_fields=id,status,author"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?_fields=id,status,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&context=edit&orderby=id&_fields=id,status,author"
+    }
+  ]
+}

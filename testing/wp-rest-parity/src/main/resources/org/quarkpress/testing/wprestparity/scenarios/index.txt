@@ -33,3 +33,5 @@ x03-fields-child-of-a-scalar.json
 x04-term-writers.json
 x05-outsider.json
 x06-list-bound.json
+p01-read-matrix.json
+p02-collection-params.json

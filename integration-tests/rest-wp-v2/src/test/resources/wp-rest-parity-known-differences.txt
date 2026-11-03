@@ -11,7 +11,10 @@
 
 # D1: front-end links use plain permalinks; REST hrefs always use /wp-json/, which is served whatever the permalinks.
 * req*:body:link-form:* D1 front-end link fields are plain permalinks (?cat=, ?tag=, ?author=); WordPress's follow the site's permalinks (compared where both sides have a link)
-d01 req1:status D1 with plain permalinks WordPress redirects /wp-json/... (301); QuarkPress serves it (404 for posts)
+d01 req1:status D1 with plain permalinks WordPress redirects /wp-json/... (301); QuarkPress serves it (the posts collection)
+d01 req1:header:allow D1 WordPress's redirect has no Allow; QuarkPress serves the posts collection
+d01 req1:header:x-wp-total D1 WordPress's redirect has no totals; QuarkPress serves the posts collection
+d01 req1:header:x-wp-totalpages D1 WordPress's redirect has no totals; QuarkPress serves the posts collection
 d01 req1:header:location D1 WordPress's redirect of /wp-json/... with plain permalinks
 d01 req1:header:link D1 WordPress's redirect has no API root link
 d01 req1:header:content-type D1 WordPress's redirect is text/html
@@ -20,7 +23,7 @@ d01 req1:header:x-content-type-options D1 WordPress's redirect has no REST heade
 d01 req1:header:vary D1 WordPress's redirect has no REST headers
 d01 req1:header:access-control-expose-headers D1 WordPress's redirect has no REST headers
 d01 req1:header:access-control-allow-headers D1 WordPress's redirect has no REST headers
-d01 req1:body* D1 WordPress's redirect body; QuarkPress's rest_no_route for posts
+d01 req1:body* D1 WordPress's redirect body; QuarkPress's posts collection
 d01 req2:header:allow D1 with plain permalinks WordPress answers /wp-json/ with the front page; QuarkPress serves the index
 d01 req2:header:link D1 the front page's API root link uses index.php?rest_route=
 d01 req2:header:content-type D1 the front page is text/html
@@ -80,8 +83,8 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1posts* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1pages* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1books* D6 routes QuarkPress does not serve yet (the parity sites' custom type book)
 * req*:body:wp-only:*/routes/~1wp~1v2~1media* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1books~1* D6 the item, revisions and autosaves routes of the parity sites' custom type book are not served yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1blocks* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
@@ -109,6 +112,47 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkPress authenticates with tokens only
+# D6, until the create endpoint and the term filters of the post collections exist: the index lists the collections with GET only.
+* req*:body:*/routes/~1wp~1v2~1posts/methods/1 D6 the create endpoint (POST) of the posts collection is not served yet
+* req*:body:*/routes/~1wp~1v2~1posts/endpoints/1 D6 the create endpoint (POST) of the posts collection is not served yet
+* req*:body:*/routes/~1wp~1v2~1pages/methods/1 D6 the create endpoint (POST) of the pages collection is not served yet
+* req*:body:*/routes/~1wp~1v2~1pages/endpoints/1 D6 the create endpoint (POST) of the pages collection is not served yet
+* req*:body:*/routes/~1wp~1v2~1books/methods/1 D6 the create endpoint (POST) of the books collection is not served yet
+* req*:body:*/routes/~1wp~1v2~1books/endpoints/1 D6 the create endpoint (POST) of the books collection is not served yet
+* req*:body:*/routes/~1wp~1v2~1posts/endpoints/0/args/tax_relation D6 the term filter arguments of the posts collection are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts/endpoints/0/args/categories D6 the term filter arguments of the posts collection are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts/endpoints/0/args/categories_exclude D6 the term filter arguments of the posts collection are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts/endpoints/0/args/tags D6 the term filter arguments of the posts collection are not served yet
+* req*:body:*/routes/~1wp~1v2~1posts/endpoints/0/args/tags_exclude D6 the term filter arguments of the posts collection are not served yet
+p01 req8:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req9:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req10:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req11:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req12:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req13:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req14:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req15:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req16:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req17:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req18:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req19:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req20:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req21:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req22:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req23:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req24:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req25:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req26:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req27:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req28:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req43:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req44:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req45:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p01 req46:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p02 req41:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p02 req42:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p02 req48:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
+p02 req53:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
 d19 req5:status D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404)
 d19 req5:body* D6 namespace=oembed/1.0: WordPress's oEmbed namespace, QuarkPress's rest_invalid_namespace
 
@@ -165,8 +209,24 @@ x06 req2:header:x-wp-totalpages D22 WordPress's list has totals; QuarkPress's re
 x06 req1:body* D22 WordPress's list; QuarkPress's "include must contain at most 1000 items."
 x06 req2:body* D22 WordPress's list; QuarkPress's "include must contain at most 1000 items."
 
+# D26: the rendered title, content and excerpt of a post run only the registered filters.
+p02 req51:body:/0/title/rendered D26 the title "p02 it's a": WordPress's the_title filters texturize the apostrophe; QuarkPress renders the stored title through the registered filters only
+p02 req51:body:/0/content/rendered D26 the content "Text here": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p02 req51:body:/0/excerpt/rendered D26 the generated excerpt: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p02 req54:body:/0/excerpt/rendered D26 the generated excerpt cut to one word: WordPress wraps it in a paragraph; QuarkPress runs the registered filters only
+
 # D25: a negative offset is made positive for the pagination headers too.
 rest-a-031 req1:body:/headers/Link D25 offset=-1 (in an envelope): WordPress's headers use the raw offset and link no prev page
+
+# D27: the totals of post collections count only the posts the caller may read.
+p01 req23:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req24:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req25:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req26:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req27:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req28:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req43:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req46:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
 
 # Differences no scenario can show: listed so the table stays complete.
 none * D3 the index's authentication is normalised to {auth} (QuarkPress advertises its OIDC issuer)
@@ -181,3 +241,7 @@ none * D20 argument values that make WordPress fail with a PHP error (a 500) are
 none * D21 answers that make WordPress fail with a PHP error (a 500) are not provoked: a crash is no answer to compare
 none * D23 no scenario sends a control byte in a query parameter's name or malformed UTF-8, which WordPress writes raw into a header
 none * D24 the harness has no session cookie mechanism: every caller authenticates with a Bearer token or an application password
+
+# D36: the QuarkPress-only namespace quarkpress/v1 (the editor's lock routes) appears in the index bodies; WordPress has no such routes.
+* req*:body:*/namespaces/1 D36 the namespaces list holds quarkpress/v1 after wp/v2, where WordPress lists its own next namespace
+* req*:body:*/routes/~1quarkpress~1v1* D36 the index describes /quarkpress/v1 and its lock routes, which WordPress does not have
