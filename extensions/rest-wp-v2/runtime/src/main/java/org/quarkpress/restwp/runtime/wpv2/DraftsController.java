@@ -1,21 +1,17 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
-import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
@@ -108,27 +104,12 @@ public class DraftsController implements RestRouteProvider {
     @Override
     public void register(RouteRegistry registry) {
         Map<String, PostRoutes> served = new LinkedHashMap<>();
-        List<String> creatable = new ArrayList<>();
-        for (PostStatusDefinition status : statuses.all()) {
-            if (!status.internal()) {
-                creatable.add(status.name());
-            }
-        }
+        List<String> creatable = PostRoutes.creatable(statuses.all());
         for (PostTypeDefinition type : types.all()) {
             if (!type.showInRest() || OWN_CONTROLLERS.contains(type.key())) {
                 continue;
             }
-            List<TaxonomyDefinition> restTaxonomies = new ArrayList<>();
-            for (TaxonomyDefinition taxonomy : taxonomies.all()) {
-                if (taxonomy.showInRest() && taxonomy.attachedTo(type.key())) {
-                    restTaxonomies.add(taxonomy);
-                }
-            }
-            String base = type.restBase().filter(rest -> !rest.isEmpty()).orElse(type.key());
-            ObjectNode schema = PostSchema.of(type, restTaxonomies, meta.schema(type.key()), creatable);
-            served.put(
-                    type.key(),
-                    new PostRoutes(type, TypeExtras.of(type.key()).restNamespace(), base, schema, restTaxonomies));
+            served.put(type.key(), PostRoutes.of(type, taxonomies.all(), meta, creatable));
         }
         routes = Collections.unmodifiableMap(served);
         registry.route(NAMESPACE, DRAFTS)

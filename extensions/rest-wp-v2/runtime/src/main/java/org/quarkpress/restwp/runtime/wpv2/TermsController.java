@@ -437,7 +437,7 @@ public class TermsController implements RestRouteProvider {
             data.put("description", found.description());
         }
         if (fields.includesExactly("link")) {
-            data.put("link", link(term.taxonomy(), found));
+            data.put("link", link(term.taxonomy(), found, urls));
         }
         if (fields.includesExactly("name")) {
             data.put("name", found.name());
@@ -466,9 +466,9 @@ public class TermsController implements RestRouteProvider {
      * category, {@code ?<query variable>=<slug>} for a taxonomy that has a query variable, else {@code
      * ?taxonomy=<taxonomy>&term=<slug>}; the slug is the stored one, already percent-encoded. A taxonomy that is not
      * publicly queryable has no query variable; a publicly queryable one has WordPress's default, its key ({@code tag}
-     * for tags), since QuarkPress registrations name no other.
+     * for tags), since QuarkPress registrations name no other. Shared with the search results.
      */
-    private String link(TaxonomyDefinition taxonomy, TermSnapshot found) {
+    static String link(TaxonomyDefinition taxonomy, TermSnapshot found, RestUrls urls) {
         String home = urls.home();
         return switch (taxonomy.key()) {
             case "category" -> home + "?cat=" + found.id().value();
@@ -500,8 +500,7 @@ public class TermsController implements RestRouteProvider {
             if (definition.isEmpty() || !definition.get().showInRest()) {
                 continue;
             }
-            String base =
-                    definition.get().restBase().filter(rest -> !rest.isEmpty()).orElse(type);
+            String base = PostRoutes.base(definition.get());
             links = links.add(
                     POST_TYPE_RELATION,
                     urls.route(
