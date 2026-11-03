@@ -1,5 +1,6 @@
 package org.quarkpress.restwp.deployment;
 
+import io.quarkus.arc.deployment.ExcludedTypeBuildItem;
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildProducer;
@@ -13,6 +14,7 @@ import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveResourceMe
 import io.quarkus.runtime.configuration.ConfigurationException;
 import io.quarkus.vertx.http.deployment.HttpRootPathBuildItem;
 import io.quarkus.vertx.http.deployment.NonApplicationRootPathBuildItem;
+import java.util.List;
 import java.util.Optional;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
@@ -76,6 +78,26 @@ class RestWpV2Processor {
                     .fields(false)
                     .reason(RestWpV2Processor.class.getName())
                     .build());
+        }
+    }
+
+    /**
+     * The beans typed on the revisions module (its routes, their field preparation and the post links' revision
+     * history), named here as texts so that this processor loads without that module.
+     */
+    static final List<String> REVISION_BEANS = List.of(
+            "org.quarkpress.restwp.runtime.wpv2.RevisionRoutes",
+            "org.quarkpress.restwp.runtime.wpv2.RevisionFields",
+            "org.quarkpress.restwp.runtime.wpv2.RevisionHistoryReads");
+
+    /**
+     * Without the revisions module, the beans typed on it are left out of the application: the posts controller then
+     * registers no revisions route, and no class naming a type of the absent module is loaded.
+     */
+    @BuildStep
+    void withoutRevisions(Capabilities capabilities, BuildProducer<ExcludedTypeBuildItem> excluded) {
+        if (!capabilities.isPresent(REVISIONS)) {
+            REVISION_BEANS.forEach(type -> excluded.produce(new ExcludedTypeBuildItem(type)));
         }
     }
 

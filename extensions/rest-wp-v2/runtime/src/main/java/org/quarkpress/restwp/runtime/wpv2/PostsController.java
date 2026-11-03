@@ -1,10 +1,10 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.RequestScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +17,6 @@ import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
-import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
@@ -50,7 +49,8 @@ import org.quarkpress.taxonomy.Taxonomies;
  * differs from the stored one is refused, even on a post without password; then the post must be readable (its
  * status public, {@code read_post}, or an inherited status whose parent is readable). The edit context of a caller
  * who may edit the post, or a matching {@code password} from any source, lifts the protection of a post with a
- * password. A viewable type's item carries a {@code Link} to its permalink in place of the API root's.
+ * password. A viewable type's item carries a {@code Link} to its permalink in place of the API root's. A type that
+ * keeps revisions gets WordPress's revisions routes right after its own, while the revisions module is present.
  */
 @ApplicationScoped
 public class PostsController implements RestRouteProvider {
@@ -97,6 +97,10 @@ public class PostsController implements RestRouteProvider {
     @Inject
     RestUrls urls;
 
+    /** The revisions routes; a bean only while the revisions module is present. */
+    @Inject
+    Instance<TypeRouteExtension> revisionRoutes;
+
     @Override
     public int order() {
         return 50;
@@ -105,28 +109,20 @@ public class PostsController implements RestRouteProvider {
     @Override
     public void register(RouteRegistry routes) {
         List<String> allStatuses = new ArrayList<>();
-        List<String> creatable = new ArrayList<>();
         for (PostStatusDefinition status : statuses.all()) {
             allStatuses.add(status.name());
-            if (!status.internal()) {
-                creatable.add(status.name());
-            }
         }
+        List<String> creatable = PostRoutes.creatable(statuses.all());
         for (PostTypeDefinition type : types.all()) {
             if (!type.showInRest() || OWN_CONTROLLERS.contains(type.key())) {
                 continue;
             }
-            List<TaxonomyDefinition> restTaxonomies = new ArrayList<>();
-            for (TaxonomyDefinition taxonomy : taxonomies.all()) {
-                if (taxonomy.showInRest() && taxonomy.attachedTo(type.key())) {
-                    restTaxonomies.add(taxonomy);
-                }
-            }
-            String base = type.restBase().filter(rest -> !rest.isEmpty()).orElse(type.key());
-            ObjectNode schema = PostSchema.of(type, restTaxonomies, meta.schema(type.key()), creatable);
-            PostRoutes post =
-                    new PostRoutes(type, TypeExtras.of(type.key()).restNamespace(), base, schema, restTaxonomies);
+            PostRoutes post = PostRoutes.of(type, taxonomies.all(), meta, creatable);
             register(routes, post, allStatuses);
+            // the revisions routes follow the type's own, for a type that keeps revisions, while the module is here
+            if (revisionRoutes.isResolvable() && post.supports("revisions")) {
+                revisionRoutes.get().register(routes, post);
+            }
         }
     }
 
@@ -232,15 +228,7 @@ public class PostsController implements RestRouteProvider {
      * permission callback, the {@code Allow} computation and the handler share the read.
      */
     private Optional<PostSnapshot> existing(PostRoutes routes, RestRequest request) {
-        long id = request.param("id").map(PhpValues::toLong).orElse(0L);
-        if (id <= 0) {
-            return Optional.empty();
-        }
-        return reads.found.computeIfAbsent(
-                routes.key() + "/" + id,
-                key -> rows.findPost(site.siteId(), PostId.of(id))
-                        .map(PostEntity::toSnapshot)
-                        .filter(post -> post.type().equals(routes.key())));
+        return reads.post(routes, request, "id");
     }
 
     /** The item reads of one request, by type and id: a GET reads nothing twice. */
@@ -248,6 +236,28 @@ public class PostsController implements RestRouteProvider {
     public static class ItemReads {
 
         final Map<String, Optional<PostSnapshot>> found = new HashMap<>();
+
+        @Inject
+        PostRepository rows;
+
+        @Inject
+        SiteContext site;
+
+        /**
+         * The post of this site whose id is the request's {@code param} (a route parameter), of the routes' type, read
+         * without any capability check and at most once per request; none for an id that is not positive.
+         */
+        Optional<PostSnapshot> post(PostRoutes routes, RestRequest request, String param) {
+            long id = request.param(param).map(PhpValues::toLong).orElse(0L);
+            if (id <= 0) {
+                return Optional.empty();
+            }
+            return found.computeIfAbsent(
+                    routes.key() + "/" + id,
+                    key -> rows.findPost(site.siteId(), PostId.of(id))
+                            .map(PostEntity::toSnapshot)
+                            .filter(post -> post.type().equals(routes.key())));
+        }
     }
 
     /** The {@code password} of the query string alone, when it is a text that is not empty in PHP's sense. */

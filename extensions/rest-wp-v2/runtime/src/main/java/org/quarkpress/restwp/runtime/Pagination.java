@@ -35,7 +35,15 @@ public final class Pagination {
         if (perPage < 1) {
             throw new IllegalArgumentException("per_page must be at least 1: " + perPage);
         }
-        long totalPages = total <= 0 ? 0 : (total - 1) / perPage + 1;
+        return headers(total, total <= 0 ? 0 : (total - 1) / perPage + 1, page, base, query);
+    }
+
+    /**
+     * {@link #headers(long, int, int, String, ObjectNode)} for a collection whose number of pages is known rather than
+     * derived from a page size (an unpaged list has one page when it has rows).
+     */
+    public static Map<String, List<String>> headers(
+            long total, long totalPages, int page, String base, ObjectNode query) {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         headers.put("X-WP-Total", List.of(Long.toString(total)));
         headers.put("X-WP-TotalPages", List.of(Long.toString(totalPages)));

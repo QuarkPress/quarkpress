@@ -61,6 +61,28 @@ public record RestResponse(int status, JsonNode body, Map<String, List<String>> 
                 Links.none());
     }
 
+    /**
+     * A page of a collection whose current page is the {@code page} parameter itself, not derived from an offset,
+     * and whose number of pages is given (an unpaged list has one page when it has rows): status 200, {@code body}
+     * and the pagination headers of {@link #paged}, the links naming the matched route's URL with every query
+     * parameter of {@code request}.
+     *
+     * @param request the request the REST server handed to the handler; it must implement the runtime's
+     *     {@code ServedRequest}, as every request the server dispatches does
+     * @throws IllegalArgumentException when {@code request} does not implement {@code ServedRequest}
+     */
+    public static RestResponse pagedAt(JsonNode body, long total, long totalPages, int page, RestRequest request) {
+        if (!(request instanceof ServedRequest routed)) {
+            throw new IllegalArgumentException("not a request the REST server dispatched: "
+                    + request.getClass().getName());
+        }
+        return new RestResponse(
+                200,
+                body,
+                Pagination.headers(total, totalPages, page, routed.routeUrl(), request.queryParams()),
+                Links.none());
+    }
+
     public RestResponse withStatus(int status) {
         return new RestResponse(status, body, headers, links);
     }

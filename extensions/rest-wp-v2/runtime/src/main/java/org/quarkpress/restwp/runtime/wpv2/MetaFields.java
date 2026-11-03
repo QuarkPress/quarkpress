@@ -12,6 +12,7 @@ import jakarta.inject.Inject;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.quarkpress.posts.MetaKeyDefinition;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.RegisteredMeta;
@@ -78,27 +79,36 @@ class MetaFields {
 
     /** The post's {@code meta}: each REST key's prepared value, or an empty list when the type has no key. */
     JsonNode read(String type, PostSnapshot post) {
+        return read(type, post::meta);
+    }
+
+    /**
+     * The {@code meta} of stored values read by key (a revision's copied meta, say): each REST key of the type
+     * prepared from the values {@code stored} answers for it, its default when there are none; an empty list when the
+     * type has no key.
+     */
+    JsonNode read(String type, Function<String, List<JsonNode>> stored) {
         List<MetaKeyDefinition> keys = registeredMeta.restKeys(type);
         if (keys.isEmpty()) {
             return RestJson.NODES.arrayNode();
         }
         ObjectNode meta = RestJson.NODES.objectNode();
         for (MetaKeyDefinition key : keys) {
-            List<JsonNode> stored = post.meta(key.key());
+            List<JsonNode> values = stored.apply(key.key());
             ObjectNode schema = keySchema(key);
             if (key.single()) {
-                JsonNode value = stored.isEmpty() ? key.emptyValue() : stored.get(0);
+                JsonNode value = values.isEmpty() ? key.emptyValue() : values.get(0);
                 meta.set(key.restKey(), prepare(value, schema, "meta." + key.restKey()));
             } else {
-                ArrayNode values = RestJson.NODES.arrayNode();
+                ArrayNode list = RestJson.NODES.arrayNode();
                 ObjectNode items = (ObjectNode) schema.get("items");
-                if (stored.isEmpty() && key.schema().has("default")) {
-                    values.add(prepare(key.emptyValue(), items, "meta." + key.restKey()));
+                if (values.isEmpty() && key.schema().has("default")) {
+                    list.add(prepare(key.emptyValue(), items, "meta." + key.restKey()));
                 }
-                for (JsonNode value : stored) {
-                    values.add(prepare(value, items, "meta." + key.restKey()));
+                for (JsonNode value : values) {
+                    list.add(prepare(value, items, "meta." + key.restKey()));
                 }
-                meta.set(key.restKey(), values);
+                meta.set(key.restKey(), list);
             }
         }
         return meta;
