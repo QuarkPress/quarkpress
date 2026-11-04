@@ -69,9 +69,10 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   preview link of the site, and a malformed value refuses every preview with `IllegalStateException` until it is deleted.
 - `PreviewSessions` names the user of a preview page as WordPress's login cookie does: `open(user)` (the caller must be
   `user` and a member of the site, or a super admin) answers a random token (43 characters) and its lifetime,
-  `user(token)` the user of an unexpired session of this site, `close(token)` revokes it. `LockReleaseTokens` are the
-  one-time tokens behind WordPress's unlock nonce: `issue(post, user, lockValue)` (caller = `user`, `edit_post`) binds a
-  token to the post, the user and the stored lock value, and `consume(post, user, token, lockValue)` (caller = `user`)
+  `user(token)` the user of an unexpired session of this site, `close(token)` revokes it and `closeAll(user)` (the
+  caller must be `user`) revokes every session of the user on the site. `LockReleaseTokens` are the one-time tokens
+  behind WordPress's unlock nonce: `issue(post, user, lockValue)` (caller = `user`, `edit_post`) binds a token to the
+  post, the user and the stored lock value, and `consume(post, user, token, lockValue)` (caller = `user`)
   answers true once for a matching, unexpired token and deletes it either way, so a token presented with another lock
   value is gone too. Both kinds live for `quarkpress.posts.preview-lifetime` and are stored as SHA-256 hashes only; every
   lookup names the site and the kind (and, for release tokens, the post and the user), so a token of one kind is never
@@ -266,7 +267,7 @@ not), never null; one that throws stops the call.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. |
+| `quarkpress.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. A negative value keeps the trash on here, as WordPress's constant does, while the REST API, which trashes only with a positive value, answers a delete without `force` with 501 before anything is trashed. |
 | `quarkpress.posts.lock-window` | `150s` | WordPress's `wp_check_post_lock_window`: how long an editor's post lock stays fresh after it was taken or refreshed. |
 | `quarkpress.posts.preview-lifetime` | `12h` | How long a preview session and a lock release token live, and the span of a preview token: the token changes every half of this duration and stays valid for the half it was issued in and the one after (at least the lifetime, at most twice as long), as WordPress's nonce lifetime does. |
 
@@ -343,6 +344,11 @@ lock, which is safe because a lock write changes no slug and no other row.
 - A failed write changes nothing: every write runs in one transaction, which a failure after the first write marks
   for rollback.
 - Queries break ties by id, so equal values come back in a stable order.
+- The editor's lock writes (taking, refreshing, taking over and releasing, which the REST layer's lock routes call on
+  every heartbeat) take the site's post lock and then the row lock, like every other post write, and change neither
+  the post's version nor its modification date; `PostLocks.holder` reads without any lock. If contention between lock
+  refreshes and saves is ever measured, the first thing to try is the row-only variant: `PostRepository.lockPost`
+  alone for the lock writes, which creates no lock-order cycle with writers taking the site's lock and then the row.
 
 ## Differences from WordPress
 
