@@ -45,8 +45,8 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
 class RestParityDbTest {
 
-    /** 90% of the comparisons of the last green run (10765), rounded down to a multiple of 50. */
-    static final int MIN_COMPARISONS = 9650;
+    /** 90% of the comparisons of the last green run (18578), rounded down to a multiple of 50. */
+    static final int MIN_COMPARISONS = 16700;
 
     static final Path KNOWN = Path.of("src", "test", "resources", "wp-rest-parity-known-differences.txt");
     static final Path DUMPS = Path.of("target", "rest-parity");
