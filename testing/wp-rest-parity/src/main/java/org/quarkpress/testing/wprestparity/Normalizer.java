@@ -249,7 +249,8 @@ public final class Normalizer {
 
     /**
      * {@code text} with the value of every {@code preview_nonce=} (up to {@code &} or the end of a URL) as
-     * {@code {nonce}}.
+     * {@code {nonce}} when it has a token's shape: 10 to 43 base64url characters (WordPress's 10 hexadecimal
+     * characters, QuarkPress's 27). Any other value, an empty one included, stays visible.
      */
     static String nonces(String text) {
         String key = "preview_nonce=";
@@ -268,11 +269,33 @@ public final class Normalizer {
                     && !isUrlEnd(text.charAt(end))) {
                 end++;
             }
-            out.append(text, i, valueStart).append("{nonce}");
+            out.append(text, i, valueStart);
+            if (tokenShaped(text, valueStart, end)) {
+                out.append("{nonce}");
+            } else {
+                out.append(text, valueStart, end);
+            }
             i = end;
             at = text.indexOf(key, i);
         }
         return out.append(text, i, text.length()).toString();
+    }
+
+    /** Whether {@code text[from, to)} is 10 to 43 base64url characters. */
+    private static boolean tokenShaped(String text, int from, int to) {
+        int length = to - from;
+        if (length < 10 || length > 43) {
+            return false;
+        }
+        for (int i = from; i < to; i++) {
+            char c = text.charAt(i);
+            boolean base64url =
+                    (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
+            if (!base64url) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private JsonNode walk(JsonNode node, Refs refs, String sitePath, Kind kind, Optional<Instant> sentAt) {
@@ -338,7 +361,7 @@ public final class Normalizer {
                 } else if (DATE_KEYS.contains(key) && value.isTextual() && isNow(value.textValue(), sentAt)) {
                     field.setValue(TextNode.valueOf("{now}"));
                 } else if (isLockKey(key) && value.isTextual() && isLockValue(value.textValue())) {
-                    field.setValue(TextNode.valueOf(lock(value.textValue(), refs)));
+                    field.setValue(TextNode.valueOf(lock(value.textValue(), refs, sentAt)));
                 } else if (isLockKey(key) && value.isArray()) {
                     ArrayNode array = (ArrayNode) value;
                     for (int i = 0; i < array.size(); i++) {
@@ -346,7 +369,7 @@ public final class Normalizer {
                         array.set(
                                 i,
                                 item.isTextual() && isLockValue(item.textValue())
-                                        ? TextNode.valueOf(lock(item.textValue(), refs))
+                                        ? TextNode.valueOf(lock(item.textValue(), refs, sentAt))
                                         : walk(item, refs, sitePath, kind, sentAt));
                     }
                 } else {
@@ -406,11 +429,23 @@ public final class Normalizer {
     }
 
     /**
-     * A lock value {@code <time>:<user id>} as {@code {lock}:<user ref>}: the time differs by nature, the holder does
-     * not.
+     * A lock value {@code <time>:<user id>} as {@code {lock}:<user ref>} when its time is within {@link #NOW_WINDOW} of
+     * {@code sentAt} (or no send time is known), else as {@code {lock-old}:<user ref>}: the time differs by nature, the
+     * holder does not, and a lock taken by the request shows apart from a stale or released one.
      */
-    private static String lock(String value, Refs refs) {
-        return "{lock}:" + id(Long.parseLong(value.substring(value.indexOf(':') + 1)), Kind.USER, refs);
+    private static String lock(String value, Refs refs, Optional<Instant> sentAt) {
+        int colon = value.indexOf(':');
+        String user = id(Long.parseLong(value.substring(colon + 1)), Kind.USER, refs);
+        if (sentAt.isEmpty()) {
+            return "{lock}:" + user;
+        }
+        String digits = value.substring(0, colon);
+        boolean recent = digits.length() <= 12
+                && Duration.between(Instant.ofEpochSecond(Long.parseLong(digits)), sentAt.get())
+                                .abs()
+                                .compareTo(NOW_WINDOW)
+                        <= 0;
+        return (recent ? "{lock}:" : "{lock-old}:") + user;
     }
 
     /** Whether a value has the shape of a WordPress edit lock: {@code <digits>:<digits>}. */

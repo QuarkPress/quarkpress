@@ -1,6 +1,6 @@
 {
   "id": "p05",
-  "rule": "the links of a post in WordPress's order (self with its target hints, collection, about, author, replies, version-history with the revision count and predecessor-version, up, wp:attachment, wp:term, curies), the action links of the edit context by the caller's capabilities, the embeds of the author, the terms and the parent, a type without REST taxonomies, a featured image, the links inlined in a collection, and links selected or left out by _fields",
+  "rule": "the links of a post in WordPress's order (self with its target hints, collection, about, author, replies, version-history with the revision count and predecessor-version, up, wp:attachment, wp:term, curies), the action links of the edit context by the caller's capabilities, the embeds of the author, the terms and the parent, a type without REST taxonomies, a featured image, the links inlined in a collection, and links selected or left out by _fields; a page whose parent has a password embeds that parent hidden (no password reaches an embed, and the embed context lifts nothing) for every caller",
   "setup": [
     {
       "term": "t:news",
@@ -90,6 +90,28 @@
       "fields": {
         "featured_media": "p:image"
       }
+    },
+    {
+      "post": "p:locked",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p05 locked parent",
+      "fields": {
+        "content": "p05 parent secret",
+        "excerpt": "p05 parent excerpt",
+        "password": "p05pw"
+      }
+    },
+    {
+      "post": "p:locked-child",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p05 locked child",
+      "fields": {
+        "parent": "p:locked"
+      }
     }
   ],
   "requests": [
@@ -172,6 +194,21 @@
       "as": "anonymous",
       "method": "GET",
       "target": "/wp-json/wp/v2/posts/{p:post}?_fields=id,title"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:locked-child}?_embed=up"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:locked-child}?_embed=up"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:locked-child}?_embed=up"
     }
   ]
 }

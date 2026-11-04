@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -31,6 +36,64 @@ public interface Side extends AutoCloseable {
                 }
             }
         }
+    }
+
+    /**
+     * The modification date the setup leaves on its first post; each later post of the setup is one second younger.
+     * It lies after every fixture date the scenarios give and before any request, so a request that writes a post's
+     * dates shows as {@code {now}} while one that leaves them shows the fixed date, on both sides alike.
+     */
+    Instant BACKDATED = Instant.parse("2026-10-01T00:00:00Z");
+
+    /** A date to the second, as the backdate operations take it. */
+    DateTimeFormatter SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    /**
+     * One setup post's dates after the setup: its modification date {@code at} ({@code yyyy-MM-ddTHH:mm:ss}, UTC), and
+     * its post date too when {@code date} is true (a post the setup gave no date).
+     */
+    record Backdate(long id, String at, boolean date) {}
+
+    /**
+     * The dates the setup leaves on the posts it created ({@code p:} refs of post and draft steps), in setup order: the
+     * n-th post's at {@link #BACKDATED} plus n seconds; a post step without {@code date_gmt} and every auto-draft get
+     * their post date moved too. Each side applies them after the last step, so its own setup writes count for nothing.
+     */
+    static List<Backdate> backdates(List<SetupStep> steps, Map<String, Long> created) {
+        List<Backdate> backdates = new ArrayList<>();
+        for (SetupStep step : steps) {
+            String ref;
+            boolean undated;
+            switch (step) {
+                case SetupStep.Post post -> {
+                    ref = post.ref();
+                    undated = !post.fields().has("date_gmt");
+                }
+                case SetupStep.Draft draft -> {
+                    ref = draft.ref();
+                    undated = true;
+                }
+                default -> {
+                    continue;
+                }
+            }
+            Long id = created.get(ref);
+            if (id != null) {
+                LocalDateTime at = LocalDateTime.ofInstant(BACKDATED.plusSeconds(backdates.size()), ZoneOffset.UTC);
+                backdates.add(new Backdate(id, SECONDS.format(at), undated));
+            }
+        }
+        return backdates;
+    }
+
+    /** {@link #backdates} as the JSON body both sides' backdate operations take: {@code {"posts": [...]}}. */
+    static ObjectNode backdateBody(List<Backdate> backdates) {
+        ObjectNode body = OracleJson.MAPPER.createObjectNode();
+        ArrayNode posts = body.putArray("posts");
+        for (Backdate backdate : backdates) {
+            posts.addObject().put("id", backdate.id()).put("at", backdate.at()).put("date", backdate.date());
+        }
+        return body;
     }
 
     /** Creates {@code /<id>/} with the five users. */
@@ -233,6 +296,12 @@ public interface Side extends AutoCloseable {
                     }
                 }
                 known.putAll(created);
+            }
+            List<Backdate> backdates = backdates(steps, created);
+            if (!backdates.isEmpty()) {
+                ObjectNode args = backdateBody(backdates);
+                args.put("site", sitePath);
+                site.operation("backdate", args);
             }
             return created;
         }

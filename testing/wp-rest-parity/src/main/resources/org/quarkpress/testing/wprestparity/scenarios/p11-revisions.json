@@ -1,6 +1,6 @@
 {
   "id": "p11",
-  "rule": "the revisions routes: the list of a post with two revisions and an autosave (every user's rows, newest first), its paging without and with per_page, the offset and page quirks and their errors, the orderings and their callback errors, who may read, the parent and revision lookups and their 404s, the fields per type and context, the search, HEAD, _fields, OPTIONS of the item and the DELETE that is always refused",
+  "rule": "the revisions routes: the list of a post with two revisions and an autosave (every user's rows, newest first), its paging without and with per_page, the offset and page quirks and their errors, the orderings and their callback errors, who may read, the parent and revision lookups and their 404s, the fields per type and context, the search, HEAD, _fields, OPTIONS of the item and the DELETE that is always refused; the revisions of a post with a password are not special: whoever may edit the post reads them, a password opens them to nobody else",
   "setup": [
     {
       "post": "p:seven",
@@ -123,6 +123,24 @@
       "post": "p:search",
       "title": "p11 banana split",
       "content": "p11 three"
+    },
+    {
+      "post": "p:protected",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p11 protected",
+      "fields": {
+        "content": "p11 protected words",
+        "password": "p11pw"
+      }
+    },
+    {
+      "revision": "r:protected",
+      "as": "bob",
+      "post": "p:protected",
+      "title": "p11 protected v1",
+      "content": "p11 protected revision words"
     }
   ],
   "requests": [
@@ -385,6 +403,31 @@
       "as": "alice",
       "method": "OPTIONS",
       "target": "/wp-json/wp/v2/posts/{p:seven}/revisions/{r:v1}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/revisions?context=edit&_fields=id,parent,author,title.raw,content.raw,excerpt"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/revisions/{r:protected}?context=edit&_fields=id,parent,author,title.raw,content.raw,excerpt"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/revisions?_fields=id,parent,title,excerpt"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/revisions?password=p11pw"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/revisions/{r:protected}?password=p11pw"
     }
   ]
 }

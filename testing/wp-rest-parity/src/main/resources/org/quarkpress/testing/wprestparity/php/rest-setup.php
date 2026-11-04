@@ -26,6 +26,10 @@
  *                                  revision on update; answers {id} of the newest revision the update made
  *   lock {site, post, user, age}   _edit_lock of the post set to "<now - age>:<user id>" (update_post_meta); answers
  *                                  {value}
+ *   backdate {site, posts: [{id, at, date}]}  sets each post's post_modified and post_modified_gmt to "at" (UTC,
+ *                                  yyyy-MM-ddTHH:mm:ss) and, when "date" is true, its post_date too (and
+ *                                  post_date_gmt unless the post's date floats), with direct column updates (harness
+ *                                  rule); answers {changed}
  *   own_site {site, user, path, title}  creates a site on localhost at path with the user as its administrator and
  *                                  removes the user from the site at path "site"; answers {id}
  *   latest_post {site, type, status}  the highest id of that type and status on the site, or 0 (harness rule)
@@ -407,6 +411,39 @@ function qp_lock(array $input): array
     return ['value' => $value];
 }
 
+/**
+ * Harness rule: the dates the scenario's setup leaves on its posts, written to the columns directly, so that only a
+ * request's own writes make a date "now". A floating date (post_date_gmt zero) keeps floating.
+ */
+function qp_backdate(array $input): array
+{
+    global $wpdb;
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $changed = 0;
+    foreach ($input['posts'] as $post) {
+        $id = (int) $post['id'];
+        $gmt = str_replace('T', ' ', (string) $post['at']);
+        $local = get_date_from_gmt($gmt);
+        $columns = ['post_modified' => $local, 'post_modified_gmt' => $gmt];
+        if (!empty($post['date'])) {
+            $columns['post_date'] = $local;
+            $stored = $wpdb->get_var($wpdb->prepare("SELECT post_date_gmt FROM $wpdb->posts WHERE ID = %d", $id));
+            if (null !== $stored && '0000-00-00 00:00:00' !== $stored) {
+                $columns['post_date_gmt'] = $gmt;
+            }
+        }
+        $updated = $wpdb->update($wpdb->posts, $columns, ['ID' => $id]);
+        if (false === $updated) {
+            restore_current_blog();
+            throw new RuntimeException("backdate of post $id failed: " . $wpdb->last_error);
+        }
+        $changed += (int) $updated;
+        clean_post_cache($id);
+    }
+    restore_current_blog();
+    return ['changed' => $changed];
+}
+
 /** Harness rule: the user becomes administrator of a new site and leaves the scenario's site. */
 function qp_own_site(array $input): array
 {
@@ -660,6 +697,7 @@ try {
         'update_post' => qp_update_post($qp_input),
         'revision' => qp_revision($qp_input),
         'lock' => qp_lock($qp_input),
+        'backdate' => qp_backdate($qp_input),
         'own_site' => qp_own_site($qp_input),
         'latest_post' => qp_latest_post($qp_input),
         'cookie_session' => qp_cookie_session($qp_input),

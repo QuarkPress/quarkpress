@@ -28,7 +28,9 @@ import org.quarkpress.testing.wporacle.ParityRun;
  * <p>The index ({@code namespaces} and {@code routes}) and a namespace's index ({@code namespace} and
  * {@code routes}) are compared for everything except a fixed, named set of namespaces, routes and index links that
  * QuarkPress does not serve yet: each of those WordPress lists is dropped and recorded as its own aspect
- * {@code req<n>:body:wp-only:<pointer>}, a difference the known-differences file must list. A front-end link
+ * {@code req<n>:body:wp-only:<pointer>}, a difference the known-differences file must list; likewise a namespace only
+ * QuarkPress serves ({@link #QUARKPRESS_ONLY_NAMESPACES}) is dropped from QuarkPress's list as
+ * {@code req<n>:body:qp-only:<pointer>}. A front-end link
  * ({@code link}, {@code permalink_template}, {@code preview_link}, a search item's {@code url}) that differs while
  * both sides have one is recorded as {@code req<n>:body:link-form:<pointer>}; WordPress's pretty form is then mapped
  * to the plain form QuarkPress writes ({@link #plainLink}: {@code /author/<slug>/} to {@code ?author=<id>},
@@ -37,10 +39,10 @@ import org.quarkpress.testing.wporacle.ParityRun;
  * to {@code ?book=<slug>}, {@code /type/<slug>/} to {@code ?post_format=<slug>}, a permalink template's
  * {@code %postname%} and {@code %pagename%} likewise, a preview link's query kept; the slug checked against the
  * object's own, the id the object's normalised one), so the body comparison still sees a wrong host, site, id or
- * slug. Only a link whose object lacks the id or the slug is compared as equal; any other link WordPress writes in a
- * form the mapping does not know still differs. The {@code rel="alternate"} entry of the compared {@code Link} header
- * is mapped the same way (from the body, or from the request's route for a HEAD); the other entries are compared as
- * they are.
+ * slug. A link whose object lacks the id or the slug compares equal only to a plain link of the scenario's site
+ * that names the object; any other link WordPress writes in a form the mapping does not know still differs. The
+ * {@code rel="alternate"} entry of the compared {@code Link} header is mapped the same way (from the body, or from the
+ * request's route for a HEAD); the other entries are compared as they are.
  */
 public final class RestComparison {
 
@@ -232,6 +234,15 @@ public final class RestComparison {
         for (String pointer : dropped) {
             run.compare(caseId, prefix + "body:wp-only:" + pointer, "listed", ABSENT);
         }
+        List<String> quarkpressOnly = dropQuarkPressOnly(wpBody, qpBody);
+        if (isEnvelope(wpBody) && isEnvelope(qpBody)) {
+            for (String pointer : dropQuarkPressOnly(wpBody.get("body"), qpBody.get("body"))) {
+                quarkpressOnly.add("/body" + pointer);
+            }
+        }
+        for (String pointer : quarkpressOnly) {
+            run.compare(caseId, prefix + "body:qp-only:" + pointer, ABSENT, "listed");
+        }
         List<String[]> links = new ArrayList<>();
         linkForms("", wpBody, qpBody, links);
         for (String[] link : links) {
@@ -301,6 +312,9 @@ public final class RestComparison {
     /** The namespaces WordPress serves and QuarkPress does not serve yet. */
     public static final Set<String> NOT_SERVED_NAMESPACES =
             Set.of("oembed/1.0", "wp-site-health/v1", "wp-block-editor/v1", "wp-abilities/v1");
+
+    /** The namespaces only QuarkPress serves: the editor's lock, preview and draft routes. */
+    public static final Set<String> QUARKPRESS_ONLY_NAMESPACES = Set.of("quarkpress/v1");
 
     /**
      * The routes WordPress serves and QuarkPress does not serve yet: each entry with every route below it. Only these
@@ -415,12 +429,39 @@ public final class RestComparison {
     }
 
     /**
+     * For an index on both sides: removes from QuarkPress's {@code namespaces} the ones only QuarkPress serves
+     * ({@link #QUARKPRESS_ONLY_NAMESPACES}) that WordPress's lacks; answers the JSON pointer of each removed one. The
+     * rest of the list is compared.
+     */
+    static List<String> dropQuarkPressOnly(JsonNode wordpress, JsonNode quarkpress) {
+        List<String> dropped = new ArrayList<>();
+        if (!wordpress.path("namespaces").isArray()
+                || !quarkpress.path("namespaces").isArray()) {
+            return dropped;
+        }
+        Set<String> listed = new LinkedHashSet<>();
+        wordpress.get("namespaces").forEach(n -> listed.add(n.asText()));
+        ArrayNode namespaces = (ArrayNode) quarkpress.get("namespaces");
+        ArrayNode kept = namespaces.arrayNode();
+        for (JsonNode name : namespaces) {
+            if (QUARKPRESS_ONLY_NAMESPACES.contains(name.asText()) && !listed.contains(name.asText())) {
+                dropped.add("/namespaces/" + escape(name.asText()));
+            } else {
+                kept.add(name);
+            }
+        }
+        namespaces.removeAll();
+        namespaces.addAll(kept);
+        return dropped;
+    }
+
+    /**
      * Where both sides have a front-end link (a text under one of {@link #LINK_KEYS}, or {@code url} of a search item,
      * an object with a {@code type}) and the two differ, records the pair as {@code <pointer>} and puts in WordPress's
      * body the plain form of its link ({@link #plainLink}), so the comparison of the bodies sees whether it is
-     * QuarkPress's; when the object has no slug or id to tell the plain form, puts {@code {link}} in both bodies, so
-     * the rest of the comparison still sees whether each side has the field; any other link is left as it is, and
-     * differs.
+     * QuarkPress's; when the object has no slug or id to tell the plain form, puts QuarkPress's link in WordPress's
+     * body if it is a plain link of the scenario's site naming the object ({@link #localPlainLink}); any other link is
+     * left as it is, and differs.
      */
     static void linkForms(String pointer, JsonNode wordpress, JsonNode quarkpress, List<String[]> out) {
         if (wordpress.isObject() && quarkpress.isObject()) {
@@ -440,12 +481,13 @@ public final class RestComparison {
                         Optional<String> plain = plainLink(a.textValue(), wordpress);
                         if (plain.isPresent()) {
                             ((ObjectNode) wordpress).put(key, plain.get());
-                        } else if (!wordpress.path("slug").isTextual()
-                                || !wordpress.has("id")
-                                || !wordpress.get("id").isValueNode()) {
-                            // the object does not tell what the plain form would be
-                            ((ObjectNode) wordpress).put(key, "{link}");
-                            ((ObjectNode) quarkpress).put(key, "{link}");
+                        } else if ((!wordpress.path("slug").isTextual()
+                                        || !wordpress.has("id")
+                                        || !wordpress.get("id").isValueNode())
+                                && localPlainLink(b.textValue(), key.equals("link") ? quarkpress : null)) {
+                            // the object does not tell what the plain form would be: QuarkPress's plain link of the
+                            // scenario's site stands for WordPress's
+                            ((ObjectNode) wordpress).put(key, b.textValue());
                         }
                     }
                 } else {
@@ -457,6 +499,55 @@ public final class RestComparison {
                 linkForms(pointer + "/" + i, wordpress.get(i), quarkpress.get(i), out);
             }
         }
+    }
+
+    /** The query parameters of a plain front-end link that name an object by its id. */
+    private static final Set<String> ID_PARAMS = Set.of("p", "page_id", "attachment_id", "cat", "author", "preview_id");
+
+    /**
+     * Whether a normalised link is a plain front-end link of the scenario's site: {@code {host}{site}/} (after an
+     * {@code http://} or {@code https://} scheme, if any) followed by nothing or by a query, naming no unknown id
+     * ({@code #?}), and whose id parameters name the object's own {@code id} when {@code object} is given and has one
+     * (a {@code link} names its own object; a {@code preview_link} of an autosave names the parent).
+     */
+    static boolean localPlainLink(String link, JsonNode object) {
+        String local = "{host}{site}/";
+        String rest;
+        if (link.startsWith(local)) {
+            rest = link.substring(local.length());
+        } else if (link.startsWith("http://" + local)) {
+            rest = link.substring(("http://" + local).length());
+        } else if (link.startsWith("https://" + local)) {
+            rest = link.substring(("https://" + local).length());
+        } else {
+            return false;
+        }
+        if (rest.isEmpty()) {
+            return true;
+        }
+        if (rest.charAt(0) != '?' || rest.contains("#?")) {
+            return false;
+        }
+        String id = object != null && object.path("id").isValueNode()
+                ? object.get("id").asText()
+                : null;
+        int start = 1;
+        while (start <= rest.length()) {
+            int end = rest.indexOf('&', start);
+            if (end < 0) {
+                end = rest.length();
+            }
+            String pair = rest.substring(start, end);
+            int equals = pair.indexOf('=');
+            String name = equals < 0 ? pair : pair.substring(0, equals);
+            if (ID_PARAMS.contains(name)
+                    && id != null
+                    && !pair.substring(equals + 1).equals(id)) {
+                return false;
+            }
+            start = end + 1;
+        }
+        return true;
     }
 
     /**

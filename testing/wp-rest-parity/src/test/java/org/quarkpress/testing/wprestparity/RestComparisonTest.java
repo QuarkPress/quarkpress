@@ -252,6 +252,53 @@ class RestComparisonTest {
                 .containsExactly("req1:header:link");
     }
 
+    @Test
+    void anUnmappableLinkComparesEqualOnlyToALocalPlainLink() {
+        Map<String, Long> wpRefs = Map.of("p:a", 5L);
+        Map<String, Long> qpRefs = Map.of("p:a", 9L, "p:b", 8L);
+        // an object without a slug: WordPress's pretty form cannot be mapped
+        String wp = "{\"id\":5,\"link\":\"http://localhost/s1/some/where/\"}";
+        String target = "/wp-json/wp/v2/things/5";
+        assertThat(aspects(target, wp, "{\"id\":9,\"link\":\"http://localhost/s1/?p=9\"}", wpRefs, qpRefs))
+                .containsExactly("req1:body:link-form:/link");
+        assertThat(aspects(target, wp, "{\"id\":9,\"link\":\"http://localhost/s1/\"}", wpRefs, qpRefs))
+                .containsExactly("req1:body:link-form:/link");
+        // another site, another id, an unknown id or a pretty form of QuarkPress's own still differ
+        for (String wrong : List.of(
+                "http://localhost/s2/?p=9",
+                "http://example.com/s1/?p=9",
+                "http://localhost/s1/?p=8",
+                "http://localhost/s1/?p=7",
+                "http://localhost/s1/pretty/")) {
+            assertThat(aspects(target, wp, "{\"id\":9,\"link\":\"" + wrong + "\"}", wpRefs, qpRefs))
+                    .as(wrong)
+                    .containsExactlyInAnyOrder("req1:body:link-form:/link", "req1:body:/link");
+        }
+    }
+
+    @Test
+    void theQuarkPressOnlyNamespaceIsItsOwnAspect() {
+        String wp = "{\"namespaces\":[\"oembed/1.0\",\"wp/v2\",\"wp-site-health/v1\"],\"routes\":{}}";
+        assertThat(aspects(
+                        "/wp-json/",
+                        wp,
+                        "{\"namespaces\":[\"wp/v2\",\"quarkpress/v1\"],\"routes\":{}}",
+                        Map.of(),
+                        Map.of()))
+                .containsExactlyInAnyOrder(
+                        "req1:body:wp-only:/namespaces/oembed~11.0",
+                        "req1:body:wp-only:/namespaces/wp-site-health~1v1",
+                        "req1:body:qp-only:/namespaces/quarkpress~1v1");
+        // any other namespace QuarkPress lists still differs
+        assertThat(aspects(
+                        "/wp-json/",
+                        wp,
+                        "{\"namespaces\":[\"wp/v2\",\"quarkpress/v1\",\"other/v1\"],\"routes\":{}}",
+                        Map.of(),
+                        Map.of()))
+                .contains("req1:body:/namespaces/1");
+    }
+
     /** The mismatching aspects of comparing one request's two bodies. */
     static List<String> aspects(
             String target, String wordpress, String quarkpress, Map<String, Long> wpRefs, Map<String, Long> qpRefs) {

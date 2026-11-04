@@ -423,7 +423,7 @@ class NormalizerTest {
         Instant sentAt = Instant.parse("2026-11-03T10:00:00Z");
         JsonNode body = json(
                 "{\"preview_link\":\"http://localhost/s/?p=12&preview_id=12&preview_nonce=b8341e5552&preview=true\","
-                        + "\"new_lock\":\"1793388766:3\",\"date\":\"2026-11-03T09:58:30\",\"modified\":\"2020-01-01T00:00:00\","
+                        + "\"new_lock\":\"1793699940:3\",\"date\":\"2026-11-03T09:58:30\",\"modified\":\"2020-01-01T00:00:00\","
                         + "\"date_gmt\":\"2026-11-03T09:57:00\",\"modified_gmt\":\"2026-11-03T10:01:59\"}");
         assertThat(normalizer
                         .body(body, Map.of(12L, "p:a", 3L, "u:carol"), "/s/", sentAt)
@@ -432,8 +432,8 @@ class NormalizerTest {
                         "{\"preview_link\":\"http://{host}{site}/?p=p:a&preview_id=p:a&preview_nonce={nonce}&preview=true\","
                                 + "\"new_lock\":\"{lock}:u:carol\",\"date\":\"{now}\",\"modified\":\"2020-01-01T00:00:00\","
                                 + "\"date_gmt\":\"2026-11-03T09:57:00\",\"modified_gmt\":\"{now}\"}");
-        // a lock value anywhere under a lock key keeps its holder (unknown here), a nonce in a header, other keys and
-        // shapes kept
+        // a lock value anywhere under a lock key keeps its holder (unknown here), a time outside the window shows as
+        // old, a nonce in a header, other keys and shapes kept
         assertThat(normalizer
                         .body(
                                 json("{\"meta\":{\"_edit_lock\":[\"1793388766:3\",\"x:1\"],\"block_version\":1},"
@@ -442,7 +442,7 @@ class NormalizerTest {
                                 "/s/",
                                 sentAt)
                         .toString())
-                .isEqualTo("{\"meta\":{\"_edit_lock\":[\"{lock}:#?3\",\"x:1\"],\"block_version\":1},"
+                .isEqualTo("{\"meta\":{\"_edit_lock\":[\"{lock-old}:#?3\",\"x:1\"],\"block_version\":1},"
                         + "\"date\":\"not a date\",\"other\":\"1793388766:3\"}");
         assertThat(normalizer.header(
                         "Location",
@@ -450,6 +450,30 @@ class NormalizerTest {
                         Map.of(),
                         "/s/"))
                 .isEqualTo("http://{host}{site}/x/?preview_nonce={nonce}&preview=true");
+        // only a token-shaped nonce is normalised: an empty, a short or a foreign value stays visible
+        assertThat(Normalizer.nonces("?preview_nonce=b8341e5552&x=1")).isEqualTo("?preview_nonce={nonce}&x=1");
+        assertThat(Normalizer.nonces("?preview_nonce=AbCdEfGhIjKlMnOpQrStUvWxYz0"))
+                .isEqualTo("?preview_nonce={nonce}");
+        assertThat(Normalizer.nonces("?preview_nonce=&preview=true")).isEqualTo("?preview_nonce=&preview=true");
+        assertThat(Normalizer.nonces("?preview_nonce=bad&preview=true")).isEqualTo("?preview_nonce=bad&preview=true");
+        assertThat(Normalizer.nonces("?preview_nonce=b8341e555")).isEqualTo("?preview_nonce=b8341e555");
+        assertThat(Normalizer.nonces("?preview_nonce=" + "a".repeat(44))).isEqualTo("?preview_nonce=" + "a".repeat(44));
+        assertThat(Normalizer.nonces("?preview_nonce=b8341e5552%3D")).isEqualTo("?preview_nonce=b8341e5552%3D");
+        // a lock taken now and one released (aged past the window) differ
+        assertThat(normalizer
+                        .body(
+                                json("{\"new_lock\":\"" + (sentAt.getEpochSecond() - 119) + ":3\",\"activePostLock\":\""
+                                        + (sentAt.getEpochSecond() - 145) + ":3\"}"),
+                                Map.of(3L, "u:carol"),
+                                "/s/",
+                                sentAt)
+                        .toString())
+                .isEqualTo("{\"new_lock\":\"{lock}:u:carol\",\"activePostLock\":\"{lock-old}:u:carol\"}");
+        // without a send time a lock time is {lock}
+        assertThat(normalizer
+                        .body(json("{\"new_lock\":\"1793388766:3\"}"), Map.of(3L, "u:carol"), "/s/")
+                        .toString())
+                .isEqualTo("{\"new_lock\":\"{lock}:u:carol\"}");
         // without a send time no date is {now}
         assertThat(normalizer
                         .body(json("{\"date\":\"2026-11-03T09:58:30\"}"), Map.of(), "/s/")

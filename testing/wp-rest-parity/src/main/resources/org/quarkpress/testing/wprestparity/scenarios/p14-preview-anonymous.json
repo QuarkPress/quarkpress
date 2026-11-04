@@ -1,6 +1,6 @@
 {
   "id": "p14",
-  "rule": "the front-end preview answers an anonymous visitor gets on a site with plain permalinks (application passwords do not authenticate front-end pages): a draft asked for as a preview is not found, a published post with a bad preview pair is refused as HTML and, for a JSON Accept, as the wp_die object, a published post asked for as a preview is redirected to its plain link, and the plain link answers the post",
+  "rule": "the front-end preview answers an anonymous visitor gets on a site with plain permalinks (application passwords do not authenticate front-end pages): a draft asked for as a preview is not found, a published post with a bad preview pair is refused as HTML and, for a JSON Accept, as the wp_die object, a published post asked for as a preview is redirected to its plain link, and the plain link answers the post; a post_type that is not publicly queryable (wp_block, page) or not registered is dropped, so p names a post: a published block is not found, a published post is; a 404 whose id names a published post of another public type is redirected to that post's plain link, one of a type that is not public or a draft is not",
   "setup": [
     {
       "option": "permalink_structure",
@@ -19,6 +19,30 @@
       "type": "post",
       "status": "publish",
       "title": "p14 published carol"
+    },
+    {
+      "post": "p:block",
+      "as": "alice",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "p14 block",
+      "fields": {
+        "content": "p14 block words"
+      }
+    },
+    {
+      "post": "p:page",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p14 page"
+    },
+    {
+      "post": "p:draft-page",
+      "as": "bob",
+      "type": "page",
+      "status": "draft",
+      "title": "p14 draft page"
     }
   ],
   "requests": [
@@ -49,6 +73,56 @@
       "as": "anonymous",
       "method": "GET",
       "target": "/?p={p:published}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:block}&post_type=wp_block"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:block}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}&post_type=wp_block"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}&post_type=page"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:published}&post_type=p14-nothing"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:page}&post_type=page"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:page}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:published}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft-page}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={p:published}"
     }
   ]
 }

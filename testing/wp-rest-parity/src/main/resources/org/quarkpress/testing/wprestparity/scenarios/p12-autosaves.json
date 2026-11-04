@@ -1,6 +1,6 @@
 {
   "id": "p12",
-  "rule": "the autosaves routes: the own-draft branch that updates the author's draft and answers it in the revision shape (a child page links its parent page), the caller's autosave on another user's draft, on the author's published post (the request's status not applied) and on a draft another user holds a lock on, the list of every user's autosaves newest first with the caller's preview link in the edit context, the item that answers the latest autosave whatever its id, who may read and write, the lookups and their 404s, the validation and the update checks, the edit context forced on the answer, OPTIONS and HEAD, and the preparation error QuarkPress answers where WordPress saves without the field (README D32)",
+  "rule": "the autosaves routes: the own-draft branch that updates the author's draft and answers it in the revision shape (a child page links its parent page), the caller's autosave on another user's draft, on the author's published post (the request's status not applied) and on a draft another user holds a lock on, the list of every user's autosaves newest first with the caller's preview link in the edit context, the item that answers the latest autosave whatever its id, who may read and write, the lookups and their 404s, the validation and the update checks, the edit context forced on the answer, OPTIONS and HEAD, and the preparation error QuarkPress answers where WordPress saves without the field (README D32); the autosaves of a post with a password are not special either: whoever may edit the post reads them, a password opens them to nobody else",
   "setup": [
     {
       "post": "p:draft",
@@ -105,6 +105,24 @@
       "post": "p:child",
       "title": "",
       "content": "p12 alice child autosave"
+    },
+    {
+      "post": "p:protected",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p12 protected",
+      "fields": {
+        "content": "p12 protected words",
+        "password": "p12pw"
+      }
+    },
+    {
+      "autosave": "r:protected",
+      "as": "bob",
+      "post": "p:protected",
+      "title": "",
+      "content": "p12 bob protected autosave"
     }
   ],
   "requests": [
@@ -309,6 +327,31 @@
       "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves?_fields=author",
       "contentType": "application/json",
       "body": "{\"content\":\"p12 bob author\",\"author\":99999}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/autosaves?context=edit&_fields=id,parent,author,title.raw,content.raw,excerpt"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/autosaves/{r:protected}?context=edit&_fields=id,parent,author,title.raw,content.raw,excerpt"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/autosaves?_fields=id,parent,title,excerpt"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/autosaves?password=p12pw"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:protected}/autosaves/{r:protected}?password=p12pw"
     }
   ]
 }
