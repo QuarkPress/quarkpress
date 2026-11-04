@@ -124,8 +124,9 @@ public class PostWrites {
             candidate = "";
         }
         String slug = slugFrom(siteId, candidate, title, status, type, parent, Optional.empty());
-        PostDates.Resolved dates =
-                PostDates.resolve(changes.date(), changes.dateGmt(), statuses.floating(status), false, now, zone);
+        PostDates.Resolved dates = changes.clearDates()
+                ? PostDates.resolve(Optional.empty(), Optional.empty(), statuses.floating(status), false, now, zone)
+                : PostDates.resolve(changes.date(), changes.dateGmt(), statuses.floating(status), false, now, zone);
         status = PostDates.coerceStatus(status, dates.publishedAt(), now, type.equals("attachment"));
         String commentStatus = PostRules.commentStatus(
                 changes.commentStatus().orElse(""),
@@ -288,11 +289,11 @@ public class PostWrites {
     }
 
     /**
-     * The local date an update saves: none (now) for a post whose date floats unless {@code editDate} is set; else
-     * the given one when a date is given, else the stored one.
+     * The local date an update saves: none (now) when the dates are cleared, or for a post whose date floats unless
+     * {@code editDate} is set; else the given one when a date is given, else the stored one.
      */
     private static Optional<LocalDateTime> givenOrKeptDate(PostChanges changes, PostSnapshot before, ZoneId zone) {
-        if (floats(before) && !changes.editDate()) {
+        if (changes.clearDates() || (floats(before) && !changes.editDate())) {
             return Optional.empty();
         }
         if (changes.date().isPresent() || changes.dateGmt().isPresent()) {
@@ -302,12 +303,13 @@ public class PostWrites {
     }
 
     /**
-     * The GMT date an update saves: none for a post whose date floats unless {@code editDate} is set; else the given
-     * one; else, for a local date given alone, that date converted with the site's zone when the post had a GMT date
-     * (a post without one keeps floating while its status floats); else the stored one.
+     * The GMT date an update saves: none when the dates are cleared (the post is then dated now, or floats when its
+     * status does), or for a post whose date floats unless {@code editDate} is set; else the given one; else, for a
+     * local date given alone, that date converted with the site's zone when the post had a GMT date (a post without
+     * one keeps floating while its status floats); else the stored one.
      */
     private static Optional<Instant> givenOrKeptGmt(PostChanges changes, PostSnapshot before, ZoneId zone) {
-        if (floats(before) && !changes.editDate()) {
+        if (changes.clearDates() || (floats(before) && !changes.editDate())) {
             return Optional.empty();
         }
         if (changes.dateGmt().isPresent()) {

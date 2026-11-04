@@ -81,7 +81,9 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   post of the site removes it, an unknown id changes nothing; template: stored as given, `""` included).
 - `PostChanges` holds the fields of a write; a field not given takes WordPress's default on `create` and keeps the
   stored value on `update`. `author` and `parent` use 0 for none. `date` is the local date in the site's zone,
-  `dateGmt` the GMT date; `editDate` lets an update date a draft whose date floats (WordPress's `edit_date`).
+  `dateGmt` the GMT date; `editDate` lets an update date a draft whose date floats (WordPress's `edit_date`);
+  `clearDates` clears both dates as WordPress's empty `post_date` and `post_date_gmt` do: given dates are ignored and
+  the post is dated now, its date floating when the status it gets is draft, pending or auto-draft.
 - With `expectedVersion`, an update of a post that changed since that version throws
   `jakarta.persistence.OptimisticLockException`. A post's version changes with every write of its row, meta writes
   included, except sticking and unsticking, the parent change a deleted parent hands down, and the internal meta

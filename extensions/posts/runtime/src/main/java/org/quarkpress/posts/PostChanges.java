@@ -14,8 +14,10 @@ import org.quarkpress.core.UserId;
  * stored value). {@code author} and {@code parent} use 0 for none, as WordPress does; a positive author must be an
  * existing user, a positive parent a post of the same site. {@code date} is the local date in the site's zone,
  * {@code dateGmt} the GMT date; when both are given and disagree the GMT date wins. {@code editDate} lets an update
- * give a date to a draft whose date floats (WordPress's {@code edit_date}). {@code expectedVersion} makes an update
- * fail when the post changed since that version.
+ * give a date to a draft whose date floats (WordPress's {@code edit_date}). {@code clearDates} clears both dates, as
+ * WordPress's empty {@code post_date} and {@code post_date_gmt} do: the dates given are ignored and the post is dated
+ * now, its date floating when the status it gets is draft, pending or auto-draft. {@code expectedVersion} makes an
+ * update fail when the post changed since that version.
  */
 public record PostChanges(
         Optional<String> type,
@@ -33,6 +35,7 @@ public record PostChanges(
         Optional<LocalDateTime> date,
         Optional<Instant> dateGmt,
         boolean editDate,
+        boolean clearDates,
         OptionalInt expectedVersion) {
 
     public PostChanges {
@@ -86,6 +89,7 @@ public record PostChanges(
         builder.date = date.orElse(null);
         builder.dateGmt = dateGmt.orElse(null);
         builder.editDate = editDate;
+        builder.clearDates = clearDates;
         builder.expectedVersion = expectedVersion;
         return builder;
     }
@@ -106,6 +110,7 @@ public record PostChanges(
         private LocalDateTime date;
         private Instant dateGmt;
         private boolean editDate;
+        private boolean clearDates;
         private OptionalInt expectedVersion = OptionalInt.empty();
 
         private Builder() {}
@@ -195,6 +200,12 @@ public record PostChanges(
             return this;
         }
 
+        /** Clears both dates: the post is dated now, floating when its status floats; given dates are ignored. */
+        public Builder clearDates() {
+            this.clearDates = true;
+            return this;
+        }
+
         public Builder expectedVersion(int value) {
             this.expectedVersion = OptionalInt.of(value);
             return this;
@@ -217,6 +228,7 @@ public record PostChanges(
                     Optional.ofNullable(date),
                     Optional.ofNullable(dateGmt),
                     editDate,
+                    clearDates,
                     expectedVersion);
         }
     }

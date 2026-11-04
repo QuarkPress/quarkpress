@@ -202,6 +202,39 @@ class UpdateDbTest {
         assertThat(published.publishedAt()).contains(Instant.parse("2026-01-11T09:00:00Z"));
     }
 
+    @Test
+    void clearedDatesDateThePostNowAndFloatWhenItsNewStatusFloats() throws Exception {
+        PostSnapshot dated =
+                create(PostChanges.builder().title("Dated").dateGmt(Instant.parse("2026-01-10T08:00:00Z")));
+        clock.set(NOW);
+        // a dated draft floats again
+        PostSnapshot cleared = update(dated.id(), PostChanges.builder().clearDates());
+        assertThat(cleared.publishedAt()).isEmpty();
+        assertThat(cleared.localDate(PARIS)).isEqualTo(local("2026-01-15 13:00:00"));
+        clock.set(NOW.plusSeconds(60));
+        PostSnapshot later = update(dated.id(), PostChanges.builder().title("Floating"));
+        assertThat(later.localDate(PARIS)).isEqualTo(local("2026-01-15 13:01:00"));
+        // the status the post gets decides: a published post sent back to draft floats, one that stays is dated now
+        PostSnapshot published = create(PostChanges.builder()
+                .title("Published")
+                .status("publish")
+                .dateGmt(Instant.parse("2026-01-10T08:00:00Z")));
+        PostSnapshot drafted =
+                update(published.id(), PostChanges.builder().status("draft").clearDates());
+        assertThat(drafted.status()).isEqualTo("draft");
+        assertThat(drafted.publishedAt()).isEmpty();
+        PostSnapshot other = create(
+                PostChanges.builder().title("Other").status("publish").dateGmt(Instant.parse("2026-01-10T08:00:00Z")));
+        // dates given with it are ignored
+        PostSnapshot redated = update(
+                other.id(),
+                PostChanges.builder()
+                        .dateGmt(Instant.parse("2030-01-01T00:00:00Z"))
+                        .clearDates());
+        assertThat(redated.status()).isEqualTo("publish");
+        assertThat(redated.publishedAt()).contains(NOW.plusSeconds(60));
+    }
+
     /** A documented difference: WordPress would keep the old GMT date, so the post would stay published. */
     @Test
     void aLocalDateGivenAloneIsConvertedWithTheSiteZone() throws Exception {
