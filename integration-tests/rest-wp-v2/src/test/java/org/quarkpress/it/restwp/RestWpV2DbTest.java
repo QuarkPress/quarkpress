@@ -2,9 +2,15 @@ package org.quarkpress.it.restwp;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -13,7 +19,9 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.keycloak.client.KeycloakTestClient;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
+import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +31,9 @@ import org.junit.jupiter.api.Test;
  * The REST API (wp/v2) end to end, with real Keycloak tokens: JVM mode here, the packaged application in
  * {@code RestWpV2IT}, and a native executable in CI. Every test runs on a network (the multisite install): the main
  * site is {@code localhost} at {@code /}, alice is a network administrator; one test adds a site in a subdirectory.
+ * The content tests run the editor's flow (a new draft, its edit lock, autosaves, the preview session and the minimal
+ * front-end page) and the posts, pages and books routes (writes, meta, term filters, links and embeds, revisions,
+ * search), so that the native run in CI proves their runtime paths too.
  */
 @QuarkusTest
 class RestWpV2DbTest {
@@ -415,5 +426,656 @@ class RestWpV2DbTest {
                 .then()
                 .statusCode(200)
                 .body("timezone", equalTo("Europe/Brussels"));
+    }
+
+    private static final String PREVIEW_COOKIE = "quarkpress_preview";
+
+    private static final String BLOCK = "<!-- wp:paragraph --><p>x</p><!-- /wp:paragraph -->";
+
+    /** The request on the site's front end with the preview session cookie, or without one. */
+    private RequestSpecification page(String cookie) {
+        RequestSpecification request =
+                given().header("Host", "localhost").redirects().follow(false);
+        return cookie == null ? request : request.cookie(PREVIEW_COOKIE, cookie);
+    }
+
+    /** Opens a preview session for {@code user}; answers the cookie's value. */
+    private String previewSession(String user) {
+        Response session = as(user).post("/wp-json/quarkpress/v1/preview/session");
+        session.then()
+                .statusCode(200)
+                .header("Set-Cookie", allOf(startsWith(PREVIEW_COOKIE + "="), containsString("Path=/")))
+                .body("expires_in", equalTo(43200));
+        return session.getCookie(PREVIEW_COOKIE);
+    }
+
+    /** The path and query of an absolute link on the main site. */
+    private static String local(String link) {
+        assertThat(link).startsWith("http://localhost/");
+        return link.substring("http://localhost".length());
+    }
+
+    @Test
+    void theEditorsFlowFromNewPostToPreview() {
+        // main site of the network: carol (author) opens a new post as the block editor does, bob (editor) arrives
+        Response draft = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("type", "post"))
+                .post("/wp-json/quarkpress/v1/drafts");
+        draft.then()
+                .statusCode(201)
+                .body("status", equalTo("auto-draft"))
+                .body("title.raw", equalTo("Auto Draft"))
+                .body("author", equalTo((int) userId("carol")));
+        int id = draft.path("id");
+        assertThat(draft.getHeader("Location")).isEqualTo("http://localhost/wp-json/wp/v2/posts/" + id);
+
+        Response lock = as("carol").post("/wp-json/quarkpress/v1/locks/" + id);
+        lock.then()
+                .statusCode(200)
+                .body("isLocked", equalTo(false))
+                .body("activePostLock", endsWith(":" + userId("carol")));
+        assertThat(lock.jsonPath().getString("release_token")).hasSize(43);
+
+        // the lock holder's autosave of her own draft updates the post itself
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body("{\"title\":\"Flow\",\"content\":\"" + BLOCK.replace("\"", "\\\"")
+                        + "\",\"status\":\"draft\",\"meta\":{\"footnotes\":\"\"}}")
+                .post("/wp-json/wp/v2/posts/" + id + "/autosaves")
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(id))
+                .body("title.raw", equalTo("Flow"))
+                .body("content.raw", equalTo(BLOCK));
+
+        // the preview opens with the session cookie only; without it, the draft does not exist
+        String cookie = previewSession("carol");
+        page(cookie)
+                .get("/?p=" + id + "&preview=true")
+                .then()
+                .statusCode(200)
+                .contentType("text/html; charset=UTF-8")
+                .header("Cache-Control", "no-cache, must-revalidate, max-age=0")
+                .body(allOf(startsWith("<!DOCTYPE html>"), containsString("<h1 class=\"entry-title\">Flow</h1>")));
+        page(null).get("/?p=" + id + "&preview=true").then().statusCode(404);
+
+        // bob finds the post locked by carol and nothing is taken
+        as("bob")
+                .post("/wp-json/quarkpress/v1/locks/" + id)
+                .then()
+                .statusCode(200)
+                .body("isLocked", equalTo(true))
+                .body("user.name", equalTo("Carol Chen"))
+                .body("user.avatar", startsWith("https://secure.gravatar.com/avatar/"));
+
+        // carol's heartbeat refreshes the lock; the tab's beacon releases it with the release token alone
+        Response refreshed = as("carol").put("/wp-json/quarkpress/v1/locks/" + id);
+        refreshed.then().statusCode(200).body("new_lock", endsWith(":" + userId("carol")));
+        as(null).contentType(ContentType.JSON)
+                .body(Map.of(
+                        "active_post_lock",
+                        refreshed.jsonPath().getString("new_lock"),
+                        "release_token",
+                        refreshed.jsonPath().getString("release_token")))
+                .post("/wp-json/quarkpress/v1/locks/" + id + "?_method=DELETE")
+                .then()
+                .statusCode(200)
+                .body("released", equalTo(true));
+
+        // bob takes over; carol's next heartbeat names him
+        as("bob")
+                .post("/wp-json/quarkpress/v1/locks/" + id + "/takeover")
+                .then()
+                .statusCode(200)
+                .body("isLocked", equalTo(false))
+                .body("activePostLock", endsWith(":" + userId("bob")));
+        as("carol")
+                .put("/wp-json/quarkpress/v1/locks/" + id)
+                .then()
+                .statusCode(200)
+                .body("lock_error.name", equalTo("Bob Baker"))
+                .body("lock_error.text", equalTo("Bob Baker has taken over and is currently editing."));
+
+        // closing the session closes the preview
+        as("carol")
+                .delete("/wp-json/quarkpress/v1/preview/session")
+                .then()
+                .statusCode(200)
+                .body("closed", equalTo(true));
+        page(cookie).get("/?p=" + id + "&preview=true").then().statusCode(404);
+
+        // a contributor may not open a page; nobody may open a draft
+        as(null).contentType(ContentType.JSON)
+                .body(Map.of("type", "post"))
+                .post("/wp-json/quarkpress/v1/drafts")
+                .then()
+                .statusCode(401)
+                .body("code", equalTo("rest_cannot_create"))
+                .body("message", equalTo("Sorry, you are not allowed to create posts as this user."));
+        as("dave")
+                .contentType(ContentType.JSON)
+                .body(Map.of("type", "page"))
+                .post("/wp-json/quarkpress/v1/drafts")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_create"))
+                .body("message", equalTo("Sorry, you are not allowed to create posts as this user."));
+    }
+
+    @Test
+    void anAutosaveOfAPublishedPostIsPreviewedThroughItsLink() {
+        // main site of the network: carol's published post keeps its words; her autosave is shown in the preview
+        String title = "Published " + token();
+        int id = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", title, "content", BLOCK, "status", "publish"))
+                .post("/wp-json/wp/v2/posts")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        Response autosave = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Autosaved " + title, "content", BLOCK))
+                .post("/wp-json/wp/v2/posts/" + id + "/autosaves");
+        autosave.then()
+                .statusCode(200)
+                .body("parent", equalTo(id))
+                .body("slug", equalTo(id + "-autosave-v1"))
+                .body("title.raw", equalTo("Autosaved " + title))
+                .body("preview_link", containsString("preview_nonce="));
+        int autosaveId = autosave.path("id");
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id + "/autosaves?context=edit")
+                .then()
+                .statusCode(200)
+                .body("id", contains(autosaveId))
+                .body("[0].preview_link", containsString("preview_id=" + id));
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id + "/autosaves/" + autosaveId)
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(autosaveId));
+        as("erin")
+                .get("/wp-json/wp/v2/posts/" + id + "/autosaves")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_read"))
+                .body("message", equalTo("Sorry, you are not allowed to view autosaves of this post."));
+        as("carol").get("/wp-json/wp/v2/posts/" + id).then().statusCode(200).body("title.rendered", equalTo(title));
+
+        // the preview link (a computed token) arms the autosave's overlay for carol's session
+        String link = local(autosave.path("preview_link"));
+        String cookie = previewSession("carol");
+        page(cookie)
+                .get(link)
+                .then()
+                .statusCode(200)
+                .body(containsString("<h1 class=\"entry-title\">Autosaved " + title + "</h1>"));
+        // another viewer with carol's token is refused, as HTML and as JSON
+        page(previewSession("bob"))
+                .get(link)
+                .then()
+                .statusCode(403)
+                .contentType("text/html; charset=UTF-8")
+                .body(containsString("Sorry, you are not allowed to preview drafts."));
+        page(null)
+                .header("Accept", "application/json")
+                .get(link)
+                .then()
+                .statusCode(403)
+                .contentType("application/json; charset=UTF-8")
+                .body("code", equalTo("wp_die"))
+                .body("message", equalTo("Sorry, you are not allowed to preview drafts."));
+        // the published post itself, and its canonical redirect when asked for as a bare preview
+        page(null)
+                .get("/?p=" + id)
+                .then()
+                .statusCode(200)
+                .body(containsString("<h1 class=\"entry-title\">" + title + "</h1>"));
+        page(null)
+                .get("/?p=" + id + "&preview=true")
+                .then()
+                .statusCode(301)
+                .header("Location", "http://localhost/?p=" + id);
+    }
+
+    @Test
+    void theFrontEndPageShowsAPublishedPostWithItsDate() {
+        // main site of the network: the human date is English month names (also in a native executable)
+        String title = "Dated " + token();
+        long id = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of(
+                        "type",
+                        "post",
+                        "status",
+                        "publish",
+                        "title",
+                        title,
+                        "fields",
+                        Map.of("content", "Body words", "date_gmt", "2026-01-10T12:00:00")))
+                .post("/it/posts")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+        page(null)
+                .get("/index.php?p=" + id)
+                .then()
+                .statusCode(200)
+                .contentType("text/html; charset=UTF-8")
+                .body(allOf(
+                        containsString("<title>" + title + " &#8211; "),
+                        containsString("January 10, 2026"),
+                        containsString("Body words")));
+        page(null).head("/?p=" + id).then().statusCode(200);
+        page(null).get("/?p=" + (id + 1_000_000)).then().statusCode(404);
+    }
+
+    @Test
+    void aPostIsWrittenReadFilteredRevisedAndDeleted() {
+        // main site of the network: carol (author) writes, bob made the category, nobody reads
+        int category = category(token(), null);
+        int tag = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", token()))
+                .post("/wp-json/wp/v2/tags")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        String word = token();
+        String title = "Post " + word;
+        Response created = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of(
+                        "title",
+                        title,
+                        "content",
+                        BLOCK,
+                        "status",
+                        "publish",
+                        "categories",
+                        List.of(category),
+                        "tags",
+                        List.of(tag),
+                        "meta",
+                        Map.of("footnotes", "")))
+                .post("/wp-json/wp/v2/posts");
+        created.then()
+                .statusCode(201)
+                .body("status", equalTo("publish"))
+                .body("author", equalTo((int) userId("carol")))
+                .body("categories", contains(category))
+                .body("tags", contains(tag))
+                .body("content.block_version", equalTo(1))
+                .body("meta.footnotes", equalTo(""));
+        int id = created.path("id");
+        assertThat(created.getHeader("Location")).isEqualTo("http://localhost/wp-json/wp/v2/posts/" + id);
+
+        // the item, its links and embeds
+        as(null).get("/wp-json/wp/v2/posts/" + id + "?_embed")
+                .then()
+                .statusCode(200)
+                .body("title.rendered", equalTo(title))
+                .body("link", equalTo("http://localhost/?p=" + id))
+                .body("content.rendered", containsString("<p>x</p>"))
+                .body("_links.self[0].href", equalTo("http://localhost/wp-json/wp/v2/posts/" + id))
+                .body("_links.about[0].href", equalTo("http://localhost/wp-json/wp/v2/types/post"))
+                .body("_embedded.author[0].slug", equalTo("carol"))
+                .body("_embedded.'wp:term'[0][0].id", equalTo(category))
+                .body("_embedded.'wp:term'[1][0].id", equalTo(tag));
+        JsonPath fields = as(null).get("/wp-json/wp/v2/posts/" + id + "?_fields=id,title")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath();
+        assertThat(fields.getMap("$")).containsOnlyKeys("id", "title");
+
+        // the collection, its search and term filters
+        as(null).get("/wp-json/wp/v2/posts?search=" + word)
+                .then()
+                .statusCode(200)
+                .header("X-WP-Total", "1")
+                .header("X-WP-TotalPages", "1")
+                .body("id", contains(id));
+        as(null).get("/wp-json/wp/v2/posts?categories=" + category)
+                .then()
+                .statusCode(200)
+                .body("id", contains(id));
+        as(null).get("/wp-json/wp/v2/posts?tags=" + tag + "&categories_exclude=" + category)
+                .then()
+                .statusCode(200)
+                .header("X-WP-Total", "0")
+                .body("$", empty());
+        as(null).get("/wp-json/wp/v2/posts?status=draft")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("rest_invalid_param"))
+                .body("message", equalTo("Invalid parameter(s): status"))
+                .body("data.params.status", equalTo("Status is forbidden."));
+
+        // an update makes a revision; carol reads the history, nobody does not, nobody deletes a revision
+        String revised = "Revised " + word;
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", revised))
+                .put("/wp-json/wp/v2/posts/" + id)
+                .then()
+                .statusCode(200)
+                .body("title.raw", equalTo(revised));
+        Response history = as("carol").get("/wp-json/wp/v2/posts/" + id + "/revisions?context=edit");
+        history.then()
+                .statusCode(200)
+                .body("$", hasSize(greaterThanOrEqualTo(1)))
+                .body("[0].parent", equalTo(id))
+                .body("[0].title.raw", equalTo(revised));
+        int revision = history.path("[0].id");
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id + "/revisions/" + revision)
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(revision))
+                .body("_links.parent[0].href", equalTo("http://localhost/wp-json/wp/v2/posts/" + id));
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id)
+                .then()
+                .statusCode(200)
+                .body("_links.'version-history'[0].count", greaterThanOrEqualTo(1));
+        as(null).get("/wp-json/wp/v2/posts/" + id + "/revisions?context=edit")
+                .then()
+                .statusCode(401)
+                .body("code", equalTo("rest_cannot_read"))
+                .body("message", equalTo("Sorry, you are not allowed to view revisions of this post."));
+        as("carol")
+                .delete("/wp-json/wp/v2/posts/" + id + "/revisions/" + revision + "?force=true")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_delete"))
+                .body("message", equalTo("Sorry, you are not allowed to delete this revision."));
+
+        // another author may not edit it
+        as("dave")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "not mine"))
+                .put("/wp-json/wp/v2/posts/" + id)
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_edit"))
+                .body("message", equalTo("Sorry, you are not allowed to edit this post."));
+
+        // trash, then delete for good
+        as("carol")
+                .delete("/wp-json/wp/v2/posts/" + id)
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(id))
+                .body("status", equalTo("trash"));
+        as("carol")
+                .delete("/wp-json/wp/v2/posts/" + id + "?force=true")
+                .then()
+                .statusCode(200)
+                .body("deleted", equalTo(true))
+                .body("previous.id", equalTo(id));
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id)
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("rest_post_invalid_id"))
+                .body("message", equalTo("Invalid post ID."));
+    }
+
+    @Test
+    void pagesNestAndOnlyEditorsWriteThem() {
+        // main site of the network: bob (editor) writes pages, carol (author) may not
+        String word = token();
+        int parent = as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Parent " + word, "status", "publish"))
+                .post("/wp-json/wp/v2/pages")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        int child = as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Child " + word, "status", "publish", "parent", parent, "menu_order", 2))
+                .post("/wp-json/wp/v2/pages")
+                .then()
+                .statusCode(201)
+                .body("parent", equalTo(parent))
+                .body("menu_order", equalTo(2))
+                .extract()
+                .path("id");
+        as(null).get("/wp-json/wp/v2/pages/" + child + "?_embed")
+                .then()
+                .statusCode(200)
+                .body("link", equalTo("http://localhost/?page_id=" + child))
+                .body("_embedded.up[0].id", equalTo(parent));
+        as(null).get("/wp-json/wp/v2/pages?parent=" + parent)
+                .then()
+                .statusCode(200)
+                .body("id", contains(child));
+        page(null)
+                .get("/?page_id=" + child)
+                .then()
+                .statusCode(200)
+                .body(containsString("<h1 class=\"entry-title\">Child " + word + "</h1>"));
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "no"))
+                .post("/wp-json/wp/v2/pages")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_create"))
+                .body("message", equalTo("Sorry, you are not allowed to create posts as this user."));
+        as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Child revised " + word))
+                .post("/wp-json/wp/v2/pages/" + child)
+                .then()
+                .statusCode(200)
+                .body("title.raw", equalTo("Child revised " + word));
+        as("bob")
+                .get("/wp-json/wp/v2/pages/" + child + "/revisions?context=edit")
+                .then()
+                .statusCode(200)
+                .body("[0].title.raw", equalTo("Child revised " + word))
+                .body("[0].excerpt.raw", equalTo(""));
+        as("bob")
+                .delete("/wp-json/wp/v2/pages/" + child + "?force=true")
+                .then()
+                .statusCode(200)
+                .body("deleted", equalTo(true));
+        as(null).get("/wp-json/wp/v2/pages?parent=" + parent)
+                .then()
+                .statusCode(200)
+                .body("$", empty());
+    }
+
+    @Test
+    void booksCarryTheirRegisteredMeta() {
+        // main site of the network: the book type of the IT app and its two registered meta keys
+        String word = token();
+        Response created = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of(
+                        "title",
+                        "Book " + word,
+                        "slug",
+                        "book-" + word,
+                        "status",
+                        "publish",
+                        "meta",
+                        Map.of("book_rating", 5, "book_tags", List.of("red", "blue"))))
+                .post("/wp-json/wp/v2/books");
+        created.then()
+                .statusCode(201)
+                .body("type", equalTo("book"))
+                .body("meta.book_rating", equalTo(5))
+                .body("meta.book_tags", contains("red", "blue"));
+        int id = created.path("id");
+        as(null).get("/wp-json/wp/v2/books/" + id)
+                .then()
+                .statusCode(200)
+                .body("link", equalTo("http://localhost/?book=book-" + word))
+                .body("meta.book_rating", equalTo(5))
+                .body("meta.book_tags", contains("red", "blue"));
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("meta", Map.of("book_rating", 4, "book_tags", List.of("green"))))
+                .put("/wp-json/wp/v2/books/" + id)
+                .then()
+                .statusCode(200)
+                .body("meta.book_rating", equalTo(4))
+                .body("meta.book_tags", contains("green"));
+        as(null).get("/wp-json/wp/v2/books?search=" + word)
+                .then()
+                .statusCode(200)
+                .body("id", contains(id));
+        // a book without a stored rating answers the registered default
+        int unrated = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Unrated " + word, "status", "draft"))
+                .post("/wp-json/wp/v2/books")
+                .then()
+                .statusCode(201)
+                .body("meta.book_rating", equalTo(3))
+                .body("meta.book_tags", empty())
+                .extract()
+                .path("id");
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Autosaved unrated " + word))
+                .post("/wp-json/wp/v2/books/" + unrated + "/autosaves")
+                .then()
+                .statusCode(200)
+                .body("title.raw", equalTo("Autosaved unrated " + word));
+        as("carol")
+                .options("/wp-json/wp/v2/books/" + id + "/autosaves")
+                .then()
+                .statusCode(200)
+                .header("Allow", "GET, POST");
+    }
+
+    @Test
+    void collectionsSearchAndRevisionsAnswer() {
+        // main site of the network: every collection answers, as anybody and as the item's author in edit context
+        String word = token();
+        int id = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Searched " + word, "content", "first", "status", "publish"))
+                .post("/wp-json/wp/v2/posts")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("content", "second"))
+                .put("/wp-json/wp/v2/posts/" + id)
+                .then()
+                .statusCode(200);
+        as("carol")
+                .get("/wp-json/wp/v2/posts?context=edit&search=" + word)
+                .then()
+                .statusCode(200)
+                .body("id", contains(id))
+                .body("[0].content.raw", equalTo("second"));
+        // a page by bob (carol may not write pages) and a book by carol, each found by its own word
+        for (List<String> writer : List.of(List.of("pages", "bob", "page"), List.of("books", "carol", "book"))) {
+            String collection = writer.get(0);
+            String own = token();
+            int item = as(writer.get(1))
+                    .contentType(ContentType.JSON)
+                    .body(Map.of("title", "Listed " + own, "status", "publish"))
+                    .post("/wp-json/wp/v2/" + collection)
+                    .then()
+                    .statusCode(201)
+                    .extract()
+                    .path("id");
+            as(null).get("/wp-json/wp/v2/" + collection + "?search=" + own)
+                    .then()
+                    .statusCode(200)
+                    .header("X-WP-Total", "1")
+                    .body("id", contains(item))
+                    .body("[0].type", equalTo(writer.get(2)))
+                    .body("[0].title.rendered", equalTo("Listed " + own));
+            as(writer.get(1))
+                    .get("/wp-json/wp/v2/" + collection + "?context=edit&search=" + own)
+                    .then()
+                    .statusCode(200)
+                    .body("id", contains(item))
+                    .body("[0].title.raw", equalTo("Listed " + own));
+        }
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id + "/revisions?context=edit")
+                .then()
+                .statusCode(200)
+                .body("[0].content.raw", equalTo("second"));
+        as("carol")
+                .get("/wp-json/wp/v2/posts/" + id + "/revisions?per_page=1&page=99")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("rest_revision_invalid_page_number"))
+                .body("message", equalTo("The page number requested is larger than the number of pages available."));
+        as(null).get("/wp-json/wp/v2/search?search=" + word)
+                .then()
+                .statusCode(200)
+                .body("id", contains(id))
+                .body("[0].type", equalTo("post"))
+                .body("[0].subtype", equalTo("post"))
+                .body("[0].url", equalTo("http://localhost/?p=" + id))
+                .body("[0]._links.self[0].href", equalTo("http://localhost/wp-json/wp/v2/posts/" + id));
+        as(null).get("/wp-json/wp/v2/search?search=" + word + "&_embed")
+                .then()
+                .statusCode(200)
+                .body("[0]._embedded.self[0].id", equalTo(id));
+        String name = "Term " + word;
+        int category = category(name, null);
+        as(null).get("/wp-json/wp/v2/search?type=term&search=" + word)
+                .then()
+                .statusCode(200)
+                .body("id", contains(category))
+                .body("[0].title", equalTo(name))
+                .body("[0].type", equalTo("category"));
+        // every REST taxonomy without a search: the total counts every term, whatever other tests created
+        Response terms = as(null).get("/wp-json/wp/v2/search?type=term&per_page=1");
+        terms.then().statusCode(200).body("$", hasSize(1));
+        assertThat(Integer.parseInt(terms.getHeader("X-WP-Total"))).isGreaterThanOrEqualTo(2);
+        as(null).get("/wp-json/wp/v2/search?type=term&subtype=category&search=" + word)
+                .then()
+                .statusCode(200)
+                .body("id", contains(category));
+        // the post-format handler lists a format once a post carries it
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of(
+                        "type",
+                        "post",
+                        "status",
+                        "publish",
+                        "title",
+                        "Aside " + word,
+                        "fields",
+                        Map.of("format", "aside")))
+                .post("/it/posts")
+                .then()
+                .statusCode(200);
+        as(null).get("/wp-json/wp/v2/search?type=post-format&search=aside")
+                .then()
+                .statusCode(200)
+                .body("id", contains("aside"))
+                .body("[0].title", equalTo("Aside"))
+                .body("[0].url", equalTo("http://localhost/?post_format=aside"))
+                .body("[0].type", equalTo("post-format"));
+        as(null).get("/wp-json/wp/v2/search?type=nope")
+                .then()
+                .statusCode(400)
+                .body("code", equalTo("rest_invalid_param"))
+                .body("message", equalTo("Invalid parameter(s): type"));
     }
 }
