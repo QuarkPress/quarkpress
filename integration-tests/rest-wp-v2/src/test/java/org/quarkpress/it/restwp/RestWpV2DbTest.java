@@ -426,6 +426,24 @@ class RestWpV2DbTest {
                 .then()
                 .statusCode(200)
                 .body("timezone", equalTo("Europe/Brussels"));
+        // its front end: the site path is looked up off the event loop, and the post is this site's alone
+        String postTitle = "Sub post " + token();
+        int post = as("alice")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", postTitle, "status", "publish", "content", "sub words"))
+                .post(path + "wp-json/wp/v2/posts")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        page(null)
+                .get(path + "?p=" + post)
+                .then()
+                .statusCode(200)
+                .contentType("text/html; charset=UTF-8")
+                .body(containsString("<h1 class=\"entry-title\">" + postTitle + "</h1>"))
+                .body(containsString("<p class=\"site-title\">" + title + "</p>"));
+        page(null).get("/?p=" + post).then().statusCode(404);
     }
 
     private static final String PREVIEW_COOKIE = "quarkpress_preview";

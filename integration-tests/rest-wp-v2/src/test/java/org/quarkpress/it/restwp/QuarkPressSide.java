@@ -226,6 +226,19 @@ final class QuarkPressSide implements Side {
             }
             known.putAll(created);
         }
+        List<Side.Backdate> backdates = Side.backdates(steps, created);
+        if (!backdates.isEmpty()) {
+            expect(
+                    send(
+                            sitePath,
+                            RestCall.json(
+                                    "alice",
+                                    "PUT",
+                                    "/it/backdate",
+                                    Side.backdateBody(backdates).toString())),
+                    200,
+                    "backdate " + backdates);
+        }
         return created;
     }
 

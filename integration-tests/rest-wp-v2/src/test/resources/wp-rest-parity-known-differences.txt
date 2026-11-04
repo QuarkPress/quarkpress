@@ -5,7 +5,8 @@
 # scenario can show.
 # Aspects: req<n>:status, req<n>:header:<name>, req<n>:body (equal bodies), req<n>:body:<JSON pointer> (a differing
 # leaf), req<n>:body:wp-only:<pointer> (one of the namespaces, routes and index links QuarkPress does not serve yet,
-# RestComparison.NOT_SERVED_*), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing; WordPress's
+# RestComparison.NOT_SERVED_*), req<n>:body:qp-only:<pointer> (a namespace only QuarkPress serves,
+# RestComparison.QUARKPRESS_ONLY_NAMESPACES), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing; WordPress's
 # pretty form is then compared in its plain form), req<n>:body:raw (the bytes of a body equal once parsed, for the
 # scenarios RestComparison.RAW_SCENARIOS names). Entries name the aspects that differ, never a whole request.
 
@@ -198,7 +199,7 @@ none * D23 no scenario sends a control byte in a query parameter's name or malfo
 none * D24 the harness has no session cookie mechanism: every caller authenticates with a Bearer token or an application password
 
 # D36: the QuarkPress-only namespace quarkpress/v1 (the editor's lock routes) appears in the index bodies; WordPress has no such routes.
-* req*:body:*/namespaces/1 D36 the namespaces list holds quarkpress/v1 after wp/v2, where WordPress lists its own next namespace
+* req*:body:qp-only:*/namespaces/quarkpress~1v1 D36 the namespaces list holds quarkpress/v1, which WordPress does not have
 * req*:body:*/routes/~1quarkpress~1v1* D36 the index describes /quarkpress/v1 and its lock routes, which WordPress does not have
 
 # D26: the rendered content and excerpt of a post whose protection the request lifted.
@@ -230,6 +231,18 @@ p14 req1:body D35 WordPress's 404 page is the theme's template; QuarkPress's is 
 p14 req2:body D13 the 403 "Sorry, you are not allowed to preview drafts." page is WordPress's wp_die page with its styles and title; QuarkPress's is the minimal error page with the same sentence
 p14 req5:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
 p14 req5:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req6:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
+p14 req6:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req7:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
+p14 req7:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req14:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
+p14 req14:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req8:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
+p14 req8:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req9:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
+p14 req9:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req10:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
+p14 req10:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
 
 # D1: the guid is the plain permalink; WordPress keeps the pretty permalink a post was published with, and names a custom type's post ?p=<id>.
 p04 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
@@ -271,6 +284,9 @@ p05 req9:body:/guid/rendered D1 the guid of a post or page published with pretty
 p05 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req13:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req15:body:/0/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p05 req17:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p05 req18:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+p05 req19:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req4:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req5:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req9:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one

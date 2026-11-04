@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.ForbiddenException;
@@ -37,9 +38,11 @@ import org.quarkpress.multisite.NewSite;
 import org.quarkpress.multisite.Sites;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.SiteScope;
+import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostMeta;
 import org.quarkpress.posts.Posts;
+import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.revisions.AutosaveChanges;
 import org.quarkpress.revisions.AutosaveResult;
 import org.quarkpress.revisions.RevisionQuery;
@@ -91,6 +94,15 @@ public class ItSetupResource {
     /** The edit lock of a post: held by {@code user} since {@code age} seconds ago. */
     public record LockRequest(long user, int age) {}
 
+    /**
+     * The dates a scenario's setup leaves on one post: its modification date set to {@code at} ({@code
+     * yyyy-MM-ddTHH:mm:ss}, UTC), and its post date too when {@code date} is true and the post has one.
+     */
+    public record Backdate(long id, String at, boolean date) {}
+
+    /** The dates to leave on the setup's posts. */
+    public record BackdateRequest(List<Backdate> posts) {}
+
     /** A user (by id) who leaves the bound site and becomes administrator of a new site at {@code path}. */
     public record OwnSiteRequest(long user, String path, String title) {}
 
@@ -132,6 +144,9 @@ public class ItSetupResource {
 
     @Inject
     SiteScope siteScope;
+
+    @Inject
+    PostRepository postRows;
 
     /** The caller's user id; no {@code user} for an anonymous caller. */
     @GET
@@ -325,6 +340,39 @@ public class ItSetupResource {
             return null;
         });
         return Map.of("value", value);
+    }
+
+    /**
+     * Sets the dates of posts of the bound site past the services, for a caller with {@code manage_options}: the row
+     * alone changes (no version, no event, no revision), as WordPress's setup writes the columns; answers how many
+     * posts changed.
+     */
+    @PUT
+    @Path("/backdate")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Transactional
+    public Map<String, Object> backdate(BackdateRequest request) {
+        requireManageOptions();
+        int changed = 0;
+        for (Backdate post : request.posts()) {
+            Instant at = LocalDateTime.parse(post.at()).toInstant(ZoneOffset.UTC);
+            changed += postRows.getEntityManager()
+                    .createQuery("update PostEntity p set p.modifiedAt = :at where p.siteId = :site and p.id = :id")
+                    .setParameter("at", at)
+                    .setParameter("site", TenantIds.param(site.siteId()))
+                    .setParameter("id", post.id())
+                    .executeUpdate();
+            if (post.date()) {
+                postRows.getEntityManager()
+                        .createQuery("update PostEntity p set p.publishedAt = :at where p.siteId = :site"
+                                + " and p.id = :id and p.publishedAt is not null")
+                        .setParameter("at", at)
+                        .setParameter("site", TenantIds.param(site.siteId()))
+                        .setParameter("id", post.id())
+                        .executeUpdate();
+            }
+        }
+        return Map.of("changed", changed);
     }
 
     /** Sets an option of the bound site, for a caller with {@code manage_options} there; answers whether it changed. */
