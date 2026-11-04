@@ -24,7 +24,10 @@ public interface PostFormats {
      */
     Map<String, String> LABELS = labels();
 
-    /** The post's format slug; {@code standard} when it has none. */
+    /**
+     * The post's format slug; {@code standard} when it has none. No capability is checked: the caller has read the
+     * post first.
+     */
     String of(PostId post);
 
     /**

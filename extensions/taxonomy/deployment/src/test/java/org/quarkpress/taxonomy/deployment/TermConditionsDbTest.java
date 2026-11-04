@@ -303,6 +303,39 @@ class TermConditionsDbTest {
         }
     }
 
+    @Test
+    void theIdsOfAllTheClausesOfOneQueryAreCountedTogether() throws Exception {
+        assertThat(JpaTermConditions.MAX_QUERY_IDS).isEqualTo(30_000);
+        provider.limitQueryIds(5);
+        try {
+            // three ids, then five in all: within the bound
+            assertThat(ids(categories(List.of(c3.value()), true, Operator.IN)))
+                    .containsExactlyInAnyOrder(inC3, inC7, inC8);
+            assertThat(ids(query(
+                            Relation.OR,
+                            categories(List.of(c3.value()), true, Operator.IN),
+                            tags(List.of(t4.value(), t5.value()), Operator.IN))))
+                    .containsExactlyInAnyOrder(inC3, inC7, inC8, inT5, inT4AndT5);
+            // six ids over two clauses, expanded or listed, and in a nested group
+            TaxClause expanded = categories(List.of(c3.value()), true, Operator.IN);
+            TaxClause listed = categories(List.of(c3.value(), c7.value(), c8.value()), false, Operator.IN);
+            for (TaxQuery tooLarge : List.of(
+                    query(Relation.AND, expanded, expanded),
+                    query(Relation.OR, listed, excludeCategories(List.of(c3.value(), c7.value(), c8.value()))),
+                    query(Relation.AND, expanded, new TaxClause.Group(Relation.OR, List.of(listed))))) {
+                assertThatThrownBy(() -> ids(tooLarge))
+                        .isInstanceOfSatisfying(
+                                TermException.class,
+                                refused -> assertThat(refused.code()).isEqualTo("term_filter_too_large"))
+                        .hasMessage("The term filter expands to too many terms.");
+            }
+            // each query counts from zero
+            assertThat(ids(categories(List.of(c3.value()), true, Operator.IN))).hasSize(3);
+        } finally {
+            provider.limitQueryIds(JpaTermConditions.MAX_QUERY_IDS);
+        }
+    }
+
     /**
      * Inserts {@code size} terms (tags without parents, categories under {@code parents} taken in turn) in one batch
      * and answers their ids by ascending id.

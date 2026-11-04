@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.persistence.runtime.TenantIds;
@@ -29,8 +30,10 @@ import org.quarkpress.taxonomy.TermException;
  * unknown; {@code NOT IN} matches posts with none and applies no condition when none resolved. Slugs are an
  * {@code IN} by slug; a not-exists clause matches posts with no term of the taxonomy. Every id list is bound in chunks
  * of at most {@value #CHUNK} ids, each its own parameter; since every id still binds one parameter and the databases
- * refuse a statement with too many, an expansion beyond {@value #MAX_EXPANDED_IDS} ids in one clause is refused with
- * {@code term_filter_too_large} instead of failing in the database.
+ * refuse a statement with too many, an expansion beyond {@value #MAX_EXPANDED_IDS} ids in one clause, and more than
+ * {@value #MAX_QUERY_IDS} ids bound by all the clauses of one query together (listed and expanded ids alike, counted
+ * while the posts query asks for its clauses through {@link #forQuery}), are refused with {@code term_filter_too_large}
+ * instead of failing in the database.
  */
 @ApplicationScoped
 public class JpaTermConditions implements TermConditionProvider {
@@ -41,7 +44,15 @@ public class JpaTermConditions implements TermConditionProvider {
     /** The most ids one clause may hold after its {@code includeChildren} expansion. */
     public static final int MAX_EXPANDED_IDS = 10_000;
 
+    /** The most ids all the clauses of one query may bind together, below either database's bind limit. */
+    public static final int MAX_QUERY_IDS = 30_000;
+
     private volatile int maxExpandedIds = MAX_EXPANDED_IDS;
+
+    private volatile int maxQueryIds = MAX_QUERY_IDS;
+
+    /** The ids bound so far by the clauses of the query the current thread is asking for; absent outside one. */
+    private static final ThreadLocal<int[]> BOUND = new ThreadLocal<>();
 
     @Inject
     Taxonomies taxonomies;
@@ -55,6 +66,39 @@ public class JpaTermConditions implements TermConditionProvider {
             throw new IllegalArgumentException("the expansion cap must be positive");
         }
         maxExpandedIds = limit;
+    }
+
+    /** Lowers (or restores) the bound on one query's ids; for tests of the refusal only. */
+    public void limitQueryIds(int limit) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("the query bound must be positive");
+        }
+        maxQueryIds = limit;
+    }
+
+    @Override
+    public <T> T forQuery(Supplier<T> clauses) {
+        if (BOUND.get() != null) {
+            return clauses.get();
+        }
+        BOUND.set(new int[1]);
+        try {
+            return clauses.get();
+        } finally {
+            BOUND.remove();
+        }
+    }
+
+    /** Adds a clause's bound ids to the query's total; past the bound, the query is refused. */
+    private void count(int ids) {
+        int[] bound = BOUND.get();
+        if (bound == null) {
+            return;
+        }
+        bound[0] += ids;
+        if (bound[0] > maxQueryIds) {
+            throw TermException.filterTooLarge();
+        }
     }
 
     @Override
@@ -88,6 +132,7 @@ public class JpaTermConditions implements TermConditionProvider {
         if (clause.includeChildren() && taxonomy.isPresent() && taxonomy.get().hierarchical()) {
             resolved = withDescendants(site, taxonomy.get().key(), resolved);
         }
+        count(resolved.size());
         return matching(site, resolved, clause.operator(), postId, prefix);
     }
 
@@ -106,6 +151,7 @@ public class JpaTermConditions implements TermConditionProvider {
                     .setParameter("slugs", List.copyOf(slugs))
                     .getResultList();
         }
+        count(resolved.size());
         return matching(site, resolved, TaxClause.Operator.IN, postId, prefix);
     }
 

@@ -55,6 +55,7 @@ Checks follow WordPress's REST API:
 | `update` | `edit_term` on the term |
 | `delete` | `delete_term` on the term; nobody holds it for the taxonomy's default term (the default category, or a custom default term), the system identity included |
 | `setPostTerms`, `removePostTerms` | `edit_post` on the post, `assign_term` on every existing term named, and the create capability for a name that creates a term |
+| `PostFormats.of`, `PostFormats.exists` | nothing: `of` is for a caller that has read the post first (the REST layer's read checks come before its `format` field), and `exists` names a format only, which every site may have |
 | reads and queries | nothing for a taxonomy that is publicly queryable or shown in REST (WordPress's REST routes serve its terms to anyone, logged out included); otherwise the taxonomy's `assign_terms`; `postTerms`, and `query` and `count` with `posts`, also need each post to exist on the site (`invalid_post`) and be readable |
 
 The meta capabilities `edit_term`, `delete_term` and `assign_term` map as WordPress maps them (security module); this
@@ -144,7 +145,7 @@ hierarchical taxonomy's post types in turn, as WordPress computes them.
 
 `PostFormats` is WordPress's `get_post_format`/`set_post_format`: a format is a term of the built-in `post_format`
 taxonomy whose slug and name are `post-format-{slug}`, created on first use; `standard` is no term at all. `of` answers
-the post's format slug, `set` needs `edit_post` on the post only (WordPress assigns formats without the taxonomy's
+the post's format slug and checks nothing (the caller has read the post first), `set` needs `edit_post` on the post only (WordPress assigns formats without the taxonomy's
 `assign_terms`) and refuses a slug outside `PostFormats.SLUGS`; `exists` says whether the site has the term.
 `post_format` is registered as WordPress registers it (public, flat, no admin screens, outside REST, labelled
 `Formats`/`Format`, managed with `manage_categories` and assigned with `edit_posts`). The REST API module reads and
@@ -161,8 +162,9 @@ with none (none resolved → no condition); slugs are an `IN` by slug; a not-exi
 the taxonomy. `includeChildren` on a hierarchical taxonomy replaces each term by itself and all its descendants, read
 level by level (one query per level, never a recursive call, a parent loop ends the walk). Every id list is bound in
 chunks of at most 1000 ids, each its own parameter; an expansion that would exceed
-`JpaTermConditions.MAX_EXPANDED_IDS` (10 000 ids per clause) is refused with `TermException` code
-`term_filter_too_large` (D23). Every condition names the site explicitly. The REST API module builds these clauses
+`JpaTermConditions.MAX_EXPANDED_IDS` (10 000 ids per clause), and clauses of one query that bind more than
+`JpaTermConditions.MAX_QUERY_IDS` ids together (30 000, listed and expanded ids alike, which keeps the statement below
+either database's bind limit), are refused with `TermException` code `term_filter_too_large` (D23). Every condition names the site explicitly. The REST API module builds these clauses
 from the posts collections' term filters (`<taxonomy base>`, `<taxonomy base>_exclude`, `tax_relation`, `format`)
 and answers `term_filter_too_large` with 400 `rest_invalid_param`.
 
@@ -200,7 +202,8 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 ## Limits
 
 - Names and slugs hold at most 200 characters; longer ones are refused with `db_insert_error` or `db_update_error`.
-- A term filter with `includeChildren` expands to at most 10 000 ids per clause (`term_filter_too_large` beyond it, D23).
+- A term filter with `includeChildren` expands to at most 10 000 ids per clause, and the clauses of one query bind at
+  most 30 000 ids together (`term_filter_too_large` beyond either, D23).
 - Term meta has a column but no API yet.
 - On MySQL, InnoDB stops cascading deletes at 15 levels, so a site with a chain of term parents (in any hierarchical
   taxonomy) about that deep cannot be deleted in one statement. Delete its deepest terms first.
@@ -248,7 +251,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 | D20 | Posts of every type registered for `category` get the default category, on save and on publish; WordPress gives it on save only to `post` (and the types of its `default_category_post_types` filter), and on publish to any type with categories. |
 | D21 | An attachment saved other than by `Posts.publish` gets no default terms, and its terms are not recounted when such a save changes its status, because the posts module announces no save of an attachment (the media module will); WordPress gives saved attachments the default terms of their custom taxonomies and recounts their terms when their status moves into or out of `publish`. |
 | D22 | Deleting a post removes its assignments in every taxonomy, recomputes their counts and announces nothing; WordPress's `wp_delete_post` removes only the terms of the taxonomies of the post's type (through `wp_remove_object_terms`, which fires `delete_term_relationships` and `deleted_term_relationships`). |
-| D23 | A term filter whose `includeChildren` expansion exceeds 10 000 ids in one clause is refused with `term_filter_too_large` (the REST layer answers 400); WordPress runs the query with every descendant. Term ids given directly are bounded by their callers and not counted. |
+| D23 | A term filter whose `includeChildren` expansion exceeds 10 000 ids in one clause, or a query whose clauses bind more than 30 000 ids together (listed and expanded ids alike), is refused with `term_filter_too_large` (the REST layer answers 400); WordPress runs the query with every descendant. The per-clause cap counts only expanded ids, since term ids given directly are bounded by their callers. |
 
 The parity tests (`-Pwp-parity`) compare taxonomy registration, the save filters of names, descriptions and slugs, ASCII
 lower-casing, PHP's integer cast of ids and order normalization with WordPress 7.1.3's functions (Tier A,
