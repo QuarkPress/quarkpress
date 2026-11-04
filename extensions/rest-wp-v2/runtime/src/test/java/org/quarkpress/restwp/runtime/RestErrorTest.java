@@ -39,10 +39,14 @@ class RestErrorTest {
     }
 
     @Test
-    void furtherErrorsAreListedAndTheLastStatusWins() {
-        RestError error = RestError.of("a", "A.", 400).withError(RestError.of("b", "B.", 403));
+    void furtherErrorsAreListedAndTheFirstErrorsStatusWins() {
+        RestError error = RestError.of("a", "A.", 400).withError(RestError.of("b", "B.", 500));
         assertThat(error.toJson().at("/additional_errors/0/code").asText()).isEqualTo("b");
-        assertThat(error.status()).isEqualTo(403);
+        assertThat(error.status()).isEqualTo(400);
+        // the first error's last status, its earlier data before
+        RestError again = RestError.of("a", "A.", 404)
+                .withData(RestJson.NODES.objectNode().put("status", 400));
+        assertThat(again.withError(RestError.of("b", "B.", 500)).status()).isEqualTo(400);
     }
 
     @Test

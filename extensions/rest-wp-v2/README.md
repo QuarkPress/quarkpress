@@ -88,6 +88,21 @@ answer of a matched route carries an `Allow` header listing the methods the call
 `_fields`, `_embed`, `_envelope`, `_pretty`, `_method` and the `X-HTTP-Method-Override` header work on every route as in
 WordPress; `_jsonp` is always refused (D5).
 
+The `meta` field of a post write (create and update, after the post's other steps and before the update's revision,
+which so holds the new values) must be an object or a list whose registered keys' values nest at most 64 arrays or
+objects (the deepest value stored), else 400 `rest_invalid_param`; null means no meta. It
+writes the registered keys shown in REST that it names, in registration order, and ignores other names. Per key: null
+(or an empty list for a key of several values) deletes it, refused with 500 `rest_invalid_stored_value` when a single
+key's stored value does not fit its schema, as is a list holding null; any other value must fit the key's schema (its
+error with status 400, the `meta.<name>` param in `additional_data`), is coerced to it, passes the key's sanitizer for
+the caller (`footnotes` is cleaned for callers without `unfiltered_html`) and is stored, a list key's values replacing
+the stored ones. A write needs `edit_post` and the key's permission (a protected key, starting with `_`, needs an auth
+that allows it), else `rest_cannot_update` or `rest_cannot_delete` "Sorry, you are not allowed to edit the <name>
+custom field." with the key and the 401/403 status; a single value equal to the stored one needs no permission. Every
+key is tried and the errors answered together, the first one's code and status first and the others in
+`additional_errors`; any error rolls the whole write back (D29). A key whose default does not fit its schema fails the
+application's start.
+
 The routes of posts, pages, revisions, autosaves, search, media, blocks, block patterns, block types, themes,
 templates, global styles, navigation, menus, widgets, comments, plugins, site health, oEmbed, application passwords and
 `/batch/v1` are not served yet: they answer 404 `rest_no_route`, and the index does not list them (D6). Later releases
@@ -340,7 +355,7 @@ The rows below are the differences the parity tests know by label. Some further,
 | D26 | `title.rendered`, `content.rendered` and `excerpt.rendered` of posts run only the registered filters (none is built in): no paragraphs, texturizing, shortcodes or dynamic blocks; an empty excerpt is the content's text cut to `excerpt_length` words (55 by default) followed by ` [&hellip;]`. The raw fields match WordPress's. |
 | D27 | `X-WP-Total` and `X-WP-TotalPages` of post collections count only the posts the caller may read; WordPress counts the rows its query found and then drops those the caller may not read, so its totals can exceed the items it lists. |
 | D28 | No `wp:featuredmedia` link and no media embeds until the media routes exist; `replies` and `wp:attachment` are linked as WordPress links them, to routes not served yet, so an embed of `replies` embeds the `rest_no_route` error where WordPress embeds the post's comments. |
-| D29 | A REST write is one transaction: when a term or meta step fails, the error is WordPress's but the post, its sticky state, featured image, format and template are left as they were (WordPress keeps them). |
+| D29 | A REST write is one transaction: when a term or meta step fails, the error is WordPress's but the post, its sticky state, featured image, format, template, terms and the meta keys written before the failing one are left as they were, and a create leaves no post (WordPress keeps them all, and the post it created without answering its id; a failed update saves no revision on either side). |
 | D30 | `template` accepts only `""` or the stored value until themes exist (the allowed list is empty: "template is not one of ."). REST ignores `preview_id`/`preview_nonce` (WordPress checks them on every request). |
 | D31 | Revisions have their own ids (a revision id may equal a post id; clients only use them under their parent); their dates are never null and all four (`date`, `date_gmt`, `modified`, `modified_gmt`) come from the revision's one time, where WordPress keeps separate columns and answers null for a zero GMT date; `guid` is `<home>?p=<revision id>` built from that id; the system identity's revisions have author 0. |
 | D32 | An autosave request whose fields fail preparation (unknown author, a sticky password conflict, a bad status) answers that error; WordPress saves without those fields. |

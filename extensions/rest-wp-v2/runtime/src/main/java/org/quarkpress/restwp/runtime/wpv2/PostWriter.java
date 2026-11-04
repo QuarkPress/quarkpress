@@ -63,17 +63,21 @@ class PostWriter {
     @Inject
     CurrentIdentityAssociation association;
 
+    @Inject
+    MetaFields metaFields;
+
     /** The revision of an update; a bean only while the revisions module is present. */
     @Inject
     Instance<RevisionHistory> revisions;
 
     /**
-     * Creates the post, then makes it sticky (a post asked to be), sets its featured image, format and template, and
-     * replaces its terms of each taxonomy the request names (ids of no term of the taxonomy are skipped); answers the
-     * post as stored at the end. The steps after the insert run as the system, as WordPress runs them without asking
-     * again whether the caller may edit the new post: the create check, the assign check of the named terms
-     * included, has passed. Any error rolls everything back: the posts module's refusal of the post is WordPress's
-     * insert error (500 for {@code db_insert_error}, else 400).
+     * Creates the post, then makes it sticky (a post asked to be), sets its featured image, format and template,
+     * replaces its terms of each taxonomy the request names (ids of no term of the taxonomy are skipped) and writes
+     * the registered meta the request names; answers the post as stored at the end. The steps after the insert but the
+     * meta run as the system, as WordPress runs them without asking again whether the caller may edit the new post:
+     * the create check, the assign check of the named terms included, has passed; the meta is written as the caller,
+     * whose permission each key checks. Any error rolls everything back: the posts module's refusal of the post is
+     * WordPress's insert error (500 for {@code db_insert_error}, else 400), a meta key's error is the meta step's.
      */
     @Transactional
     PostSnapshot create(PostRoutes routes, PostRequest prepared, RestRequest request) {
@@ -105,24 +109,27 @@ class PostWriter {
         } finally {
             association.setIdentity(caller);
         }
+        writeMeta(routes, id, prepared, request);
         return stored(id);
     }
 
     /**
      * Updates the post with the fields the request names, then, as WordPress's update orders them, sets its format and
-     * featured image, sticks or unsticks it (when the request says), sets its template and replaces its terms of each
-     * taxonomy the request names; the revision is saved once at the end, after every step, while the revisions module
-     * is present (none when the post is unchanged since its latest revision). Dates the request cleared date the post
-     * now, floating when the status it gets floats. The steps after the row run as the system, as WordPress
-     * runs them without asking again whether the caller may edit the post. Any error rolls everything back: the posts
-     * module's refusal is WordPress's update error (500 for a database error, else 400). Answers the post as stored at
-     * the end.
+     * featured image, sticks or unsticks it (when the request says), sets its template, replaces its terms of each
+     * taxonomy the request names and writes the registered meta the request names; the revision is saved once at the
+     * end, after every step, so it holds the meta written here, while the revisions module is present (none when the
+     * post is unchanged since its latest revision). Dates the request cleared date the post now, floating when the
+     * status it gets floats. The steps after the row but the meta run as the system, as WordPress runs them without
+     * asking again whether the caller may edit the post; the meta is written as the caller. Any error rolls everything
+     * back, and no revision is saved: the posts module's refusal is WordPress's update error (500 for a database
+     * error, else 400), a meta key's error is the meta step's. Answers the post as stored at the end.
      */
     @Transactional
     PostSnapshot update(PostRoutes routes, PostSnapshot stored, PostRequest prepared, RestRequest request) {
         PostId id = stored.id();
         Supplier<PostSnapshot> work = () -> {
             write(stored, prepared);
+            writeMeta(routes, id, prepared, request);
             return null;
         };
         if (revisions.isResolvable()) {
@@ -168,6 +175,15 @@ class PostWriter {
             throw new RestException(insertError(refused));
         } finally {
             association.setIdentity(caller);
+        }
+    }
+
+    /** Writes the registered meta the request names, as the caller; a key's error fails the write. */
+    private void writeMeta(PostRoutes routes, PostId id, PostRequest prepared, RestRequest request) {
+        if (prepared.meta().isPresent()) {
+            metaFields.write(routes, id, prepared.meta().get(), request).ifPresent(error -> {
+                throw new RestException(error);
+            });
         }
     }
 

@@ -9,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.quarkpress.core.SiteContext;
-import org.quarkpress.posts.MetaContext;
 import org.quarkpress.posts.MetaKeyDefinition;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostPermissions;
@@ -236,9 +235,7 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
         prepared.changes().title().ifPresent(changes::title);
         prepared.changes().content().ifPresent(changes::content);
         prepared.changes().excerpt().ifPresent(changes::excerpt);
-        prepared.meta()
-                .filter(JsonNode::isObject)
-                .ifPresent(meta -> revisionedMeta(routes, stored, meta, request, changes));
+        prepared.meta().filter(JsonNode::isObject).ifPresent(meta -> revisionedMeta(routes, stored, meta, changes));
         AutosaveResult result;
         try {
             result = revisions.autosave(stored.id(), changes.build());
@@ -266,26 +263,18 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
     }
 
     /**
-     * The request's values of the type's revisioned meta keys shown in REST, each run through its key's sanitizer for
-     * the caller as a write of the post's meta runs it (a key whose sanitizer answers JSON null is left out); the
-     * other keys are ignored.
+     * The request's values of the type's revisioned meta keys shown in REST, each sanitized by the posts module as a
+     * write of the post's meta sanitizes it (the key's sanitizer for the caller, the value checked as storable); a
+     * key given null is left out, and the other keys are ignored.
      */
-    private void revisionedMeta(
-            PostRoutes routes, PostSnapshot post, JsonNode meta, RestRequest request, AutosaveChanges.Builder changes) {
+    private void revisionedMeta(PostRoutes routes, PostSnapshot post, JsonNode meta, AutosaveChanges.Builder changes) {
         Set<String> revisioned = registeredMeta.revisionedKeys(routes.key());
         for (MetaKeyDefinition key : registeredMeta.restKeys(routes.key())) {
             JsonNode value = meta.get(key.restKey());
-            if (value == null || !revisioned.contains(key.key())) {
+            if (value == null || value.isNull() || !revisioned.contains(key.key())) {
                 continue;
             }
-            if (key.sanitizer().isPresent()) {
-                value = key.sanitizer()
-                        .get()
-                        .sanitize(value, new MetaContext(post.id(), post.type(), key.key(), request.identity()));
-            }
-            if (value != null && !value.isNull()) {
-                changes.meta(key.key(), value);
-            }
+            changes.meta(key.key(), registeredMeta.sanitize(post, key, value));
         }
     }
 

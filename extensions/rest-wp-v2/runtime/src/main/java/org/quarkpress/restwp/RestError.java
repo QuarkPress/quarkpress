@@ -58,21 +58,18 @@ public record RestError(
         return new RestError(code, message, data, additionalData, more);
     }
 
-    /** The last numeric {@code status} across all data, this error's first, then each additional error's; 500. */
+    /**
+     * The last numeric {@code status} across this error's data, its earlier data first; 500 when there is none. The
+     * additional errors' data does not count: WordPress answers the first error's status (a 400 meta error followed
+     * by a 500 one answers 400).
+     */
     public int status() {
         int[] status = {-1};
-        collectStatus(status);
-        return status[0] < 0 ? 500 : status[0];
-    }
-
-    private void collectStatus(int[] status) {
         for (JsonNode older : additionalData) {
             statusOf(older, status);
         }
         statusOf(data, status);
-        for (RestError other : additionalErrors) {
-            other.collectStatus(status);
-        }
+        return status[0] < 0 ? 500 : status[0];
     }
 
     private static void statusOf(JsonNode data, int[] status) {

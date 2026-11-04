@@ -27,7 +27,7 @@ import org.quarkpress.core.UserId;
  * site only) by status (publish, future, draft, pending, private, trash, auto-draft) by own and others' posts (carol's
  * and bob's), for the collection and for the item in the view and the edit context; the create decision per caller,
  * type (posts, pages, books) and requested status; the update decision per caller, status and own or others' post,
- * and the item's {@code Allow}. A later task grows it with the delete decision.
+ * the delete decision per caller, status and own or others' post; and the item's {@code Allow}.
  */
 class PostPermissionMatrixDbTest {
 
@@ -359,8 +359,8 @@ class PostPermissionMatrixDbTest {
     }
 
     /**
-     * The item's {@code Allow} lists the writing methods for a caller who may update the post: an administrator on
-     * her own post gets {@code GET, POST, PUT, PATCH} (delete comes with its route), the subscriber {@code GET} on a
+     * The item's {@code Allow} lists the writing methods for a caller who may update and delete the post: an
+     * administrator on her own post gets {@code GET, POST, PUT, PATCH, DELETE}, the subscriber {@code GET} on a
      * published post, an author {@code GET} on a colleague's published post; a missing post has none.
      */
     @Test
@@ -377,7 +377,7 @@ class PostPermissionMatrixDbTest {
         assertThat(as(CALLERS.get("administrator"))
                         .get("/wp-json/wp/v2/posts/" + own)
                         .header("Allow"))
-                .isEqualTo("GET, POST, PUT, PATCH");
+                .isEqualTo("GET, POST, PUT, PATCH, DELETE");
         assertThat(as(CALLERS.get("erin")).get("/wp-json/wp/v2/posts/" + own).header("Allow"))
                 .isEqualTo("GET");
         assertThat(as(CALLERS.get("carol")).get("/wp-json/wp/v2/posts/" + own).header("Allow"))
@@ -386,10 +386,84 @@ class PostPermissionMatrixDbTest {
         assertThat(as(CALLERS.get("carol"))
                         .get("/wp-json/wp/v2/posts/" + carols)
                         .header("Allow"))
-                .isEqualTo("GET, POST, PUT, PATCH");
+                .isEqualTo("GET, POST, PUT, PATCH, DELETE");
         Response missing = as(null).get("/wp-json/wp/v2/posts/999999");
         assertThat(missing.statusCode()).isEqualTo(404);
         assertThat(missing.header("Allow")).isNull();
+    }
+
+    /**
+     * {@code DELETE /posts/<id>} (no {@code force}) for every caller, status and own or others' post (posts of their
+     * own per caller, as a delete changes them): deleting needs {@code delete_post}, so an author trashes her own
+     * posts of every status and an editor or administrator anyone's, a post already in the trash answering 410
+     * {@code rest_already_trashed}; the others are refused with {@code rest_cannot_delete}, 401 for the anonymous
+     * caller, 403 for the others (dave, erin, gina and frank), whatever the status. A missing post is 404 for
+     * everyone.
+     */
+    @Test
+    void deleteCells() {
+        for (String caller : CALLERS.keySet()) {
+            String marker = "delete " + caller + " " + UUID.randomUUID();
+            int second = 0;
+            for (String status : STATUSES) {
+                for (long author : List.of(carol, bob)) {
+                    boolean floating =
+                            status.equals("draft") || status.equals("pending") || status.equals("auto-draft");
+                    String when = (status.equals("future") ? "2030-09-04T10:00:" : "2026-09-04T10:00:")
+                            + (second < 10 ? "0" : "") + second + "Z";
+                    second++;
+                    long post = PostFixtures.builder(site)
+                            .status(status)
+                            .author(author)
+                            .title(marker + " " + status)
+                            .publishedAt(floating ? null : when)
+                            .modifiedAt(when)
+                            .insert(data)
+                            .value();
+                    boolean carols = author == carol;
+                    boolean allowed = caller.equals("bob")
+                            || caller.equals("administrator")
+                            || (caller.equals("carol") && carols);
+                    String what = caller + " DELETE /posts/" + post + " (" + status + ", " + (carols ? "carol" : "bob")
+                            + "'s)";
+                    Response answer = as(CALLERS.get(caller)).delete("/wp-json/wp/v2/posts/" + post);
+                    JsonNode body = json(answer.asString());
+                    String stored = Jdbc.strings(data, "select status from qp_post where id = ?", post)
+                            .get(0);
+                    if (allowed && status.equals("trash")) {
+                        assertThat(answer.statusCode())
+                                .as(what + ": " + answer.asString())
+                                .isEqualTo(410);
+                        assertThat(body.get("code").asText()).as(what).isEqualTo("rest_already_trashed");
+                        assertThat(body.get("message").asText())
+                                .as(what)
+                                .isEqualTo("The post has already been deleted.");
+                        continue;
+                    }
+                    if (allowed) {
+                        assertThat(answer.statusCode())
+                                .as(what + ": " + answer.asString())
+                                .isEqualTo(200);
+                        assertThat(body.get("status").asText()).as(what).isEqualTo("trash");
+                        assertThat(stored).as(what).isEqualTo("trash");
+                        continue;
+                    }
+                    assertThat(answer.statusCode())
+                            .as(what + ": " + answer.asString())
+                            .isEqualTo(caller.equals("anonymous") ? 401 : 403);
+                    assertThat(body.get("code").asText()).as(what).isEqualTo("rest_cannot_delete");
+                    assertThat(body.get("message").asText())
+                            .as(what)
+                            .isEqualTo("Sorry, you are not allowed to delete this post.");
+                    assertThat(stored).as(what).isEqualTo(status);
+                }
+            }
+            Response missing = as(CALLERS.get(caller)).delete("/wp-json/wp/v2/posts/999999");
+            assertThat(missing.statusCode())
+                    .as(caller + " DELETE a missing post")
+                    .isEqualTo(404);
+            assertThat(json(missing.asString()).get("code").asText()).isEqualTo("rest_post_invalid_id");
+        }
     }
 
     /** The refusal of a create: {@code create}, {@code private}, {@code publish}, or null when it is allowed. */

@@ -557,15 +557,7 @@ final class PostSchema {
                                     Arg.Phase.VALIDATE,
                                     Optional.empty(),
                                     Optional.of(value -> validTemplate(value, stored)));
-                        case "meta" ->
-                            new Arg(
-                                    name,
-                                    schema,
-                                    false,
-                                    Optional.empty(),
-                                    Arg.Phase.VALIDATE,
-                                    Optional.of(UnaryOperator.identity()),
-                                    Optional.of(PhpValues::isPhpArray));
+                        case "meta" -> MetaFields.arg(schema);
                         default ->
                             termBases.contains(name)
                                     ? write(name, schema, Optional.of(value -> termIds(name, value, schema)))
