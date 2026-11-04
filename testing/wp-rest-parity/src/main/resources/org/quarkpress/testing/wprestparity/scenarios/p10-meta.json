@@ -1,0 +1,279 @@
+{
+  "id": "p10",
+  "rule": "the meta field on writes (PUT/POST /wp/v2/<base>[/<id>] with meta): a registered key that does not fit its schema (the meta.<name> error with its param in additional_data), unknown keys ignored, a meta that is not an object or a list refused, null as absent, the footnotes sanitizer per caller (unfiltered_html or not; not JSON, a JSON object, which is a PHP array too, a number), null deleting, a list key replaced, emptied and given as text, a numeric text coerced, the errors of several keys in one answer, permissions per caller, a create with meta, the revision copying the footnotes of the same request and none after a failed meta step; what WordPress keeps of a write whose meta fails (the post, its title, the keys before the failure) differs (D29)",
+  "setup": [
+    {
+      "post": "p:carols",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p10 carol draft"
+    },
+    {
+      "post": "p:daves",
+      "as": "dave",
+      "type": "post",
+      "status": "draft",
+      "title": "p10 dave draft"
+    },
+    {
+      "post": "p:alices",
+      "as": "alice",
+      "type": "post",
+      "status": "draft",
+      "title": "p10 alice draft"
+    },
+    {
+      "post": "p:book",
+      "as": "carol",
+      "type": "book",
+      "status": "draft",
+      "title": "p10 carol book"
+    },
+    {
+      "post": "p:pub",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "p10 published",
+      "fields": {
+        "content": "p10 first"
+      }
+    },
+    {
+      "revision": "r:pub",
+      "as": "alice",
+      "post": "p:pub",
+      "title": "p10 published",
+      "content": "p10 second"
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":5}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?_fields=id,meta,featured_media",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"qp_unknown\":\"x\",\"_thumbnail_id\":\"7\"}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":\"x\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":null}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":[\"x\"]}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:alices}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"[{\\\"id\\\":\\\"a\\\",\\\"content\\\":\\\"<script>x</script>/y\\\"}]\"}}"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"[{\\\"id\\\":\\\"a\\\",\\\"content\\\":\\\"<script>x</script>/y\\\"}]\"}}"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"not json\"}}"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"{}\"}}"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"{\\\"x\\\":{\\\"id\\\":\\\"a\\\",\\\"content\\\":\\\"b\\\"}}\"}}"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"5\"}}"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":null}}"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?context=edit&_fields=id,meta"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_tags\":[\"a\",\"b\"]}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_tags\":[\"b\",\"c\"]}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_tags\":[]}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_rating\":\"5\"}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_rating\":null}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_rating\":\"x\",\"book_tags\":[null]}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_tags\":\"x,y\"}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_rating\":4.5}}"
+    },
+    {
+      "as": "bob",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_rating\":4}}"
+    },
+    {
+      "as": "erin",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"book_rating\":5}}"
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/books/{p:book}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p10 changed\",\"meta\":{\"book_tags\":[\"kept\"],\"book_rating\":\"x\"}}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/books/{p:book}?context=edit&_fields=id,title.raw,meta"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p10 created\",\"status\":\"draft\",\"meta\":{\"footnotes\":5}}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?status=draft&search=p10%20created&_fields=id,title.raw,meta"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=meta,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p10 dave created\",\"meta\":{\"footnotes\":\"[{\\\"id\\\":\\\"a\\\",\\\"content\\\":\\\"<script>x</script>/y\\\"}]\"}}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:pub}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"[{\\\"id\\\":\\\"n\\\",\\\"content\\\":\\\"a note\\\"}]\"}}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:pub}/revisions?_fields=title,meta"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:pub}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p10 published changed\",\"meta\":{\"footnotes\":5}}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:pub}/revisions?_fields=title,meta"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:pub}?context=edit&_fields=title.raw,meta"
+    },
+    {
+      "as": "dave",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:daves}?_fields=id,meta",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"footnotes\":\"{\\\"id\\\":\\\"a\\\"}\"}}"
+    }
+  ]
+}

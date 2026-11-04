@@ -44,5 +44,7 @@ p05-links-and-embeds.json
 p06-term-filters.json
 p07-create.json
 p08-update.json
+p09-delete.json
+p10-meta.json
 p11-revisions.json
 p12-autosaves.json

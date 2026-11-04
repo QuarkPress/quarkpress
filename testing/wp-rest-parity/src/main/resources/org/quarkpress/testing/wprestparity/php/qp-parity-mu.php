@@ -15,7 +15,10 @@
  *   - when the site option qp_parity_no_revisions is "1", keeps no revisions (wp_revisions_to_keep filter answers 0),
  *     the per-site stand-in for WP_POST_REVISIONS=0;
  *   - when the site option qp_parity_book_formats is "1", attaches the post_format taxonomy (not in REST) to "book",
- *     so a type whose taxonomies are all outside REST can be observed.
+ *     so a type whose taxonomies are all outside REST can be observed;
+ *   - when "book" is registered, registers its post meta book_rating (integer, single, default 3) and book_tags
+ *     (strings, several values), both in REST, at init priority 21 (after WordPress's footnotes at 20), the keys and
+ *     the order QuarkPress's test application registers them in.
  */
 
 /**
@@ -54,3 +57,20 @@ add_action('init', static function (): void {
 add_filter('wp_revisions_to_keep', static function ($num) {
     return '1' === get_option('qp_parity_no_revisions') ? 0 : $num;
 }, 10);
+
+add_action('init', static function (): void {
+    if (!post_type_exists('book')) {
+        return;
+    }
+    register_post_meta('book', 'book_rating', [
+        'type' => 'integer',
+        'single' => true,
+        'default' => 3,
+        'show_in_rest' => true,
+    ]);
+    register_post_meta('book', 'book_tags', [
+        'type' => 'string',
+        'single' => false,
+        'show_in_rest' => true,
+    ]);
+}, 21);
