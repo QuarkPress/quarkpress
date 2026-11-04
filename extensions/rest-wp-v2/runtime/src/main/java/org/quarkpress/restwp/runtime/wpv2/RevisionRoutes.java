@@ -108,8 +108,11 @@ class RevisionRoutes implements TypeRouteExtension {
 
     // ---- permissions
 
-    /** The parent exists under the route's type and the caller may edit it. */
-    private PermissionResult mayRead(PostRoutes routes, RestRequest request) {
+    /**
+     * The parent exists under the route's type and the caller may edit it: the read check of the revisions routes and
+     * of the single autosave read, against the path's {@code parent}.
+     */
+    PermissionResult mayRead(PostRoutes routes, RestRequest request) {
         Optional<PostSnapshot> parent = parent(routes, request);
         if (parent.isEmpty()) {
             return PermissionResult.denied(invalidParent());

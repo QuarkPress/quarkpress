@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.Filters;
 import org.quarkpress.core.PostId;
-import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.RenderContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TaxonomyDefinition;
@@ -29,7 +28,6 @@ import org.quarkpress.posts.OrderKey;
 import org.quarkpress.posts.PostPage;
 import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
-import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.Slugs;
@@ -84,17 +82,15 @@ public class SearchController implements RestRouteProvider {
 
     private static final String ANY = "any";
 
-    /** The post type whose routes another controller serves and which the post handler never lists. */
-    private static final String ATTACHMENT = "attachment";
-
     @Inject
     PostTypes types;
 
+    /** The post routes; the post handler lists the public types served there. */
     @Inject
-    Taxonomies taxonomies;
+    PostsController postsController;
 
     @Inject
-    PostStatuses statuses;
+    Taxonomies taxonomies;
 
     @Inject
     Posts posts;
@@ -107,9 +103,6 @@ public class SearchController implements RestRouteProvider {
 
     @Inject
     PostFields fields;
-
-    @Inject
-    MetaFields meta;
 
     @Inject
     RestUrls urls;
@@ -148,13 +141,11 @@ public class SearchController implements RestRouteProvider {
 
     @Override
     public void register(RouteRegistry routes) {
-        List<String> creatable = PostRoutes.creatable(statuses.all());
         Map<String, PostRoutes> servedTypes = new LinkedHashMap<>();
-        for (PostTypeDefinition type : types.all()) {
-            if (!type.publicly() || !type.showInRest() || type.key().equals(ATTACHMENT)) {
-                continue;
+        for (PostRoutes post : postsController.routes().values()) {
+            if (post.type().publicly()) {
+                servedTypes.put(post.key(), post);
             }
-            servedTypes.put(type.key(), PostRoutes.of(type, taxonomies.all(), meta, creatable));
         }
         Map<String, TaxonomyDefinition> servedTaxonomies = new LinkedHashMap<>();
         for (TaxonomyDefinition taxonomy : taxonomies.all()) {

@@ -296,7 +296,7 @@ public class TaxonomiesController implements RestRouteProvider {
     /** The taxonomy's selected fields in WordPress's order, filtered by the context; links when selected. */
     private RestResponse prepare(
             TaxonomyDefinition taxonomy, Fields.Selection selection, Predicate<String> fields, RestRequest request) {
-        String base = taxonomy.restBase().filter(rest -> !rest.isEmpty()).orElse(taxonomy.key());
+        String base = PostRoutes.base(taxonomy);
         ObjectNode data = RestJson.NODES.objectNode();
         if (fields.test("name")) {
             data.set("name", text(taxonomy.labels().get("name")));

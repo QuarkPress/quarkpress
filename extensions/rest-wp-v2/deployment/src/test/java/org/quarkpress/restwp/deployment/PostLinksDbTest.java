@@ -318,6 +318,32 @@ class PostLinksDbTest {
     }
 
     @Test
+    void anEmbeddedProtectedParentStaysHidden() {
+        PostId parent = post("page", "publish", bob, "locked parent " + UUID.randomUUID())
+                .content("PARENT SECRET")
+                .excerpt("PARENT EXCERPT")
+                .password("pw")
+                .insert(data);
+        PostId child = post("page", "publish", bob, "child " + UUID.randomUUID())
+                .parent(parent)
+                .insert(data);
+        // an embedded request carries no password and runs in the embed context, whoever asks
+        for (Long caller : new Long[] {null, erin, bob}) {
+            JsonNode up = json(as(caller)
+                            .get("/wp-json/wp/v2/pages/" + child.value() + "?_embed=up")
+                            .then()
+                            .statusCode(200)
+                            .extract()
+                            .asString())
+                    .at("/_embedded/up/0");
+            assertThat(up.at("/id").asLong()).isEqualTo(parent.value());
+            assertThat(up.at("/excerpt").toString()).isEqualTo("{\"rendered\":\"\",\"protected\":true}");
+            assertThat(fieldNames(up)).doesNotContain("content");
+            assertThat(up.toString()).doesNotContain("PARENT");
+        }
+    }
+
+    @Test
     void embedsAuthorAndTerms() {
         PostId post = published("post", carol);
         assign(post, uncategorized);

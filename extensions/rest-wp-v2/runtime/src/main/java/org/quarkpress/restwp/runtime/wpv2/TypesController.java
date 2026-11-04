@@ -354,7 +354,7 @@ public class TypesController implements RestRouteProvider {
         if (fields.includes("_links") || fields.includes("_embedded")) {
             response = response.withLinks(Links.none()
                     .add("collection", urls.route("/wp/v2/types"))
-                    .add("https://api.w.org/items", urls.route("/" + extras.restNamespace() + "/" + base)));
+                    .add("https://api.w.org/items", urls.route(PostRoutes.collection(type))));
         }
         return response;
     }

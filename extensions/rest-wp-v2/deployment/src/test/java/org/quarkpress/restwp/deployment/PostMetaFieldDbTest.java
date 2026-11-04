@@ -198,6 +198,29 @@ class PostMetaFieldDbTest {
     }
 
     @Test
+    void theInternalKeysAreNeverWrittenThroughMeta() {
+        String internal = "{\"meta\":{\"_edit_lock\":\"1:1\",\"_edit_last\":\"9\",\"_thumbnail_id\":\"5\","
+                + "\"_wp_page_template\":\"x\"}}";
+        // a post without them, and one whose stored values must stay as they are
+        PostId bare = draft(carol, "post", "internal bare " + UUID.randomUUID());
+        PostId kept = draft(carol, "post", "internal kept " + UUID.randomUUID());
+        String stored = "{\"_edit_lock\":[\"100:" + carol + "\"],\"_edit_last\":[\"" + carol
+                + "\"],\"_thumbnail_id\":[\"0\"],\"_wp_page_template\":[\"default\"]}";
+        Jdbc.update(data, "update qp_post set meta = " + TestDb.json() + " where id = ?", stored, kept.value());
+        for (long editor : new long[] {carol, alice}) {
+            assertThat(meta(put(editor, "posts", bare, internal)).toString()).isEqualTo("{\"footnotes\":\"\"}");
+            assertThat(meta(put(editor, "posts", kept, internal)).toString()).isEqualTo("{\"footnotes\":\"\"}");
+        }
+        for (String key : new String[] {"_edit_lock", "_edit_last", "_thumbnail_id", "_wp_page_template"}) {
+            assertThat(storedMeta(bare).has(key)).as(key).isFalse();
+        }
+        assertThat(storedMeta(kept).get("_edit_lock").toString()).isEqualTo("[\"100:" + carol + "\"]");
+        assertThat(storedMeta(kept).get("_edit_last").toString()).isEqualTo("[\"" + carol + "\"]");
+        assertThat(storedMeta(kept).get("_thumbnail_id").toString()).isEqualTo("[\"0\"]");
+        assertThat(storedMeta(kept).get("_wp_page_template").toString()).isEqualTo("[\"default\"]");
+    }
+
+    @Test
     void contributorFootnotesAreSanitized() {
         String given = "[{\\\"id\\\":\\\"a\\\",\\\"content\\\":\\\"<script>x</script>/y\\\"}]";
         String sanitized = "[{\"id\":\"a\",\"content\":\"x\\/y\"}]";

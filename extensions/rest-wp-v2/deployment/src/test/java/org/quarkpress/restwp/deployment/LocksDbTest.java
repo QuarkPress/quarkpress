@@ -293,6 +293,30 @@ class LocksDbTest {
     }
 
     @Test
+    void aLockIsTakenOnlyWithItsReleaseToken() {
+        clock.set(NOW);
+        PostId post = draftOf(carol);
+        PostId held = draftOf(carol);
+        String carolsLock = NOW.getEpochSecond() + ":" + carol;
+        as(carol).post(LOCKS + held.value()).then().statusCode(200);
+        clock.set(NOW.plusSeconds(10));
+        // the release token cannot be stored: the take, the takeover and the refresh change no lock
+        Jdbc.update(data, "alter table qp_post_token rename to qp_post_token_off");
+        try {
+            as(carol).post(LOCKS + post.value()).then().statusCode(500);
+            as(bob).post(LOCKS + post.value() + "/takeover").then().statusCode(500);
+            as(carol).put(LOCKS + held.value()).then().statusCode(500);
+            as(bob).post(LOCKS + held.value() + "/takeover").then().statusCode(500);
+        } finally {
+            Jdbc.update(data, "alter table qp_post_token_off rename to qp_post_token");
+        }
+        assertThat(storedLock(post)).isNull();
+        assertThat(storedLock(held)).isEqualTo(carolsLock);
+        as(carol).post(LOCKS + post.value()).then().statusCode(200);
+        assertThat(storedLock(post)).isEqualTo(NOW.plusSeconds(10).getEpochSecond() + ":" + carol);
+    }
+
+    @Test
     void refusals() {
         clock.set(NOW);
         PostId post = draftOf(carol);

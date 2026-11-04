@@ -412,6 +412,23 @@ class SearchDbTest {
                 .header("X-WP-Total", "1")
                 .body("[0].id", equalTo((int) locked.value()))
                 .body("[0].title", equalTo(u + " locked"));
+        // being logged in is enough: a subscriber, a contributor, an author who may not edit it, and a user who is
+        // no member of the site find it too
+        List<String> loggedIn = new ArrayList<>();
+        for (String role : new String[] {"subscriber", "contributor", "author"}) {
+            UserId member = TestData.profile(data, role);
+            TestData.member(data, site, member, "[\"" + role + "\"]");
+            loggedIn.add("test-" + member.value());
+        }
+        loggedIn.add("test-" + TestData.profile(data, "outsider").value());
+        for (String bearer : loggedIn) {
+            as(bearer)
+                    .get("/wp-json/wp/v2/search?search=" + u + "secretword")
+                    .then()
+                    .statusCode(200)
+                    .header("X-WP-Total", "1")
+                    .body("[0].id", equalTo((int) locked.value()));
+        }
         // HEAD answers the totals without a body
         Response head = as(null).head("/wp-json/wp/v2/search?search=" + u + "&per_page=2");
         head.then()

@@ -10,7 +10,6 @@ import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.runtime.QuarkusPrincipal;
 import io.quarkus.security.runtime.QuarkusSecurityIdentity;
 import io.smallrye.common.annotation.Blocking;
-import io.vertx.core.http.Cookie;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.inject.Instance;
@@ -25,6 +24,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +35,7 @@ import org.quarkpress.core.ContentFilter;
 import org.quarkpress.core.Filters;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
+import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.RenderContext;
 import org.quarkpress.core.SiteContext;
@@ -52,8 +53,6 @@ import org.quarkpress.posts.PreviewTokens;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.restwp.RestUrls;
-import org.quarkpress.revisions.RevisionSnapshot;
-import org.quarkpress.revisions.Revisions;
 import org.quarkpress.security.QuarkPressPrincipal;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.taxonomy.PostFormats;
@@ -66,21 +65,24 @@ import org.quarkpress.taxonomy.PostFormats;
  * way is answered 404 with an empty body.
  *
  * <p>The viewer is the user of the {@code quarkpress_preview} session cookie, which this resource alone reads (no
- * REST route ever does): for the render, the request's identity is replaced by one carrying that user's principal,
- * and put back afterwards; without a session, or with an expired one, the viewer is anonymous whatever else the
- * request carried. In order: a request with both {@code preview_id} and {@code preview_nonce} whose token is not the
- * viewer's valid token of that post answers 403 "Sorry, you are not allowed to preview drafts." (an HTML page, or
- * WordPress's JSON {@code wp_die} object when {@code Accept} names {@code application/json}); a post that does not
- * exist, or whose type is not the one the parameter names, answers 404; the status gate answers 404 to a viewer who
- * may not see the post (a published post to everyone; a draft, pending or scheduled post to a viewer with
- * {@code edit_post}; a private one with {@code read_post}; an auto-draft, a revision or a trashed post to nobody); a
- * published post asked for with {@code preview} and no valid pair is redirected (301) to its plain link, as
- * WordPress's canonical redirect does; a shown post that is not public is in preview mode, and a draft or a pending
- * post is dated now (a scheduled or private post keeps its date); in preview mode, for a viewer with {@code edit_post} and a valid pair, the latest autosave of any user replaces
- * the title, content and excerpt, {@code post_format} replaces the format and {@code _thumbnail_id} (when
- * {@code preview_id} is the post's id) the featured image; a password-protected post shows its title and WordPress's
- * notice instead of its content unless the viewer is in preview mode with {@code edit_post}. Previews are sent with
- * no-cache headers.
+ * REST route ever does): of several such cookies, the first whose session this site holds counts. For the render,
+ * the request's identity is replaced by one carrying that user's principal, and put back afterwards; without a
+ * session, or with an expired one, the viewer is anonymous whatever else the request carried. In order: a request
+ * with both {@code preview_id} and {@code preview_nonce} whose token is not the viewer's valid token of that post
+ * answers 403 "Sorry, you are not allowed to preview drafts." (an HTML page, or WordPress's JSON {@code wp_die}
+ * object when {@code Accept} names {@code application/json}); a {@code post_type} that names no publicly queryable
+ * type is ignored, as WordPress ignores it, so {@code p} then names a post; a post that does not exist, or whose type
+ * is not the one the parameter names, answers 404, unless it is a published post of a public type, which is
+ * redirected (301) to its plain link as WordPress's canonical redirect of a 404 does; the status gate answers 404 to
+ * a viewer who may not see the post (a published post to everyone; a draft, pending or scheduled post to a viewer
+ * with {@code edit_post}; a private one with {@code read_post}; an auto-draft, a revision or a trashed post to
+ * nobody); a published post asked for with {@code preview} and no valid pair is redirected (301) to its plain link,
+ * as WordPress's canonical redirect does; a shown post that is not public is in preview mode, and a draft or a
+ * pending post is dated now (a scheduled or private post keeps its date); in preview mode, for a viewer with
+ * {@code edit_post} and a valid pair, the latest autosave of any user replaces the title, content and excerpt,
+ * {@code post_format} replaces the format and {@code _thumbnail_id} (when {@code preview_id} is the post's id) the
+ * featured image; a password-protected post shows its title and WordPress's notice instead of its content unless
+ * the viewer is in preview mode with {@code edit_post}. Previews are sent with no-cache headers.
  */
 @Path(PreviewPage.PATH)
 @Blocking
@@ -100,6 +102,9 @@ public class PreviewPage {
     static final String HTML_TYPE = "text/html; charset=UTF-8";
 
     private static final String NOT_FOUND = "Page not found";
+
+    /** The most session cookies of a request that are looked up. */
+    private static final int MAX_COOKIES = 10;
 
     private static final String EXPIRES = "Wed, 11 Jan 1984 05:00:00 GMT";
 
@@ -159,8 +164,9 @@ public class PreviewPage {
     @Inject
     RestUrls urls;
 
+    /** The autosave overlay; a bean only while the revisions module is present. */
     @Inject
-    Instance<Revisions> revisions;
+    Instance<AutosaveOverlay> autosaves;
 
     @Inject
     @All
@@ -195,8 +201,7 @@ public class PreviewPage {
         if (!(context.get(FrontEndFilter.ENTRY) instanceof FrontEndFilter.Entry entry) || !site.isResolved()) {
             return Response.status(404).build();
         }
-        Cookie cookie = context.request().getCookie(COOKIE);
-        Optional<UserId> viewer = cookie == null ? Optional.empty() : sessions.user(cookie.getValue());
+        Optional<UserId> viewer = viewer(context);
         SecurityIdentity previous = association.getIdentity();
         association.setIdentity(viewer.flatMap(this::identity).orElse(ANONYMOUS));
         try {
@@ -204,6 +209,53 @@ public class PreviewPage {
         } finally {
             association.setIdentity(previous);
         }
+    }
+
+    /**
+     * The user of the first session cookie whose session this site holds: a browser sends every cookie of the name
+     * whose path covers the request (a parent site's, a stale one), in an order the page does not rely on.
+     */
+    private Optional<UserId> viewer(RoutingContext context) {
+        for (String value : sessionCookies(context.request().headers().getAll("Cookie"))) {
+            Optional<UserId> user = sessions.user(value);
+            if (user.isPresent()) {
+                return user;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The values of the {@code quarkpress_preview} pairs of the {@code Cookie} headers, in the order sent, at most
+     * {@value #MAX_COOKIES} (the server's header limit bounds the text). A value in double quotes loses them.
+     */
+    static List<String> sessionCookies(List<String> headers) {
+        List<String> values = new ArrayList<>();
+        for (String header : headers) {
+            if (values.size() == MAX_COOKIES) {
+                break;
+            }
+            int start = 0;
+            while (start <= header.length() && values.size() < MAX_COOKIES) {
+                int end = header.indexOf(';', start);
+                if (end < 0) {
+                    end = header.length();
+                }
+                String pair = header.substring(start, end).strip();
+                int equals = pair.indexOf('=');
+                if (equals > 0 && pair.substring(0, equals).strip().equals(COOKIE)) {
+                    String value = pair.substring(equals + 1).strip();
+                    if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+                        value = value.substring(1, value.length() - 1);
+                    }
+                    if (!value.isEmpty()) {
+                        values.add(value);
+                    }
+                }
+                start = end + 1;
+            }
+        }
+        return values;
     }
 
     /** The identity carrying {@code user}'s principal, the shape the security module's tokens leave. */
@@ -231,7 +283,7 @@ public class PreviewPage {
         }
         Optional<PostSnapshot> post = requested(entry.query());
         if (post.isEmpty()) {
-            return notFound();
+            return misnamed(entry.query()).map(this::notFoundRedirect).orElseGet(this::notFound);
         }
         return render(post.get(), viewer, query, armed);
     }
@@ -266,16 +318,14 @@ public class PreviewPage {
         }
         boolean previewAsked = query.containsKey("preview") && !phpEmpty(query.get("preview"));
         if (publicly && previewAsked && !armed) {
-            Map<String, String> headers = new LinkedHashMap<>();
-            headers.put("Location", urls.home() + plainLink(post));
-            return new PageAnswer(301, "", headers);
+            return redirect(post);
         }
         boolean previewMode = previewAsked || !publicly;
         boolean overlay = previewMode && canEdit && armed;
         String title = post.title();
         String content = post.content();
         if (overlay) {
-            Optional<RevisionSnapshot> autosave = latestAutosave(post.id());
+            Optional<AutosaveOverlay.Autosave> autosave = latestAutosave(post.id());
             if (autosave.isPresent()) {
                 title = autosave.get().title();
                 content = autosave.get().content();
@@ -347,16 +397,17 @@ public class PreviewPage {
     }
 
     /** The latest autosave of any user, when the revisions module is present. */
-    private Optional<RevisionSnapshot> latestAutosave(PostId post) {
-        if (!revisions.isResolvable()) {
+    private Optional<AutosaveOverlay.Autosave> latestAutosave(PostId post) {
+        if (!autosaves.isResolvable()) {
             return Optional.empty();
         }
-        return revisions.get().autosaveOf(post, Optional.empty());
+        return autosaves.get().latest(post);
     }
 
     /**
      * The post the query names, when it exists on this site with the type the parameter stands for:
-     * {@code attachment_id} an attachment, {@code page_id} a page, {@code p} a post or the {@code post_type} given.
+     * {@code attachment_id} an attachment, {@code page_id} a page, {@code p} a post or the {@code post_type} given
+     * when that type is publicly queryable (any other {@code post_type} is ignored, so {@code p} names a post).
      */
     private Optional<PostSnapshot> requested(ObjectNode query) {
         String type;
@@ -368,10 +419,9 @@ public class PreviewPage {
             type = "page";
             id = query.get("page_id");
         } else if (query.has("p")) {
+            // a post_type naming no publicly queryable type is dropped, as WordPress drops the query var
             JsonNode postType = query.get("post_type");
-            type = postType != null
-                            && postType.isTextual()
-                            && !postType.textValue().isEmpty()
+            type = postType != null && postType.isTextual() && queryable(postType.textValue())
                     ? postType.textValue()
                     : "post";
             id = query.get("p");
@@ -385,6 +435,48 @@ public class PreviewPage {
         return posts.findPost(site.siteId(), PostId.of(value))
                 .map(PostEntity::toSnapshot)
                 .filter(post -> post.type().equals(type));
+    }
+
+    /** WordPress's canonical redirect (301) to the post's plain link. */
+    private PageAnswer redirect(PostSnapshot post) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Location", urls.home() + plainLink(post));
+        return new PageAnswer(301, "", headers);
+    }
+
+    /** The canonical redirect of a 404, which keeps the 404's no-cache headers as WordPress's does. */
+    private PageAnswer notFoundRedirect(PostSnapshot post) {
+        PageAnswer redirect = redirect(post);
+        redirect.headers().put("Expires", EXPIRES);
+        redirect.headers().put("Cache-Control", NO_STORE);
+        return redirect;
+    }
+
+    /**
+     * For a query whose post was not found: the published post of a public type that its id names under another
+     * type, which WordPress's canonical redirect of a 404 sends the visitor to ({@code ?p=} naming a page, say).
+     */
+    private Optional<PostSnapshot> misnamed(ObjectNode query) {
+        JsonNode id = query.has("attachment_id")
+                ? query.get("attachment_id")
+                : query.has("page_id") ? query.get("page_id") : query.get("p");
+        long value = id == null ? 0 : PhpValues.toLong(id);
+        if (value <= 0) {
+            return Optional.empty();
+        }
+        return posts.findPost(site.siteId(), PostId.of(value))
+                .map(PostEntity::toSnapshot)
+                .filter(post -> types.find(post.type())
+                        .map(PostTypeDefinition::publicly)
+                        .orElse(false))
+                .filter(post -> statuses.find(post.status())
+                        .map(PostStatusDefinition::publicly)
+                        .orElse(false));
+    }
+
+    /** Whether the key names a registered post type that is publicly queryable. */
+    private boolean queryable(String key) {
+        return types.find(key).map(PostTypeDefinition::publiclyQueryable).orElse(false);
     }
 
     /** The post's plain front-end link below the site's home. */

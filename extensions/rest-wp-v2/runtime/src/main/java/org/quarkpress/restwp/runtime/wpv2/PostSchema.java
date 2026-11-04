@@ -478,20 +478,8 @@ final class PostSchema {
             count = PhpValues.parseList(value.asText()).size();
         }
         if (count > ListArgs.MAX_ITEMS) {
-            throw new RestException(overBound(name, count));
+            throw new RestException(ListArgs.overBound(name, count));
         }
-    }
-
-    /** The schema's error for a list of {@code count} entries, over {@value ListArgs#MAX_ITEMS}. */
-    private static RestError overBound(String name, int count) {
-        ObjectNode bound = RestJson.NODES.objectNode();
-        bound.put("type", "array");
-        bound.put("maxItems", ListArgs.MAX_ITEMS);
-        ArrayNode list = RestJson.NODES.arrayNode();
-        for (int i = 0; i < count; i++) {
-            list.add("");
-        }
-        return SchemaValidator.validate(list, bound, name).orElseThrow();
     }
 
     /**
@@ -579,7 +567,7 @@ final class PostSchema {
         Set<Long> distinct = new LinkedHashSet<>();
         sanitized.forEach(id -> distinct.add(PhpValues.toLong(id)));
         if (distinct.size() > ListArgs.MAX_ITEMS) {
-            throw new RestException(overBound(name, distinct.size()));
+            throw new RestException(ListArgs.overBound(name, distinct.size()));
         }
         ArrayNode ids = RestJson.NODES.arrayNode();
         distinct.forEach(ids::add);

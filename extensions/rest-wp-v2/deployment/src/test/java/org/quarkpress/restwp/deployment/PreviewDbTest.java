@@ -42,7 +42,11 @@ class PreviewDbTest {
 
     @RegisterExtension
     static final QuarkusExtensionTest app = RestApp.network(
-                    PreviewDbTest.class, PostFixtures.class, PostFixtures.Builder.class, TestClock.class)
+                    PreviewDbTest.class,
+                    PostFixtures.class,
+                    PostFixtures.Builder.class,
+                    TestClock.class,
+                    LedgerType.class)
             .overrideConfigKey("quarkus.http.proxy.proxy-address-forwarding", "true")
             .overrideConfigKey("quarkus.http.proxy.allow-x-forwarded", "true");
 
@@ -279,7 +283,16 @@ class PreviewDbTest {
                 .author(bob)
                 .title("A page")
                 .insert(data);
-        page(null).get("/?p=" + page.value()).then().statusCode(404);
+        // a published post of another public type: WordPress's canonical redirect of a 404 to the post's own link
+        page(null)
+                .get("/?p=" + page.value())
+                .then()
+                .statusCode(301)
+                .header("Location", "http://localhost/?page_id=" + page.value())
+                .header("Expires", "Wed, 11 Jan 1984 05:00:00 GMT")
+                .header("Cache-Control", "no-cache, must-revalidate, max-age=0, no-store, private");
+        page(null).get("/?attachment_id=" + secret.value()).then().statusCode(404);
+        page(null).get("/?page_id=" + draft.value()).then().statusCode(404);
         page(null).get("/?page_id=" + page.value()).then().statusCode(200).body(containsString("A page"));
         page(null).get("/?preview=true").then().statusCode(404);
     }
@@ -343,12 +356,82 @@ class PreviewDbTest {
                 .statusCode(301)
                 .header("Location", "http://localhost/?page_id=" + page.value());
         page(null).get("/?p=" + published.value() + "&preview=0").then().statusCode(200);
+        page(null)
+                .get("/?page_id=" + published.value())
+                .then()
+                .statusCode(301)
+                .header("Location", "http://localhost/?p=" + published.value());
         // a draft is never redirected
         PostId draft = draftOf(carol, "Draft title");
         page(session(carol))
                 .get("/?p=" + draft.value() + "&preview=true")
                 .then()
                 .statusCode(200);
+    }
+
+    @Test
+    void aTypeThatIsNotPubliclyQueryableIsNeverShown() {
+        clock.set(NOW);
+        PostId pattern = PostFixtures.builder(site)
+                .type("wp_block")
+                .author(bob)
+                .title("Pattern title")
+                .content("PATTERN BODY")
+                .insert(data);
+        PostId ledger = PostFixtures.builder(site)
+                .type("ledger")
+                .author(bob)
+                .title("Ledger title")
+                .content("LEDGER BODY")
+                .insert(data);
+        // a post_type that is not publicly queryable is dropped, so the id is looked up as a post: not found
+        for (String cookie : new String[] {null, session(bob)}) {
+            page(cookie)
+                    .get("/?p=" + pattern.value() + "&post_type=wp_block")
+                    .then()
+                    .statusCode(404)
+                    .body(not(containsString("PATTERN BODY")));
+            page(cookie)
+                    .get("/?p=" + ledger.value() + "&post_type=ledger")
+                    .then()
+                    .statusCode(404)
+                    .body(not(containsString("LEDGER BODY")));
+        }
+        // nor redirected: a block is of a type that is not public
+        page(null).get("/?page_id=" + pattern.value()).then().statusCode(404);
+        // a post asked for with such a post_type is the post itself, as is one with a post_type nobody registered
+        PostId published = PostFixtures.published(data, site, UserId.of(carol), "Public title", "2026-01-10T10:00:00Z");
+        for (String type : new String[] {"wp_block", "ledger", "page", "nothing-here"}) {
+            page(null)
+                    .get("/?p=" + published.value() + "&post_type=" + type)
+                    .then()
+                    .statusCode(200)
+                    .body(containsString("<h1 class=\"entry-title\">Public title</h1>"));
+        }
+    }
+
+    @Test
+    void ofSeveralSessionCookiesTheOneThisSiteKnowsCounts() {
+        clock.set(NOW);
+        PostId draft = draftOf(carol, "Cookie draft");
+        String good = session(carol);
+        String target = "/?p=" + draft.value() + "&preview=true";
+        // a browser sends every cookie whose path matches: a stale or another path's one may come first or last
+        for (String header : new String[] {
+            COOKIE + "=stale-token; " + COOKIE + "=" + good, COOKIE + "=" + good + "; " + COOKIE + "=stale-token"
+        }) {
+            Http.as(null)
+                    .header("Cookie", header)
+                    .get(target)
+                    .then()
+                    .statusCode(200)
+                    .body(containsString("<h1 class=\"entry-title\">Cookie draft</h1>"));
+        }
+        Http.as(null)
+                .header("Cookie", COOKIE + "=stale-token; " + COOKIE + "=other-stale")
+                .get(target)
+                .then()
+                .statusCode(404);
     }
 
     @Test

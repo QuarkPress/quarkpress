@@ -118,7 +118,7 @@ public class TermsController implements RestRouteProvider {
             if (!taxonomy.showInRest()) {
                 continue;
             }
-            String base = taxonomy.restBase().filter(rest -> !rest.isEmpty()).orElse(taxonomy.key());
+            String base = PostRoutes.base(taxonomy);
             Routes term = new Routes(taxonomy, base, TermSchema.of(taxonomy));
             register(routes, term);
         }
@@ -500,11 +500,10 @@ public class TermsController implements RestRouteProvider {
             if (definition.isEmpty() || !definition.get().showInRest()) {
                 continue;
             }
-            String base = PostRoutes.base(definition.get());
             links = links.add(
                     POST_TYPE_RELATION,
                     urls.route(
-                            "/" + TypeExtras.of(type).restNamespace() + "/" + base,
+                            PostRoutes.collection(definition.get()),
                             Map.of(term.base(), Long.toString(found.id().value()))));
         }
         return links;

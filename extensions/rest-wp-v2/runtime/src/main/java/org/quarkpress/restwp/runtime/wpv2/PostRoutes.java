@@ -77,6 +77,11 @@ record PostRoutes(
         return creatable;
     }
 
+    /** The REST collection route of a post type: {@code /<its REST namespace>/<its REST base>}. */
+    static String collection(PostTypeDefinition type) {
+        return "/" + TypeExtras.of(type.key()).restNamespace() + "/" + base(type);
+    }
+
     /** The REST base of a post type: its REST base, or its key. */
     static String base(PostTypeDefinition type) {
         return type.restBase().filter(rest -> !rest.isEmpty()).orElse(type.key());

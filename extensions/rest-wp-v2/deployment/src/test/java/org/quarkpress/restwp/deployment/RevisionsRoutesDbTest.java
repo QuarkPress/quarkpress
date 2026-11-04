@@ -257,6 +257,63 @@ class RevisionsRoutesDbTest {
     }
 
     @Test
+    void aProtectedParentIsNotSpecial() {
+        PostId locked = post(site, "post", carol, "locked parent")
+                .password("pw")
+                .content("LOCKED POST WORDS")
+                .insert(data);
+        long revision = revision(site, locked, carol, "locked v1", "LOCKED REVISION WORDS", "2026-03-02T10:00:00Z");
+        long autosave = autosave(site, locked, carol, "locked draft", "LOCKED AUTOSAVE WORDS", "2026-03-03T10:00:00Z");
+        String autosaves = "/wp-json/wp/v2/posts/" + locked.value() + "/autosaves";
+        // whoever may edit the parent reads the words, in every context, with no password and no protected flag
+        for (String context : new String[] {"view", "edit"}) {
+            JsonNode revisions = json(as("test-" + carol)
+                    .get(list(locked) + "?context=" + context)
+                    .then()
+                    .statusCode(200)
+                    .extract()
+                    .asString());
+            assertThat(ids(revisions)).contains(revision);
+            JsonNode listed = revisions.get(ids(revisions).indexOf(revision));
+            assertThat(listed.at("/content/rendered").textValue()).contains("LOCKED REVISION WORDS");
+            assertThat(fieldNames(listed.get("content"))).doesNotContain("protected");
+            JsonNode item = json(as("test-" + bob)
+                    .get(list(locked) + "/" + revision + "?context=" + context)
+                    .then()
+                    .statusCode(200)
+                    .extract()
+                    .asString());
+            assertThat(item.at("/content/rendered").textValue()).contains("LOCKED REVISION WORDS");
+            JsonNode saved = json(as("test-" + carol)
+                    .get(autosaves + "?context=" + context)
+                    .then()
+                    .statusCode(200)
+                    .extract()
+                    .asString());
+            assertThat(ids(saved)).containsExactly(autosave);
+            assertThat(saved.at("/0/content/rendered").textValue()).contains("LOCKED AUTOSAVE WORDS");
+            assertThat(fieldNames(saved.get(0).get("content"))).doesNotContain("protected");
+            JsonNode one = json(as("test-" + bob)
+                    .get(autosaves + "/" + autosave + "?context=" + context)
+                    .then()
+                    .statusCode(200)
+                    .extract()
+                    .asString());
+            assertThat(one.at("/content/rendered").textValue()).contains("LOCKED AUTOSAVE WORDS");
+        }
+        // a password never opens them to anyone else
+        for (String target : new String[] {
+            list(locked) + "?password=pw",
+            list(locked) + "/" + revision + "?password=pw",
+            autosaves + "?password=pw",
+            autosaves + "/" + autosave + "?password=pw"
+        }) {
+            as(null).get(target).then().statusCode(401).body("code", equalTo("rest_cannot_read"));
+            as("test-" + dave).get(target).then().statusCode(403).body("code", equalTo("rest_cannot_read"));
+        }
+    }
+
+    @Test
     void listsAllUsersAutosavesAndPagesLikeWordPress() {
         String base = "http://" + host + list(post7);
         Response all = as(admin()).get(list(post7));

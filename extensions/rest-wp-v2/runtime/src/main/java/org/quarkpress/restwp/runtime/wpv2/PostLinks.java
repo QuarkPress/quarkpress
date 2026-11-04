@@ -165,8 +165,7 @@ class PostLinks {
         }
         return types.find(found.get().type())
                 .filter(PostTypeDefinition::showInRest)
-                .map(type -> "/" + TypeExtras.of(type.key()).restNamespace() + "/" + PostRoutes.base(type) + "/"
-                        + parent.value());
+                .map(type -> PostRoutes.collection(type) + "/" + parent.value());
     }
 
     private static Map<String, JsonNode> embeddable() {

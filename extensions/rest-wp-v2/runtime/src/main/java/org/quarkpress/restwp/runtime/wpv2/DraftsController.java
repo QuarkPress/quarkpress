@@ -5,18 +5,12 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
-import org.quarkpress.posts.PostStatuses;
-import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Endpoint;
@@ -30,7 +24,6 @@ import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.taxonomy.PostFormats;
-import org.quarkpress.taxonomy.Taxonomies;
 
 /**
  * {@code POST /quarkpress/v1/drafts}: the auto-draft a new post starts from, as WordPress's new-post screen creates
@@ -57,17 +50,9 @@ public class DraftsController implements RestRouteProvider {
     /** WordPress's default of {@code default_post_format}: no format. */
     private static final String NO_FORMAT = "0";
 
-    /** The types whose routes other controllers serve: no auto-draft starts there. */
-    private static final List<String> OWN_CONTROLLERS = List.of("attachment", "wp_block");
-
+    /** The post routes; an auto-draft starts only in a type served there. */
     @Inject
-    PostTypes types;
-
-    @Inject
-    Taxonomies taxonomies;
-
-    @Inject
-    PostStatuses statuses;
+    PostsController postsController;
 
     @Inject
     PostPermissions permissions;
@@ -80,9 +65,6 @@ public class DraftsController implements RestRouteProvider {
 
     @Inject
     PostFields fields;
-
-    @Inject
-    MetaFields meta;
 
     @Inject
     RestUrls urls;
@@ -103,15 +85,7 @@ public class DraftsController implements RestRouteProvider {
 
     @Override
     public void register(RouteRegistry registry) {
-        Map<String, PostRoutes> served = new LinkedHashMap<>();
-        List<String> creatable = PostRoutes.creatable(statuses.all());
-        for (PostTypeDefinition type : types.all()) {
-            if (!type.showInRest() || OWN_CONTROLLERS.contains(type.key())) {
-                continue;
-            }
-            served.put(type.key(), PostRoutes.of(type, taxonomies.all(), meta, creatable));
-        }
-        routes = Collections.unmodifiableMap(served);
+        routes = postsController.routes();
         registry.route(NAMESPACE, DRAFTS)
                 .endpoint(Endpoint.of("POST")
                         .arg(Arg.of("type", "string")

@@ -5,19 +5,15 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.posts.TaxClause;
 import org.quarkpress.posts.TaxQuery;
 import org.quarkpress.restwp.Arg;
-import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestRequest;
-import org.quarkpress.restwp.runtime.ArgChecks;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
-import org.quarkpress.restwp.runtime.SchemaValidator;
 
 /**
  * The term filters of a post collection, as WordPress declares and reads them: {@code tax_relation} when the type has
@@ -226,15 +222,8 @@ final class TermFilterArgs {
     }
 
     private static void requireBounded(String name, List<JsonNode> items) {
-        if (items.size() <= ListArgs.MAX_ITEMS) {
-            return;
+        if (items.size() > ListArgs.MAX_ITEMS) {
+            throw ListArgs.overBoundParam(name, items.size());
         }
-        ObjectNode bound = RestJson.NODES.objectNode();
-        bound.put("type", "array");
-        bound.put("maxItems", ListArgs.MAX_ITEMS);
-        ArrayNode list = RestJson.NODES.arrayNode();
-        items.forEach(list::add);
-        RestError tooMany = SchemaValidator.validate(list, bound, name).orElseThrow();
-        throw new RestException(ArgChecks.invalidParams(Map.of(name, tooMany)));
     }
 }

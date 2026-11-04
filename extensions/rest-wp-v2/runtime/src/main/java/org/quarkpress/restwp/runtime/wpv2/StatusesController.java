@@ -210,10 +210,8 @@ public class StatusesController implements RestRouteProvider {
 
     /** The REST collection of posts, which every status links to. */
     private String postsRoute() {
-        String base = types.find("post")
-                .flatMap(post -> post.restBase())
-                .filter(rest -> !rest.isEmpty())
-                .orElse("post");
-        return "/" + TypeExtras.of("post").restNamespace() + "/" + base;
+        return types.find("post")
+                .map(PostRoutes::collection)
+                .orElse("/" + TypeExtras.of("post").restNamespace() + "/post");
     }
 }

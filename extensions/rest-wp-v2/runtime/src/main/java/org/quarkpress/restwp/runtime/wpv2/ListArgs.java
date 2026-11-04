@@ -45,15 +45,29 @@ final class ListArgs {
             items.add(value.get());
         }
         if (items.size() > MAX_ITEMS) {
-            ObjectNode bound = RestJson.NODES.objectNode();
-            bound.put("type", "array");
-            bound.put("maxItems", MAX_ITEMS);
-            ArrayNode list = RestJson.NODES.arrayNode();
-            items.forEach(list::add);
-            RestError tooMany = SchemaValidator.validate(list, bound, name).orElseThrow();
-            throw new RestException(ArgChecks.invalidParams(Map.of(name, tooMany)));
+            throw overBoundParam(name, items.size());
         }
         return items;
+    }
+
+    /**
+     * The schema's error for the argument {@code name} holding a list of {@code count} entries, over
+     * {@value #MAX_ITEMS}: WordPress's error for a list over its schema's {@code maxItems}.
+     */
+    static RestError overBound(String name, int count) {
+        ObjectNode bound = RestJson.NODES.objectNode();
+        bound.put("type", "array");
+        bound.put("maxItems", MAX_ITEMS);
+        ArrayNode list = RestJson.NODES.arrayNode();
+        for (int i = 0; i < count; i++) {
+            list.add("");
+        }
+        return SchemaValidator.validate(list, bound, name).orElseThrow();
+    }
+
+    /** {@link #overBound}'s error as the request's invalid parameter, answered with 400. */
+    static RestException overBoundParam(String name, int count) {
+        return new RestException(ArgChecks.invalidParams(Map.of(name, overBound(name, count))));
     }
 
     /**

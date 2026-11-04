@@ -96,6 +96,10 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
     @Inject
     RevisionFields fields;
 
+    /** The revisions routes, whose read check the single autosave read shares. */
+    @Inject
+    RevisionRoutes revisionRoutes;
+
     @Inject
     PostFields postFields;
 
@@ -124,7 +128,7 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
                 .schema(() -> schema)
                 .endpoint(Endpoint.of("GET")
                         .arg(Paging.contextArg(schema))
-                        .permission(request -> mayRead(post, request))
+                        .permission(request -> revisionRoutes.mayRead(post, request))
                         .handler(request -> item(post, schema, request))
                         .build())
                 .register();
@@ -154,21 +158,6 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
             return PermissionResult.denied(RestError.of(
                     "rest_cannot_read",
                     "Sorry, you are not allowed to view autosaves of this post.",
-                    request.authCode()));
-        }
-        return PermissionResult.allowed();
-    }
-
-    /** The revisions routes' read check, against the path's {@code parent}. */
-    private PermissionResult mayRead(PostRoutes routes, RestRequest request) {
-        Optional<PostSnapshot> parent = reads.post(routes, request, "parent");
-        if (parent.isEmpty()) {
-            return PermissionResult.denied(invalidParent());
-        }
-        if (!permissions.can(request.identity(), "edit_post", parent.get())) {
-            return PermissionResult.denied(RestError.of(
-                    "rest_cannot_read",
-                    "Sorry, you are not allowed to view revisions of this post.",
                     request.authCode()));
         }
         return PermissionResult.allowed();

@@ -2,6 +2,7 @@ package org.quarkpress.restwp.runtime.wpv2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.runtime.QuarkusPrincipal;
@@ -52,7 +53,8 @@ import org.quarkpress.security.UserProfiles;
  * {@code DELETE} nor an {@code Authorization} header, so the shell posts a JSON blob to {@code ...?_method=DELETE}
  * with {@code active_post_lock} and {@code release_token}, and a token valid for that post, the user of the lock value
  * and the value itself (consumed either way, as it is one-time) releases as that user would. A caller with a Bearer
- * token releases with its own rights and the token in its body is left alone.
+ * token releases with its own rights and the token in its body is left alone. A take, refresh or takeover and its
+ * release token are one transaction: when the token cannot be stored, the lock stays as it was.
  */
 @ApplicationScoped
 public class LocksController implements RestRouteProvider {
@@ -164,25 +166,27 @@ public class LocksController implements RestRouteProvider {
 
     // ---- handlers
 
+    // the lock and its release token are written in one transaction: a lock is never taken without its token
+
     private RestResponse take(RestRequest request) {
         PostId post = post(request);
-        return switch (locks.take(post)) {
+        return QuarkusTransaction.joiningExisting().call(() -> switch (locks.take(post)) {
             case PostLocks.Take.Taken taken -> RestResponse.ok(taken(post, taken.lock()));
             case PostLocks.Take.Held held -> RestResponse.ok(heldBy(held.holder()));
-        };
+        });
     }
 
     private RestResponse refresh(RestRequest request) {
         PostId post = post(request);
-        return switch (locks.refresh(post)) {
+        return QuarkusTransaction.joiningExisting().call(() -> switch (locks.refresh(post)) {
             case PostLocks.Take.Taken taken -> RestResponse.ok(refreshed(post, taken.lock()));
             case PostLocks.Take.Held held -> RestResponse.ok(takenOverBy(held.holder()));
-        };
+        });
     }
 
     private RestResponse takeOver(RestRequest request) {
         PostId post = post(request);
-        return RestResponse.ok(taken(post, locks.takeOver(post)));
+        return QuarkusTransaction.joiningExisting().call(() -> RestResponse.ok(taken(post, locks.takeOver(post))));
     }
 
     private RestResponse release(RestRequest request) {

@@ -10,8 +10,10 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,6 +69,8 @@ public class PostsController implements RestRouteProvider {
 
     /** The types whose routes other controllers serve. */
     private static final List<String> OWN_CONTROLLERS = List.of("attachment", "wp_block");
+
+    private volatile Map<String, PostRoutes> served = Map.of();
 
     /** The deepest chain of inherited statuses followed when deciding whether a post is readable. */
     private static final int MAX_INHERITANCE = 100;
@@ -135,6 +139,16 @@ public class PostsController implements RestRouteProvider {
         return 50;
     }
 
+    /**
+     * The routes of every post type served here, by type key, in registration order, as of the last route table
+     * build. {@link #register} is the only writer: it swaps in a new immutable map each time the route table is
+     * built, so requests read a consistent snapshot. Controllers registered after this one (a higher
+     * {@link #order()}) read the map of the same build.
+     */
+    Map<String, PostRoutes> routes() {
+        return served;
+    }
+
     @Override
     public void register(RouteRegistry routes) {
         List<String> allStatuses = new ArrayList<>();
@@ -142,11 +156,16 @@ public class PostsController implements RestRouteProvider {
             allStatuses.add(status.name());
         }
         List<String> creatable = PostRoutes.creatable(statuses.all());
+        Map<String, PostRoutes> built = new LinkedHashMap<>();
         for (PostTypeDefinition type : types.all()) {
             if (!type.showInRest() || OWN_CONTROLLERS.contains(type.key())) {
                 continue;
             }
-            PostRoutes post = PostRoutes.of(type, taxonomies.all(), meta, creatable);
+            built.put(type.key(), PostRoutes.of(type, taxonomies.all(), meta, creatable));
+        }
+        served = Collections.unmodifiableMap(built);
+        for (PostRoutes post : built.values()) {
+            PostTypeDefinition type = post.type();
             register(routes, post, allStatuses);
             // the revisions routes follow the type's own, for a type that keeps revisions, while the module is here
             if (revisionRoutes.isResolvable() && post.supports("revisions")) {
