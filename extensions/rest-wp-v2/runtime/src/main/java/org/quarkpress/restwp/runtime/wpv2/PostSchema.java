@@ -6,12 +6,20 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.TaxonomyDefinition;
+import org.quarkpress.posts.PageTemplates;
 import org.quarkpress.posts.PostPermissions;
+import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.runtime.Slugs;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.Paging;
@@ -20,6 +28,7 @@ import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.restwp.runtime.SchemaSanitizer;
 import org.quarkpress.restwp.runtime.SchemaValidator;
 import org.quarkpress.taxonomy.PostFormats;
 
@@ -469,15 +478,150 @@ final class PostSchema {
             count = PhpValues.parseList(value.asText()).size();
         }
         if (count > ListArgs.MAX_ITEMS) {
-            ObjectNode bound = RestJson.NODES.objectNode();
-            bound.put("type", "array");
-            bound.put("maxItems", ListArgs.MAX_ITEMS);
-            ArrayNode list = RestJson.NODES.arrayNode();
-            for (int i = 0; i < count; i++) {
-                list.add("");
-            }
-            throw new RestException(SchemaValidator.validate(list, bound, name).orElseThrow());
+            throw new RestException(overBound(name, count));
         }
+    }
+
+    /** The schema's error for a list of {@code count} entries, over {@value ListArgs#MAX_ITEMS}. */
+    private static RestError overBound(String name, int count) {
+        ObjectNode bound = RestJson.NODES.objectNode();
+        bound.put("type", "array");
+        bound.put("maxItems", ListArgs.MAX_ITEMS);
+        ArrayNode list = RestJson.NODES.arrayNode();
+        for (int i = 0; i < count; i++) {
+            list.add("");
+        }
+        return SchemaValidator.validate(list, bound, name).orElseThrow();
+    }
+
+    /**
+     * The write arguments: the schema's writable properties in its order, each checked with the others before any is
+     * sanitized, with WordPress's own rules where it has them: {@code slug} is sanitized as a title; {@code title},
+     * {@code content} and {@code excerpt} take a string or an object and are neither checked nor sanitized;
+     * {@code status} passes when it equals the stored post's status, else it must be one of the schema's;
+     * {@code template} passes when it is empty in PHP's sense or equals the stored post's template, else it must be
+     * one of the templates offered for the type (none without a theme: "template is not one of ."); {@code meta}
+     * must be an object or a list and is not sanitized here; a taxonomy's term ids are kept once each, at most
+     * {@value ListArgs#MAX_ITEMS} distinct ones.
+     *
+     * @param stored the post being changed, read when a value is checked; empty for a create
+     */
+    static List<Arg> writeArgs(PostRoutes routes, Supplier<Optional<PostSnapshot>> stored) {
+        List<Arg> args = new ArrayList<>();
+        Set<String> termBases = new HashSet<>();
+        routes.taxonomies().forEach(taxonomy -> termBases.add(PostRoutes.base(taxonomy)));
+        for (Iterator<Map.Entry<String, JsonNode>> it =
+                        routes.schema().get("properties").fields();
+                it.hasNext(); ) {
+            Map.Entry<String, JsonNode> entry = it.next();
+            ObjectNode schema = ((ObjectNode) entry.getValue()).deepCopy();
+            if (schema.path("readonly").asBoolean(false)) {
+                continue;
+            }
+            schema.remove("context");
+            schema.remove("readonly");
+            String name = entry.getKey();
+            args.add(
+                    switch (name) {
+                        case "slug" ->
+                            write(
+                                    name,
+                                    schema,
+                                    Optional.of(value -> value.isTextual()
+                                            ? TextNode.valueOf(Slugs.sanitizeTitle(value.textValue()))
+                                            : value));
+                        case "title", "content", "excerpt" ->
+                            new Arg(
+                                    name,
+                                    schema,
+                                    false,
+                                    Optional.empty(),
+                                    Arg.Phase.VALIDATE,
+                                    Optional.of(UnaryOperator.identity()),
+                                    Optional.of(value -> true));
+                        case "status" ->
+                            new Arg(
+                                    name,
+                                    schema,
+                                    false,
+                                    Optional.empty(),
+                                    Arg.Phase.VALIDATE,
+                                    Optional.empty(),
+                                    Optional.of(value -> validStatus(value, schema, stored)));
+                        case "template" ->
+                            new Arg(
+                                    name,
+                                    schema,
+                                    false,
+                                    Optional.empty(),
+                                    Arg.Phase.VALIDATE,
+                                    Optional.empty(),
+                                    Optional.of(value -> validTemplate(value, stored)));
+                        case "meta" ->
+                            new Arg(
+                                    name,
+                                    schema,
+                                    false,
+                                    Optional.empty(),
+                                    Arg.Phase.VALIDATE,
+                                    Optional.of(UnaryOperator.identity()),
+                                    Optional.of(PhpValues::isPhpArray));
+                        default ->
+                            termBases.contains(name)
+                                    ? write(name, schema, Optional.of(value -> termIds(name, value, schema)))
+                                    : write(name, schema, Optional.empty());
+                    });
+        }
+        return List.copyOf(args);
+    }
+
+    /**
+     * A term id list sanitized by its schema, each id kept once in the order given; more than
+     * {@value ListArgs#MAX_ITEMS} distinct ids are refused as a list over its bound.
+     */
+    private static JsonNode termIds(String name, JsonNode value, ObjectNode schema) {
+        JsonNode sanitized = SchemaSanitizer.sanitize(value, schema, name);
+        if (!sanitized.isArray()) {
+            return sanitized;
+        }
+        Set<Long> distinct = new LinkedHashSet<>();
+        sanitized.forEach(id -> distinct.add(PhpValues.toLong(id)));
+        if (distinct.size() > ListArgs.MAX_ITEMS) {
+            throw new RestException(overBound(name, distinct.size()));
+        }
+        ArrayNode ids = RestJson.NODES.arrayNode();
+        distinct.forEach(ids::add);
+        return ids;
+    }
+
+    private static boolean validStatus(JsonNode value, ObjectNode schema, Supplier<Optional<PostSnapshot>> stored) {
+        if (value.isTextual()
+                && stored.get()
+                        .map(post -> post.status().equals(value.textValue()))
+                        .orElse(false)) {
+            return true;
+        }
+        Optional<RestError> invalid = SchemaValidator.validate(value, schema, "status");
+        if (invalid.isPresent()) {
+            throw new RestException(invalid.get());
+        }
+        return true;
+    }
+
+    private static boolean validTemplate(JsonNode value, Supplier<Optional<PostSnapshot>> stored) {
+        if (PhpValues.isEmpty(value)) {
+            return true;
+        }
+        String text = PhpValues.toPhpString(value);
+        if (stored.get().map(post -> PageTemplates.of(post).equals(text)).orElse(false)) {
+            return true;
+        }
+        // no theme offers templates yet, so no other value is one of them
+        throw new RestException(RestError.noStatus("rest_invalid_param", "template is not one of ."));
+    }
+
+    private static Arg write(String name, ObjectNode schema, Optional<UnaryOperator<JsonNode>> sanitize) {
+        return new Arg(name, schema, false, Optional.empty(), Arg.Phase.VALIDATE, sanitize);
     }
 
     /** The item GET's arguments in WordPress's order: context, excerpt_length, password. */

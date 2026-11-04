@@ -20,7 +20,8 @@ import org.quarkpress.restwp.RestException;
  *   <li>Every required argument without a value (absent, or JSON null in every source) is listed: 400
  *       {@code rest_missing_callback_param}. An empty string is a value.
  *   <li>Phase 1: each {@link Arg.Phase#VALIDATE} argument's value (by precedence, a default included) is checked
- *       by its own check or else against its schema, in declaration order; all failures are reported together.
+ *       by its own check or else against its schema, in declaration order; all failures are reported together. An
+ *       own check that throws a {@link RestException} refuses the value with that exception's error.
  *   <li>Phase 2, only when phase 1 found nothing: every source's value of every argument (JSON, form body, query, URL,
  *       defaults, each in its own order; JSON nulls and values another source shadows included) is sanitized and
  *       replaced by its sanitized form. An argument's own sanitizer is applied alone; one that throws a
@@ -47,7 +48,12 @@ public final class ArgChecks {
     /** Whether the value passes the argument's own check, or else its schema; the schema's error when it fails. */
     private static Optional<RestError> check(Arg arg, JsonNode value) {
         if (arg.validate().isPresent()) {
-            return arg.validate().get().test(value) ? Optional.empty() : Optional.of(INVALID);
+            try {
+                return arg.validate().get().test(value) ? Optional.empty() : Optional.of(INVALID);
+            } catch (RestException refused) {
+                // WordPress's validate callback answering an error: the value is refused, with that error
+                return Optional.of(refused.error());
+            }
         }
         return SchemaValidator.validate(value, arg.schema(), arg.name());
     }

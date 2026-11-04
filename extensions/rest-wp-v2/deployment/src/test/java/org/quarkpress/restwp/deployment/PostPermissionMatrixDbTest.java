@@ -25,8 +25,8 @@ import org.quarkpress.core.UserId;
  * The read permission matrix of the post collection: role (anonymous, administrator, editor bob, author carol,
  * contributor dave, subscriber erin, the outsider gina with no role on the site, and frank, administrator of another
  * site only) by status (publish, future, draft, pending, private, trash, auto-draft) by own and others' posts (carol's
- * and bob's), for the collection and for the item in the view and the edit context. Later tasks grow it with the
- * create, update and delete decisions.
+ * and bob's), for the collection and for the item in the view and the edit context; the create decision per caller,
+ * type (posts, pages, books) and requested status. Later tasks grow it with the update and delete decisions.
  */
 class PostPermissionMatrixDbTest {
 
@@ -229,6 +229,77 @@ class PostPermissionMatrixDbTest {
                                 cell.edit()
                                         ? "Sorry, you are not allowed to edit this post."
                                         : "Sorry, you are not allowed to do that.");
+            }
+        }
+    }
+
+    /**
+     * {@code POST /<base>} for every caller, type and requested status: creating needs the type's {@code create_posts}
+     * (an author and a contributor have none for pages; the subscriber, the outsider gina and frank, another site's
+     * administrator, none at all), publishing and private posts its {@code publish_posts} (a contributor has none).
+     * Refusals are 401 for the anonymous caller, 403 for the others.
+     */
+    @Test
+    void createCells() {
+        String created = "created " + UUID.randomUUID();
+        for (String caller : CALLERS.keySet()) {
+            for (String base : List.of("posts", "pages", "books")) {
+                for (String status : List.of("draft", "pending", "publish", "private")) {
+                    String what = caller + " POST /" + base + " " + status;
+                    Response answer = as(CALLERS.get(caller))
+                            .contentType("application/json")
+                            .body("{\"title\":\"" + created + "\",\"status\":\"" + status + "\"}")
+                            .post("/wp-json/wp/v2/" + base);
+                    JsonNode body = json(answer.asString());
+                    String refusal = createRefusal(caller, base, status);
+                    if (refusal == null) {
+                        assertThat(answer.statusCode())
+                                .as(what + ": " + answer.asString())
+                                .isEqualTo(201);
+                        assertThat(body.get("status").asText()).as(what).isEqualTo(status);
+                        continue;
+                    }
+                    assertThat(answer.statusCode())
+                            .as(what + ": " + answer.asString())
+                            .isEqualTo(caller.equals("anonymous") ? 401 : 403);
+                    assertThat(body.get("code").asText())
+                            .as(what)
+                            .isEqualTo(refusal.equals("create") ? "rest_cannot_create" : "rest_cannot_publish");
+                    assertThat(body.get("message").asText())
+                            .as(what)
+                            .isEqualTo(
+                                    switch (refusal) {
+                                        case "create" -> "Sorry, you are not allowed to create posts as this user.";
+                                        case "private" ->
+                                            "Sorry, you are not allowed to create private posts in this post type.";
+                                        default -> "Sorry, you are not allowed to publish posts in this post type.";
+                                    });
+                }
+            }
+        }
+    }
+
+    /** The refusal of a create: {@code create}, {@code private}, {@code publish}, or null when it is allowed. */
+    private static String createRefusal(String caller, String base, String status) {
+        switch (caller) {
+            case "anonymous", "erin", "gina", "frank" -> {
+                return "create";
+            }
+            case "carol" -> {
+                return base.equals("pages") ? "create" : null;
+            }
+            case "dave" -> {
+                if (base.equals("pages")) {
+                    return "create";
+                }
+                return switch (status) {
+                    case "publish" -> "publish";
+                    case "private" -> "private";
+                    default -> null;
+                };
+            }
+            default -> {
+                return null;
             }
         }
     }

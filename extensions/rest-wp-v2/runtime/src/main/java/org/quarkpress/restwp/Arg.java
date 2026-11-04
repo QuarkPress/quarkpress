@@ -16,7 +16,8 @@ import java.util.function.UnaryOperator;
  * @param sanitize the argument's own sanitizer, which replaces the schema's
  * @param validate the argument's own check, which replaces the schema's in the phase that checks it: a value it
  *     refuses is reported as "Invalid parameter." without details (WordPress's answer to a validate callback that
- *     returns false)
+ *     returns false); one that throws a {@link RestException} refuses the value with that exception's error (a
+ *     validate callback answering an error)
  */
 public record Arg(
         String name,

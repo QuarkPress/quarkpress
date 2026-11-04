@@ -17,11 +17,14 @@ import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.TaxonomyDefinition;
+import org.quarkpress.core.TermId;
 import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
+import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.restwp.Endpoint;
@@ -35,7 +38,10 @@ import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.runtime.PhpValues;
+import org.quarkpress.security.UserProfiles;
 import org.quarkpress.taxonomy.Taxonomies;
+import org.quarkpress.taxonomy.TermPermissions;
+import org.quarkpress.taxonomy.Terms;
 
 /**
  * WordPress's content routes for every post type shown in REST but attachments and blocks (which have controllers
@@ -78,6 +84,21 @@ public class PostsController implements RestRouteProvider {
 
     @Inject
     MetaFields meta;
+
+    @Inject
+    PostWriter writer;
+
+    @Inject
+    Posts posts;
+
+    @Inject
+    UserProfiles profiles;
+
+    @Inject
+    Terms terms;
+
+    @Inject
+    TermPermissions termPermissions;
 
     @Inject
     PostCollection collection;
@@ -134,6 +155,12 @@ public class PostsController implements RestRouteProvider {
                         .handler(request -> collection.list(post, request))
                         .allowBatch(true)
                         .build())
+                .endpoint(Endpoint.of("POST")
+                        .args(PostSchema.writeArgs(post, Optional::empty))
+                        .permission(request -> mayCreate(post, request))
+                        .handler(request -> create(post, request))
+                        .allowBatch(true)
+                        .build())
                 .register();
         routes.route(post.namespace(), "/" + post.base() + "/(?P<id>[\\d]+)")
                 .arg(PostSchema.idArg())
@@ -148,6 +175,71 @@ public class PostsController implements RestRouteProvider {
     }
 
     // ---- permissions
+
+    /**
+     * WordPress's create checks, in its order: no {@code id}; an author other than the caller needs the type's
+     * {@code edit_others_posts}; a truthy {@code sticky}, for any type, needs its {@code edit_others_posts} and
+     * {@code publish_posts}; the type's {@code create_posts}; then each named term that exists in its taxonomy must be
+     * assignable.
+     */
+    private PermissionResult mayCreate(PostRoutes routes, RestRequest request) {
+        if (request.param("id").filter(id -> !PhpValues.isEmpty(id)).isPresent()) {
+            return PermissionResult.denied(RestError.of("rest_post_exists", "Cannot create existing post.", 400));
+        }
+        SecurityIdentity caller = request.identity();
+        Optional<JsonNode> author = request.param("author").filter(given -> !PhpValues.isEmpty(given));
+        if (author.isPresent()
+                && !request.user()
+                        .map(user -> user.value() == PhpValues.toLong(author.get()))
+                        .orElse(false)
+                && !permissions.canType(caller, "edit_others_posts", routes.key())) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_cannot_edit_others",
+                    "Sorry, you are not allowed to create posts as this user.",
+                    request.authCode()));
+        }
+        // a type without the field leaves the value unsanitized: PHP's truthiness decides
+        if (request.param("sticky").filter(sticky -> !PhpValues.isEmpty(sticky)).isPresent()
+                && !(permissions.canType(caller, "edit_others_posts", routes.key())
+                        && permissions.canType(caller, "publish_posts", routes.key()))) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_cannot_assign_sticky",
+                    "Sorry, you are not allowed to make posts sticky.",
+                    request.authCode()));
+        }
+        if (!permissions.canType(caller, "create_posts", routes.key())) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_cannot_create",
+                    "Sorry, you are not allowed to create posts as this user.",
+                    request.authCode()));
+        }
+        if (!mayAssignTerms(routes, request)) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_cannot_assign_term",
+                    "Sorry, you are not allowed to assign the provided terms.",
+                    request.authCode()));
+        }
+        return PermissionResult.allowed();
+    }
+
+    /** Whether every named term that exists in its taxonomy on this site may be assigned by the caller. */
+    private boolean mayAssignTerms(PostRoutes routes, RestRequest request) {
+        for (TaxonomyDefinition taxonomy : routes.taxonomies()) {
+            Optional<JsonNode> value = request.param(PostRoutes.base(taxonomy));
+            if (value.isEmpty()
+                    || !value.get().isContainerNode()
+                    || termPermissions.canAssign(request.identity(), taxonomy.key())) {
+                continue;
+            }
+            for (JsonNode item : PhpValues.values(value.get())) {
+                long id = PhpValues.toLong(item);
+                if (id > 0 && terms.find(TermId.of(id), taxonomy.key()).isPresent()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
     private PermissionResult mayRead(PostRoutes routes, RestRequest request) {
         Optional<PostSnapshot> found = existing(routes, request);
@@ -207,6 +299,26 @@ public class PostsController implements RestRouteProvider {
     }
 
     // ---- handlers
+
+    /**
+     * Prepares the request (its errors come before anything is written), creates the post in one transaction and
+     * answers 201 with the post in the edit context, as WordPress answers whatever context was asked for.
+     */
+    private RestResponse create(PostRoutes routes, RestRequest request) {
+        PostRequest prepared = PostRequest.prepare(routes, request, Optional.empty(), services());
+        PostSnapshot created = writer.create(routes, prepared, request);
+        request.useContext("edit");
+        Fields.Selection selection =
+                Fields.forResponse(Fields.of(request), routes.schema(), "edit", request.hasParam("_embed"));
+        boolean lifted = permissions.can(request.identity(), "edit_post", created);
+        return fields.prepare(routes, created, selection, "edit", request, lifted)
+                .withStatus(201)
+                .withHeader("Location", urls.route(routes.item(created.id())));
+    }
+
+    private PostRequest.Services services() {
+        return new PostRequest.Services(permissions, statuses, posts, rows, profiles, site);
+    }
 
     private RestResponse item(PostRoutes routes, RestRequest request) {
         PostSnapshot post = existing(routes, request).orElseThrow(() -> new RestException(invalidId()));
