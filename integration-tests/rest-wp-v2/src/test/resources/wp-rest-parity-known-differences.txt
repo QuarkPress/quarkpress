@@ -111,42 +111,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkPress authenticates with tokens only
-# D6, until the create endpoint of the post collections exists: the index lists the collections with GET only.
-* req*:body:*/routes/~1wp~1v2~1posts/methods/1 D6 the create endpoint (POST) of the posts collection is not served yet
-* req*:body:*/routes/~1wp~1v2~1posts/endpoints/1 D6 the create endpoint (POST) of the posts collection is not served yet
-* req*:body:*/routes/~1wp~1v2~1pages/methods/1 D6 the create endpoint (POST) of the pages collection is not served yet
-* req*:body:*/routes/~1wp~1v2~1pages/endpoints/1 D6 the create endpoint (POST) of the pages collection is not served yet
-* req*:body:*/routes/~1wp~1v2~1books/methods/1 D6 the create endpoint (POST) of the books collection is not served yet
-* req*:body:*/routes/~1wp~1v2~1books/endpoints/1 D6 the create endpoint (POST) of the books collection is not served yet
-p01 req8:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req9:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req10:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req11:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req12:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req13:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req14:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req15:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req16:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req17:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req18:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req19:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req20:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req21:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req22:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req23:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req24:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req25:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req26:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req27:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req28:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req43:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req44:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req45:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p01 req46:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p02 req41:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p02 req42:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p02 req48:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
-p02 req53:header:allow D6 a logged-in caller who may create posts gets Allow: GET, POST from WordPress; QuarkPress's collection has no create endpoint yet
 d19 req5:status D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404)
 d19 req5:body* D6 namespace=oembed/1.0: WordPress's oEmbed namespace, QuarkPress's rest_invalid_namespace
 
@@ -435,6 +399,7 @@ p11 req38:body:/content/rendered D26 the book revision's content "p11 book words
 # D31: revisions have their own ids and one time; the harness normalises both sides' ids to refs (a revision's guid and slug included), and a zero GMT date cannot be provoked, so no scenario shows it.
 none * D31 revision ids live in their own space and their four dates come from one time; ids compare as refs and the dates as {now}, and WordPress's null dates need a zero GMT date no scenario can make
 
-# D6, until the write endpoints exist: the self link's target hints of a search result alice may edit (p15).
+# D6, until the write endpoints exist: the self link's target hints of a search result alice may edit (p15) and of a created post (p07).
 p15 req2:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
 p15 req29:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
+p07 req1:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints of a created post: WordPress lists GET, POST, PUT, PATCH, DELETE for its author; QuarkPress's item route has GET only

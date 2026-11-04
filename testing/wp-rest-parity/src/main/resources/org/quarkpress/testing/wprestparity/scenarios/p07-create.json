@@ -1,0 +1,339 @@
+{
+  "id": "p07",
+  "rule": "creating posts, pages and books (POST /wp/v2/<base>): WordPress's create checks in its order (an existing id, another author, sticky on any type, create_posts) per caller, its preparation errors (status, author, password with sticky, parent, empty post, template, impossible dates) and outcomes (dates with and without offsets, slugs of drafts made unique as published, sticky, featured media, formats, terms, filtered and escaped text, block delimiters written again), answered 201 in the edit context",
+  "setup": [
+    {
+      "post": "p:taken",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "p07 taken",
+      "fields": {
+        "slug": "p07-taken"
+      }
+    },
+    {
+      "post": "p:parent",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "p07 parent",
+      "fields": {
+        "slug": "p07-parent"
+      }
+    },
+    {
+      "post": "p:child",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "p07 child",
+      "fields": {
+        "slug": "p07-child",
+        "parent": "p:parent"
+      }
+    },
+    {
+      "term": "t:tag",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "p07-tag"
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?context=view",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 hello\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 author zero\",\"author\":0}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 as bob\",\"author\":{u:bob}}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 sticky page\",\"sticky\":true}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages?_fields=id,slug,status,title.raw,sticky",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 sticky page\",\"sticky\":true}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 subscriber\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 anonymous\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 contributor\",\"status\":\"publish\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 contributor\",\"status\":\"private\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 contributor\",\"status\":\"pending\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"id\":{p:taken},\"title\":\"p07 existing\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,title.raw",
+      "contentType": "application/json",
+      "body": "{\"id\":0,\"title\":\"p07 id zero\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 unknown author\",\"author\":999999}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 trash\",\"status\":\"trash\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 sticky password\",\"password\":\"p\",\"sticky\":true}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 orphan\",\"parent\":999999}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages?_fields=id,parent,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 under a post\",\"parent\":{p:taken}}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages?_fields=id,title.raw,status,slug,parent,menu_order",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 template\",\"template\":\"nope\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 offset\",\"date\":\"2026-01-15T10:00:00+05:00\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 gmt\",\"date_gmt\":\"2026-03-01T08:00:00\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 rolled over\",\"date\":\"2026-02-30t10:00:00\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 day 32\",\"date\":\"2026-02-32T10:00:00\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 fraction\",\"date\":\"2026-03-05T10:00:00.250Z\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 future\",\"status\":\"publish\",\"date_gmt\":\"2030-01-15T12:30:00\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 slug draft\",\"slug\":\"p07-taken\",\"status\":\"draft\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 slug pending\",\"slug\":\"p07-taken\",\"status\":\"pending\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 slug publish\",\"slug\":\"p07-taken\",\"status\":\"publish\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 slug no status\",\"slug\":\"p07-taken\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages?_fields=id,slug,status,parent",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 child draft\",\"slug\":\"p07-child\",\"status\":\"draft\",\"parent\":{p:parent}}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 sticky\",\"sticky\":true}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 unknown media\",\"featured_media\":999999}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 page as media\",\"featured_media\":{p:parent}}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 aside\",\"format\":\"aside\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 no categories\",\"categories\":[]}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,title.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 tags\",\"tags\":[{t:tag},999999]}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,title.raw,password,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"Caf\u00e9 <b>x</b> & \ud83d\ude00\",\"password\":\"a&b\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,title.raw,slug,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"Caf\u00e9 <b>x</b> & \ud83d\ude00\",\"status\":\"publish\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,content.raw,content.block_version",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 g18\",\"content\":\"<!-- wp:paragraph {\\\"className\\\":\\\"a<b--c&d\\\\\\\"e>f\\\",\\\"anchor\\\":\\\"x--y\\\"} --><p class=\\\"a<b--c\\\">g18 <b>text</b> -- here</p><!-- /wp:paragraph -->\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts?_fields=id,content.raw,content.block_version",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 g18 kept\",\"content\":\"<!-- wp:paragraph {\\\"className\\\":\\\"a\\\\u003cb\\\"} --><p>x</p><!-- /wp:paragraph -->\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/books?_fields=id,slug,status,type,title.raw,author,featured_media,template,meta",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p07 book\",\"status\":\"publish\"}"
+    }
+  ]
+}
