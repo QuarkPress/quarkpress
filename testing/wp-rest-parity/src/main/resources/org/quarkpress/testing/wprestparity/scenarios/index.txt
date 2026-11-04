@@ -43,4 +43,6 @@ p15-search.json
 p05-links-and-embeds.json
 p06-term-filters.json
 p07-create.json
+p08-update.json
 p11-revisions.json
+p12-autosaves.json

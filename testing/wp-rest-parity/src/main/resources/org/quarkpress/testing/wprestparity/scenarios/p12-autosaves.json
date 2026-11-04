@@ -1,0 +1,314 @@
+{
+  "id": "p12",
+  "rule": "the autosaves routes: the own-draft branch that updates the author's draft and answers it in the revision shape (a child page links its parent page), the caller's autosave on another user's draft, on the author's published post (the request's status not applied) and on a draft another user holds a lock on, the list of every user's autosaves newest first with the caller's preview link in the edit context, the item that answers the latest autosave whatever its id, who may read and write, the lookups and their 404s, the validation and the update checks, the edit context forced on the answer, OPTIONS and HEAD, and the preparation error QuarkPress answers where WordPress saves without the field (README D32)",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p12 carol draft",
+      "fields": {
+        "content": "p12 draft words"
+      }
+    },
+    {
+      "post": "p:published",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p12 carol post",
+      "fields": {
+        "content": "p12 published words"
+      }
+    },
+    {
+      "autosave": "r:carol-pub",
+      "as": "carol",
+      "post": "p:published",
+      "title": "p12 carol post",
+      "content": "p12 carol autosave"
+    },
+    {
+      "autosave": "r:bob-draft",
+      "as": "bob",
+      "post": "p:draft",
+      "title": "",
+      "content": "p12 bob autosave"
+    },
+    {
+      "post": "p:listed",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "p12 listed",
+      "fields": {
+        "content": "p12 listed words"
+      }
+    },
+    {
+      "autosave": "r:bob-listed",
+      "as": "bob",
+      "post": "p:listed",
+      "title": "",
+      "content": "p12 bob listed"
+    },
+    {
+      "autosave": "r:alice-listed",
+      "as": "alice",
+      "post": "p:listed",
+      "title": "",
+      "content": "p12 alice listed"
+    },
+    {
+      "post": "p:empty",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "p12 empty"
+    },
+    {
+      "post": "p:locked",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p12 carol locked draft",
+      "fields": {
+        "content": "p12 locked words"
+      }
+    },
+    {
+      "lock": "p:locked",
+      "user": "bob",
+      "age": 10
+    },
+    {
+      "post": "p:parent",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "p12 parent"
+    },
+    {
+      "post": "p:child",
+      "as": "bob",
+      "type": "page",
+      "status": "draft",
+      "title": "p12 child",
+      "fields": {
+        "parent": "p:parent"
+      }
+    },
+    {
+      "autosave": "r:alice-child",
+      "as": "alice",
+      "post": "p:child",
+      "title": "",
+      "content": "p12 alice child autosave"
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves?_fields=author,date,date_gmt,modified,modified_gmt,parent,slug,title.raw,content.raw,excerpt.raw,meta,preview_link,_links",
+      "contentType": "application/json",
+      "body": "{\"title\":\"p12 carol draft\",\"content\":\"p12 carol edits\",\"excerpt\":\"\",\"meta\":{\"footnotes\":\"\"}}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?include={p:draft}&status=draft&context=edit&_fields=id,status,title.raw,content.raw"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves?_fields=id,author,parent,slug,guid,title.raw,content.raw,excerpt.raw,meta,preview_link,_links",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 bob edits\"}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?include={p:draft}&status=draft&context=edit&_fields=id,content.raw"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:published}/autosaves?_fields=id,author,parent,slug,content.raw,preview_link",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 carol new words\",\"status\":\"draft\"}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?include={p:published}&status=publish&context=edit&_fields=id,status,content.raw"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves?context=edit&_fields=id,author,parent,slug,title.raw,content.raw,preview_link,_links"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves?_fields=id,author,date,modified,parent,slug,guid,title,excerpt,meta,_links"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:child}/autosaves/{r:alice-child}?context=edit&_fields=id,author,parent,content.raw,preview_link,_links"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:published}/autosaves/123456?_fields=id,author,content.raw"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves/{r:alice-listed}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/999999/autosaves"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/999999/autosaves/1"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:empty}/autosaves"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:empty}/autosaves/1"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/0/autosaves",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 x\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/999999/autosaves",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 x\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 x\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 x\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves",
+      "contentType": "application/json",
+      "body": "{\"status\":\"nope\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 x\",\"author\":99999}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves",
+      "contentType": "application/json",
+      "body": "{\"password\":\"x\",\"sticky\":true}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:published}/autosaves?context=embed&_fields=id,preview_link,title",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 carol embed\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:published}/autosaves?context=view&_fields=id,content.raw,preview_link",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 carol view\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:locked}/autosaves?_fields=author,parent,slug,content.raw",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 carol locked\"}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts?include={p:locked}&status=draft&context=edit&_fields=id,content.raw"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages/{p:child}/autosaves?_fields=author,date,date_gmt,parent,slug,content.raw,preview_link,_links",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 bob own draft\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/pages/{p:child}/autosaves?_fields=id,author,parent,slug,content.raw,preview_link,_links",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 alice child\"}"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves/{r:alice-listed}"
+    },
+    {
+      "as": "alice",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/posts/{p:listed}/autosaves"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:draft}/autosaves?_fields=author",
+      "contentType": "application/json",
+      "body": "{\"content\":\"p12 bob author\",\"author\":99999}"
+    }
+  ]
+}

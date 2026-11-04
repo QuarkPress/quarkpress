@@ -81,10 +81,7 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp-site-health~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp-block-editor~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1posts* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1pages* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1media* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1books~1* D6 the item, revisions and autosaves routes of the parity sites' custom type book are not served yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1blocks* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
@@ -204,64 +201,64 @@ none * D24 the harness has no session cookie mechanism: every caller authenticat
 * req*:body:*/namespaces/1 D36 the namespaces list holds quarkpress/v1 after wp/v2, where WordPress lists its own next namespace
 * req*:body:*/routes/~1quarkpress~1v1* D36 the index describes /quarkpress/v1 and its lock routes, which WordPress does not have
 
-# D6, until the writers of the item routes exist: WordPress lists the writing methods in Allow for a caller who may edit the post (GET, POST, PUT, PATCH, DELETE on an answer; POST, PUT, PATCH, DELETE on the incorrect-password 403); QuarkPress serves GET only.
-p03 req11:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req12:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req13:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req14:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req15:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req16:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req17:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req18:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req19:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req20:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req21:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req22:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req23:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req24:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req25:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req26:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req27:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req28:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req29:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req30:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req31:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req32:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req33:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req34:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req35:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req36:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req37:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req38:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p03 req39:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req1:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req2:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req3:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req4:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req5:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req6:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req7:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req8:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req9:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req10:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req11:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req12:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p04 req21:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
+# D6, until the item's delete endpoint exists: WordPress lists DELETE in Allow for a caller who may delete the post (GET, POST, PUT, PATCH, DELETE on an answer; POST, PUT, PATCH, DELETE on the incorrect-password 403); QuarkPress's item route has GET, POST, PUT and PATCH.
+p03 req11:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req12:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req13:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req14:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req15:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req16:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req17:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req18:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req19:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req20:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req21:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req22:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req23:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req24:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req25:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req26:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req27:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req28:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req29:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req30:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req31:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req32:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req33:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req34:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req35:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req36:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req37:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req38:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p03 req39:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req1:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req2:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req3:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req4:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req5:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req6:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req7:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req8:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req9:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req10:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req11:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req12:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p04 req21:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
 
-# D6, until the write endpoints exist: the self link's target hints of a caller who may edit the post.
-p04 req1:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req2:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req3:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req4:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req5:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req6:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req7:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req8:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req9:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req10:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req11:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req12:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p04 req21:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
+# D6, until the delete endpoint exists: the self link's target hints of a caller who may delete the post.
+p04 req1:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req2:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req3:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req4:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req5:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req6:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req7:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req8:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req9:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req10:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req11:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req12:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p04 req21:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
 
 # D26: the rendered content and excerpt of a post whose protection the request lifted.
 p03 req2:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
@@ -293,13 +290,13 @@ p14 req2:body D13 the 403 "Sorry, you are not allowed to preview drafts." page i
 p14 req5:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
 p14 req5:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
 
-# D6, until the item update and delete endpoints exist: an item's Allow header lists GET only.
-p13 req1:header:allow D6 the author's edit-context read of her auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
-p13 req2:header:allow D6 the editor's edit-context read of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
-p13 req3:header:allow D6 the editor's view-context read of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
-p13 req4:header:allow D6 the anonymous refusal of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
-p13 req7:header:allow D6 the editor's edit-context read of the page auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
-p13 req9:header:allow D6 the author's edit-context read of the book auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no update or delete endpoint yet
+# D6, until the item's delete endpoint exists: an item's Allow header lacks DELETE.
+p13 req1:header:allow D6 the author's edit-context read of her auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no delete endpoint yet
+p13 req2:header:allow D6 the editor's edit-context read of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no delete endpoint yet
+p13 req3:header:allow D6 the editor's view-context read of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no delete endpoint yet
+p13 req4:header:allow D6 the anonymous refusal of the auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no delete endpoint yet
+p13 req7:header:allow D6 the editor's edit-context read of the page auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no delete endpoint yet
+p13 req9:header:allow D6 the author's edit-context read of the book auto-draft: WordPress lists GET, POST, PUT, PATCH, DELETE; QuarkPress's item has no delete endpoint yet
 
 # D1: the guid is the plain permalink; WordPress keeps the pretty permalink a post was published with, and names a custom type's post ?p=<id>.
 p04 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
@@ -329,39 +326,27 @@ p04 req17:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> wh
 p04 req7:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 p04 req8:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 
-# D6, until the writers of the item routes exist: the index lists the item routes with GET only.
-* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/1 D6 the update and delete endpoints of the posts item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/2 D6 the update and delete endpoints of the posts item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/3 D6 the update and delete endpoints of the posts item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/4 D6 the update and delete endpoints of the posts item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/endpoints/1 D6 the update and delete endpoints of the posts item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/endpoints/2 D6 the update and delete endpoints of the posts item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/1 D6 the update and delete endpoints of the pages item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/2 D6 the update and delete endpoints of the pages item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/3 D6 the update and delete endpoints of the pages item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/4 D6 the update and delete endpoints of the pages item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/endpoints/1 D6 the update and delete endpoints of the pages item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/endpoints/2 D6 the update and delete endpoints of the pages item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/1 D6 the update and delete endpoints of the books item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/2 D6 the update and delete endpoints of the books item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/3 D6 the update and delete endpoints of the books item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/4 D6 the update and delete endpoints of the books item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/endpoints/1 D6 the update and delete endpoints of the books item route are not served yet
-* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/endpoints/2 D6 the update and delete endpoints of the books item route are not served yet
+# D6, until the item routes' delete endpoint exists: the index lists the item routes with GET, POST, PUT and PATCH.
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/methods/4 D6 the delete endpoint of the posts item route is not served yet
+* req*:body:*/routes/~1wp~1v2~1posts~1(?P<id>[\d]+)/endpoints/2 D6 the delete endpoint of the posts item route is not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/methods/4 D6 the delete endpoint of the pages item route is not served yet
+* req*:body:*/routes/~1wp~1v2~1pages~1(?P<id>[\d]+)/endpoints/2 D6 the delete endpoint of the pages item route is not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/methods/4 D6 the delete endpoint of the books item route is not served yet
+* req*:body:*/routes/~1wp~1v2~1books~1(?P<id>[\d]+)/endpoints/2 D6 the delete endpoint of the books item route is not served yet
 
 # p05 (links and embeds): target hints and Allow of callers who may edit (D6), the guid of posts and pages published with pretty permalinks (D1), no featured media link or embed (D28).
-p05 req4:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p05 req4:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p05 req5:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p05 req5:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p05 req6:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p05 req6:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p05 req9:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p05 req9:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p05 req11:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p05 req11:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p05 req13:header:allow D6 a caller who may edit the post gets the writing methods in Allow from WordPress; QuarkPress's item route has GET only
-p05 req13:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
+p05 req4:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p05 req4:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p05 req5:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p05 req5:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p05 req6:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p05 req6:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p05 req9:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p05 req9:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p05 req11:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p05 req11:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p05 req13:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p05 req13:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
 p05 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
@@ -401,7 +386,64 @@ none * D31 revision ids live in their own space and their four dates come from o
 none * D29 a write that fails after the insert is not provoked by scenarios (WordPress keeps the partial post; PostCreateDbTest pins the rollback)
 none * D30 the harness WordPress has theme templates while QuarkPress has none, and REST requests in the scenarios carry no preview_id/preview_nonce pair
 
-# D6, until the write endpoints exist: the self link's target hints of a search result alice may edit (p15) and of a created post (p07).
-p15 req2:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p15 req29:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
-p07 req1:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints of a created post: WordPress lists GET, POST, PUT, PATCH, DELETE for its author; QuarkPress's item route has GET only
+# D6, until the delete endpoint exists: the self link's target hints of a search result alice may edit (p15) and of a created post (p07).
+p15 req2:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p15 req29:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists DELETE too for a caller who may delete the post; QuarkPress's item route has no DELETE yet
+p07 req1:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints of a created post: WordPress lists DELETE too for its author; QuarkPress's item route has no DELETE yet
+
+# D6, until the item's delete endpoint exists (p08): WordPress lists DELETE in Allow and the self link's target hints for a caller who may delete the post.
+p08 req1:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req2:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req3:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req4:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req5:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req9:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req10:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req11:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req12:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req17:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req18:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req19:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req20:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req21:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req22:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req24:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req25:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req27:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req28:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req29:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req30:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req31:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req32:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req33:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req34:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req35:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req36:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req37:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req38:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req39:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req40:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req41:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req42:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req43:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req44:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req45:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req46:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req47:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req48:header:allow D6 a caller who may delete the post gets DELETE in Allow from WordPress; QuarkPress's item route has no DELETE yet
+p08 req1:body:/_links/self/0/targetHints/allow/* D6 the self link's target hints of an updated post: WordPress lists DELETE too for its author; QuarkPress's item route has no DELETE yet
+
+# D31: the revision an update saved has QuarkPress's own id (p08).
+p08 req1:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+p08 req1:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+
+# D26: the rendered content of the revisions an update saved (p08).
+p08 req23:body:/0/content/rendered D26 the revision's content "p08 changed": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p08 req26:body:/0/content/rendered D26 the revision's content "p08 changed": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+
+# D32: an autosave whose fields fail preparation answers the error (p12).
+p12 req34:status D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/author D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/code D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/message D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/data D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
