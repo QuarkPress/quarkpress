@@ -17,8 +17,6 @@ import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
-import org.quarkpress.core.TaxonomyDefinition;
-import org.quarkpress.core.TermId;
 import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
@@ -40,8 +38,6 @@ import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.taxonomy.Taxonomies;
-import org.quarkpress.taxonomy.TermPermissions;
-import org.quarkpress.taxonomy.Terms;
 
 /**
  * WordPress's content routes for every post type shown in REST but attachments and blocks (which have controllers
@@ -55,8 +51,9 @@ import org.quarkpress.taxonomy.Terms;
  * differs from the stored one is refused, even on a post without password; then the post must be readable (its
  * status public, {@code read_post}, or an inherited status whose parent is readable). The edit context of a caller
  * who may edit the post, or a matching {@code password} from any source, lifts the protection of a post with a
- * password. A viewable type's item carries a {@code Link} to its permalink in place of the API root's. A type that
- * keeps revisions gets WordPress's revisions routes right after its own, while the revisions module is present.
+ * password. A viewable type's item carries a {@code Link} to its permalink in place of the API root's. POST, PUT and
+ * PATCH on an item update it alike, with WordPress's update checks. A type that keeps revisions gets WordPress's
+ * revisions routes right after its own, while the revisions module is present.
  */
 @ApplicationScoped
 public class PostsController implements RestRouteProvider {
@@ -95,10 +92,7 @@ public class PostsController implements RestRouteProvider {
     UserProfiles profiles;
 
     @Inject
-    Terms terms;
-
-    @Inject
-    TermPermissions termPermissions;
+    PostUpdateChecks updateChecks;
 
     @Inject
     PostCollection collection;
@@ -122,6 +116,10 @@ public class PostsController implements RestRouteProvider {
     @Inject
     Instance<TypeRouteExtension> revisionRoutes;
 
+    /** The autosaves routes; a bean only while the revisions module is present. */
+    @Inject
+    Instance<TypeRouteExtension.Autosaves> autosaveRoutes;
+
     @Override
     public int order() {
         return 50;
@@ -143,6 +141,10 @@ public class PostsController implements RestRouteProvider {
             // the revisions routes follow the type's own, for a type that keeps revisions, while the module is here
             if (revisionRoutes.isResolvable() && post.supports("revisions")) {
                 revisionRoutes.get().register(routes, post);
+            }
+            // then the autosaves routes, for a type that is autosaved
+            if (autosaveRoutes.isResolvable() && types.supports(type.key(), "autosave")) {
+                autosaveRoutes.get().register(routes, post);
             }
         }
     }
@@ -171,6 +173,12 @@ public class PostsController implements RestRouteProvider {
                         .handler(request -> item(post, request))
                         .allowBatch(true)
                         .build())
+                .endpoint(Endpoint.of("POST", "PUT", "PATCH")
+                        .args(PostSchema.writeArgs(post, () -> updateChecks.storedWhileChecking(post)))
+                        .permission(request -> updateChecks.update(post, request))
+                        .handler(request -> update(post, request))
+                        .allowBatch(true)
+                        .build())
                 .register();
     }
 
@@ -187,12 +195,7 @@ public class PostsController implements RestRouteProvider {
             return PermissionResult.denied(RestError.of("rest_post_exists", "Cannot create existing post.", 400));
         }
         SecurityIdentity caller = request.identity();
-        Optional<JsonNode> author = request.param("author").filter(given -> !PhpValues.isEmpty(given));
-        if (author.isPresent()
-                && !request.user()
-                        .map(user -> user.value() == PhpValues.toLong(author.get()))
-                        .orElse(false)
-                && !permissions.canType(caller, "edit_others_posts", routes.key())) {
+        if (PostUpdateChecks.otherAuthor(request) && !permissions.canType(caller, "edit_others_posts", routes.key())) {
             return PermissionResult.denied(RestError.of(
                     "rest_cannot_edit_others",
                     "Sorry, you are not allowed to create posts as this user.",
@@ -213,32 +216,10 @@ public class PostsController implements RestRouteProvider {
                     "Sorry, you are not allowed to create posts as this user.",
                     request.authCode()));
         }
-        if (!mayAssignTerms(routes, request)) {
-            return PermissionResult.denied(RestError.of(
-                    "rest_cannot_assign_term",
-                    "Sorry, you are not allowed to assign the provided terms.",
-                    request.authCode()));
+        if (!updateChecks.mayAssignTerms(routes, request)) {
+            return PermissionResult.denied(PostUpdateChecks.cannotAssignTerm(request));
         }
         return PermissionResult.allowed();
-    }
-
-    /** Whether every named term that exists in its taxonomy on this site may be assigned by the caller. */
-    private boolean mayAssignTerms(PostRoutes routes, RestRequest request) {
-        for (TaxonomyDefinition taxonomy : routes.taxonomies()) {
-            Optional<JsonNode> value = request.param(PostRoutes.base(taxonomy));
-            if (value.isEmpty()
-                    || !value.get().isContainerNode()
-                    || termPermissions.canAssign(request.identity(), taxonomy.key())) {
-                continue;
-            }
-            for (JsonNode item : PhpValues.values(value.get())) {
-                long id = PhpValues.toLong(item);
-                if (id > 0 && terms.find(TermId.of(id), taxonomy.key()).isPresent()) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     private PermissionResult mayRead(PostRoutes routes, RestRequest request) {
@@ -316,6 +297,23 @@ public class PostsController implements RestRouteProvider {
                 .withHeader("Location", urls.route(routes.item(created.id())));
     }
 
+    /**
+     * Prepares the request against the stored post (its errors come before anything is written), updates the post in
+     * one transaction and answers 200 with the post in the edit context, as WordPress answers whatever context was
+     * asked for. The request's later reads of the post (its {@code Allow}) see the post as updated.
+     */
+    private RestResponse update(PostRoutes routes, RestRequest request) {
+        PostSnapshot stored = existing(routes, request).orElseThrow(() -> new RestException(invalidId()));
+        PostRequest prepared = PostRequest.prepare(routes, request, Optional.of(stored), services());
+        PostSnapshot updated = writer.update(routes, stored, prepared, request);
+        reads.remember(routes, updated);
+        request.useContext("edit");
+        Fields.Selection selection =
+                Fields.forResponse(Fields.of(request), routes.schema(), "edit", request.hasParam("_embed"));
+        boolean lifted = permissions.can(request.identity(), "edit_post", updated);
+        return fields.prepare(routes, updated, selection, "edit", request, lifted);
+    }
+
     private PostRequest.Services services() {
         return new PostRequest.Services(permissions, statuses, posts, rows, profiles, site);
     }
@@ -369,6 +367,11 @@ public class PostsController implements RestRouteProvider {
                     key -> rows.findPost(site.siteId(), PostId.of(id))
                             .map(PostEntity::toSnapshot)
                             .filter(post -> post.type().equals(routes.key())));
+        }
+
+        /** Replaces the read of a post this request wrote, so that its later reads see the write. */
+        void remember(PostRoutes routes, PostSnapshot post) {
+            found.put(routes.key() + "/" + post.id().value(), Optional.of(post));
         }
     }
 

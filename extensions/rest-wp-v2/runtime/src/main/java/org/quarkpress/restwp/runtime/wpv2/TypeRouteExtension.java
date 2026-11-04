@@ -10,4 +10,14 @@ interface TypeRouteExtension {
 
     /** Registers the routes of {@code post}'s type. */
     void register(RouteRegistry routes, PostRoutes post);
+
+    /**
+     * The autosaves routes a post type gets after its revisions routes, from the same optional module: a type of its
+     * own, so that the posts controller tells the two extensions apart.
+     */
+    interface Autosaves {
+
+        /** Registers the autosaves routes of {@code post}'s type. */
+        void register(RouteRegistry routes, PostRoutes post);
+    }
 }

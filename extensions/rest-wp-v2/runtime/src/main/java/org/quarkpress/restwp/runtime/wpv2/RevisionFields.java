@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +61,10 @@ class RevisionFields {
     /** A type's revision schema and the routes it was built for. */
     private record Cached(PostRoutes routes, ObjectNode schema) {}
 
-    /** What a revision answer is built from, whether the row is a revision or the post itself. */
+    /**
+     * What a revision answer is built from, whether the row is a revision or the post itself ({@code date} and
+     * {@code dateGmt} null for a post whose date floats).
+     */
     private record Values(
             long author,
             String date,
@@ -113,7 +115,10 @@ class RevisionFields {
         excerptFilters = Filters.ordered(excerptHandles);
     }
 
-    /** The revision's selected fields in WordPress's order, filtered by {@code context}, with its parent link. */
+    /**
+     * The revision's selected fields in WordPress's order, filtered by {@code context}, with its parent link when
+     * {@code parent} is selected (whether or not {@code _links} is).
+     */
     RestResponse prepare(PostRoutes routes, RevisionSnapshot revision, Fields.Selection fields, String context) {
         ZoneId zone = site.zone();
         String local = DATE.format(LocalDateTime.ofInstant(revision.createdAt(), zone));
@@ -139,18 +144,18 @@ class RevisionFields {
 
     /**
      * The post itself in the revision shape (the autosave answer for a draft of the caller's own, which WordPress
-     * updates in place and answers through the revision preparation): its own dates, id, parent, slug and guid, its
-     * texts and meta, and a parent link when it has a parent.
+     * updates in place and answers through the revision preparation): its own dates ({@code date} and
+     * {@code date_gmt} null while its date floats), id, parent, slug and guid, its texts and meta, and a parent link
+     * when it has a parent.
      */
     RestResponse prepareOwnDraft(PostRoutes routes, PostSnapshot post, Fields.Selection fields, String context) {
         ZoneId zone = site.zone();
-        LocalDateTime localDate = post.localDate(zone);
-        Instant dateGmt = post.publishedAt()
-                .orElseGet(() -> ZonedDateTime.of(localDate, zone).toInstant());
+        Optional<Instant> dateGmt = post.publishedAt();
         Values values = new Values(
                 post.author().map(UserId::value).orElse(0L),
-                DATE.format(localDate),
-                gmt(dateGmt),
+                dateGmt.map(date -> DATE.format(LocalDateTime.ofInstant(date, zone)))
+                        .orElse(null),
+                dateGmt.map(RevisionFields::gmt).orElse(null),
                 post.id().value(),
                 DATE.format(post.localModified(zone)),
                 gmt(post.modifiedAt()),
@@ -241,7 +246,8 @@ class RevisionFields {
             data.set("meta", values.meta());
         }
         RestResponse response = RestResponse.ok(ContextFilter.apply(data, schema(routes), context));
-        if (parent.isPresent() && (fields.includes("_links") || fields.includes("_embedded"))) {
+        // WordPress links the parent whenever the answer carries it, whatever the requested fields say of _links
+        if (parent.isPresent() && fields.includes("parent")) {
             response = response.withLinks(Links.none().add("parent", urls.route(routes.item(parent.get()))));
         }
         return response;
