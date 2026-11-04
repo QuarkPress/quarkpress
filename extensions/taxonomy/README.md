@@ -147,7 +147,9 @@ taxonomy whose slug and name are `post-format-{slug}`, created on first use; `st
 the post's format slug, `set` needs `edit_post` on the post only (WordPress assigns formats without the taxonomy's
 `assign_terms`) and refuses a slug outside `PostFormats.SLUGS`; `exists` says whether the site has the term.
 `post_format` is registered as WordPress registers it (public, flat, no admin screens, outside REST, labelled
-`Formats`/`Format`, managed with `manage_categories` and assigned with `edit_posts`).
+`Formats`/`Format`, managed with `manage_categories` and assigned with `edit_posts`). The REST API module reads and
+writes a post's `format` field through `PostFormats` (the auto-draft of `POST /quarkpress/v1/drafts` gets the site's
+`default_post_format`), and its search lists the formats whose term `exists` on the site.
 
 ### Post term filters
 
@@ -160,7 +162,9 @@ the taxonomy. `includeChildren` on a hierarchical taxonomy replaces each term by
 level by level (one query per level, never a recursive call, a parent loop ends the walk). Every id list is bound in
 chunks of at most 1000 ids, each its own parameter; an expansion that would exceed
 `JpaTermConditions.MAX_EXPANDED_IDS` (10 000 ids per clause) is refused with `TermException` code
-`term_filter_too_large` (D23). Every condition names the site explicitly.
+`term_filter_too_large` (D23). Every condition names the site explicitly. The REST API module builds these clauses
+from the posts collections' term filters (`<taxonomy base>`, `<taxonomy base>_exclude`, `tax_relation`, `format`)
+and answers `term_filter_too_large` with 400 `rest_invalid_param`.
 
 ### Events
 

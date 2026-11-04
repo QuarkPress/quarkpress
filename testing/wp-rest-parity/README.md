@@ -16,12 +16,21 @@ mvn -pl testing/wp-rest-parity -am verify -Pwp-parity
 mvn -pl integration-tests/rest-wp-v2 -am verify -Pwp-parity
 ```
 
-The first runs this module's own tests: the site starts and answers, and the recorder of WordPress's answers to the
-REST verification list writes them to `target/wp-rest-parity/verification-facts.json` (one entry per request: status,
-headers by lower-case name, parsed body and exact text) and the OPTIONS answers to `target/wp-rest-parity/options/`.
-The second runs the comparison itself, `RestParityDbTest` in `integration-tests/rest-wp-v2`, against that module's
-test application with the dev realm's Keycloak tokens. Both need a container runtime (Docker or Podman) and `php` 8.4
-(`-Dwp.php=/path/to/php` to choose another); without `-Pwp-parity` they are skipped. CI runs them on both databases.
+The first runs this module's own tests: the site starts and answers, and two recorders of WordPress's answers write
+them to `target/wp-rest-parity/verification-facts.json` (one entry per request: status, headers by lower-case name,
+parsed body and exact text; an HTML page is summarised there and kept whole under `target/wp-rest-parity/pages/`)
+and the OPTIONS answers to `target/wp-rest-parity/options/`: `VerificationFactsDbTest` for the REST verification list,
+and `ContentFactsDbTest`, the content facts run, for the content routes (every item of the posts reference's Part G
+and the revisions reference's Part F, the `post_format` registration, the `book` type and the OPTIONS bodies of the
+content routes). Each content item creates its own fixtures and removes them, and restores any site state it changes;
+the lock, preview and new-post items run on the main site, whose `wp-admin` is served, through login cookie sessions
+(the `cookie_session`, `nonce` and `logout` operations). The recorded answers stay under `target/` and are never
+committed. The second command runs the comparison itself, `RestParityDbTest` in `integration-tests/rest-wp-v2`,
+against that module's test application with the dev realm's Keycloak tokens. Both need a container runtime (Docker
+or Podman) and `php` 8.4 (`-Dwp.php=/path/to/php` to choose another); without `-Pwp-parity` they are skipped. CI runs
+the REST parity run, `RestParityDbTest`, with QuarkPress on PostgreSQL and on MySQL (WordPress always runs on its own
+MySQL container); this module's own tests and the Tier B post, term and revision scenarios (`testing/wp-scenario`)
+run on PostgreSQL only.
 
 ## The WordPress side
 
@@ -31,8 +40,26 @@ above, gives alice the network administrator role, creates the five users with t
 application password each, and then deletes the installer's `admin` user, so both sides have exactly the five users.
 `RestClient` sends a `RestCall` (a caller: `anonymous`, a user name, or `invalid`, a credential the server must
 refuse; a method, a target, headers and an optional body) with java.net.http, never following redirects, and answers
-an `Exchange` (status, headers, body). Further setup runs as rest-setup.php operations on the database, from the
-command line, never over HTTP.
+an `Exchange` (status, headers, body, and `sentAt`, the moment the request was sent, which the normalisation of
+recent dates uses). A call may carry its own credential instead (a `Cookie` and `X-WP-Nonce` of a cookie session, or an
+`Authorization` header): the client then adds no application password. Further setup runs as rest-setup.php
+operations on the database, from the command line, never over HTTP.
+
+A must-use plugin, `php/qp-parity-mu.php`, is written into the tree before `php -S` starts and removed when the site
+closes. It applies per-site switches, site options that are `"1"` where a site wants them (harness rules, through
+WordPress's public registration functions and filters only):
+
+- `qp_parity_book_type` registers the custom type `book` (public, in REST under `books`, with title, editor, author,
+  excerpt, thumbnail, revisions, custom fields and autosave), the type QuarkPress's test application registers too,
+  and with it the post meta `book_rating` (integer, single, default 3) and `book_tags` (strings, several values), in
+  QuarkPress's registration order, after WordPress's `footnotes`. Every scenario site has it; the content facts run
+  sets it on the main site;
+- `qp_parity_book_formats` attaches `post_format` (outside REST) to `book`;
+- `qp_parity_no_revisions` keeps no revisions (`wp_revisions_to_keep` answers 0);
+- `qp_parity_no_trash` makes every type non-trashable (`rest_{type}_trashable`), so the "trash not supported" answer
+  can be recorded.
+
+The last three serve the content facts run.
 
 The router serves WordPress's front controller and its PHP files; under it a subdirectory site is REST-only: its
 `wp-admin`, `wp-login.php` and static files are not served (the main site's are).
@@ -51,16 +78,26 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
                "headers": {"Accept": "application/json"}}]}
 ```
 
-- Setup steps create posts (post or page, through each side's own services), terms (category or post_tag, through
-  each side's REST API, with an optional parent ref) and options. Each step names a ref (`t:`, `p:`) that later steps
-  and requests use in braces; each side puts its own id there. Every site starts with the refs `t:uncategorized` (its
-  default category) and `u:<user>` for the five users.
+- Setup steps create posts (`post`: a post, page, book or attachment through each side's own services, with
+  optional `fields`: content, excerpt, password, parent, `date_gmt`, slug, menu order, comment status, sticky,
+  categories and tags, format, featured media, template and meta), regular revisions (`revision`: an update of title
+  and content by a user) and autosaves (`autosave`), the auto-draft of a new post (`draft`, on QuarkPress through
+  `POST /quarkpress/v1/drafts` as that user), an editor lock of a given age (`lock`), terms (category or post_tag,
+  through each side's REST API, with an optional parent ref) and options; `own_site` makes a user the administrator of
+  a new site of its own and takes the user's role on the scenario's site away, `leave` only takes it away. Each step
+  names a ref (`t:` terms, `p:` posts, `r:` revisions and autosaves) that later steps and requests use in braces; each
+  side puts its own id there. Every site starts with the refs `t:uncategorized` (its default category) and `u:<user>`
+  for the five users.
 - Requests name their caller (`as`), method, target relative to the site, headers, content type and body. Unknown keys
   are refused, so a typo never drops a step.
 - The hand-written scenarios come first: one per item of the REST verification list (`d01` to `d28`), then `x01` to
   `x06` for rules found later (among them who writes terms, `x04`, and a member of another site only, `x05`: a
-  `{"leave": "<user>"}` setup step takes the user's role on the scenario's site away). Then 60 generated scenarios for
-  each of the seeds `rest-a` and `rest-b`, the same on
+  `{"leave": "<user>"}` setup step takes the user's role on the scenario's site away). The content scenarios follow:
+  `p01` the read permission matrix of the posts collection, `p02` its parameters, `p03` a single post and its
+  password, `p04` the derived fields, `p05` links and embeds, `p06` the term and format filters, `p07` creating,
+  `p08` updating, `p09` deleting, `p10` post meta on writes, `p11` the revisions routes, `p12` the autosaves routes,
+  `p13` the auto-draft of a new post, `p14` the front-end preview answers to an anonymous visitor, `p15` search. Then
+  60 generated scenarios for each of the seeds `rest-a` and `rest-b`, the same on
   every run: random callers, routes, methods and query parameters drawn from each route's declared arguments, keeping
   clear of requests whose answers differ as a whole (see `RestScenarios`).
 
@@ -71,7 +108,13 @@ Before comparing, `Normalizer` makes the two sides' answers comparable: hosts an
 `parent`, `author`, `post`, `term_id` and the like, by the kind of object) and inside local URLs, while an unknown id
 becomes `#?<id>` (in URLs too) so that it still differs; `registered_date` becomes its format; the index's own
 `authentication` (a key of the body, or of an envelope's body) becomes `{auth}`; the editor preferences' `_modified`
-stamp `{stamp}`. `targetHints` and `Allow` are left as they are: they are
+stamp `{stamp}`. Users, terms, posts and revisions are numbered apart, so an id is looked up among the refs of its
+kind (`u:`, `t:`, `p:`, `r:`), chosen by the field (`author` a user, `post`, `featured_media`, `p`, `page_id` and
+`preview_id` posts, `parent` a term in a term and a post in a post or a revision) or by the object and route an `id`
+belongs to. Values that differ by nature become a shape: a `preview_nonce=` value in any text `{nonce}`; a lock value
+(`<time>:<user id>`) under a key naming a lock `{lock}:<user ref>`, so the holder still compares; and a `date`,
+`date_gmt`, `modified` or `modified_gmt` within two minutes of the request's `sentAt` `{now}` (both sides run within
+seconds of each other), older dates compared as they are. `targetHints` and `Allow` are left as they are: they are
 compared per caller.
 
 `RestComparison` then compares, per request, the status, the headers `Allow`, `X-WP-Total`, `X-WP-TotalPages`,
@@ -82,9 +125,15 @@ ignored), anything else as text; one aspect per differing JSON leaf. For the sce
 order of keys (`d14`, `d21`), a body equal once parsed is also compared byte for byte (`body:raw`), each value the
 normalisation changed written as its normalised JSON and every other byte kept. The namespaces, routes and index links
 QuarkPress does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect.
-Front-end `link` fields that differ while both sides have one are recorded as `link-form` aspects, and WordPress's
-pretty form is then compared in the plain form QuarkPress writes (`/author/<slug>/` as `?author=<id>`,
-`/category/.../<slug>/` as `?cat=<id>`, `/tag/<slug>/` as `?tag=<slug>`), so a wrong host, site, id or slug differs. Every difference is written
+Front-end links (`link`, `permalink_template`, `preview_link`, a search item's `url`) that differ while both sides
+have one are recorded as `link-form` aspects, and WordPress's pretty form is then compared in the plain form QuarkPress
+writes (`/author/<slug>/` as `?author=<id>`, `/category/.../<slug>/` as `?cat=<id>`, `/tag/<slug>/` as `?tag=<slug>`,
+a post's `/<slug>/` as `?p=<id>`, a page's `/<parents>/<slug>/` as `?page_id=<id>`, `/book/<slug>/` as
+`?book=<slug>`, `/type/<slug>/` as `?post_format=<slug>`, a permalink template's `%postname%` and `%pagename%`
+likewise, a preview link's query kept), the slug checked against the object's own and the id normalised, so a wrong
+host, site, id or slug differs; only a link whose object lacks the id or the slug compares as equal. The
+`rel="alternate"` entry of a compared `Link` header is mapped the same way (from the body, or from the request's route
+for a HEAD). Every difference is written
 to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each scenario's answers to
 `target/rest-parity/<id>.json` there.
 
@@ -98,8 +147,8 @@ request, so the rest of a request is still compared. Every entry is asserted: an
 that covers no comparison, fails the run. A scenario of `none` documents a difference no scenario can show. Entries
 naming generated scenarios by id are fragile: a change to the generator renumbers them.
 
-The run also needs at least `MIN_COMPARISONS` comparisons (9650, 90% of the 10765 of the last green run rounded down
-to a multiple of 50), every scenario of the corpus, and at least one comparison per scenario, so a harness that
+The run also needs at least `MIN_COMPARISONS` comparisons (9650, 90% of the 10765 of the green run that set it,
+rounded down to a multiple of 50; the last green run, 169 scenarios, made 18578), every scenario of the corpus, and at least one comparison per scenario, so a harness that
 silently stops comparing fails; with the `wp-parity` profile on, a missing container runtime fails the run instead of
 skipping it. `-Drest.parity.only=d01,x0` narrows the run to
 scenarios whose ids start so, for local debugging; such a run never passes, since the other scenarios' known

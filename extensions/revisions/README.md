@@ -195,7 +195,8 @@ where several are locked, though trimming during a restore may lock lower ids af
 
 ## Limits
 
-- Revisions are not shown, diffed or previewed (the admin screens, previews and the REST controllers come later).
+- The module has no screens and no diff: the REST API module serves a post's revisions and autosaves (its
+  `/revisions` and `/autosaves` routes) and their previews; the admin's revision screens come later.
 - The editor's lock is consulted by `autosave` only; `restore` and the posts module's writes ignore it, as
   WordPress's REST writes do.
 - WordPress hooks without counterpart: `wp_{type}_revisions_to_keep`, `wp_save_post_revision_check_for_changes`,
@@ -218,7 +219,7 @@ where several are locked, though trimming during a restore may lock lower ids af
 | Label | Difference |
 |---|---|
 | D1 | Capabilities are checked as WordPress's REST API checks them: every read needs `edit_post` on the post (WordPress's functions check nothing); `delete` is refused for every user, the system identity alone may (WordPress's function checks nothing and its REST endpoint refuses everyone); `save` needs `edit_post` on the post; `restore` applies the revisions screen's checks (`edit_post`, enabled or an autosave) without an editor lock. |
-| D2 | Revisions live in their own table and id space, so a revision has no slug, guid, local date, modification date, comment or ping status or menu order: one time, the post's modification time (an autosave's last write). WordPress's `?p=` links and `{id}-revision-v1` names have no counterpart. |
+| D2 | Revisions live in their own table and id space, so a revision has no slug, guid, local date, modification date, comment or ping status or menu order: one time, the post's modification time (an autosave's last write). The REST API builds WordPress's `<post id>-revision-v1` and `<post id>-autosave-v1` slugs and a `guid` (`?p=<revision id>`) from the revision's own id (its README's D31). |
 | D3 | The posts module's events (`PostSaved`, `PostCreated`, `PostStatusChanged` and the rest) never fire for revision rows; WordPress fires `save_post`, `transition_post_status` and `wp_insert_post` for them. |
 | D4 | Revisioned meta is a JSON column of the revision, compared and restored as JSON values: no meta write is redirected from a revision to its post (WordPress's `update_post_meta` on a revision id writes the parent). Autosave meta is given as single values and compared by value. |
 | D5 | The system identity's revisions have no author (WordPress's user 0); a deleted profile leaves its revisions without author (WordPress deletes or reassigns a user's revisions with the user). |
