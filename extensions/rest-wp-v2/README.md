@@ -1,11 +1,14 @@
 # QuarkPress REST API (WordPress v2)
 
-WordPress's REST API for QuarkPress sites: the `/wp-json/` index, the `wp/v2` routes for post types, post statuses,
-taxonomies, terms, users and settings, with WordPress 7.1.3's URL forms, parameter rules, validation messages, error
-objects, headers, pagination, `_fields`, `_links` and `_embed`, encoded as PHP encodes JSON. Clients authenticate with
-Bearer tokens of the security module's OIDC provider. Applications add routes and settings of their own through the same
-pipeline. It works on a single site and in a network, where every site serves its own API under its own path; a per-site
-switch turns it off.
+WordPress's REST API for QuarkPress sites: the `/wp-json/` index, the `wp/v2` routes for posts, pages and custom post
+types (with their revisions and autosaves), search, post types, post statuses, taxonomies, terms, users and settings,
+with WordPress 7.1.3's URL forms, parameter rules, validation messages, error objects, headers, pagination, `_fields`,
+`_links` and `_embed`, encoded as PHP encodes JSON; QuarkPress's own `quarkpress/v1` routes for what WordPress's block
+editor gets outside its REST API (the new post's auto-draft, the editor's post lock, the preview session); and a
+minimal front-end page for previews and post links until themes exist. Clients authenticate with Bearer tokens of the
+security module's OIDC provider. Applications add routes and settings of their own through the same pipeline. It works
+on a single site and in a network, where every site serves its own API under its own path; a per-site switch turns it
+off.
 
 ## Installation
 
@@ -45,14 +48,15 @@ Send `Authorization: Bearer <access token>` with a token of the security module'
 then the QuarkPress user of that token, with their roles on the requested site. A request without credentials is
 anonymous. A token that fails authentication (invalid, expired, signed by an unknown issuer), or the `Bearer` scheme
 sent without a token, is refused before any route is matched, on every route including public ones: 401
-`rest_invalid_token` "The access token is invalid or has expired." with no `Allow` header (D2). There are no cookies, nonces or application passwords: only a request that
-carries `Authorization: Bearer ...` has a caller. A request the application authenticated any other way (such as the
-session cookie of an OIDC `web-app` or `hybrid` tenant, or a custom `HttpAuthenticationMechanism`) is served as
-anonymous, its permissions and the services it calls included, so a page of another site cannot make a browser write
-with the user's rights; and so is one whose such credential failed authentication (an expired session cookie, say)
-(D24). The index's
-`authentication` names the default tenant's issuer, `{"oidc":{"issuer":"<quarkus.oidc.auth-server-url>"}}`, when that
-tenant is enabled and configured, else `[]` (D3).
+`rest_invalid_token` "The access token is invalid or has expired." with no `Allow` header (D2). There are no
+cookies, nonces or application passwords: only a request that carries `Authorization: Bearer ...` has a caller (the
+preview page's session cookie is read by that page alone, never by a REST route). A request the application
+authenticated any other way (such as the session cookie of an OIDC `web-app` or `hybrid` tenant, or a custom
+`HttpAuthenticationMechanism`) is served as anonymous, its permissions and the services it calls included, so a page
+of another site cannot make a browser write with the user's rights; and so is one whose such credential failed
+authentication (an expired session cookie, say) (D24). The index's `authentication` names the default tenant's
+issuer, `{"oidc":{"issuer":"<quarkus.oidc.auth-server-url>"}}`, when that tenant is enabled and configured, else `[]`
+(D3).
 
 ### The site feature
 
@@ -66,8 +70,8 @@ site.
 |---|---|---|
 | `/` | GET | The site index: name, description, `url`, `home`, time zone and reading settings, the namespaces, the authentication schemes, every route's data, `site_logo`, `site_icon` and `site_icon_url`, and the `help` link; `?context=help` adds each route's schema. |
 | `/<namespace>` | GET | One namespace's index (`/wp/v2`, and every namespace an application registers); `?namespace=` names another one. |
-| `/wp/v2/posts`, `/wp/v2/pages`, `/wp/v2/<rest base>` | GET, POST | The posts of each post type shown in REST (attachments and blocks excepted, their routes come later), at its REST base: the list, with WordPress's filters (`status` needs the type's `edit_posts` for anything but `publish`, as the posts module's queries do: `read_private_posts` alone admits nothing, where WordPress admits `private`), its callback errors and its paging, counting only what the caller may read (D27); the rendered fields run the registered filters (D26). The term filters `tax_relation`, `<taxonomy base>` and `<taxonomy base>_exclude` (a term id list, or `{terms, include_children, operator}`) and `format` follow WordPress: unknown ids match nothing (or exclude nothing), `include_children` takes the whole subtree, a filter asking for terms turns sticky-first off; an expansion past 10 000 terms answers 400 `rest_invalid_param` (`term_filter_too_large`, see the taxonomy module). POST creates a post with WordPress's checks in its order (an `id` is `rest_post_exists`; another author needs `edit_others_posts`, `sticky` on any type `edit_others_posts` and `publish_posts`, then `create_posts`, then `assign_term` on each named term) and its preparation (a private, published or scheduled status needs `publish_posts`; a date without offset is the site's wall time, one with an offset an instant; an author must be a user of the network; a password and stickiness exclude each other; a parent may be a post of any type; a draft or pending post given a slug gets it unique as if published; block delimiters are written again as WordPress writes them), then writes the post, its stickiness, featured image, format, template and terms in one transaction (D29); `template` accepts only `""` (D30); the answer is 201 with the post in the edit context and its `Location`. |
-| `/wp/v2/posts/<id>`, `/wp/v2/pages/<id>`, `/wp/v2/<rest base>/<id>` | GET | One post of the type, looked up on the request's site: a missing id, another type's or another site's post is 404 `rest_post_invalid_id`. The checks run in WordPress's order: the edit context needs `edit_post` (`rest_forbidden_context`), a non-empty `password` in the query string that differs from the stored one is 403 `rest_post_incorrect_password` (also on a post without password), then the post must be readable (`rest_forbidden`). The edit context of a caller who may edit the post, or a `password` from any source that matches, renders the content and excerpt of a post with a password; the protected flags and the class list say the password is there either way. `permalink_template` is the plain link, `generated_slug` the title's slug (the id when the title gives none) made unique as for a published post of the type under the post's parent, `class_list` WordPress's front-end classes; a stored template `default` reads as `""`, any other stored value as stored. For a viewable type the only `Link` header is the permalink's `rel="alternate"` line, on HEAD too; the collections keep the API root's. The answer carries WordPress's links (self, collection, about, author, replies, version-history with the revision count and predecessor-version, up, `wp:attachment`, one `wp:term` per REST taxonomy of the type) and, in the edit context, the caller's action links (publish, unfiltered HTML, sticky, assign author, create and assign terms); no featured media link yet (D28). |
+| `/wp/v2/posts`, `/wp/v2/pages`, `/wp/v2/<rest base>` | GET, POST | The posts of each post type shown in REST (attachments and blocks excepted, their routes come later), at its REST base: the list, with WordPress's filters (`status` needs the type's `edit_posts` for anything but `publish`, as the posts module's queries do: `read_private_posts` alone admits nothing, where WordPress admits `private`), its callback errors and its paging, counting only what the caller may read (D27); the rendered fields run the registered filters (D26). The term filters `tax_relation`, `<taxonomy base>` and `<taxonomy base>_exclude` (a term id list, or `{terms, include_children, operator}`) and `format` follow WordPress: unknown ids match nothing (or exclude nothing), `include_children` takes the whole subtree, a filter asking for terms turns sticky-first off; an expansion past 10 000 terms answers 400 `rest_invalid_param` (`term_filter_too_large`, see the taxonomy module). POST creates a post with WordPress's checks in its order (an `id` is `rest_post_exists`, one empty in PHP's sense such as `0` 404 `rest_post_invalid_id` "Invalid post ID." from the preparation; another author needs `edit_others_posts`, `sticky` on any type `edit_others_posts` and `publish_posts`, then `create_posts`, then `assign_term` on each named term) and its preparation (a private, published or scheduled status needs `publish_posts`; a date without offset is the site's wall time, one with an offset an instant; an author must be a user of the network; a password and stickiness exclude each other; a parent may be a post of any type; a draft or pending post given a slug gets it unique as if published; block delimiters are written again as WordPress writes them), then writes the post, its stickiness, featured image, format, template and terms in one transaction (D29); `template` accepts only `""` (D30); the answer is 201 with the post in the edit context and its `Location`. |
+| `/wp/v2/posts/<id>`, `/wp/v2/pages/<id>`, `/wp/v2/<rest base>/<id>` | GET, POST, PUT, PATCH, DELETE | GET: one post of the type, looked up on the request's site: a missing id, another type's or another site's post is 404 `rest_post_invalid_id`. The checks run in WordPress's order: the edit context needs `edit_post` (`rest_forbidden_context`), a non-empty `password` in the query string that differs from the stored one is 403 `rest_post_incorrect_password` (also on a post without password), then the post must be readable (`rest_forbidden`). The edit context of a caller who may edit the post, or a `password` from any source that matches, renders the content and excerpt of a post with a password; the protected flags and the class list say the password is there either way. `permalink_template` is the plain link, `generated_slug` the title's slug (the id when the title gives none) made unique as for a published post of the type under the post's parent, `class_list` WordPress's front-end classes; a stored template `default` reads as `""`, any other stored value as stored. For a viewable type the only `Link` header is the permalink's `rel="alternate"` line, on HEAD too; the collections keep the API root's. The answer carries WordPress's links (self, collection, about, author, replies, version-history with the revision count and predecessor-version, up, `wp:attachment`, one `wp:term` per REST taxonomy of the type) and, in the edit context, the caller's action links (publish, unfiltered HTML, sticky, assign author, create and assign terms); no featured media link yet (D28). POST, PUT and PATCH update the post alike: the arguments are checked first (a `status` or `template` equal to the stored one passes whatever the lists say), then WordPress's update checks in its order (the post; `edit_post`, else `rest_cannot_edit`; another author needs `edit_others_posts`; a `sticky` that changes the post's stickiness, on any type, `edit_others_posts` and `publish_posts`; `assign_term` on each named term), then the create's preparation against the stored post (fields not sent stay as stored; a `date` or `date_gmt` sent as null dates the post now, its date floating when the status it gets is draft, pending or auto-draft); the post, its format, featured image, stickiness, template, terms and meta are written in one transaction (D29) and, while the revisions module is present, the revision is saved once at the end, after the meta. Editor locks are not consulted, as WordPress's REST writes do not consult them. The answer is 200 with the post in the edit context. DELETE needs `delete_post` (`rest_cannot_delete` "Sorry, you are not allowed to delete this post."): with `force=true` the post is deleted for good and the answer is `{"deleted": true, "previous": <the post in the edit context>}`; without, the trash must be on with a positive `quarkpress.posts.empty-trash-days` (else 501 `rest_trash_not_supported` "The post does not support trashing. Set 'force=true' to delete.") and the post not in it yet (else 410 `rest_already_trashed`), and the answer is the trashed post in the edit context. |
 | `/wp/v2/posts/<parent>/revisions`, `/wp/v2/pages/<parent>/revisions`, `/wp/v2/<rest base>/<parent>/revisions` | GET | The revisions of one post of a type that keeps revisions (served while the revisions module is present): every user's revisions, autosaves included, newest first; `context`, `page`, `per_page` (1 to 100, no default: without it every revision is one page), `search` (WordPress's terms, phrases and `-` exclusions over title, excerpt and content), `include`, `exclude`, `offset`, `order` and `orderby` (`date`, `id`, `include`, `relevance`, `slug`, `include_slugs`, `title`) with WordPress's paging quirks: a given `offset` (even 0) fixes the window and `page` only moves the links, an offset at or past the total or a page past the last is refused while the post has revisions, a post without revisions, or whose revisions are off, answers `[]` with zero totals. The parent is looked up on the request's site under the route's type (`rest_post_invalid_parent`); reading needs `edit_post` on it (`rest_cannot_read`). The totals agree with the post's `version-history` count (D31). |
 | `/wp/v2/posts/<parent>/revisions/<id>`, `/wp/v2/pages/<parent>/revisions/<id>`, `/wp/v2/<rest base>/<parent>/revisions/<id>` | GET, DELETE | One revision: the parent and permission checks of the list, then the revision (`rest_post_invalid_id`, also for another site's), which must belong to the parent (`rest_revision_parent_id_mismatch`); fields `author`, `date`, `date_gmt`, `id`, `modified`, `modified_gmt`, `parent`, `slug`, `guid`, `title`, `content`, `excerpt` (when the type has them), `meta` and a `parent` link (D31). DELETE runs WordPress's checks (`delete_post` on the parent, the revision, `edit_post`) and is then refused for everyone with `rest_cannot_delete`, as WordPress refuses it, so `Allow` never lists it. |
 | `/wp/v2/posts/<id>/autosaves`, `/wp/v2/pages/<id>/autosaves`, `/wp/v2/<rest base>/<id>/autosaves` | GET, POST | The autosaves of one post of a type that is autosaved (served while the revisions module is present). GET: every user's autosaves, newest first, unpaged and without totals; the post is looked up as the revisions list looks up its parent (`rest_post_invalid_parent`) and reading needs `edit_post` (`rest_cannot_read`). POST: the arguments are validated first, an id `0` is `rest_post_invalid_id` "Invalid item ID.", then WordPress's update checks (the post, `edit_post`, another author, a changed stickiness, the named terms) and the posts route's preparation, whose error is the answer (D32). A draft or auto-draft of the caller's own that no other user holds a fresh lock on is updated in place with every prepared field but meta, terms, featured image, stickiness, format and template (an auto-draft given `status: draft` becomes a draft), and answered in the revision shape with the post's id, its parent, null dates while its date floats and its own preview link; any other post gets the caller's autosave (created, rewritten when a field or a revisioned meta key differs from the post, else returned untouched) and nothing of the request is applied to the post. The request's revisioned meta values (`footnotes`) pass their key's sanitizer for the caller before they are stored, as a post's meta does. A `meta` object that names no revisioned key is not compared at all, where WordPress compares every revisioned key (`""` for one not sent) whenever `meta` is not empty; the editor always sends `footnotes`. The answer is 200 in the edit context whatever context was asked for. |
@@ -80,7 +84,10 @@ site.
 | `/wp/v2/users`, `/wp/v2/users/<id>`, `/wp/v2/users/me` | GET, POST, PUT, PATCH, DELETE | The site's users with WordPress's visibility rules; the only write applied is a user's own `meta.persisted_preferences` (the editor's preferences, kept per site); creating, deleting and other changes answer 501 after WordPress's permission check (D10, D11). |
 | `/wp/v2/settings` | GET, POST, PUT, PATCH | The registered settings, for callers with `manage_options` on the site. |
 | `/wp/v2/search` | GET | WordPress's search, public: `type=post` (the default) lists the published posts, pages and books (every public post type shown in REST but attachments) for every caller alike, by relevance then date for a `search` and newest first without one, protected posts hidden from anonymous searches; `type=term` the categories and tags (every public taxonomy shown in REST), empty ones included, by name, each item's `type` being its taxonomy; `type=post-format` the formats whose term exists on the site, with string ids. `subtype` narrows a handler to its own subtypes (`any` means all; a list naming none of them falls back to posts alone or to every taxonomy); `include` wins over `exclude`; the post-format handler ignores both and `subtype`. Items carry the plain front-end link (D1) and `self`, `about` and `collection` links (`collection` alone for a format). A page past the end of the posts answers an empty page with zero totals and a `prev` link; past the end of the terms or formats it is 400 `rest_search_invalid_page_number`. |
-| `/quarkpress/v1/drafts` | POST | QuarkPress-only (D36): the auto-draft a new post starts from, as WordPress's new-post screen creates it: body `{type}` (a post type shown in REST; attachments and blocks are refused with `rest_type_invalid`), the caller needs the type's `edit_posts` and `create_posts` (else `rest_cannot_create`); the row has status `auto-draft`, the title "Auto Draft" when the type has one, the caller as author, a floating date, no slug, the type's comment defaults, no term, and the site's `default_post_format` when the type supports formats; answers 201 with the post in the edit context and a `Location` header; no lock is taken (the shell takes one through the lock routes next). |
+| `/quarkpress/v1/drafts` | POST | QuarkPress-only (D36): the auto-draft a new post starts from, as WordPress's new-post screen creates it: body `{type}` (a post type shown in REST; attachments and blocks are refused with `rest_type_invalid`), the caller needs the type's `edit_posts` and `create_posts` (else `rest_cannot_create`); the row has status `auto-draft`, the title "Auto Draft" when the type has one, the caller as author, a floating date, no slug, the type's comment defaults, no term, and the site's `default_post_format` when the type supports formats; answers 201 with the post in the edit context and a `Location` header; no lock is taken (the shell takes one through the lock routes next). An auto-draft that is never saved is removed by the scheduling module's housekeeping seven days after its last change; without that module it stays. |
+| `/quarkpress/v1/locks/<id>` | POST, PUT, DELETE | QuarkPress-only (D34, D36): the editor's post lock (the posts module's `PostLocks`), answering what WordPress's edit screen, heartbeat and admin-ajax give the editor. Every method needs `edit_post` on a post of the site whose type is shown in REST (`rest_cannot_edit` "Sorry, you are not allowed to edit this post."); a missing post is 404 `rest_post_invalid_id`. POST takes the lock as the edit screen does: `{"isLocked": false, "activePostLock": "<time>:<user>", "release_token": ...}`, or, when another user holds a fresh lock, `{"isLocked": true, "user": {"name", "avatar"}}` with nothing taken (a 128-pixel avatar, only while the site shows avatars). PUT is the heartbeat's refresh: `{"new_lock", "release_token"}`, or, once another user has taken over, `{"lock_error": {"name", "text", "avatar_src", "avatar_src_2x"}}` ("<name> has taken over and is currently editing.", avatars of 64 and 128 pixels). DELETE with `active_post_lock` releases the caller's own lock by compare-and-set and answers `{"released": true}`, or `false` when the stored value no longer matches. A browser's `sendBeacon` on leaving the page can send neither `DELETE` nor an `Authorization` header, so the shell posts a JSON body to `...?_method=DELETE` with `active_post_lock` and `release_token`: without credentials, a valid token of that post, the lock value's user and the value itself (consumed either way) releases as that user would, and anything else answers 401 `rest_cannot_edit`; a caller with a Bearer token releases with its own rights. |
+| `/quarkpress/v1/locks/<id>/takeover` | POST | QuarkPress-only (D34, D36): takes the lock for the caller whatever is stored, as WordPress's "Take over" does, with the checks of the lock route, and answers as a take that succeeded. |
+| `/quarkpress/v1/preview/session` | POST, DELETE | QuarkPress-only (D33, D36): the session that names the viewer of the preview page. POST opens one for a logged-in member of the site or a super admin (anyone else: `rest_forbidden` "Sorry, you are not allowed to do that."), answering `{"expires_in": <seconds>}` with `Set-Cookie: quarkpress_preview=<token>; Max-Age=<seconds>; Path=<the site's path>; HttpOnly; SameSite=Lax` (and `Secure` over HTTPS), the lifetime being `quarkpress.posts.preview-lifetime`. DELETE closes every session of the caller on the site and clears the cookie (`Max-Age=0`), answering `{"closed": true}`. No REST route reads the cookie. |
 
 The post, term and user collections take WordPress's `context`, `page`, `per_page` (1 to 100, default 10), `search` and their
 own filters, and answer `X-WP-Total`, `X-WP-TotalPages` and a `Link` header with the previous and next pages. Every
@@ -103,10 +110,40 @@ key is tried and the errors answered together, the first one's code and status f
 `additional_errors`; any error rolls the whole write back (D29). A key whose default does not fit its schema fails the
 application's start.
 
-The routes of posts, pages, revisions, autosaves, search, media, blocks, block patterns, block types, themes,
-templates, global styles, navigation, menus, widgets, comments, plugins, site health, oEmbed, application passwords and
-`/batch/v1` are not served yet: they answer 404 `rest_no_route`, and the index does not list them (D6). Later releases
-add them, starting with posts, pages, revisions and search, then media, then the block editor's own routes.
+The routes of media, blocks, block patterns, block types, themes, templates, global styles, navigation, menus,
+widgets, comments, plugins, site health, oEmbed, application passwords and `/batch/v1` are not served yet: they answer
+404 `rest_no_route`, and the index does not list them (D6). Later releases add them, starting with media, then the
+block editor's own routes.
+
+### The preview page
+
+While `quarkpress.rest-wp-v2.fallback-front-end` is on, the module answers the front-end requests that name a post or
+ask for a preview with a minimal HTML page until themes exist (D35): a `GET` or `HEAD` of the site's root (its path, or
+`index.php` there) whose query has `p`, `page_id`, `attachment_id`, `post_type` with `p`, or `preview`, and no
+`rest_route`. It is served through the same entry mechanism as the API (see [How a request is
+served](#how-a-request-is-served)): a filter decides and re-routes, and an internal resource renders inside the normal
+request under the viewer's identity. The viewer is the user of the `quarkpress_preview` cookie that
+`POST /quarkpress/v1/preview/session` sets, and is anonymous without a valid session, whatever else the request
+carries. In order:
+
+- `preview_id` with a `preview_nonce` that is not the viewer's valid preview token of that post: 403 "Sorry, you are
+  not allowed to preview drafts." (an HTML page, or WordPress's JSON `wp_die` object when `Accept` names
+  `application/json`);
+- a post that does not exist, or is not of the type the parameter names: 404;
+- a viewer who may not see the post: 404 (a published post shows to everyone; a draft, pending or scheduled post to a
+  viewer with `edit_post`; a private one with `read_post`; an auto-draft, a revision or a trashed post to nobody);
+- a published post asked for with `preview` and no valid pair: 301 to its plain link, as WordPress's canonical
+  redirect does;
+- otherwise the page: the site's name, the post's title, its date and its content through the registered filters. A
+  shown post that is not public is in preview mode, and a draft or pending post is dated now; in preview mode, for a
+  viewer with `edit_post` and a valid pair, the latest autosave of any user replaces the title, content and excerpt,
+  its `post_format` the format and its `_thumbnail_id` the featured image. A password-protected post shows its title
+  and WordPress's notice "This content is password protected. To view it please enter your password below:" in place
+  of its content, without the form, unless the viewer is in preview mode with `edit_post`. Previews are sent with
+  no-cache headers.
+
+The links to it come from the autosaves routes' `preview_link` (`preview_id`, the caller's preview token as
+`preview_nonce`, `preview=true`); the token is the posts module's `PreviewTokens`.
 
 ### Adding routes
 
@@ -303,6 +340,21 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
   a bracketed authority (`https://x[:1.Ad]`): the brackets are encoded where WordPress leaves one.
 - Avatar URLs keep a `d` or `r` value of exactly `0` (an `avatar_default` or `avatar_rating` option stored as `0`),
   which WordPress drops.
+- A post write's errors from the posts module itself, those the REST preparation does not answer first, reach the
+  client with the module's code and status 400: `empty_content` "Content, title, and excerpt are empty." (WordPress's
+  answer), `invalid_date` "Invalid date." (a year outside 1000 to 9999, which the posts module cannot store, its D6),
+  and, only when a concurrent request deletes the post, the author or the parent between the checks and the write,
+  `invalid_post` "Invalid post ID.", `invalid_author` "Invalid author ID: <id>" and `invalid_parent` "Invalid post
+  parent ID: <id>" (messages that are not WordPress's). `db_insert_error` and `db_update_error` (a value too long for
+  its column) answer 500. A stale version answers 409 (D12).
+- `featured_media` accepts any attachment of the site, as an image, until the media module knows attachment types
+  (the posts module's D35).
+- `POST /quarkpress/v1/drafts` refuses `attachment` and `wp_block` with `rest_type_invalid` until the media and block
+  routes exist.
+- A `meta` value for a key of several values given as an object with integer keys (`{"book_tags":{"0":null}}`) gets
+  its schema's error rather than `rest_invalid_stored_value`; WordPress's answer to it was not recorded.
+- The `key` in the data of a meta permission refusal (`rest_cannot_update`, `rest_cannot_delete`) is the key's REST
+  name; no registration gives a key a REST name of its own yet, and which name WordPress puts there was not recorded.
 
 ## Decisions
 
@@ -319,6 +371,14 @@ The API uses the application's OIDC configuration for its index's issuer (`quark
   after WordPress's own permission checks, so clients see WordPress's refusals first.
 - The route matcher, the query parser, `_fields` and every text rule are hand-written loops linear in their input;
   every list argument and embedding run is bounded.
+- Arguments are checked before permissions, in WordPress's order, also where that tells a caller something: an
+  anonymous `PUT {"status":"trash"}` answers 401 for a post in the trash (the stored status passes the check) and 400
+  `rest_invalid_param` for any other post, so the answer shows whether a post the caller cannot read is trashed, as
+  WordPress's does.
+- What WordPress's block editor gets outside the REST API (the new-post screen's auto-draft, the post lock of the edit
+  screen, heartbeat and admin-ajax, the login cookie of a preview) is served by QuarkPress-only `quarkpress/v1` routes
+  under Bearer tokens (D36), so the admin shell needs no cookie and no nonce. Only the preview page, which a browser
+  opens by navigation, knows its viewer by a cookie, and no REST route reads that cookie.
 
 ## Differences from WordPress
 
@@ -359,8 +419,11 @@ The rows below are the differences the parity tests know by label. Some further,
 | D30 | `template` accepts only `""` or the stored value until themes exist (the allowed list is empty: "template is not one of ."). REST ignores `preview_id`/`preview_nonce` (WordPress checks them on every request). |
 | D31 | Revisions have their own ids (a revision id may equal a post id; clients only use them under their parent); their dates are never null and all four (`date`, `date_gmt`, `modified`, `modified_gmt`) come from the revision's one time, where WordPress keeps separate columns and answers null for a zero GMT date; `guid` is `<home>?p=<revision id>` built from that id; the system identity's revisions have author 0. |
 | D32 | An autosave request whose fields fail preparation (unknown author, a sticky password conflict, a bad status) answers that error; WordPress saves without those fields. |
+| D33 | Draft previews authenticate with the `quarkpress_preview` session cookie set by `POST /quarkpress/v1/preview/session` (12 h by default, `HttpOnly`, `SameSite=Lax`, scoped to the site's path), and `preview_nonce` is a 27-character HMAC token computed from a per-site secret (`quarkpress_preview_secret`, an option REST never shows), the post, the user and a tick of half the preview lifetime: valid 12 to 24 hours like WordPress's nonce, but bound to the preview session's user rather than the login session, never stored, and revoked for everyone by deleting the secret. WordPress uses its login cookie and a 10-character nonce bound to the login session. An admin shell on another site cannot set the cookie. |
+| D34 | Locks are served by `/quarkpress/v1/locks/{id}` (take, refresh, release) and `/quarkpress/v1/locks/{id}/takeover`; WordPress serves them through its edit screen, heartbeat and admin-ajax. The release token is one-time and bound to the lock value, where WordPress's unlock nonce is reusable for 12 to 24 hours. A release on a missing post answers 404 `rest_post_invalid_id` where WordPress's `wp-remove-post-lock` answers `0`, and a release whose value no longer matches the stored lock answers `{"released": false}` where WordPress answers `1`. |
 | D35 | Without a theme, front-end requests `?p=`, `?page_id=`, `?attachment_id=`, `?post_type=…&p=`, `?preview=` get a minimal page (site name, title, date, content) instead of the theme's template; a password-protected post shows WordPress's "This content is password protected…" notice without the password form (no cookie lifts it; an editor previewing sees the content); `?<type>=<slug>` links of published custom types are not served, so the 301 a custom-type post gets for `?post_type=<type>&p=<id>&preview=true` (WordPress's `Location`) lands on a 404 until themes and permalinks arrive. |
-| D36 | QuarkPress-only namespace `quarkpress/v1`: WordPress has no such routes. The editor's lock routes `/quarkpress/v1/locks/{id}` (take, refresh, release) and `/quarkpress/v1/locks/{id}/takeover` are served there, so the index and the namespace list carry a namespace and routes WordPress lacks. `/quarkpress/v1/drafts` (the auto-draft a new post starts from, WordPress's `post-new.php` row) is served there too. |
+| D36 | QuarkPress-only namespace `quarkpress/v1`: WordPress has no such routes. The editor's lock routes `/quarkpress/v1/locks/{id}` (take, refresh, release) and `/quarkpress/v1/locks/{id}/takeover` are served there, so the index and the namespace list carry a namespace and routes WordPress lacks. `/quarkpress/v1/drafts` (the auto-draft a new post starts from, WordPress's `post-new.php` row) and `/quarkpress/v1/preview/session` (the preview page's session) are served there too. |
+| D37 | The `modified_gmt` of a draft whose date floats and that was not updated since it was created is its stored modification instant. WordPress, whose stored GMT modification date is zero then, answers `modified` minus the site's current numeric UTC offset, so the two differ when the offset at the draft's date is not today's (a daylight-saving switch in between: WordPress, recorded in winter, answers `modified_gmt` 11:00 for a floating draft dated 2026-07-15 12:00 in Europe/Paris, whose instant is 10:00 UTC). |
 
 WordPress behaviour kept on purpose (not differences): `_fields` reduces a keyed collection by its keys
 (`/wp/v2/types?_fields=name` is `[]`), and a field below one already requested whole ends the list there
@@ -369,9 +432,10 @@ back to the last page, even when it is 0); `GET ...?_method=DELETE` deletes. Onl
 (D24), and a link or a cross-site form cannot carry one, so the last one is not a cross-site request forgery vector.
 
 The parity tests (`-Pwp-parity`) run the hand-written verification scenarios and generated ones against WordPress
-7.1.3 served over HTTP (`testing/wp-rest-parity`, run by `integration-tests/rest-wp-v2`): 154 scenarios, 34
-hand-written and 120 generated, 10765 comparisons in the last green run, at least 9650 required, and every scenario
-must compare something. Besides status and body they compare `Allow`, the totals, `Link`, `Location`, the content
-type, `X-Robots-Tag`, `X-Content-Type-Options`, `Cache-Control`, `Expires`, `Vary` and the CORS headers, and, for the
-escapes and key-order scenarios, the body's bytes. Their known-differences file labels every entry with a row of this
-table and names the aspects that differ; a test checks that every label it uses is a row here and every row is used.
+7.1.3 served over HTTP (`testing/wp-rest-parity`, run by `integration-tests/rest-wp-v2`, on PostgreSQL and on MySQL):
+169 scenarios, 49 hand-written and 120 generated, 18578 comparisons in the last green run, at least 9650 required, and
+every scenario must compare something. Besides status and body they compare `Allow`, the totals, `Link`, `Location`,
+the content type, `X-Robots-Tag`, `X-Content-Type-Options`, `Cache-Control`, `Expires`, `Vary` and the CORS headers,
+and, for the escapes and key-order scenarios, the body's bytes. Their known-differences file labels every entry with a
+row of this table and names the aspects that differ; a test checks that every label it uses is a row here and every
+row is used.

@@ -298,6 +298,11 @@ p11 req38:body:/content/rendered D26 the book revision's content "p11 book words
 none * D31 revision ids live in their own space and their four dates come from one time; ids compare as refs and the dates as {now}, and WordPress's null dates need a zero GMT date no scenario can make
 none * D30 the harness WordPress has theme templates while QuarkPress has none, and REST requests in the scenarios carry no preview_id/preview_nonce pair
 
+# D33, D34, D37: differences no scenario can show.
+none * D33 a preview needs WordPress's login cookie on one side and a QuarkPress preview session on the other, which no scenario gives both sides; preview_nonce values compare as {nonce}
+none * D34 the lock routes are QuarkPress-only (WordPress keeps locks through its edit screen, heartbeat and admin-ajax), so no request reaches both sides
+none * D37 a floating draft's modified_gmt differs only when the site's UTC offset at its date is not today's; the scenarios' sites keep UTC
+
 # D31: the revision an update saved has QuarkPress's own id (p08).
 p08 req1:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
 p08 req1:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
