@@ -1,6 +1,7 @@
 package org.quarkpress.restwp.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.quarkpress.restwp.runtime.SchemaValidatorTest.json;
 import static org.quarkpress.restwp.runtime.SchemaValidatorTest.schema;
 
@@ -8,17 +9,61 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestException;
+import org.quarkpress.restwp.RestRequest;
 
 /** Expected answers are WordPress 7.1.3's (WP_REST_Request's checks run on the same args and sources, PHP 8.4). */
 class ArgChecksTest {
+
+    @Test
+    void theCheckedRequestIsSeenOnlyWhileItsArgumentsAreChecked() {
+        RestRequest outer = new StubRequest(RestJson.NODES.objectNode(), "/outer", Set.of());
+        RestRequest inner = new StubRequest(RestJson.NODES.objectNode(), "/inner", Set.of());
+        List<Optional<RestRequest>> seen = new ArrayList<>();
+        Arg probe = Arg.of("x", "string")
+                .validate(value -> seen.add(ArgChecks.checking()))
+                .build();
+        assertThat(ArgChecks.checking()).isEmpty();
+        assertThat(ArgChecks.check(List.of(probe), jsonAndQuery("{\"x\":\"a\"}", ""), outer))
+                .isEmpty();
+        assertThat(seen).containsExactly(Optional.of(outer));
+        assertThat(ArgChecks.checking()).isEmpty();
+        // a check that throws leaves nothing behind
+        Arg throwing = Arg.of("x", "string")
+                .validate(value -> {
+                    throw new IllegalStateException("boom");
+                })
+                .build();
+        assertThatThrownBy(() -> ArgChecks.check(List.of(throwing), jsonAndQuery("{\"x\":\"a\"}", ""), outer))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(ArgChecks.checking()).isEmpty();
+        // a nested check sees its own request, and the outer one is restored after it
+        seen.clear();
+        Arg nesting = Arg.of("x", "string")
+                .validate(value -> {
+                    ArgChecks.check(List.of(probe), jsonAndQuery("{\"x\":\"b\"}", ""), inner);
+                    return seen.add(ArgChecks.checking());
+                })
+                .build();
+        assertThat(ArgChecks.check(List.of(nesting), jsonAndQuery("{\"x\":\"a\"}", ""), outer))
+                .isEmpty();
+        assertThat(seen).containsExactly(Optional.of(inner), Optional.of(outer));
+        assertThat(ArgChecks.checking()).isEmpty();
+        // the two-argument check sets nothing
+        seen.clear();
+        assertThat(ArgChecks.check(List.of(probe), jsonAndQuery("{\"x\":\"a\"}", "")))
+                .isEmpty();
+        assertThat(seen).containsExactly(Optional.empty());
+    }
 
     @Test
     void missingParamsAreAListAndWinOverEverything() {

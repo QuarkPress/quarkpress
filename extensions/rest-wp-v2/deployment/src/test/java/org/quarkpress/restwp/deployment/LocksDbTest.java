@@ -22,7 +22,6 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.PostId;
@@ -391,7 +390,6 @@ class LocksDbTest {
     }
 
     @Test
-    @Disabled("the item update route /wp/v2/posts/<id> arrives with the posts update task; enable it then")
     void restWritesIgnoreLocks() {
         clock.set(NOW);
         PostId post = draftOf(carol);

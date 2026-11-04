@@ -3,15 +3,18 @@ package org.quarkpress.restwp.runtime.wpv2;
 import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.posts.FeaturedImages;
 import org.quarkpress.posts.PageTemplates;
+import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
@@ -27,7 +30,8 @@ import org.quarkpress.taxonomy.Terms;
 
 /**
  * Writes prepared post requests, each in one transaction: a step that fails rolls back every step before it, the
- * post row included, where WordPress keeps what it wrote before the failure. The steps run in WordPress's order.
+ * post row included, where WordPress keeps what it wrote before the failure. The steps run in WordPress's order, which
+ * differs between a create and an update.
  */
 @ApplicationScoped
 class PostWriter {
@@ -58,6 +62,10 @@ class PostWriter {
 
     @Inject
     CurrentIdentityAssociation association;
+
+    /** The revision of an update; a bean only while the revisions module is present. */
+    @Inject
+    Instance<RevisionHistory> revisions;
 
     /**
      * Creates the post, then makes it sticky (a post asked to be), sets its featured image, format and template, and
@@ -91,17 +99,85 @@ class PostWriter {
             if (prepared.template().isPresent()) {
                 templates.set(id, prepared.template().get());
             }
-            for (Map.Entry<String, List<Long>> entry : prepared.terms().entrySet()) {
-                List<TermRef> refs = new ArrayList<>();
-                entry.getValue().forEach(term -> refs.add(TermRef.id(term)));
-                terms.setPostTerms(id, entry.getKey(), refs, false);
-            }
+            replaceTerms(id, prepared);
         } catch (PostException refused) {
             throw new RestException(insertError(refused));
         } finally {
             association.setIdentity(caller);
         }
         return stored(id);
+    }
+
+    /**
+     * Updates the post with the fields the request names, then, as WordPress's update orders them, sets its format and
+     * featured image, sticks or unsticks it (when the request says), sets its template and replaces its terms of each
+     * taxonomy the request names; the revision is saved once at the end, after every step, while the revisions module
+     * is present (none when the post is unchanged since its latest revision). Dates the request cleared date the post
+     * now, floating when the status it gets floats. The steps after the row run as the system, as WordPress
+     * runs them without asking again whether the caller may edit the post. Any error rolls everything back: the posts
+     * module's refusal is WordPress's update error (500 for a database error, else 400). Answers the post as stored at
+     * the end.
+     */
+    @Transactional
+    PostSnapshot update(PostRoutes routes, PostSnapshot stored, PostRequest prepared, RestRequest request) {
+        PostId id = stored.id();
+        Supplier<PostSnapshot> work = () -> {
+            write(stored, prepared);
+            return null;
+        };
+        if (revisions.isResolvable()) {
+            revisions.get().revisingAfter(id, work);
+        } else {
+            work.get();
+        }
+        return stored(id);
+    }
+
+    private void write(PostSnapshot stored, PostRequest prepared) {
+        PostId id = stored.id();
+        PostChanges changes = prepared.changes();
+        if (prepared.datesCleared()) {
+            changes = changes.toBuilder().clearDates().build();
+        }
+        try {
+            posts.update(id, changes);
+        } catch (PostException refused) {
+            throw new RestException(insertError(refused));
+        }
+        SecurityIdentity caller = association.getIdentity();
+        association.setIdentity(system.identity());
+        try {
+            if (prepared.format().isPresent()) {
+                formats.set(id, prepared.format().get());
+            }
+            if (prepared.featuredMedia().isPresent()) {
+                featuredImages.set(id, prepared.featuredMedia().getAsLong());
+            }
+            if (prepared.sticky().isPresent()) {
+                if (prepared.sticky().get()) {
+                    posts.stick(id);
+                } else {
+                    posts.unstick(id);
+                }
+            }
+            if (prepared.template().isPresent()) {
+                templates.set(id, prepared.template().get());
+            }
+            replaceTerms(id, prepared);
+        } catch (PostException refused) {
+            throw new RestException(insertError(refused));
+        } finally {
+            association.setIdentity(caller);
+        }
+    }
+
+    /** Replaces the post's terms of each taxonomy the request names; ids of no term of the taxonomy are skipped. */
+    private void replaceTerms(PostId id, PostRequest prepared) {
+        for (Map.Entry<String, List<Long>> entry : prepared.terms().entrySet()) {
+            List<TermRef> refs = new ArrayList<>();
+            entry.getValue().forEach(term -> refs.add(TermRef.id(term)));
+            terms.setPostTerms(id, entry.getKey(), refs, false);
+        }
     }
 
     private PostSnapshot stored(PostId id) {

@@ -39,7 +39,9 @@ import org.quarkpress.security.UserProfiles;
  * status and its capability, the dates, the slug, the author, the password and its conflicts with stickiness, the
  * parent, the menu order, the comment and ping statuses, and the content's block delimiters written again by the
  * block serializer for posts and pages. A draft or pending post given a slug gets it made unique as if it were
- * published. The first error is thrown as a {@link RestException}; nothing is written.
+ * published. On an update, fields the request does not name are left as stored, and a {@code date} or
+ * {@code date_gmt} sent as null clears both dates, which the writer resolves. The first error is thrown as a
+ * {@link RestException}; nothing is written.
  *
  * @param changes the post fields for the posts module
  * @param sticky whether the post is to be sticky, when the type is {@code post} and the request says
@@ -48,6 +50,8 @@ import org.quarkpress.security.UserProfiles;
  * @param template the requested template, when the request has one
  * @param terms the requested term ids by taxonomy key, for the type's REST taxonomies the request names
  * @param meta the requested registered meta, when the request has it
+ * @param datesCleared whether an update clears the post's dates (a null {@code date} or {@code date_gmt}): the post is
+ *     then dated now, its date floating when the status it gets is draft, pending or auto-draft
  */
 record PostRequest(
         PostChanges changes,
@@ -56,7 +60,8 @@ record PostRequest(
         Optional<String> format,
         Optional<String> template,
         Map<String, List<Long>> terms,
-        Optional<JsonNode> meta) {
+        Optional<JsonNode> meta,
+        boolean datesCleared) {
 
     /** The types whose content WordPress runs through its block hooks, which write every block delimiter again. */
     private static final Set<String> BLOCK_HOOK_TYPES = Set.of("post", "page", "wp_block", "wp_navigation");
@@ -109,7 +114,7 @@ record PostRequest(
                 && (stored.isEmpty() || !stored.get().status().equals(requestedStatus.get()))) {
             changes.status(status(routes, request, requestedStatus.get(), services));
         }
-        dates(request, stored, services.site().zone(), changes);
+        boolean datesCleared = dates(request, stored, services.site().zone(), changes);
         Optional<String> slug = request.param("slug").map(PhpValues::toPhpString);
         slug.ifPresent(changes::slug);
         if (routes.has("author")) {
@@ -180,7 +185,8 @@ record PostRequest(
                 routes.has("format") ? nonEmptyText(request, "format") : Optional.empty(),
                 routes.has("template") ? template(request, stored) : Optional.empty(),
                 terms(routes, request),
-                routes.has("meta") ? request.param("meta") : Optional.empty());
+                routes.has("meta") ? request.param("meta") : Optional.empty(),
+                datesCleared);
     }
 
     /**
@@ -220,10 +226,14 @@ record PostRequest(
      * WordPress's dates: a non-empty {@code date} wins over {@code date_gmt}. A date without offset is a wall time of
      * the site's zone, one with an offset an instant; a GMT date without offset is read as UTC. Fractions are
      * dropped and fields past their range roll over. The pair is applied only when the local date differs from the
-     * stored one.
+     * stored one. On an update, a null {@code date} or {@code date_gmt} clears both instead: true then, and nothing is
+     * given (a create without dates is dated as if none were sent).
      */
-    private static void dates(
+    private static boolean dates(
             RestRequest request, Optional<PostSnapshot> stored, ZoneId zone, PostChanges.Builder changes) {
+        if (stored.isPresent() && (sentNull(request, "date") || sentNull(request, "date_gmt"))) {
+            return true;
+        }
         Optional<String> date = nonEmptyText(request, "date");
         Optional<String> dateGmt = nonEmptyText(request, "date_gmt");
         LocalDateTime local;
@@ -237,15 +247,21 @@ record PostRequest(
             gmt = PostCollection.localTime(dateGmt.get(), ZoneOffset.UTC).toInstant(ZoneOffset.UTC);
             local = LocalDateTime.ofInstant(gmt, zone);
         } else {
-            return;
+            return false;
         }
         if (stored.isPresent() && stored.get().localDate(zone).equals(local)) {
-            return;
+            return false;
         }
         changes.date(local).dateGmt(gmt);
         if (stored.isPresent()) {
             changes.editDate(true);
         }
+        return false;
+    }
+
+    /** Whether the request sends the parameter as null alone (a JSON null, which reads as absent). */
+    private static boolean sentNull(RestRequest request, String name) {
+        return request.param(name).isEmpty() && request.paramNames().contains(name);
     }
 
     /** Whether a date-time that passed the schema's check ends with {@code Z} or an offset. */

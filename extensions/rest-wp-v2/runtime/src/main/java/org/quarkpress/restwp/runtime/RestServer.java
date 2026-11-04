@@ -514,7 +514,7 @@ public class RestServer {
             return error(invalidJson(invalidJson.get()));
         }
         try {
-            Optional<RestError> invalid = ArgChecks.check(match.endpoint().args(), sources);
+            Optional<RestError> invalid = ArgChecks.check(match.endpoint().args(), sources, request);
             if (invalid.isPresent()) {
                 return error(invalid.get());
             }

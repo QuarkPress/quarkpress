@@ -12,6 +12,7 @@ import java.util.Optional;
 import org.quarkpress.restwp.Arg;
 import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestException;
+import org.quarkpress.restwp.RestRequest;
 
 /**
  * WordPress's checks of an endpoint's arguments, in its order.
@@ -43,7 +44,34 @@ public final class ArgChecks {
      */
     public static final RestError INVALID = RestError.noStatus("rest_invalid_param", "Invalid parameter.");
 
+    /** The request whose arguments are being checked on this thread, while a check runs. */
+    private static final ThreadLocal<RestRequest> CHECKING = new ThreadLocal<>();
+
     private ArgChecks() {}
+
+    /**
+     * Checks the request's arguments as {@link #check(List, ParamSources)} does; while the check runs, an argument's
+     * own check or sanitizer finds the request through {@link #checking()}, as WordPress hands its callbacks the
+     * request.
+     */
+    public static Optional<RestError> check(List<Arg> args, ParamSources sources, RestRequest request) {
+        RestRequest outer = CHECKING.get();
+        CHECKING.set(request);
+        try {
+            return check(args, sources);
+        } finally {
+            if (outer == null) {
+                CHECKING.remove();
+            } else {
+                CHECKING.set(outer);
+            }
+        }
+    }
+
+    /** The request whose arguments are being checked on this thread; none outside such a check. */
+    public static Optional<RestRequest> checking() {
+        return Optional.ofNullable(CHECKING.get());
+    }
 
     /** Whether the value passes the argument's own check, or else its schema; the schema's error when it fails. */
     private static Optional<RestError> check(Arg arg, JsonNode value) {

@@ -222,13 +222,14 @@ class PostItemDbTest {
                 .body("code", equalTo("rest_post_incorrect_password"))
                 .body("message", equalTo("Incorrect post password."))
                 .body("data.status", equalTo(403));
-        // for a caller who may edit the post, WordPress's Allow lists the writing methods and never GET: the
-        // writers come with their routes, so for now the header has nothing to list
-        Response refused = as("test-" + administrator).get(item + "?password=no");
-        refused.then().statusCode(403).body("code", equalTo("rest_post_incorrect_password"));
-        assertThat(refused.header("Allow") == null || !refused.header("Allow").contains("GET"))
-                .as("Allow " + refused.header("Allow"))
-                .isTrue();
+        // for a caller who may edit the post, Allow lists the writing methods and never GET (delete comes with its
+        // route)
+        as("test-" + administrator)
+                .get(item + "?password=no")
+                .then()
+                .statusCode(403)
+                .header("Allow", "POST, PUT, PATCH")
+                .body("code", equalTo("rest_post_incorrect_password"));
         // a password on a post without one refuses too
         as(null).get("/wp-json/wp/v2/posts/" + open.value() + "?password=x")
                 .then()

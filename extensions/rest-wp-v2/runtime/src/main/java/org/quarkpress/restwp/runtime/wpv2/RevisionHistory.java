@@ -1,10 +1,12 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
+import java.util.function.Supplier;
 import org.quarkpress.core.PostId;
 
 /**
- * The revision count and newest revision of a post, from a module that may be absent (the revisions module): the
- * post links reach them through this type alone, so they load and serve without that module.
+ * The revision count and newest revision of a post, and the revision a REST update saves, from a module that may be
+ * absent (the revisions module): the post links and the post writer reach them through this type alone, so they load
+ * and serve without that module.
  */
 interface RevisionHistory {
 
@@ -16,4 +18,11 @@ interface RevisionHistory {
      * them; none (0) when revisions are off for the post.
      */
     Count of(PostId post);
+
+    /**
+     * Runs {@code work}, then saves the post's revision once, as a save would, unless the work threw: the revision
+     * then holds what the work wrote after the post's row (its terms and meta), as WordPress's REST update saves its
+     * revision last. Runs as the caller, who needs {@code edit_post} on the post.
+     */
+    <T> T revisingAfter(PostId post, Supplier<T> work);
 }

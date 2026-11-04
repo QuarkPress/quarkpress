@@ -4,6 +4,7 @@ import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.function.Supplier;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.RevisionId;
 import org.quarkpress.revisions.RevisionCount;
@@ -13,8 +14,8 @@ import org.quarkpress.security.SystemIdentity;
 
 /**
  * The revision history of the post links, read from the revisions module as the system (the caller need not edit
- * the post to see the count, as WordPress's link carries it for every reader). A bean only while the revisions module
- * is present.
+ * the post to see the count, as WordPress's link carries it for every reader), and the revision of a REST update,
+ * saved as the caller. A bean only while the revisions module is present.
  */
 @ApplicationScoped
 class RevisionHistoryReads implements RevisionHistory {
@@ -42,5 +43,10 @@ class RevisionHistoryReads implements RevisionHistory {
         } finally {
             association.setIdentity(previous);
         }
+    }
+
+    @Override
+    public <T> T revisingAfter(PostId post, Supplier<T> work) {
+        return revisions.revisingAfter(post, work);
     }
 }

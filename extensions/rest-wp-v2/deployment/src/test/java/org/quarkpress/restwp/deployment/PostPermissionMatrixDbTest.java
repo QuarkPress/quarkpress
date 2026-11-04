@@ -26,7 +26,8 @@ import org.quarkpress.core.UserId;
  * contributor dave, subscriber erin, the outsider gina with no role on the site, and frank, administrator of another
  * site only) by status (publish, future, draft, pending, private, trash, auto-draft) by own and others' posts (carol's
  * and bob's), for the collection and for the item in the view and the edit context; the create decision per caller,
- * type (posts, pages, books) and requested status. Later tasks grow it with the update and delete decisions.
+ * type (posts, pages, books) and requested status; the update decision per caller, status and own or others' post,
+ * and the item's {@code Allow}. A later task grows it with the delete decision.
  */
 class PostPermissionMatrixDbTest {
 
@@ -277,6 +278,118 @@ class PostPermissionMatrixDbTest {
                 }
             }
         }
+    }
+
+    /**
+     * {@code PUT /posts/<id>} for every caller, status and own or others' post (posts of their own, so the other
+     * cells keep theirs): updating needs {@code edit_post}, as the edit context does, so an author updates her own
+     * posts of every status and an editor or administrator anyone's; the others are refused with
+     * {@code rest_cannot_edit}, 401 for the anonymous caller, 403 for the others (frank and gina included). A missing
+     * post is 404 for everyone.
+     */
+    @Test
+    void updateCells() {
+        String marker = "update " + UUID.randomUUID();
+        Map<String, List<Long>> targets = new LinkedHashMap<>();
+        int second = 0;
+        for (String status : STATUSES) {
+            List<Long> ids = new ArrayList<>();
+            for (long author : List.of(carol, bob)) {
+                boolean floating = status.equals("draft") || status.equals("pending") || status.equals("auto-draft");
+                String when = (status.equals("future") ? "2030-09-02T10:00:" : "2026-09-02T10:00:")
+                        + (second < 10 ? "0" : "") + second + "Z";
+                ids.add(PostFixtures.builder(site)
+                        .status(status)
+                        .author(author)
+                        .title(marker + " " + status)
+                        .publishedAt(floating ? null : when)
+                        .modifiedAt(when)
+                        .insert(data)
+                        .value());
+                second++;
+            }
+            targets.put(status, ids);
+        }
+        for (String caller : CALLERS.keySet()) {
+            for (String status : STATUSES) {
+                for (int i = 0; i < 2; i++) {
+                    long post = targets.get(status).get(i);
+                    boolean carols = i == 0;
+                    boolean allowed = caller.equals("bob")
+                            || caller.equals("administrator")
+                            || (caller.equals("carol") && carols);
+                    String what =
+                            caller + " PUT /posts/" + post + " (" + status + ", " + (carols ? "carol" : "bob") + "'s)";
+                    Response answer = as(CALLERS.get(caller))
+                            .contentType("application/json")
+                            .body("{\"excerpt\":\"by " + caller + "\"}")
+                            .put("/wp-json/wp/v2/posts/" + post);
+                    JsonNode body = json(answer.asString());
+                    if (allowed) {
+                        assertThat(answer.statusCode())
+                                .as(what + ": " + answer.asString())
+                                .isEqualTo(200);
+                        assertThat(body.at("/excerpt/raw").asText()).as(what).isEqualTo("by " + caller);
+                        assertThat(body.get("status").asText()).as(what).isEqualTo(status);
+                        continue;
+                    }
+                    assertThat(answer.statusCode())
+                            .as(what + ": " + answer.asString())
+                            .isEqualTo(caller.equals("anonymous") ? 401 : 403);
+                    assertThat(body.get("code").asText()).as(what).isEqualTo("rest_cannot_edit");
+                    assertThat(body.get("message").asText())
+                            .as(what)
+                            .isEqualTo("Sorry, you are not allowed to edit this post.");
+                }
+            }
+            Response missing = as(CALLERS.get(caller))
+                    .contentType("application/json")
+                    .body("{}")
+                    .put("/wp-json/wp/v2/posts/999999");
+            assertThat(missing.statusCode()).as(caller + " PUT a missing post").isEqualTo(404);
+            assertThat(json(missing.asString()).get("code").asText()).isEqualTo("rest_post_invalid_id");
+        }
+        assertThat(Jdbc.count(
+                        data,
+                        "select count(*) from qp_post where site_id = ? and title like ? and excerpt = ''",
+                        site.value(),
+                        marker + "%"))
+                .as("the allowed updates were written")
+                .isEqualTo(0);
+    }
+
+    /**
+     * The item's {@code Allow} lists the writing methods for a caller who may update the post: an administrator on
+     * her own post gets {@code GET, POST, PUT, PATCH} (delete comes with its route), the subscriber {@code GET} on a
+     * published post, an author {@code GET} on a colleague's published post; a missing post has none.
+     */
+    @Test
+    void allowHeaders() {
+        long administrator = Long.parseLong(CALLERS.get("administrator").substring("test-".length()));
+        long own = PostFixtures.builder(site)
+                .status("publish")
+                .author(administrator)
+                .title("allow " + UUID.randomUUID())
+                .publishedAt("2026-09-03T10:00:00Z")
+                .modifiedAt("2026-09-03T10:00:00Z")
+                .insert(data)
+                .value();
+        assertThat(as(CALLERS.get("administrator"))
+                        .get("/wp-json/wp/v2/posts/" + own)
+                        .header("Allow"))
+                .isEqualTo("GET, POST, PUT, PATCH");
+        assertThat(as(CALLERS.get("erin")).get("/wp-json/wp/v2/posts/" + own).header("Allow"))
+                .isEqualTo("GET");
+        assertThat(as(CALLERS.get("carol")).get("/wp-json/wp/v2/posts/" + own).header("Allow"))
+                .isEqualTo("GET");
+        long carols = POSTS.get("publish").get(0);
+        assertThat(as(CALLERS.get("carol"))
+                        .get("/wp-json/wp/v2/posts/" + carols)
+                        .header("Allow"))
+                .isEqualTo("GET, POST, PUT, PATCH");
+        Response missing = as(null).get("/wp-json/wp/v2/posts/999999");
+        assertThat(missing.statusCode()).isEqualTo(404);
+        assertThat(missing.header("Allow")).isNull();
     }
 
     /** The refusal of a create: {@code create}, {@code private}, {@code publish}, or null when it is allowed. */
