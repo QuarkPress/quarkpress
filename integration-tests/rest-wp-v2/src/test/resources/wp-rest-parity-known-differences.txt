@@ -398,6 +398,8 @@ p11 req38:body:/content/rendered D26 the book revision's content "p11 book words
 
 # D31: revisions have their own ids and one time; the harness normalises both sides' ids to refs (a revision's guid and slug included), and a zero GMT date cannot be provoked, so no scenario shows it.
 none * D31 revision ids live in their own space and their four dates come from one time; ids compare as refs and the dates as {now}, and WordPress's null dates need a zero GMT date no scenario can make
+none * D29 a write that fails after the insert is not provoked by scenarios (WordPress keeps the partial post; PostCreateDbTest pins the rollback)
+none * D30 the harness WordPress has theme templates while QuarkPress has none, and REST requests in the scenarios carry no preview_id/preview_nonce pair
 
 # D6, until the write endpoints exist: the self link's target hints of a search result alice may edit (p15) and of a created post (p07).
 p15 req2:body:/*/_links/self/0/targetHints/allow/* D6 the self link's target hints of a search result: WordPress lists GET, POST, PUT, PATCH, DELETE for a caller who may edit the post; QuarkPress's item route has GET only
