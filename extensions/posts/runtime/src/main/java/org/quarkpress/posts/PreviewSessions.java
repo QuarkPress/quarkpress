@@ -25,7 +25,8 @@ public interface PreviewSessions {
     /**
      * Opens a session for {@code user}. The caller must be {@code user} and a member of the site (or a super admin);
      * otherwise {@code ForbiddenException}. Expired sessions and release tokens of the site are purged first, in a
-     * bounded batch.
+     * bounded batch; then the user's oldest sessions on the site are closed, so that with the new one the user holds
+     * at most {@code quarkpress.posts.preview-sessions} (10 by default) there.
      */
     Session open(UserId user);
 

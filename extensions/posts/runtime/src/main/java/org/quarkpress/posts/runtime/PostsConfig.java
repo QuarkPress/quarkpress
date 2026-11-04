@@ -33,4 +33,11 @@ public interface PostsConfig {
      */
     @WithDefault("12h")
     Duration previewLifetime();
+
+    /**
+     * How many preview sessions a user keeps open on a site: opening one more closes the user's oldest ones there
+     * (at least 1).
+     */
+    @WithDefault("10")
+    int previewSessions();
 }

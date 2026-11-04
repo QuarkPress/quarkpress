@@ -552,12 +552,9 @@ public class PostQueries {
         if (termConditions.isUnsatisfied()) {
             throw new IllegalStateException("term filters need the taxonomy module");
         }
-        TermCondition combined = combined(
-                siteId,
-                termConditions.get(),
-                query.taxQuery().relation(),
-                query.taxQuery().clauses(),
-                "t");
+        TermConditionProvider provider = termConditions.get();
+        TermCondition combined = provider.forQuery(() -> combined(
+                siteId, provider, query.taxQuery().relation(), query.taxQuery().clauses(), "t"));
         switch (combined) {
             case TermCondition.Jpql jpql -> {
                 jpql.params().forEach(where::bind);

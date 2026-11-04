@@ -11,8 +11,10 @@ import jakarta.inject.Inject;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.Callable;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -241,6 +243,36 @@ class PostTokensDbTest {
     }
 
     @Test
+    void aUserKeepsOnlyTheNewestTenSessionsOfTheSite() throws Exception {
+        List<String> carols = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            carols.add(as(carol, () -> sessions.open(carol)).token());
+        }
+        String erins = as(erin, () -> sessions.open(erin)).token();
+        // carol's other site keeps its own sessions
+        SiteId other = TestData.site(dataSource);
+        TestData.member(dataSource, other, carol, "[\"author\"]");
+        String elsewhere = Identities.onSite(other, Identities.user(carol), () -> sessions.open(carol))
+                .token();
+        // opening the eleventh and the twelfth closed the two oldest
+        assertThat(as(carol, () -> sessions.user(carols.get(0)))).isEmpty();
+        assertThat(as(carol, () -> sessions.user(carols.get(1)))).isEmpty();
+        for (String kept : carols.subList(2, 12)) {
+            assertThat(as(carol, () -> sessions.user(kept))).contains(carol);
+        }
+        assertThat(sessionRows(site, carol)).isEqualTo(10);
+        assertThat(as(erin, () -> sessions.user(erins))).contains(erin);
+        assertThat(Identities.onSite(other, Identities.anonymous(), () -> sessions.user(elsewhere)))
+                .contains(carol);
+        // release tokens are not sessions: they never count
+        String lock = NOW + ":" + carol.value();
+        as(carol, () -> releases.issue(post, carol, lock));
+        as(carol, () -> sessions.open(carol));
+        assertThat(sessionRows(site, carol)).isEqualTo(10);
+        assertThat(as(carol, () -> sessions.user(carols.get(2)))).isEmpty();
+    }
+
+    @Test
     void releaseTokensAreOneTimeAndBoundToTheLockValue() throws Exception {
         String lock = NOW + ":" + carol.value();
         String token = as(carol, () -> releases.issue(post, carol, lock));
@@ -425,6 +457,14 @@ class PostTokensDbTest {
         PostId draft = TestData.post(dataSource, site, "post", "draft", "", title);
         Jdbc.update(dataSource, "update qp_post set author_id = ? where id = ?", author.value(), draft.value());
         return draft;
+    }
+
+    private long sessionRows(SiteId site, UserId user) {
+        return Jdbc.count(
+                dataSource,
+                "select count(*) from qp_post_token where site_id = ? and kind = 'preview_session' and user_id = ?",
+                site.value(),
+                user.value());
     }
 
     private long tokenRows(SiteId site) {

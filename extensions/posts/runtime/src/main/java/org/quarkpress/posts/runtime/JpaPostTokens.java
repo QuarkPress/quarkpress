@@ -38,12 +38,14 @@ import org.quarkpress.security.Memberships;
 
 /**
  * Preview tokens, preview sessions and lock release tokens. Preview tokens are HMAC-SHA256 values over the post, the
- * user and the current tick with the site's secret, an option created under the site's write lock (the site's post lock) the first time a
- * token is issued; nothing else is stored for them. Sessions and release tokens are rows of {@code qp_post_token}
- * holding the SHA-256 of a random token; every lookup names the site and the kind, and a release token also its post
- * and user, so a token of one kind is never found as another. Expired rows of the site are deleted when a session is
- * opened or a release token issued: the ids of at most 500 expired rows are selected, then deleted by id, the same two
- * statements on both databases. Refusals come before any write, so they do not mark the caller's transaction.
+ * user and the current tick with the site's secret, an option created under the site's write lock (the site's post
+ * lock) the first time a token is issued; nothing else is stored for them. Sessions and release tokens are rows of
+ * {@code qp_post_token} holding the SHA-256 of a random token; every lookup names the site and the kind, and a release
+ * token also its post and user, so a token of one kind is never found as another. A user keeps at most
+ * {@code quarkpress.posts.preview-sessions} sessions on a site (opening one more closes the oldest ones) and one
+ * release token per post. Expired rows of the site are deleted when a session is opened or a release token issued:
+ * the ids of at most 500 expired rows are selected, then deleted by id, the same two statements on both databases.
+ * Refusals come before any write, so they do not mark the caller's transaction.
  */
 @ApplicationScoped
 public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleaseTokens {
@@ -155,6 +157,7 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
         }
         Instant now = clock.now();
         purgeExpired(siteId, now);
+        closeOldest(siteId, user);
         Duration lifetime = config.previewLifetime();
         String token = randomToken();
         store(PostTokenEntity.PREVIEW_SESSION, null, user, token, null, now, lifetime);
@@ -313,6 +316,34 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
         entityManager().flush();
     }
 
+    /**
+     * Before a session of the user is opened on the site, deletes the user's sessions there beyond the newest
+     * {@code preview-sessions - 1} (at most {@link #PURGE_BATCH} at a time), so the new one makes the configured
+     * number.
+     */
+    private void closeOldest(SiteId siteId, UserId user) {
+        EntityManager entityManager = entityManager();
+        List<Long> ids = entityManager
+                .createQuery(
+                        "select t.id from PostTokenEntity t where t.siteId = :site and t.kind = :kind"
+                                + " and t.userId = :user order by t.id desc",
+                        Long.class)
+                .setParameter("site", TenantIds.param(siteId))
+                .setParameter("kind", PostTokenEntity.PREVIEW_SESSION)
+                .setParameter("user", user.value())
+                .setFirstResult(Math.max(1, config.previewSessions()) - 1)
+                .setMaxResults(PURGE_BATCH)
+                .getResultList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        entityManager
+                .createQuery("delete from PostTokenEntity t where t.siteId = :site and t.id in :ids")
+                .setParameter("site", TenantIds.param(siteId))
+                .setParameter("ids", ids)
+                .executeUpdate();
+    }
+
     /** Deletes at most {@link #PURGE_BATCH} expired rows of the site, the oldest ids first. */
     private void purgeExpired(SiteId siteId, Instant now) {
         EntityManager entityManager = entityManager();
@@ -380,8 +411,8 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
     }
 
     /**
-     * The site's secret, created under the site's write lock (the site's post lock) when the site has none: an insert-if-absent, then the
-     * stored value read under the option's lock when another transaction inserted it first.
+     * The site's secret, created under the site's write lock (the site's post lock) when the site has none: an
+     * insert-if-absent, then the stored value read under the option's lock when another transaction inserted it first.
      */
     private byte[] secretOrCreate(SiteId siteId) {
         Optional<byte[]> stored = secret();

@@ -55,8 +55,8 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   taken again even if it was another user's, as the heartbeat does); `takeOver` sets it whatever is stored; `release`
   is a compare-and-set by the holder that does not delete the lock but backdates it to expire five seconds later
   (`"<now - window + 5>:<caller>"`), answering whether it changed; `current` reads the stored value. The system
-  identity cannot hold a lock. Only the revisions module's autosave branch reads locks; every other read and write
-  ignores them, as WordPress's REST API does.
+  identity cannot hold a lock. Besides the REST API's lock routes, which serve the lock itself, only the revisions
+  module's autosave branch reads locks; every other read and write ignores them, as WordPress's REST API does.
 - `PreviewTokens` is QuarkPress's counterpart of the nonce in a WordPress preview link, computed and never stored:
   `issue(post, user)` (the caller must be `user` and hold `edit_post`) answers the base64url text (27 characters) of the
   first 20 bytes of HMAC-SHA256 over `preview|<site>|<post>|<user>|<tick>` with the site's secret, where the tick is the
@@ -118,6 +118,7 @@ Checks follow WordPress's REST API (wp-admin's for restoring from the trash):
 | meta writes | `edit_post`; a key whose first printable-ASCII character is `_` is protected: `PostMeta` writes it only for the system identity, `RegisteredMeta` for a caller the key's auth allows |
 | `stick`, `unstick` | `edit_post` on the post, then the `post` type's `edit_others_posts` and `publish_posts` |
 | `PostLocks.take`, `refresh`, `takeOver`, `release`; `FeaturedImages.set`; `PageTemplates.set` | `edit_post`; `PostLocks.holder` and `current` check nothing (the REST layer checks `edit_post` before it shows lock state) |
+| `RegisteredMeta.stored`, `RegisteredMeta.sanitize` | nothing: the caller has read the post first (the REST layer's read checks come before its meta field) |
 | `query` | statuses other than `publish` need every queried type's `edit_posts`; what each caller then sees is described on `PostQuery` |
 
 A type that is not registered is checked with the `post` type's capability names. Every save sanitizes the title,
@@ -270,6 +271,7 @@ not), never null; one that throws stops the call.
 | `quarkpress.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. A negative value keeps the trash on here, as WordPress's constant does, while the REST API, which trashes only with a positive value, answers a delete without `force` with 501 before anything is trashed. |
 | `quarkpress.posts.lock-window` | `150s` | WordPress's `wp_check_post_lock_window`: how long an editor's post lock stays fresh after it was taken or refreshed. |
 | `quarkpress.posts.preview-lifetime` | `12h` | How long a preview session and a lock release token live, and the span of a preview token: the token changes every half of this duration and stays valid for the half it was issued in and the one after (at least the lifetime, at most twice as long), as WordPress's nonce lifetime does. |
+| `quarkpress.posts.preview-sessions` | `10` | How many preview sessions a user keeps open on a site: opening one more closes the user's oldest ones there (a value below 1 counts as 1). |
 
 The module also reads the site options WordPress's post code reads: `default_comment_status`, `default_ping_status`,
 `posts_per_page`, `permalink_structure`, `show_on_front`, `page_on_front`, `page_for_posts` and
@@ -284,8 +286,11 @@ so a post can only have a parent of its own site. `qp_post_lock` holds one row p
 [Locks](#locks)). `qp_post_token` holds the preview sessions and the one-time lock release tokens of every site as
 SHA-256 hashes (unique per site), with the release tokens following their post through the composite key
 `(site_id, post_id)`; expired rows are deleted, at most 500 at a time, when a session is opened or a release token is
-issued. Preview tokens are computed from the site's `quarkpress_preview_secret` option and have no row. The module's
-migrations are the `V4_*` band.
+issued, and opening a session closes the user's sessions on the site beyond `quarkpress.posts.preview-sessions`. A
+token row's user has no foreign key: the sessions of a deleted profile stay until they expire, naming nobody (the
+preview page then has an anonymous viewer, and every token check reads the user's rights again). Preview tokens are
+computed from the site's `quarkpress_preview_secret` option and have no row. The module's migrations are the `V4_*`
+band.
 
 ### Locks
 
@@ -302,10 +307,8 @@ The editor's post lock (`PostLocks`, the `_edit_lock` meta) and the other intern
 the runtime's `ProtectedMeta`, which accepts only those four keys and writes the meta column alone with an update
 statement on the locked row that names no version, then reads the row again: the post's version and modification
 date stay as they are. `PostLocks.holder` and `current` read without any lock, so a second editor's check never waits
-for a save. A lock refresh therefore takes the site's post lock for a moment every heartbeat; that is kept for now
-because nothing has shown it to matter. If a measurement ever shows contention between refreshes and saves, the first
-thing to try is the row-only variant: `PostRepository.lockPost` alone for the lock writes, without the site's post
-lock, which is safe because a lock write changes no slug and no other row.
+for a save. A lock refresh therefore takes the site's post lock for a moment every heartbeat (see
+[Decisions](#decisions) for why that is kept).
 
 ## Limits
 
@@ -346,9 +349,11 @@ lock, which is safe because a lock write changes no slug and no other row.
 - Queries break ties by id, so equal values come back in a stable order.
 - The editor's lock writes (taking, refreshing, taking over and releasing, which the REST layer's lock routes call on
   every heartbeat) take the site's post lock and then the row lock, like every other post write, and change neither
-  the post's version nor its modification date; `PostLocks.holder` reads without any lock. If contention between lock
-  refreshes and saves is ever measured, the first thing to try is the row-only variant: `PostRepository.lockPost`
-  alone for the lock writes, which creates no lock-order cycle with writers taking the site's lock and then the row.
+  the post's version nor its modification date; `PostLocks.holder` reads without any lock. That costs the site's
+  post lock for a moment every heartbeat, which nothing has shown to matter. If contention between lock refreshes and
+  saves is ever measured, the first thing to try is the row-only variant: `PostRepository.lockPost` alone for the
+  lock writes, which is safe because a lock write changes no slug and no other row, and creates no lock-order cycle
+  with writers taking the site's lock and then the row.
 
 ## Differences from WordPress
 
