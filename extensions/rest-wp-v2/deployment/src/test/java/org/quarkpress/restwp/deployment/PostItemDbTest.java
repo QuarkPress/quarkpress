@@ -222,13 +222,12 @@ class PostItemDbTest {
                 .body("code", equalTo("rest_post_incorrect_password"))
                 .body("message", equalTo("Incorrect post password."))
                 .body("data.status", equalTo(403));
-        // for a caller who may edit the post, Allow lists the writing methods and never GET (delete comes with its
-        // route)
+        // for a caller who may edit and delete the post, Allow lists the writing methods and never GET
         as("test-" + administrator)
                 .get(item + "?password=no")
                 .then()
                 .statusCode(403)
-                .header("Allow", "POST, PUT, PATCH")
+                .header("Allow", "POST, PUT, PATCH, DELETE")
                 .body("code", equalTo("rest_post_incorrect_password"));
         // a password on a post without one refuses too
         as(null).get("/wp-json/wp/v2/posts/" + open.value() + "?password=x")

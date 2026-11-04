@@ -212,13 +212,13 @@ class PostUpdateDbTest {
         String u = UUID.randomUUID().toString();
         PostId post = draft(carol, "draft " + u).insert(data);
         String item = "/wp-json/wp/v2/posts/" + post.value();
-        // the edit context whatever was asked for; the writing methods in Allow (delete comes with its route)
+        // the edit context whatever was asked for; the writing methods in Allow
         as(carol)
                 .body("{\"title\":\"New\"}")
                 .put(item + "?context=view")
                 .then()
                 .statusCode(200)
-                .header("Allow", "GET, POST, PUT, PATCH")
+                .header("Allow", "GET, POST, PUT, PATCH, DELETE")
                 .header("Location", nullValue())
                 .body("id", equalTo((int) post.value()))
                 .body("title.raw", equalTo("New"))
@@ -230,7 +230,7 @@ class PostUpdateDbTest {
                 .post(item)
                 .then()
                 .statusCode(200)
-                .header("Allow", "GET, POST, PUT, PATCH")
+                .header("Allow", "GET, POST, PUT, PATCH, DELETE")
                 .body("title.raw", equalTo("By POST"));
         as(carol)
                 .body("{\"title\":\"By PATCH\"}")
@@ -285,10 +285,11 @@ class PostUpdateDbTest {
                 .statusCode(403)
                 .body("code", equalTo("rest_cannot_edit"))
                 .body("message", equalTo("Sorry, you are not allowed to edit this post."));
+        // Allow is computed with the request's own parameters: the author refuses the update, not the delete
         put(carol, "posts", carols, "{\"author\":" + bob + "}")
                 .then()
                 .statusCode(403)
-                .header("Allow", "GET")
+                .header("Allow", "GET, DELETE")
                 .body("code", equalTo("rest_cannot_edit_others"))
                 .body("message", equalTo("Sorry, you are not allowed to update posts as this user."));
         // her own id and 0 are no other author
@@ -420,7 +421,7 @@ class PostUpdateDbTest {
         put(carol, "posts", post, "{\"status\":\"draft\",\"title\":\"\"}")
                 .then()
                 .statusCode(400)
-                .header("Allow", "GET, POST, PUT, PATCH")
+                .header("Allow", "GET, POST, PUT, PATCH, DELETE")
                 .body("code", equalTo("empty_content"))
                 .body("message", equalTo("Content, title, and excerpt are empty."))
                 .body("data.status", equalTo(400));

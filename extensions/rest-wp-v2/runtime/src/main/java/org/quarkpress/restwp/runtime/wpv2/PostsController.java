@@ -1,6 +1,9 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.RequestScoped;
@@ -25,6 +28,7 @@ import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostRepository;
+import org.quarkpress.posts.runtime.PostsConfig;
 import org.quarkpress.restwp.Endpoint;
 import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.PermissionResult;
@@ -36,6 +40,7 @@ import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.runtime.PhpValues;
+import org.quarkpress.restwp.runtime.RestJson;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.taxonomy.Taxonomies;
 
@@ -52,8 +57,10 @@ import org.quarkpress.taxonomy.Taxonomies;
  * status public, {@code read_post}, or an inherited status whose parent is readable). The edit context of a caller
  * who may edit the post, or a matching {@code password} from any source, lifts the protection of a post with a
  * password. A viewable type's item carries a {@code Link} to its permalink in place of the API root's. POST, PUT and
- * PATCH on an item update it alike, with WordPress's update checks. A type that keeps revisions gets WordPress's
- * revisions routes right after its own, while the revisions module is present.
+ * PATCH on an item update it alike, with WordPress's update checks. DELETE moves the post to the trash, or with
+ * {@code force} deletes it for good, for a caller with {@code delete_post}; both answers are in the edit context. A
+ * type that keeps revisions gets WordPress's revisions routes right after its own, while the revisions module is
+ * present.
  */
 @ApplicationScoped
 public class PostsController implements RestRouteProvider {
@@ -111,6 +118,9 @@ public class PostsController implements RestRouteProvider {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    PostsConfig postsConfig;
 
     /** The revisions routes; a bean only while the revisions module is present. */
     @Inject
@@ -179,6 +189,12 @@ public class PostsController implements RestRouteProvider {
                         .handler(request -> update(post, request))
                         .allowBatch(true)
                         .build())
+                .endpoint(Endpoint.of("DELETE")
+                        .arg(PostSchema.forceArg())
+                        .permission(request -> mayDelete(post, request))
+                        .handler(request -> delete(post, request))
+                        .allowBatch(true)
+                        .build())
                 .register();
     }
 
@@ -240,6 +256,19 @@ public class PostsController implements RestRouteProvider {
         }
         if (!readable(caller, post)) {
             return PermissionResult.forbidden(request);
+        }
+        return PermissionResult.allowed();
+    }
+
+    /** WordPress's delete check: the post of the routes' type must exist; the caller needs {@code delete_post}. */
+    private PermissionResult mayDelete(PostRoutes routes, RestRequest request) {
+        Optional<PostSnapshot> found = existing(routes, request);
+        if (found.isEmpty()) {
+            return PermissionResult.denied(invalidId());
+        }
+        if (!permissions.can(request.identity(), "delete_post", found.get())) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_cannot_delete", "Sorry, you are not allowed to delete this post.", request.authCode()));
         }
         return PermissionResult.allowed();
     }
@@ -314,6 +343,55 @@ public class PostsController implements RestRouteProvider {
         return fields.prepare(routes, updated, selection, "edit", request, lifted);
     }
 
+    /**
+     * With {@code force}, renders the post in the edit context, deletes it for good and answers
+     * {@code {"deleted": true, "previous": <that rendering without links>}}; the request's later reads (its
+     * {@code Allow}) no longer find it. Without, the trash must be on, kept a positive number of days (else 501), and
+     * the post not in it already (else 410); the post is trashed and answered in the edit context, with its links.
+     * WordPress answers whatever context was asked for in the edit context.
+     */
+    private RestResponse delete(PostRoutes routes, RestRequest request) {
+        PostSnapshot stored = existing(routes, request).orElseThrow(() -> new RestException(invalidId()));
+        boolean force = request.param("force").map(PhpValues::toBoolean).orElse(false);
+        request.useContext("edit");
+        Fields.Selection selection =
+                Fields.forResponse(Fields.of(request), routes.schema(), "edit", request.hasParam("_embed"));
+        if (force) {
+            boolean lifted = permissions.can(request.identity(), "edit_post", stored);
+            JsonNode previous = fields.prepare(routes, stored, selection, "edit", request, lifted)
+                    .body();
+            if (posts.delete(stored.id(), true).isEmpty()) {
+                throw new RestException(cannotDelete());
+            }
+            reads.forget(routes, stored.id());
+            ObjectNode body = RestJson.NODES.objectNode();
+            body.set("deleted", BooleanNode.TRUE);
+            body.set("previous", previous);
+            return RestResponse.ok(body);
+        }
+        if (postsConfig.emptyTrashDays() <= 0) {
+            throw new RestException(RestError.of(
+                    "rest_trash_not_supported",
+                    "The post does not support trashing. Set 'force=true' to delete.",
+                    501));
+        }
+        if (stored.status().equals("trash")) {
+            throw new RestException(RestError.of("rest_already_trashed", "The post has already been deleted.", 410));
+        }
+        // the trash and the read of the trashed post share one transaction, so the read sees the write
+        PostSnapshot trashed = QuarkusTransaction.joiningExisting().call(() -> {
+            if (posts.trash(stored.id()).isEmpty()) {
+                throw new RestException(cannotDelete());
+            }
+            return rows.findPost(site.siteId(), stored.id())
+                    .map(PostEntity::toSnapshot)
+                    .orElseThrow(() -> new RestException(cannotDelete()));
+        });
+        reads.remember(routes, trashed);
+        boolean lifted = permissions.can(request.identity(), "edit_post", trashed);
+        return fields.prepare(routes, trashed, selection, "edit", request, lifted);
+    }
+
     private PostRequest.Services services() {
         return new PostRequest.Services(permissions, statuses, posts, rows, profiles, site);
     }
@@ -373,6 +451,11 @@ public class PostsController implements RestRouteProvider {
         void remember(PostRoutes routes, PostSnapshot post) {
             found.put(routes.key() + "/" + post.id().value(), Optional.of(post));
         }
+
+        /** Replaces the read of a post this request deleted: its later reads find none. */
+        void forget(PostRoutes routes, PostId post) {
+            found.put(routes.key() + "/" + post.value(), Optional.empty());
+        }
     }
 
     /** The {@code password} of the query string alone, when it is a text that is not empty in PHP's sense. */
@@ -381,6 +464,10 @@ public class PostsController implements RestRouteProvider {
         return value != null && value.isTextual() && !PhpValues.isEmpty(value)
                 ? Optional.of(value.textValue())
                 : Optional.empty();
+    }
+
+    private static RestError cannotDelete() {
+        return RestError.of("rest_cannot_delete", "The post cannot be deleted.", 500);
     }
 
     private static RestError invalidId() {
