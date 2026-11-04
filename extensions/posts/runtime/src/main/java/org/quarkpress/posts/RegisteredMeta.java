@@ -32,6 +32,14 @@ public interface RegisteredMeta {
      */
     boolean mayEdit(SecurityIdentity identity, PostSnapshot post, MetaKeyDefinition key, String capability);
 
+    /**
+     * The value a write of {@code key} on {@code post} would store: the key's sanitizer run once with the caller's
+     * identity, and the result checked as storable. A JSON null, a sanitizer answering JSON null and a value that cannot
+     * be stored (nested too deep, say) are refused with {@link IllegalArgumentException}. No permission check and
+     * nothing written: for a caller that stores the value elsewhere, an autosave say.
+     */
+    JsonNode sanitize(PostSnapshot post, MetaKeyDefinition key, JsonNode value);
+
     /** The stored values of {@code key}, raw and in order; no check (the caller has read the post). */
     List<JsonNode> stored(PostId post, String key);
 

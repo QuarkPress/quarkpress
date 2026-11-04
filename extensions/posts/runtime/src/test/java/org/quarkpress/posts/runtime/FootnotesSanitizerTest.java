@@ -33,7 +33,11 @@ class FootnotesSanitizerTest {
         assertThat(sanitize("[{\"id\":\"A b\",\"content\":\"<script>x</script>/y\"},{\"id\":\"\",\"content\":\"z\"}]"))
                 .isEqualTo(
                         "[{\"id\":\"ab\",\"content\":\"x\\/y\"}]"); // id key-sanitized; kses; entry without id dropped
-        assertThat(sanitize("{\"id\":\"a\"}")).isEqualTo(""); // not a list
+        // a JSON object is a PHP array too: its values are the entries, kept ones listed again
+        assertThat(sanitize("{}")).isEqualTo("[]");
+        assertThat(sanitize("{\"x\":{\"id\":\"a\",\"content\":\"b\"}}"))
+                .isEqualTo("[{\"id\":\"a\",\"content\":\"b\"}]");
+        assertThat(sanitize("{\"id\":\"a\"}")).isEqualTo("[]"); // its value is no entry
         assertThat(sanitizeWithUnfilteredHtml("<b>raw</b>")).isEqualTo("<b>raw</b>");
     }
 

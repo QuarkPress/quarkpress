@@ -17,9 +17,10 @@ import org.quarkpress.posts.MetaSanitizer;
 
 /**
  * WordPress's sanitizing of the {@code footnotes} meta: a caller with {@code unfiltered_html} stores the text as
- * given; for anyone else the text is decoded as JSON, anything but a list becomes "", entries without an id and a
- * content that are not empty in PHP's sense are dropped, the id is key-sanitized, the content passes post kses, and
- * the list is encoded again as PHP does ({@link PhpJsonText}). Whether the caller holds {@code unfiltered_html} is
+ * given; for anyone else the text is decoded as JSON, anything but a list or an object (both PHP arrays) becomes "",
+ * the entries (an object's values, in order) without an id and a content that are not empty in PHP's sense are
+ * dropped, the id is key-sanitized, the content passes post kses, and the kept entries are encoded again as a list,
+ * as PHP does ({@link PhpJsonText}). Whether the caller holds {@code unfiltered_html} is
  * asked on every call.
  */
 public final class FootnotesSanitizer implements MetaSanitizer {
@@ -42,7 +43,7 @@ public final class FootnotesSanitizer implements MetaSanitizer {
             return value;
         }
         JsonNode decoded = decode(text(value));
-        if (decoded == null || !decoded.isArray()) {
+        if (decoded == null || !decoded.isContainerNode()) {
             return TextNode.valueOf("");
         }
         ArrayNode kept = NODES.arrayNode();

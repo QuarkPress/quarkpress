@@ -42,7 +42,8 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   `delete` and `replace` sanitize the value with the caller's identity (once), answer `UNCHANGED` for a single key
   whose one stored row already equals the value (no permission needed, as in WordPress), `DENIED` unless the caller
   holds `edit_post` and the key is allowed (not protected, or its auth says so), and otherwise change the rows under
-  the site's post lock. Built in: `wp_pattern_sync_status` for `wp_block` and `footnotes` for every type shown in REST
+  the site's post lock; `sanitize(post, key, value)` answers the value such a write would store (the sanitizer
+  for the caller, the storable check) without writing, for autosaves. Built in: `wp_pattern_sync_status` for `wp_block` and `footnotes` for every type shown in REST
   that supports `editor`, `custom-fields` and `revisions`, decided once at startup after every type is registered
   (WordPress decides at `init` priority 20 and misses types registered later; QuarkPress has no late types, so there
   is no difference to record). Extensions register keys with `MetaKeyProvider` beans.

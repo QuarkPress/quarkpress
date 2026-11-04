@@ -171,6 +171,17 @@ public class JpaRegisteredMeta implements RegisteredMeta {
     }
 
     @Override
+    public JsonNode sanitize(PostSnapshot post, MetaKeyDefinition key, JsonNode value) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(value, "value");
+        if (value.isNull()) {
+            throw new IllegalArgumentException("a registered meta value cannot be JSON null");
+        }
+        return sanitize(key, post, value, acting.identity());
+    }
+
+    @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public List<JsonNode> stored(PostId post, String key) {
