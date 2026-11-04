@@ -200,8 +200,8 @@ where several are locked, though trimming during a restore may lock lower ids af
 - The editor's lock is consulted by `autosave` only; `restore` and the posts module's writes ignore it, as
   WordPress's REST writes do.
 - WordPress hooks without counterpart: `wp_{type}_revisions_to_keep`, `wp_save_post_revision_check_for_changes`,
-  `wp_save_post_revision_revisions_before_deletion`, the preview filters, the revision UI filters, `heartbeat_received`,
-  `wp_check_post_lock_window`.
+  `wp_save_post_revision_revisions_before_deletion`, the preview filters, the revision UI filters and
+  `heartbeat_received`; `wp_check_post_lock_window` is the posts module's `quarkpress.posts.lock-window`.
 
 ## Decisions
 
