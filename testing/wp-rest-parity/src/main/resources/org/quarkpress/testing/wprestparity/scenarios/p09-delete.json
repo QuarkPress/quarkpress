@@ -1,0 +1,198 @@
+{
+  "id": "p09",
+  "rule": "deleting posts and pages (DELETE /wp/v2/<base>/<id>): the delete_post check per caller before any trash check (contributor, anonymous, subscriber and author on another's post), the trash answered in the edit context with its links (slug __trashed, plain link and permalink template, the revision the trash saves), 410 on a trashed post with or without force=false, the trashed post read back and refused to the anonymous caller and to the contributor's delete, force answering deleted and the edit-context previous without links (a trashed post, a protected draft whatever the context asked, a published post with force=1), the editor's trash by method override and leaving the trash through PUT, a page on its route, a post under the pages route and a page under the posts route, and the missing and zero ids",
+  "setup": [
+    {
+      "post": "p:carols",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "p09 carol",
+      "fields": {
+        "slug": "p09-carol"
+      }
+    },
+    {
+      "post": "p:bobs",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "p09 bob",
+      "fields": {
+        "slug": "p09-bob"
+      }
+    },
+    {
+      "post": "p:secret",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "p09 secret",
+      "fields": {
+        "password": "s3"
+      }
+    },
+    {
+      "post": "p:gone",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "p09 gone",
+      "fields": {
+        "slug": "p09-gone"
+      }
+    },
+    {
+      "post": "p:soft",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "p09 soft",
+      "fields": {
+        "slug": "p09-soft"
+      }
+    },
+    {
+      "post": "p:page",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "p09 page",
+      "fields": {
+        "slug": "p09-page"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "dave",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:bobs}"
+    },
+    {
+      "as": "anonymous",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:bobs}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:bobs}?force=true"
+    },
+    {
+      "as": "erin",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:bobs}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?context=view&_fields=id,date,date_gmt,modified,modified_gmt,slug,status,type,link,title.raw,content.raw,excerpt.raw,author,featured_media,sticky,template,format,categories,tags,password,comment_status,ping_status,generated_slug,permalink_template,_links"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:carols}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?force=false"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?context=edit&_fields=id,status,slug,link,permalink_template"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?_fields=id,status,slug"
+    },
+    {
+      "as": "dave",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:carols}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?force=true"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:carols}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:carols}?force=true"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:secret}?force=true&context=embed"
+    },
+    {
+      "as": "bob",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:gone}?force=1"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:gone}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/posts/{p:soft}?_fields=id,status,slug",
+      "headers": {
+        "X-HTTP-Method-Override": "DELETE"
+      }
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:soft}?_fields=id,type,status,slug,permalink_template",
+      "contentType": "application/json",
+      "body": "{\"status\":\"draft\"}"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/pages/{p:page}?_fields=id,type,status,slug,link,permalink_template,_links"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/pages/{p:soft}"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:page}"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/999999"
+    },
+    {
+      "as": "anonymous",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/999999"
+    },
+    {
+      "as": "dave",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/0"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/0?force=true"
+    }
+  ]
+}
