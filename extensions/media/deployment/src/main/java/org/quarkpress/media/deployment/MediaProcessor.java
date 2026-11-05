@@ -28,6 +28,7 @@ import org.jboss.jandex.IndexView;
 import org.quarkpress.core.deployment.spi.MigrationLocationBuildItem;
 import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
+import org.quarkpress.core.deployment.spi.SiteScopedTableBuildItem;
 import org.quarkpress.media.MediaFeature;
 import org.quarkpress.media.MediaStorage;
 import org.quarkpress.media.runtime.ActiveStorage;
@@ -72,6 +73,11 @@ class MediaProcessor {
     @BuildStep
     MigrationLocationBuildItem migrations() {
         return new MigrationLocationBuildItem("media", 7);
+    }
+
+    @BuildStep
+    SiteScopedTableBuildItem siteScopedTables() {
+        return new SiteScopedTableBuildItem("qp_media");
     }
 
     @BuildStep
