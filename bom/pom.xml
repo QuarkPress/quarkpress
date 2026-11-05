@@ -154,6 +154,26 @@
       </dependency>
       <dependency>
         <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-storage-fs</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-storage-fs-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-image-imageio</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-image-imageio-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
         <artifactId>quarkpress-rest-wp-v2</artifactId>
         <version>${project.version}</version>
       </dependency>

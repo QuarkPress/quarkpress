@@ -31,6 +31,8 @@
     <module>revisions</module>
     <module>scheduling</module>
     <module>media</module>
+    <module>media-storage-fs</module>
+    <module>media-image-imageio</module>
     <module>rest-wp-v2</module>
     <module>dev-ui</module>
   </modules>

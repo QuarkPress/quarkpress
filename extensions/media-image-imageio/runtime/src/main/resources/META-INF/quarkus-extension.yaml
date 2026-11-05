@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Media Image ImageIO"
+description: "Reads, orients, crops, scales and writes QuarkPress images with ImageIO and the TwelveMonkeys plugins"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "media"
+    - "images"
+  categories:
+    - "data"
+  status: "experimental"
