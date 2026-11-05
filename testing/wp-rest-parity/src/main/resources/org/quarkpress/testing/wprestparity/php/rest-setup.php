@@ -39,6 +39,7 @@
  *   nonce {user, session, action}  wp_create_nonce for the user in that session; answers {nonce}
  *   meta {site, post, key}         get_post_meta, every row; answers {values: [...]}
  *   set_meta {site, post, key, value}  update_post_meta; answers {updated}
+ *   delete_meta {site, post, key}  delete_post_meta of every value; answers {deleted}
  *   autosave {site, as, post, title, content}  wp_create_post_autosave as the user; answers {id} (or the error code)
  *   auto_draft {site, as, type}    the auto-draft WordPress's new-post screen creates for the user: the new-post
  *                                  default of the type, inserted (get_default_post_to_edit with create_in_db, as
@@ -51,6 +52,22 @@
  *   outsider {login}               creates a network user who is a member of no site; answers {id}
  *   leave {site, user}             removes the user from the site at path "site" (no role there); answers {left}
  *   delete_user {login}            deletes a network user (wpmu_delete_user); answers {deleted}
+ * Media facts operations (each a harness rule; paths are relative to the site's uploads base):
+ *   extensions {}                  {gd, gd_webp, gd_avif (gd_info's WebP/AVIF support), imagick, dom, exif, fileinfo,
+ *                                  php}
+ *   probe {site?, as?, locale?, locale_filter?, no_convert?, add_image_size?, fn, args | calls}  black-box calls of
+ *                                  sanitize_file_name, wp_unique_filename, wp_check_filetype(_and_ext),
+ *                                  wp_get_image_mime, wp_get_registered_image_subsizes, image_resize_dimensions,
+ *                                  wp_constrain_dimensions, wp_read_image_metadata, wp_exif_frac2dec, wp_exif_date2ts,
+ *                                  round, get_allowed_mime_types, get_locale (see qp_probe)
+ *   prepare_folder {site, folder | current, files: {name: base64}, clear?}  answers {folder, listing}
+ *   uploads_listing {site, folder} the folder's files, recursively: [{path, size, md5}]
+ *   clear_uploads {site}           empties a non-main site's uploads base
+ *   attachment {site, id}          the post row, every meta value raw, the metadata, the folder's listing
+ *   network_option {name} / set_network_option {name, value}  get_site_option / update_site_option (null deletes)
+ *   get_option {site, name}        get_option on the site
+ *   query_attachments {site, args: {post_mime_type}}  get_posts of inherit attachments, ids ascending
+ *   remove_upload {site, file}     deletes one file of the site's uploads
  * The script calls WordPress functions; every rule it applies itself is marked "Harness rule" where it happens.
  */
 
@@ -526,6 +543,15 @@ function qp_meta(array $input): array
     return ['values' => array_values($values)];
 }
 
+/** Harness rule: delete_post_meta of every value of the key (the media facts' "metadata row deleted" case). */
+function qp_delete_meta(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $deleted = delete_post_meta((int) $input['post'], (string) $input['key']);
+    restore_current_blog();
+    return ['deleted' => $deleted];
+}
+
 function qp_set_meta(array $input): array
 {
     switch_to_blog(qp_site_id((string) $input['site']));
@@ -673,6 +699,370 @@ function qp_delete_user(array $input): array
     return ['deleted' => false !== $user && wpmu_delete_user($user->ID)];
 }
 
+// ---- media facts operations (MediaFactsDbTest) ---------------------------------------------------------------------
+
+/** Harness rule: which PHP extensions the server has (the facts run skips the editor items without GD). */
+function qp_extensions(): array
+{
+    $gd = function_exists('gd_info') ? gd_info() : [];
+    return [
+        'gd' => extension_loaded('gd'),
+        'gd_webp' => !empty($gd['WebP Support']),
+        'gd_avif' => !empty($gd['AVIF Support']),
+        'imagick' => extension_loaded('imagick'),
+        'dom' => class_exists('DOMDocument'),
+        'exif' => extension_loaded('exif'),
+        'fileinfo' => extension_loaded('fileinfo'),
+        'php' => PHP_VERSION,
+    ];
+}
+
+/** The site's uploads base folder (wp_upload_dir's basedir, created on demand); the caller has switched to it. */
+function qp_uploads_base(): string
+{
+    $dir = wp_upload_dir(null, true);
+    if (!empty($dir['error'])) {
+        throw new RuntimeException('wp_upload_dir: ' . $dir['error']);
+    }
+    return rtrim($dir['basedir'], '/');
+}
+
+/** Harness rule: a relative path inside the uploads base, refused when it climbs out of it. */
+function qp_inside(string $base, string $relative): string
+{
+    if (str_contains('/' . $relative . '/', '/../') || str_starts_with($relative, '/')) {
+        throw new InvalidArgumentException("not a path inside the uploads base: $relative");
+    }
+    return '' === $relative ? $base : $base . '/' . $relative;
+}
+
+/** Every file under $dir, recursively: {path (relative to $root), size, md5}, sorted by path (harness rule). */
+function qp_listing(string $dir, string $root, bool $recursive = true): array
+{
+    $out = [];
+    if (!is_dir($dir)) {
+        return $out;
+    }
+    $entries = scandir($dir);
+    sort($entries, SORT_STRING);
+    foreach ($entries as $entry) {
+        if ('.' === $entry || '..' === $entry) {
+            continue;
+        }
+        $path = $dir . '/' . $entry;
+        $relative = ltrim(substr($path, strlen($root)), '/');
+        if (is_dir($path)) {
+            $out[] = ['path' => $relative . '/', 'size' => null, 'md5' => null];
+            if ($recursive) {
+                array_push($out, ...qp_listing($path, $root, true));
+            }
+        } else {
+            $out[] = ['path' => $relative, 'size' => filesize($path), 'md5' => md5_file($path)];
+        }
+    }
+    return $out;
+}
+
+function qp_remove_tree(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+    foreach (scandir($dir) as $entry) {
+        if ('.' === $entry || '..' === $entry) {
+            continue;
+        }
+        $path = $dir . '/' . $entry;
+        is_dir($path) && !is_link($path) ? qp_remove_tree($path) : unlink($path);
+    }
+    rmdir($dir);
+}
+
+/**
+ * Harness rule: empties the uploads base of a (non-main) site, so a site id that an earlier run of the shared tree
+ * used starts without files, and an item leaves none behind.
+ */
+function qp_clear_uploads(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $base = qp_uploads_base();
+    restore_current_blog();
+    if (!str_contains($base, '/sites/')) {
+        throw new InvalidArgumentException("refusing to clear the main site's uploads: $base");
+    }
+    qp_remove_tree($base);
+    return ['cleared' => $base];
+}
+
+/** A file written into the run directory from {base64, name} (harness rule: the probes' input files). */
+function qp_probe_file(array $spec): string
+{
+    global $qp_output_file;
+    $dir = dirname($qp_output_file) . '/probe-files';
+    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+        throw new RuntimeException("cannot create $dir");
+    }
+    $name = (string) ($spec['name'] ?? 'upload.tmp');
+    if (str_contains($name, '/')) {
+        throw new InvalidArgumentException("a probe file name has no folder: $name");
+    }
+    $path = $dir . '/' . $name;
+    file_put_contents($path, base64_decode((string) $spec['base64'], true));
+    return $path;
+}
+
+/** JSON-safe copy of a probe answer: a string that is not valid UTF-8 becomes {"invalid_utf8_hex": ...}. */
+function qp_json_safe(mixed $value): mixed
+{
+    if (is_string($value)) {
+        return mb_check_encoding($value, 'UTF-8') ? $value : ['invalid_utf8_hex' => bin2hex($value)];
+    }
+    if (is_array($value)) {
+        $out = [];
+        foreach ($value as $key => $item) {
+            $out[$key] = qp_json_safe($item);
+        }
+        return $out;
+    }
+    if (is_object($value)) {
+        return qp_json_safe(get_object_vars($value));
+    }
+    if (is_float($value) && (is_nan($value) || is_infinite($value))) {
+        return ['float' => (string) $value];
+    }
+    return $value;
+}
+
+/** The functions the probe operation may call (black-box calls of WordPress's public functions, plus PHP's round). */
+const QP_PROBE_FUNCTIONS = ['sanitize_file_name', 'wp_unique_filename', 'wp_check_filetype', 'wp_check_filetype_and_ext',
+    'wp_get_image_mime', 'wp_get_registered_image_subsizes', 'image_resize_dimensions', 'wp_constrain_dimensions',
+    'wp_read_image_metadata', 'wp_exif_frac2dec', 'wp_exif_date2ts', 'round', 'get_allowed_mime_types', 'get_locale'];
+
+/** One probe call: {fn, args}; file arguments are {base64, name} objects (harness rule: written to the run dir). */
+function qp_probe_one(array $call): mixed
+{
+    $fn = (string) $call['fn'];
+    $args = isset($call['args']) && is_array($call['args']) ? $call['args'] : [];
+    if (!in_array($fn, QP_PROBE_FUNCTIONS, true)) {
+        throw new InvalidArgumentException("not a probe function: $fn");
+    }
+    switch ($fn) {
+        case 'wp_unique_filename':
+            // Harness rule: args [folder relative to the site's uploads base, name].
+            return wp_unique_filename(qp_inside(qp_uploads_base(), (string) $args[0]), (string) $args[1]);
+        case 'wp_check_filetype_and_ext':
+            // Harness rule: args [{base64, name: the temporary file's name}, client name].
+            return wp_check_filetype_and_ext(qp_probe_file($args[0]), (string) $args[1]);
+        case 'wp_get_image_mime':
+        case 'wp_read_image_metadata':
+            return $fn(qp_probe_file($args[0]));
+        case 'get_allowed_mime_types':
+            // Harness rule: args [login].
+            return get_allowed_mime_types(qp_user_id(['user' => (string) $args[0]]));
+        case 'round':
+            return round((float) $args[0], (int) ($args[1] ?? 0));
+        default:
+            return $fn(...$args);
+    }
+}
+
+/**
+ * Harness rule: calls WordPress's public functions as a black box on the site at path "site" (default the main
+ * site), as user "as" (default nobody), with these optional settings: "locale" (switch_locale, its answer recorded),
+ * "locale_filter" (the locale filter answers that value), "no_convert" (image_editor_output_format answers an empty
+ * map, what the REST upload's convert_format=false does), "add_image_size" ([name, width, height, crop]). Input
+ * {fn, args} answers {result, result_type}; input {calls: [{fn, args}...]} answers {results: [...], result_types:
+ * [...]} (gettype() of each answer).
+ */
+function qp_probe(array $input): array
+{
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    switch_to_blog(isset($input['site']) ? qp_site_id((string) $input['site']) : get_main_site_id());
+    if (isset($input['as'])) {
+        wp_set_current_user(qp_user_id($input, 'as'));
+    }
+    $out = [];
+    if (isset($input['locale'])) {
+        // switch_locale is not loaded in every context; its absence is recorded, not worked around.
+        $out['switch_locale'] = function_exists('switch_locale') ? switch_locale((string) $input['locale'])
+            : 'switch_locale is not defined here';
+    }
+    if (isset($input['locale_filter'])) {
+        $locale = (string) $input['locale_filter'];
+        add_filter('locale', static fn() => $locale, 1000);
+    }
+    if (!empty($input['no_convert'])) {
+        add_filter('image_editor_output_format', static fn() => [], 1000);
+    }
+    if (isset($input['add_image_size'])) {
+        [$name, $width, $height, $crop] = $input['add_image_size'];
+        add_image_size((string) $name, (int) $width, (int) $height, $crop);
+    }
+    $out['locale'] = get_locale();
+    try {
+        if (isset($input['calls'])) {
+            $results = [];
+            $types = [];
+            foreach ($input['calls'] as $call) {
+                $value = qp_probe_one($call);
+                $results[] = qp_json_safe($value);
+                $types[] = gettype($value);
+            }
+            $out['results'] = $results;
+            // Harness rule: gettype() of each answer, since JSON writes the float 5.0 as 5.
+            $out['result_types'] = $types;
+        } else {
+            $value = qp_probe_one($input);
+            $out['result'] = qp_json_safe($value);
+            $out['result_type'] = gettype($value);
+        }
+    } finally {
+        if (isset($input['locale']) && function_exists('restore_previous_locale')) {
+            restore_previous_locale();
+        }
+        wp_set_current_user(0);
+        restore_current_blog();
+    }
+    return $out;
+}
+
+/**
+ * Harness rule: fills a folder of the site's uploads (relative "folder", or the current upload folder with
+ * "current": true) with files {name: base64}; "clear" (default true) empties it first. Answers the folder relative to
+ * the uploads base and its listing.
+ */
+function qp_prepare_folder(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $base = qp_uploads_base();
+    $dir = !empty($input['current']) ? rtrim(wp_upload_dir()['path'], '/') : qp_inside($base, (string) $input['folder']);
+    restore_current_blog();
+    if (!array_key_exists('clear', $input) || $input['clear']) {
+        qp_remove_tree($dir);
+    }
+    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+        throw new RuntimeException("cannot create $dir");
+    }
+    foreach (($input['files'] ?? []) as $name => $base64) {
+        if (str_contains((string) $name, '/')) {
+            throw new InvalidArgumentException("a prepared file name has no folder: $name");
+        }
+        file_put_contents($dir . '/' . $name, base64_decode((string) $base64, true));
+    }
+    return ['folder' => ltrim(substr($dir, strlen($base)), '/'), 'listing' => qp_listing($dir, $base, false)];
+}
+
+/** Harness rule: the sorted listing (path, size, md5) of a folder of the site's uploads, recursively. */
+function qp_uploads_listing(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $base = qp_uploads_base();
+    restore_current_blog();
+    return ['listing' => qp_listing(qp_inside($base, (string) ($input['folder'] ?? '')), $base)];
+}
+
+/**
+ * The attachment as stored: the post row's columns, every meta value as stored (raw), the attachment metadata
+ * (wp_get_attachment_metadata, unfiltered) and the listing of the attached file's folder. {exists: false} when there
+ * is no such post.
+ */
+function qp_attachment(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $id = (int) $input['id'];
+    $post = get_post($id);
+    if (null === $post) {
+        restore_current_blog();
+        return ['exists' => false, 'id' => $id];
+    }
+    $row = [];
+    foreach (['ID', 'post_type', 'post_title', 'post_excerpt', 'post_content', 'post_status', 'post_mime_type',
+                 'post_name', 'post_parent', 'post_author', 'guid', 'comment_status', 'ping_status', 'menu_order',
+                 'post_date', 'post_date_gmt', 'post_modified', 'post_modified_gmt'] as $column) {
+        $row[$column] = $post->$column;
+    }
+    global $wpdb;
+    $meta = [];
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT meta_key, meta_value FROM $wpdb->postmeta WHERE post_id = %d ORDER BY meta_id", $id), ARRAY_A);
+    foreach ($rows as $meta_row) {
+        $meta[$meta_row['meta_key']][] = $meta_row['meta_value'];
+    }
+    $base = qp_uploads_base();
+    $file = get_attached_file($id, true);
+    $listing = is_string($file) && '' !== $file ? qp_listing(dirname($file), $base, false) : [];
+    $answer = [
+        'exists' => true,
+        'site_id' => get_current_blog_id(),
+        'row' => qp_json_safe($row),
+        'meta' => qp_json_safe($meta),
+        'metadata' => qp_json_safe(wp_get_attachment_metadata($id, true)),
+        'attached_file' => $file,
+        'uploads' => ['basedir' => substr($base, strlen(rtrim(ABSPATH, '/'))), 'baseurl' => wp_upload_dir()['baseurl']],
+        'folder_listing' => $listing,
+    ];
+    restore_current_blog();
+    return $answer;
+}
+
+function qp_network_option(array $input): array
+{
+    return ['name' => $input['name'], 'value' => get_site_option((string) $input['name'], null)];
+}
+
+/** update_site_option; a null value deletes the network option (harness rule: restoring an absent option). */
+function qp_set_network_option(array $input): array
+{
+    $name = (string) $input['name'];
+    if (null === $input['value']) {
+        delete_site_option($name);
+    } else {
+        update_site_option($name, $input['value']);
+    }
+    return ['name' => $name, 'value' => get_site_option($name, null)];
+}
+
+/** Harness rule: reads an option of the site at path "site" (null when absent). */
+function qp_get_option(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $value = get_option((string) $input['name'], null);
+    restore_current_blog();
+    return ['name' => $input['name'], 'value' => $value];
+}
+
+/** get_posts of attachments in status inherit with the given post_mime_type, ids ascending (harness rule). */
+function qp_query_attachments(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $args = $input['args'] ?? [];
+    $found = get_posts([
+        'post_type' => 'attachment',
+        'post_status' => 'inherit',
+        'post_mime_type' => $args['post_mime_type'] ?? '',
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'numberposts' => -1,
+    ]);
+    $out = [];
+    foreach ($found as $post) {
+        $out[] = ['id' => (int) $post->ID, 'post_mime_type' => $post->post_mime_type];
+    }
+    restore_current_blog();
+    return ['posts' => $out];
+}
+
+/** Harness rule: deletes one file of the site's uploads (a path relative to its uploads base). */
+function qp_remove_upload(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $path = qp_inside(qp_uploads_base(), (string) $input['file']);
+    restore_current_blog();
+    return ['removed' => is_file($path) && unlink($path)];
+}
+
 $qp_input = json_decode((string) file_get_contents($qp_input_file), true, 512, JSON_THROW_ON_ERROR);
 try {
     if ('prepare' === $qp_mode) {
@@ -705,6 +1095,7 @@ try {
         'nonce' => qp_nonce($qp_input),
         'meta' => qp_meta($qp_input),
         'set_meta' => qp_set_meta($qp_input),
+        'delete_meta' => qp_delete_meta($qp_input),
         'autosave' => qp_autosave($qp_input),
         'auto_draft' => qp_auto_draft($qp_input),
         'taxonomy_args' => qp_taxonomy_args($qp_input),
@@ -715,6 +1106,17 @@ try {
         'outsider' => qp_outsider($qp_input),
         'leave' => qp_leave($qp_input),
         'delete_user' => qp_delete_user($qp_input),
+        'extensions' => qp_extensions(),
+        'probe' => qp_probe($qp_input),
+        'prepare_folder' => qp_prepare_folder($qp_input),
+        'uploads_listing' => qp_uploads_listing($qp_input),
+        'clear_uploads' => qp_clear_uploads($qp_input),
+        'attachment' => qp_attachment($qp_input),
+        'network_option' => qp_network_option($qp_input),
+        'set_network_option' => qp_set_network_option($qp_input),
+        'get_option' => qp_get_option($qp_input),
+        'query_attachments' => qp_query_attachments($qp_input),
+        'remove_upload' => qp_remove_upload($qp_input),
         default => throw new InvalidArgumentException("unknown operation $qp_mode"),
     };
     qp_write($qp_output_file, ['out' => $qp_out]);

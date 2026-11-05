@@ -18,7 +18,16 @@
  *     so a type whose taxonomies are all outside REST can be observed;
  *   - when "book" is registered, registers its post meta book_rating (integer, single, default 3) and book_tags
  *     (strings, several values), both in REST, at init priority 21 (after WordPress's footnotes at 20), the keys and
- *     the order QuarkPress's test application registers them in.
+ *     the order QuarkPress's test application registers them in;
+ *   - media switches (site options "1"): qp_parity_allow_svg adds svg => image/svg+xml through upload_mimes (at
+ *     priority 100, after the network's upload_filetypes narrowing); qp_parity_no_unsupported_refusal makes
+ *     wp_prevent_unsupported_mime_type_uploads answer false; qp_parity_hook_log appends "<hook>:<post id>" to the
+ *     option qp_parity_hooks (a list) for the attachment and post hooks named in QP_PARITY_LOGGED_HOOKS;
+ *     qp_parity_no_big_image_threshold makes big_image_size_threshold answer 0 (the image-processing reference's "filter threshold 0"); qp_parity_fail_on_second_size
+ *     throws (a PHP fatal, as a memory or time limit would end the request) right after _wp_attachment_metadata
+ *     is written the second time in a request, i.e. after the base save and the first sub-size's save; qp_parity_extra_sizes "900" registers
+ *     the size qp-900w (900x0), "gravity" the sizes qp-left (100x100, left/top) and qp-right (100x100,
+ *     right/bottom).
  */
 
 /**
@@ -74,3 +83,61 @@ add_action('init', static function (): void {
         'show_in_rest' => true,
     ]);
 }, 21);
+
+add_filter('upload_mimes', static function ($mimes) {
+    if ('1' === get_option('qp_parity_allow_svg')) {
+        $mimes['svg'] = 'image/svg+xml';
+    }
+    return $mimes;
+}, 100);
+
+add_filter('wp_prevent_unsupported_mime_type_uploads', static function ($prevent) {
+    return '1' === get_option('qp_parity_no_unsupported_refusal') ? false : $prevent;
+}, 10);
+
+add_filter('big_image_size_threshold', static function ($threshold) {
+    return '1' === get_option('qp_parity_no_big_image_threshold') ? 0 : $threshold;
+}, 10);
+
+const QP_PARITY_LOGGED_HOOKS = ['add_attachment', 'edit_attachment', 'attachment_updated', 'save_post',
+    'transition_post_status', 'wp_insert_post', 'wp_after_insert_post', 'delete_attachment', 'delete_post',
+    'before_delete_post', 'deleted_post'];
+
+foreach (QP_PARITY_LOGGED_HOOKS as $qp_hook) {
+    add_action($qp_hook, static function (...$args) use ($qp_hook): void {
+        if ('1' !== get_option('qp_parity_hook_log')) {
+            return;
+        }
+        // transition_post_status passes (new status, old status, post); the others pass the post (or its id) first.
+        $subject = 'transition_post_status' === $qp_hook ? ($args[2] ?? null) : ($args[0] ?? null);
+        $id = $subject instanceof WP_Post ? $subject->ID : (int) $subject;
+        $log = get_option('qp_parity_hooks', []);
+        $log = is_array($log) ? $log : [];
+        $log[] = $qp_hook . ':' . $id;
+        update_option('qp_parity_hooks', $log, false);
+    }, 10, 4);
+}
+unset($qp_hook);
+
+$qp_parity_metadata_writes = 0;
+foreach (['added_post_meta', 'updated_post_meta'] as $qp_meta_hook) {
+    add_action($qp_meta_hook, static function ($meta_id, $object_id, $meta_key) use (&$qp_parity_metadata_writes): void {
+        if ('_wp_attachment_metadata' !== $meta_key || '1' !== get_option('qp_parity_fail_on_second_size')) {
+            return;
+        }
+        if (++$qp_parity_metadata_writes >= 2) {
+            throw new Error('qp_parity_fail_on_second_size: the request ends after the first sub-size');
+        }
+    }, 10, 3);
+}
+unset($qp_meta_hook);
+
+add_action('init', static function (): void {
+    $sizes = get_option('qp_parity_extra_sizes');
+    if ('900' === $sizes) {
+        add_image_size('qp-900w', 900, 0);
+    } elseif ('gravity' === $sizes) {
+        add_image_size('qp-left', 100, 100, ['left', 'top']);
+        add_image_size('qp-right', 100, 100, ['right', 'bottom']);
+    }
+}, 10);

@@ -32,6 +32,26 @@ the REST parity run, `RestParityDbTest`, with QuarkPress on PostgreSQL and on My
 MySQL container); this module's own tests and the Tier B post, term and revision scenarios (`testing/wp-scenario`)
 run on PostgreSQL only.
 
+## The media facts run
+
+`MediaFactsDbTest` (run with `-Pwp-parity -Dtest=MediaFactsDbTest`) records what WordPress answers for the media
+references' verification lists into the same `verification-facts.json`: items `u01`-`u15` (uploads) and `i01`-`i18`
+(image processing), each on a subdirectory site of its own whose uploads folder is emptied before and after it. It
+uploads `MediaFixtures` files (images, EXIF/IPTC/XMP/ICC segments and audio, video and document containers written by
+hand, shared with media's tests) through `RestCall.multipart`, and calls WordPress's public functions as a black box
+through the setup operations `probe`, `prepare_folder`, `attachment`, `uploads_listing`, `network_option`,
+`query_attachments` and `remove_upload`. `php -S` runs with `upload_max_filesize` and `post_max_size` of 64M. The
+must-use plugin's media switches are site options set to `"1"` by the item that needs them and switched off in its
+`finally`: `qp_parity_allow_svg`, `qp_parity_no_unsupported_refusal`, `qp_parity_hook_log` (the log is the option
+`qp_parity_hooks`), `qp_parity_no_big_image_threshold`, `qp_parity_fail_on_second_size` and `qp_parity_extra_sizes`.
+Items that need an image editor run only when the server's PHP has GD (`php8.4-gd`, as in CI) and are skipped with a
+message otherwise; `-Dwp.media.require-editor=true` makes them fail instead. Imagick items never run (GD is the
+reference), and the XMP item needs PHP's DOM extension (`php8.4-xml`). The run installs its template network with the
+installing administrator as the current user (the opt-in `wp.scenario.installer-current-user` of testing/wp-scenario,
+as on WordPress's Network Setup screen), so the network's `upload_filetypes` is written for that administrator. `php -S`
+runs with `display_errors=0`, `html_errors=0` and `log_errors=1`: PHP notices go to `php-errors.log` in the run's
+directory, never into a body.
+
 ## The WordPress side
 
 `WordPressRestSite.start` clones the template network into a database of its own, prepares it and starts `php -S` on a

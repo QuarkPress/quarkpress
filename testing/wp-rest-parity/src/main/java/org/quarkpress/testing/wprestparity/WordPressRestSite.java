@@ -315,12 +315,26 @@ public final class WordPressRestSite implements AutoCloseable {
             port = socket.getLocalPort();
         }
         Path log = runDir.resolve("php-server.log");
+        // Harness rule: PHP's default upload_max_filesize (2M) and post_max_size (8M) would refuse the larger media
+        // fixtures before WordPress runs. Errors go to php-errors.log beside the server log, never into a response
+        // body (under php -S, display_errors=stderr would print them into the page), as on a production server with
+        // display_errors off.
         ProcessBuilder builder = new ProcessBuilder(
                         php,
                         "-d",
                         "memory_limit=512M",
                         "-d",
-                        "display_errors=stderr",
+                        "upload_max_filesize=64M",
+                        "-d",
+                        "post_max_size=64M",
+                        "-d",
+                        "display_errors=0",
+                        "-d",
+                        "html_errors=0",
+                        "-d",
+                        "log_errors=1",
+                        "-d",
+                        "error_log=" + runDir.resolve("php-errors.log"),
                         "-d",
                         "error_reporting=E_ALL & ~E_DEPRECATED",
                         "-S",
