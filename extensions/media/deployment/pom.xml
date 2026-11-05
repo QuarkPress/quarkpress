@@ -76,6 +76,19 @@
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
+    <!-- the media fixtures only (JDK-only code): the module's scenario dependencies would add extensions to the test apps -->
+    <dependency>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
   </dependencies>
 
   <build>
