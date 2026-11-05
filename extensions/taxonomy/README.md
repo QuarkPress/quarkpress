@@ -100,8 +100,9 @@ status) nor readable (`read_post`), else `ALLOWED`.
   site's default category (the `default_category` option), whoever saves it; a taxonomy with a default term gives it
   to posts of its types saved by a caller who may assign its terms. This happens inside the post's save, before
   application observers run, and also when `Posts.publish` publishes a post. A caller that assigns terms after the save
-  (as WordPress's REST API does) can leave a post without category until its next save. Attachments get default terms
-  only from `Posts.publish` (see D21).
+  (as WordPress's REST API does) can leave a post without category until its next save. Attachments, which the posts
+  module announces as added or edited rather than saved, get them the same way when they are created or updated (see
+  D21).
 - Counts are stored: the number of published posts of the taxonomy's types in the term, plus, when attachments are
   among its types, attachments that are published or inherit from a published parent; a taxonomy attached to a type
   that is not a registered post type counts every assignment. They are recomputed when assignments change, when a
@@ -249,7 +250,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 | D18 | Queries return term records only (no `fields` shapes, no meta queries, no caches); without taxonomies they cover the registered ones the caller may read, and `excludeTree` there excludes only the terms it names, where WordPress's lookup of their descendants fails and its failure object also excludes term id 1; ties are broken by id; `count` ignores `number` and `offset`, which WordPress puts into its count statement as a limit (so its count given both finds nothing). |
 | D19 | A loop further up that an update cuts is cut only when the update succeeds: a refused update leaves it as it was, where WordPress has already cut it before the refusal. Each member of the loop only loses its parent (announced with `TermUpdated`); WordPress saves each member again with a full `wp_update_term`. |
 | D20 | Posts of every type registered for `category` get the default category, on save and on publish; WordPress gives it on save only to `post` (and the types of its `default_category_post_types` filter), and on publish to any type with categories. |
-| D21 | An attachment saved other than by `Posts.publish` gets no default terms, and its terms are not recounted when such a save changes its status, because the posts module announces no save of an attachment (the media module will); WordPress gives saved attachments the default terms of their custom taxonomies and recounts their terms when their status moves into or out of `publish`. |
+| D21 | An attachment trashed or restored gets no default terms, and its terms are not recounted when that changes its status, because the posts module announces only the trash and the restore of an attachment; its creation and update are announced (as added and edited) and get both, as in WordPress, which also recounts an attachment's terms when its status moves into or out of `publish`. |
 | D22 | Deleting a post removes its assignments in every taxonomy, recomputes their counts and announces nothing; WordPress's `wp_delete_post` removes only the terms of the taxonomies of the post's type (through `wp_remove_object_terms`, which fires `delete_term_relationships` and `deleted_term_relationships`). |
 | D23 | A term filter whose `includeChildren` expansion exceeds 10 000 ids in one clause, or a query whose clauses bind more than 30 000 ids together (listed and expanded ids alike), is refused with `term_filter_too_large` (the REST layer answers 400); WordPress runs the query with every descendant. The per-clause cap counts only expanded ids, since term ids given directly are bounded by their callers. |
 

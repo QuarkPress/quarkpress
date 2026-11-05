@@ -10,6 +10,8 @@ import java.util.Optional;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.core.TermId;
+import org.quarkpress.posts.AttachmentAdded;
+import org.quarkpress.posts.AttachmentEdited;
 import org.quarkpress.posts.PostDeleting;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatusChanged;
@@ -22,7 +24,8 @@ import org.quarkpress.taxonomy.Taxonomies;
  * taxonomy of its type that has a default term gets that term (the default category for categories; a custom
  * taxonomy's default term only when the caller may assign its terms, also when the post is published as scheduled
  * publishing does, where WordPress gives it to any caller); then, when the save moved the post into or out of a counted
- * status, the counts of all its terms are recomputed. The terms of attachments that inherit from the post are not
+ * status, the counts of all its terms are recomputed. Attachments, whose creation and update are announced with events
+ * of their own, get the same treatment on those events. The terms of attachments that inherit from the post are not
  * recounted, as in WordPress. Before a post is deleted, its assignments are removed and their counts recomputed. Runs
  * before application observers, so they see the result.
  */
@@ -45,8 +48,26 @@ public class PostTermObserver {
     Acting acting;
 
     void saved(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) PostStatusChanged event) {
-        SiteId site = event.site();
-        PostSnapshot post = event.post();
+        saved(event.site(), event.post(), event.from(), event.to());
+    }
+
+    void attachmentAdded(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) AttachmentAdded event) {
+        saved(event.site(), event.post(), "new", event.post().status());
+    }
+
+    void attachmentEdited(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) AttachmentEdited event) {
+        saved(
+                event.site(),
+                event.after(),
+                event.before().status(),
+                event.after().status());
+    }
+
+    /**
+     * The terms of a save that moved {@code post} from status {@code from} to {@code to}: the default terms it lacks,
+     * then, when it moved into or out of a counted status, the recount of all its terms.
+     */
+    private void saved(SiteId site, PostSnapshot post, String from, String to) {
         if (!post.status().equals("auto-draft")) {
             for (TaxonomyDefinition taxonomy : taxonomies.forType(post.type())) {
                 Optional<TermId> fallback = defaults.current(site, taxonomy);
@@ -62,7 +83,7 @@ public class PostTermObserver {
                 }
             }
         }
-        if (counted(event.from()) != counted(event.to())) {
+        if (counted(from) != counted(to)) {
             counts.recount(site, assignments.allTermsOf(site, post.id()));
         }
     }
