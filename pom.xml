@@ -45,6 +45,11 @@
     <!-- Kept equal to the version managed by the Quarkus BOM above; libs do not import that BOM. -->
     <jackson.version>2.21.7</jackson.version>
 
+    <!-- Media libraries (M2a spike; not managed by the Quarkus BOM) -->
+    <twelvemonkeys.version>3.15.3</twelvemonkeys.version>
+    <tika.version>4.2.0</tika.version>
+    <metadata-extractor.version>2.22.0</metadata-extractor.version>
+
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>
     <assertj.version>3.27.7</assertj.version>
@@ -84,6 +89,26 @@
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
         <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.twelvemonkeys.imageio</groupId>
+        <artifactId>imageio-jpeg</artifactId>
+        <version>${twelvemonkeys.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.twelvemonkeys.imageio</groupId>
+        <artifactId>imageio-webp</artifactId>
+        <version>${twelvemonkeys.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tika</groupId>
+        <artifactId>tika-core</artifactId>
+        <version>${tika.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.drewnoakes</groupId>
+        <artifactId>metadata-extractor</artifactId>
+        <version>${metadata-extractor.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
