@@ -8,6 +8,8 @@ import java.util.Optional;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
+import org.quarkpress.posts.AttachmentAdded;
+import org.quarkpress.posts.AttachmentEdited;
 import org.quarkpress.posts.PostCreated;
 import org.quarkpress.posts.PostDeleted;
 import org.quarkpress.posts.PostDeleting;
@@ -25,10 +27,11 @@ import org.quarkpress.posts.StickyChanged;
 /**
  * Fires the events of a save in WordPress's order: the status transition, published or scheduled, updated (updates
  * that announce it), saved, then created (inserts). Published and scheduled are fired only for registered types. An
- * attachment's save fires none of these events (WordPress announces attachments with events of their own), but
- * publishing one fires them as for any other type. Synchronous observers run inside the transaction; one that throws
- * marks it for rollback whatever the exception type, so a caller that catches the exception cannot commit the save.
- * Asynchronous observers run after commit.
+ * attachment's save fires none of these events but the attachment's own, as WordPress does: {@link AttachmentAdded}
+ * when it is created, {@link AttachmentEdited} when it is updated; publishing one fires the events of any other type,
+ * and trashing, restoring and deleting one announce only the trash, the restore and the delete. Synchronous observers
+ * run inside the transaction; one that throws marks it for rollback whatever the exception type, so a caller that
+ * catches the exception cannot commit the save. Asynchronous observers run after commit.
  */
 @ApplicationScoped
 public class PostEvents {
@@ -58,6 +61,12 @@ public class PostEvents {
     Event<PostCreated> created;
 
     @Inject
+    Event<AttachmentAdded> attachmentAdded;
+
+    @Inject
+    Event<AttachmentEdited> attachmentEdited;
+
+    @Inject
     Event<StickyChanged> stickyChanged;
 
     @Inject
@@ -79,7 +88,29 @@ public class PostEvents {
             Optional<PostSnapshot> before,
             PostSnapshot after,
             boolean announceUpdate) {
+        saved(site, at, from, before, after, announceUpdate, true);
+    }
+
+    /**
+     * As {@link #saved(SiteId, Instant, String, Optional, PostSnapshot, boolean)}; an attachment's update is announced
+     * as edited only when {@code announceEdit} is true (trashing and restoring one announce only the trash and the
+     * restore).
+     */
+    public void saved(
+            SiteId site,
+            Instant at,
+            String from,
+            Optional<PostSnapshot> before,
+            PostSnapshot after,
+            boolean announceUpdate,
+            boolean announceEdit) {
         if (after.type().equals("attachment")) {
+            // every other update of an attachment is announced as edited, whether or not a post update would be
+            if (before.isEmpty()) {
+                transactions.publish(attachmentAdded, new AttachmentAdded(site, at, after));
+            } else if (announceEdit) {
+                transactions.publish(attachmentEdited, new AttachmentEdited(site, at, before.get(), after));
+            }
             return;
         }
         fire(site, at, from, before, after, announceUpdate);

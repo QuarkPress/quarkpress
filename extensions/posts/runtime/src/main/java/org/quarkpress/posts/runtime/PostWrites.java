@@ -185,16 +185,22 @@ public class PostWrites {
      * Fields not given keep their stored values; every text field is filtered again with the caller's settings.
      */
     PostSnapshot update(SiteId siteId, PostEntity row, PostChanges changes) {
-        return update(siteId, row, changes, stored -> {}, () -> {});
+        return update(siteId, row, changes, stored -> {}, () -> {}, true);
     }
 
     /**
      * {@link #update(SiteId, PostEntity, PostChanges)} with {@code beforeWrite} run on the row first once the save
      * writes, so a save refused before writing leaves the row as it was, and {@code afterWrite} run once the row is
-     * written, before the save is announced.
+     * written, before the save is announced. An attachment's update is announced as edited only when
+     * {@code announceEdit} is true: trashing and restoring one announce only the trash and the restore.
      */
     PostSnapshot update(
-            SiteId siteId, PostEntity row, PostChanges changes, Consumer<PostEntity> beforeWrite, Runnable afterWrite) {
+            SiteId siteId,
+            PostEntity row,
+            PostChanges changes,
+            Consumer<PostEntity> beforeWrite,
+            Runnable afterWrite,
+            boolean announceEdit) {
         Instant now = PostDates.now(clock);
         ZoneId zone = site.zone();
         PostSnapshot before = row.toSnapshot();
@@ -275,7 +281,7 @@ public class PostWrites {
                 posts.flush();
                 afterWrite.run();
                 PostSnapshot after = row.toSnapshot();
-                events.saved(siteId, now, before.status(), Optional.of(before), after, true);
+                events.saved(siteId, now, before.status(), Optional.of(before), after, true, announceEdit);
                 return after;
             });
         } catch (RuntimeException failure) {
@@ -533,7 +539,8 @@ public class PostWrites {
                             if (unstuck[0]) {
                                 events.sticky(siteId, now, before.id(), false);
                             }
-                        }))
+                        },
+                        false))
                 .map(after -> written(() -> {
                     events.trashed(siteId, now, after);
                     return before;
@@ -561,7 +568,8 @@ public class PostWrites {
                             MetaRows.delete(meta, "_wp_trash_meta_time");
                             stored.meta = meta;
                         },
-                        () -> {}))
+                        () -> {},
+                        false))
                 .map(after -> written(() -> {
                     events.restored(siteId, now, after, previous);
                     return before;
