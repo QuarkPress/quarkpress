@@ -1438,6 +1438,12 @@ try {
         foreach ($wpdb->tables('ms_global') as $qp_table => $qp_prefixed_table) {
             $wpdb->$qp_table = $qp_prefixed_table;
         }
+        if (!empty($qp_input['installer_current_user'])) {
+            // Driver-applied rule, opt-in (the media facts run): the installing administrator is the current user
+            // while the network is created, as on the Network Setup screen, so the network options that depend on
+            // the acting user (upload_filetypes) are written as for that administrator.
+            wp_set_current_user((int) $qp_installed['user_id']);
+        }
         install_network();
         $qp_network = populate_network(1, $qp_variant['domain'], 'admin@example.test', 'QuarkPress Network',
             $qp_variant['path'], (bool) $qp_variant['subdomain_install']);

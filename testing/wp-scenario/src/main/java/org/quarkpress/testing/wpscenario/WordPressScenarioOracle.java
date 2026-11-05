@@ -51,6 +51,13 @@ public final class WordPressScenarioOracle {
     }
 
     /**
+     * Opt-in system property (default off): when {@code true} at the moment a variant is installed, the installing
+     * administrator is the current user while the network is created, as on WordPress's Network Setup screen. The
+     * default install runs the conversion without a current user; the scenario tiers keep that default.
+     */
+    public static final String INSTALLER_CURRENT_USER = "wp.scenario.installer-current-user";
+
+    /**
      * Installs single-site WordPress into the variant's template database and converts it into the variant's network,
      * once per variant; returns the driver's installation report.
      */
@@ -60,6 +67,9 @@ public final class WordPressScenarioOracle {
             ObjectNode input = OracleJson.MAPPER.createObjectNode();
             input.set("variant", ScenarioJson.variantJson(variant));
             input.put("database", variant.templateDatabase());
+            if (Boolean.getBoolean(INSTALLER_CURRENT_USER)) {
+                input.put("installer_current_user", true);
+            }
             report = exec("install", "install-" + variant.name(), input);
             installed.put(variant.name(), report);
         }
