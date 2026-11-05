@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Media Storage FS"
+description: "Stores QuarkPress media files in a directory and serves them under WordPress's uploads path"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "media"
+    - "storage"
+  categories:
+    - "data"
+  status: "experimental"
