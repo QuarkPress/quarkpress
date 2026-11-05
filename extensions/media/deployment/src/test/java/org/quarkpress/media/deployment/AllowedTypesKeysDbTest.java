@@ -14,7 +14,7 @@ class AllowedTypesKeysDbTest {
     @RegisterExtension
     static final QuarkusExtensionTest app = MediaApp.with(AllowedTypesKeysDbTest.class)
             .overrideRuntimeConfigKey("quarkpress.media.allowed-types.\"svg\"", "image/svg+xml")
-            .overrideRuntimeConfigKey("quarkpress.media.allowed-types.\"tar.gz\"", "application/gzip")
+            .overrideRuntimeConfigKey("quarkpress.media.allowed-types.\"tgz\"", "application/gzip")
             .overrideRuntimeConfigKey("quarkpress.media.allowed-types.psd", "image/vnd.adobe.photoshop")
             .overrideRuntimeConfigKey("quarkpress.media.output-formats.\"image/heic\"", "image/png");
 
@@ -25,7 +25,7 @@ class AllowedTypesKeysDbTest {
     void allowedTypesKeysAreAccepted() {
         assertThat(config.allowedTypes())
                 .containsEntry("svg", "image/svg+xml")
-                .containsEntry("tar.gz", "application/gzip")
+                .containsEntry("tgz", "application/gzip")
                 .containsEntry("psd", "image/vnd.adobe.photoshop");
     }
 

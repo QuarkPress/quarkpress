@@ -31,6 +31,7 @@ import org.quarkpress.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkpress.media.MediaFeature;
 import org.quarkpress.media.MediaStorage;
 import org.quarkpress.media.runtime.ActiveStorage;
+import org.quarkpress.media.runtime.DefaultMimeTypes;
 import org.quarkpress.media.runtime.MediaBuildTimeConfig;
 import org.quarkpress.media.runtime.MediaConfig;
 import org.quarkpress.media.runtime.MediaRecorder;
@@ -89,6 +90,12 @@ class MediaProcessor {
     @BuildStep
     NativeImageResourceBuildItem tikaResources() {
         return new NativeImageResourceBuildItem("org/apache/tika/mime/tika-mimetypes.xml");
+    }
+
+    /** WordPress's upload type list, which the media module reads from the class path. */
+    @BuildStep
+    NativeImageResourceBuildItem uploadTypeResources() {
+        return new NativeImageResourceBuildItem(DefaultMimeTypes.RESOURCE);
     }
 
     /** metadata-extractor's classes, so its directory classes can be found below. */

@@ -33,12 +33,15 @@ public interface MediaConfig {
 
     /**
      * Upload types added to WordPress's list, as extension pattern (such as {@code svg} or {@code jpg|jpeg}) to MIME
-     * type; a pattern holding a dot is quoted ({@code quarkpress.media.allowed-types."tar.gz"}). They come after
-     * WordPress's types in lookup order.
+     * type. They come after WordPress's types in lookup order. A pattern holds no dot: a file's type is looked up by
+     * the part of its name after its last dot, so a pattern such as {@code tar.gz} fails the start.
      */
     Map<String, String> allowedTypes();
 
-    /** File extensions no site may upload, whatever the allowed types say. */
+    /**
+     * File extensions no site may upload, whatever the allowed types say; each is trimmed and may start with a dot
+     * ({@code .exe}).
+     */
     Optional<List<String>> deniedExtensions();
 
     /** Whether an image the processor cannot decode is still stored, without generated sizes. */
