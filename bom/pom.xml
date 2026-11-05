@@ -144,6 +144,16 @@
       </dependency>
       <dependency>
         <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
         <artifactId>quarkpress-rest-wp-v2</artifactId>
         <version>${project.version}</version>
       </dependency>

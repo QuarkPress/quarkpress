@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Media"
+description: "Uploads, image sizes and the media library with WordPress's file, type and attachment rules"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "media"
+    - "uploads"
+  categories:
+    - "data"
+  status: "experimental"
