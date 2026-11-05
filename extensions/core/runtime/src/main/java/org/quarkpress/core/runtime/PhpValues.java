@@ -7,7 +7,7 @@ import java.math.RoundingMode;
 import java.util.OptionalDouble;
 
 /** PHP's conversions of option values, where WordPress code relies on them. */
-final class PhpValues {
+public final class PhpValues {
 
     /** Longest numeric prefix read; a longer number is treated as no number. */
     static final int MAX_NUMBER_TEXT = 64;
@@ -96,7 +96,7 @@ final class PhpValues {
     }
 
     /** A float as PHP 8 writes it with {@code precision} 14 ({@code %.14G}, ".0" added to a bare exponent mantissa). */
-    static String floatString(double value) {
+    public static String floatString(double value) {
         if (Double.isNaN(value)) {
             return "NAN";
         }
