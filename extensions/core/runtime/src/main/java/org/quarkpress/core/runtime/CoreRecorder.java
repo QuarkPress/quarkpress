@@ -24,14 +24,19 @@ public class CoreRecorder {
 
     /**
      * Fails the start when a {@code quarkpress.*} property, from any source except environment variables (whose names
-     * are ambiguous: {@code QUARKPRESS_A_B} could be {@code a.b} or {@code a-b}), matches none of the declared keys.
+     * are ambiguous: {@code QUARKPRESS_A_B} could be {@code a.b} or {@code a-b}), matches none of the declared keys. A
+     * declared {@code name[]} accepts {@code name} and {@code name[n]}; a declared {@code name.*} accepts exactly one
+     * further segment, plain ({@code name.a}, without {@code [}, {@code ]} or {@code *}) or quoted ({@code name."a.b"}).
      */
     public void checkConfigKeys(List<String> declared) {
         java.util.Set<String> exact = new java.util.HashSet<>();
         java.util.Set<String> lists = new java.util.HashSet<>();
+        java.util.Set<String> maps = new java.util.HashSet<>();
         for (String key : declared) {
             if (key.endsWith("[]")) {
                 lists.add(key.substring(0, key.length() - 2));
+            } else if (key.endsWith(".*")) {
+                maps.add(key.substring(0, key.length() - 1));
             } else {
                 exact.add(key);
             }
@@ -47,7 +52,7 @@ public class CoreRecorder {
                     int dot = key.indexOf('.');
                     key = dot < 0 ? key : key.substring(dot + 1);
                 }
-                if (key.startsWith("quarkpress.") && !isDeclared(key, exact, lists)) {
+                if (key.startsWith("quarkpress.") && !isDeclared(key, exact, lists, maps)) {
                     unknown.add(key);
                 }
             }
@@ -60,9 +65,15 @@ public class CoreRecorder {
         }
     }
 
-    private static boolean isDeclared(String key, java.util.Set<String> exact, java.util.Set<String> lists) {
+    private static boolean isDeclared(
+            String key, java.util.Set<String> exact, java.util.Set<String> lists, java.util.Set<String> maps) {
         if (exact.contains(key) || lists.contains(key)) {
             return true;
+        }
+        for (String map : maps) {
+            if (key.startsWith(map) && isOneSegment(key, map.length())) {
+                return true;
+            }
         }
         if (key.endsWith("]")) {
             int open = key.lastIndexOf('[');
@@ -72,5 +83,30 @@ public class CoreRecorder {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether {@code key} from {@code start} on is exactly one map key segment: a non-empty plain name without dots,
+     * quotes, brackets or {@code *} (so it never looks like a list index or a declared map), or a non-empty quoted name
+     * (which may hold any of these but a quote) closed by the key's last character.
+     */
+    private static boolean isOneSegment(String key, int start) {
+        int end = key.length();
+        if (start >= end) {
+            return false;
+        }
+        if (key.charAt(start) == '"') {
+            if (end - start < 3 || key.charAt(end - 1) != '"') {
+                return false;
+            }
+            return key.indexOf('"', start + 1) == end - 1;
+        }
+        for (int i = start; i < end; i++) {
+            char c = key.charAt(i);
+            if (c == '.' || c == '"' || c == '[' || c == ']' || c == '*') {
+                return false;
+            }
+        }
+        return true;
     }
 }

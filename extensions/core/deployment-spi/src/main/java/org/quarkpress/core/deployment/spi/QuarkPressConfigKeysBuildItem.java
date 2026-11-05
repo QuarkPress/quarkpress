@@ -18,7 +18,10 @@ import java.util.TreeSet;
  * so a typo cannot silently leave a setting at its default.
  *
  * <p>A key is the full dotted name in kebab case. A key ending in {@code []} is a list: the name itself and
- * {@code name[0]}, {@code name[1]}, and so on are accepted. Nothing else is: {@code name.x} is not.
+ * {@code name[0]}, {@code name[1]}, and so on are accepted. A key ending in {@code .*} is a map: exactly one further
+ * segment is accepted, either plain ({@code name.a}, without {@code [}, {@code ]} or {@code *}) or quoted, which may
+ * hold dots ({@code name."a.b"}); the name itself and deeper keys ({@code name.a.b}) are not. Nothing else is: for a
+ * plain key, {@code name.x} is not.
  *
  * <p>Each declaration names the module that reads the keys (as in {@link MigrationLocationBuildItem}) and the prefix
  * they live under ({@code quarkpress} itself or a name under it), so tools can show which module owns which keys.
@@ -62,8 +65,9 @@ public final class QuarkPressConfigKeysBuildItem extends MultiBuildItem {
 
     /**
      * The keys of a configuration mapping interface: every method, in kebab case under {@code prefix}, nested mapping
-     * interfaces followed, collections as lists. {@code @WithName} is honored; maps and {@code @WithParentName} are
-     * not supported (the build fails; declare those keys by hand). {@code module} names the module that reads them.
+     * interfaces followed, collections as lists, maps of plain values as {@code name.*}. {@code @WithName} is
+     * honored; maps of mapping interfaces and {@code @WithParentName} are not supported (the build fails; declare
+     * those keys by hand). {@code module} names the module that reads them.
      */
     public static QuarkPressConfigKeysBuildItem of(String module, String prefix, Class<?> mapping) {
         Set<String> keys = new TreeSet<>();
@@ -106,16 +110,30 @@ public final class QuarkPressConfigKeysBuildItem extends MultiBuildItem {
                 type = rawType(generic);
             }
             if (Map.class.isAssignableFrom(type)) {
-                throw new UnsupportedOperationException(
-                        mapping.getName() + "." + method.getName() + " is a map; declare its keys by hand");
+                if (isGroup(mapValueType(generic))) {
+                    throw new UnsupportedOperationException(mapping.getName() + "." + method.getName()
+                            + " is a map of configuration groups; declare its keys by hand");
+                }
+                keys.add(key + ".*");
             } else if (Collection.class.isAssignableFrom(type)) {
                 keys.add(key + "[]");
-            } else if (type.isInterface() && !type.getName().startsWith("java.")) {
+            } else if (isGroup(type)) {
                 collect(key, type, keys);
             } else {
                 keys.add(key);
             }
         }
+    }
+
+    private static boolean isGroup(Class<?> type) {
+        return type.isInterface() && !type.getName().startsWith("java.");
+    }
+
+    private static Class<?> mapValueType(Type map) {
+        if (map instanceof ParameterizedType parameterized && parameterized.getActualTypeArguments().length == 2) {
+            return rawType(parameterized.getActualTypeArguments()[1]);
+        }
+        return Object.class;
     }
 
     private static Class<?> rawType(Type type) {

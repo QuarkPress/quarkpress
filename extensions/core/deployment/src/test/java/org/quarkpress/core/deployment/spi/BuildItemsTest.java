@@ -3,6 +3,9 @@ package org.quarkpress.core.deployment.spi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -81,5 +84,35 @@ class BuildItemsTest {
                                 "revisions", "quarkpress.revisions", Set.of("quarkpress.revisions.keep"))
                         .keys())
                 .containsExactly("quarkpress.revisions.keep");
+    }
+
+    interface MapConfig {
+        Map<String, String> m();
+
+        Optional<Map<String, Integer>> optionalMap();
+
+        List<String> list();
+    }
+
+    @Test
+    void aMapMethodIsDeclaredAsOneFurtherSegment() {
+        assertThat(QuarkPressConfigKeysBuildItem.of("x", "quarkpress.x", MapConfig.class)
+                        .keys())
+                .containsExactlyInAnyOrder("quarkpress.x.m.*", "quarkpress.x.optional-map.*", "quarkpress.x.list[]");
+    }
+
+    interface Group {
+        String value();
+    }
+
+    interface GroupMapConfig {
+        Map<String, Group> groups();
+    }
+
+    @Test
+    void aMapOfGroupsIsStillDeclaredByHand() {
+        assertThatThrownBy(() -> QuarkPressConfigKeysBuildItem.of("x", "quarkpress.x", GroupMapConfig.class))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("groups is a map of configuration groups");
     }
 }
