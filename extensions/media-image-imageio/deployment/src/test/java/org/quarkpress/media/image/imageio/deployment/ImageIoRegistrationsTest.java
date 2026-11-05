@@ -2,10 +2,15 @@ package org.quarkpress.media.image.imageio.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
+import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
@@ -15,6 +20,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.quarkpress.media.image.imageio.runtime.ImageIoProcessor;
 
 /** The ImageIO build steps that need no application: what a native image needs to find the TwelveMonkeys plugins. */
 class ImageIoRegistrationsTest {
@@ -50,6 +56,47 @@ class ImageIoRegistrationsTest {
         assertThat(new MediaImageIoProcessor().reflection().getClassNames())
                 .containsExactly("java.awt.image.ColorConvertOp");
         Class.forName("java.awt.image.ColorConvertOp", false, getClass().getClassLoader());
+    }
+
+    @Test
+    void theColourProfileResourcesAreInTheNativeImage() {
+        NativeImageResourceBuildItem item = new MediaImageIoProcessor().iccResources();
+        assertThat(item.getResources())
+                .containsExactlyInAnyOrder(
+                        "profiles/ClayRGB1998.icc",
+                        "com/twelvemonkeys/imageio/color/icc_profiles_lnx.properties",
+                        "com/twelvemonkeys/imageio/color/icc_profiles_osx.properties",
+                        "com/twelvemonkeys/imageio/color/icc_profiles_win.properties");
+        for (String resource : item.getResources()) {
+            assertThat(getClass().getClassLoader().getResource(resource))
+                    .as("%s on the class path", resource)
+                    .isNotNull();
+        }
+    }
+
+    @Test
+    void theImageIoProcessorIsABean() {
+        AdditionalBeanBuildItem item = new MediaImageIoProcessor().beans();
+        assertThat(item.getBeanClasses()).containsExactly(ImageIoProcessor.class.getName());
+        assertThat(item.isRemovable()).isFalse();
+    }
+
+    /** A build step without its annotation would compile, pass the tests above and never run in a build. */
+    @Test
+    void everyBuildStepMethodCarriesTheAnnotation() {
+        List<String> steps = new java.util.ArrayList<>();
+        for (Method method : MediaImageIoProcessor.class.getDeclaredMethods()) {
+            if (method.isSynthetic() || Modifier.isPrivate(method.getModifiers())) {
+                continue;
+            }
+            assertThat(method.isAnnotationPresent(BuildStep.class))
+                    .as("%s carries @BuildStep", method.getName())
+                    .isTrue();
+            steps.add(method.getName());
+        }
+        assertThat(steps)
+                .containsExactlyInAnyOrder(
+                        "feature", "imageIoServices", "reflection", "runtimeInit", "iccResources", "beans");
     }
 
     @Test

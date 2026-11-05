@@ -1,15 +1,18 @@
 package org.quarkpress.media.image.imageio.deployment;
 
+import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedPackageBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
 import java.util.List;
+import org.quarkpress.media.image.imageio.runtime.ImageIoProcessor;
 
 /**
- * What a native image needs for ImageIO to find and run the TwelveMonkeys plugins; quarkus-awt handles ImageIO and
- * Java2D themselves.
+ * The ImageIO image processor bean, and what a native image needs for ImageIO to find and run the TwelveMonkeys
+ * plugins; quarkus-awt handles ImageIO and Java2D themselves.
  */
 class MediaImageIoProcessor {
 
@@ -18,6 +21,26 @@ class MediaImageIoProcessor {
     @BuildStep
     FeatureBuildItem feature() {
         return new FeatureBuildItem(FEATURE);
+    }
+
+    /** The processor replaces the media module's default one, which handles no image type. */
+    @BuildStep
+    AdditionalBeanBuildItem beans() {
+        return AdditionalBeanBuildItem.unremovableOf(ImageIoProcessor.class);
+    }
+
+    /**
+     * The colour profiles TwelveMonkeys loads as resources: the Adobe RGB (1998) compatible profile it substitutes for
+     * that colour space, and the per-system tables naming where the system's profiles are. A native image holds no
+     * resource it is not told about.
+     */
+    @BuildStep
+    NativeImageResourceBuildItem iccResources() {
+        return new NativeImageResourceBuildItem(
+                "profiles/ClayRGB1998.icc",
+                "com/twelvemonkeys/imageio/color/icc_profiles_lnx.properties",
+                "com/twelvemonkeys/imageio/color/icc_profiles_osx.properties",
+                "com/twelvemonkeys/imageio/color/icc_profiles_win.properties");
     }
 
     /**
