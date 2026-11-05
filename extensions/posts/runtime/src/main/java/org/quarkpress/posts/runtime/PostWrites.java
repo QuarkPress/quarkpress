@@ -158,13 +158,26 @@ public class PostWrites {
                     password);
             PostDraft saved = filtered(
                     siteId, draft, new PostWriteContext(siteId, Optional.empty(), acting.user(), false), false);
+            // a given guid is checked against its column as the generated one is
+            changes.guid()
+                    .ifPresent(guid -> PostRules.requireStorable(
+                            saved.type(),
+                            saved.status(),
+                            saved.slug(),
+                            saved.title(),
+                            saved.excerpt(),
+                            saved.commentStatus(),
+                            saved.pingStatus(),
+                            saved.password(),
+                            guid,
+                            false));
             PostEntity row = PostEntity.create(siteId);
             apply(row, saved);
             row.createdAt = clock.now().truncatedTo(ChronoUnit.MICROS);
             return written(() -> {
                 posts.persist(row);
                 posts.flush();
-                row.guid = PostRules.guid(home(), row.type, row.id);
+                row.guid = changes.guid().orElseGet(() -> PostRules.guid(home(), row.type, row.id));
                 lateSlug(siteId, row);
                 posts.flush();
                 PostSnapshot after = row.toSnapshot();

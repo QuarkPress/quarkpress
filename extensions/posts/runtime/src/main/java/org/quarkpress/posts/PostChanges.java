@@ -17,7 +17,8 @@ import org.quarkpress.core.UserId;
  * give a date to a draft whose date floats (WordPress's {@code edit_date}). {@code clearDates} clears both dates, as
  * WordPress's empty {@code post_date} and {@code post_date_gmt} do: the dates given are ignored and the post is dated
  * now, its date floating when the status it gets is draft, pending or auto-draft. {@code expectedVersion} makes an
- * update fail when the post changed since that version.
+ * update fail when the post changed since that version. {@code guid} is the guid of a new post, stored as given (an
+ * attachment's is its file's URL); an update ignores it, as WordPress never changes a guid.
  */
 public record PostChanges(
         Optional<String> type,
@@ -36,7 +37,8 @@ public record PostChanges(
         Optional<Instant> dateGmt,
         boolean editDate,
         boolean clearDates,
-        OptionalInt expectedVersion) {
+        OptionalInt expectedVersion,
+        Optional<String> guid) {
 
     public PostChanges {
         Objects.requireNonNull(type, "type");
@@ -54,6 +56,7 @@ public record PostChanges(
         Objects.requireNonNull(date, "date");
         Objects.requireNonNull(dateGmt, "dateGmt");
         Objects.requireNonNull(expectedVersion, "expectedVersion");
+        Objects.requireNonNull(guid, "guid");
         if (author.isPresent() && author.getAsLong() < 0) {
             throw new IllegalArgumentException("an author id is 0 (none) or positive: " + author.getAsLong());
         }
@@ -91,6 +94,7 @@ public record PostChanges(
         builder.editDate = editDate;
         builder.clearDates = clearDates;
         builder.expectedVersion = expectedVersion;
+        builder.guid = guid.orElse(null);
         return builder;
     }
 
@@ -112,6 +116,7 @@ public record PostChanges(
         private boolean editDate;
         private boolean clearDates;
         private OptionalInt expectedVersion = OptionalInt.empty();
+        private String guid;
 
         private Builder() {}
 
@@ -211,6 +216,12 @@ public record PostChanges(
             return this;
         }
 
+        /** The guid of a new post, stored as given; ignored by an update. */
+        public Builder guid(String value) {
+            this.guid = Objects.requireNonNull(value, "guid");
+            return this;
+        }
+
         public PostChanges build() {
             return new PostChanges(
                     Optional.ofNullable(type),
@@ -229,7 +240,8 @@ public record PostChanges(
                     Optional.ofNullable(dateGmt),
                     editDate,
                     clearDates,
-                    expectedVersion);
+                    expectedVersion,
+                    Optional.ofNullable(guid));
         }
     }
 }

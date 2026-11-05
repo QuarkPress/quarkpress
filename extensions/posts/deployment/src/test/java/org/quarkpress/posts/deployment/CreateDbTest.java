@@ -88,6 +88,43 @@ class CreateDbTest {
     }
 
     @Test
+    void aGivenGuidIsKeptOnInsertAndIgnoredOnUpdate() throws Exception {
+        String guid = "http://localhost/wp-content/uploads/2026/11/a.jpg";
+        PostSnapshot file = create(
+                editor, PostChanges.builder().type("attachment").title("A").guid(guid));
+        assertThat(file.guid()).isEqualTo(guid);
+        assertThat(PostChanges.builder().guid(guid).build().guid()).contains(guid);
+        assertThat(PostChanges.builder().guid(guid).build().toBuilder().build().guid())
+                .contains(guid);
+        assertThat(PostChanges.none().guid()).isEmpty();
+        PostSnapshot updated = Identities.onSite(
+                site,
+                Identities.user(editor),
+                () -> posts.update(
+                        file.id(),
+                        PostChanges.builder()
+                                .title("B")
+                                .guid("http://localhost/other.jpg")
+                                .build()));
+        assertThat(updated.title()).isEqualTo("B");
+        assertThat(updated.guid()).isEqualTo(guid);
+        assertThat(Identities.onSite(site, Identities.user(editor), () -> posts.find(file.id())))
+                .hasValueSatisfying(stored -> assertThat(stored.guid()).isEqualTo(guid));
+        // the given guid is checked against its column as the generated one is
+        String longest = "http://localhost/" + "g".repeat(255 - "http://localhost/".length());
+        assertThat(create(editor, PostChanges.builder().title("Longest").guid(longest))
+                        .guid())
+                .isEqualTo(longest);
+        long before = Jdbc.count(dataSource, "select count(*) from qp_post where site_id = ?", site.value());
+        assertThatThrownBy(() ->
+                        create(editor, PostChanges.builder().title("Too long").guid(longest + "g")))
+                .isInstanceOfSatisfying(
+                        PostException.class, e -> assertThat(e.code()).isEqualTo("db_insert_error"));
+        assertThat(Jdbc.count(dataSource, "select count(*) from qp_post where site_id = ?", site.value()))
+                .isEqualTo(before);
+    }
+
+    @Test
     void anInsertTakesWordPressDefaults() throws Exception {
         PostSnapshot post = create(editor, PostChanges.builder().title("Hello"));
         assertThat(post.type()).isEqualTo("post");
