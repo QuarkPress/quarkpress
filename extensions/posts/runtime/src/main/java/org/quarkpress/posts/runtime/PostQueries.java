@@ -1,8 +1,11 @@
 package org.quarkpress.posts.runtime;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.arc.All;
 import io.quarkus.arc.InstanceHandle;
+import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.persistence.Query;
@@ -31,6 +34,7 @@ import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.DateColumn;
 import org.quarkpress.posts.DateCondition;
 import org.quarkpress.posts.OrderKey;
+import org.quarkpress.posts.PostConditionProvider;
 import org.quarkpress.posts.PostOrder;
 import org.quarkpress.posts.PostPage;
 import org.quarkpress.posts.PostQuery;
@@ -84,6 +88,13 @@ public class PostQueries {
     @Inject
     Instance<TermConditionProvider> termConditions;
 
+    @Inject
+    @All
+    List<InstanceHandle<PostConditionProvider>> conditionProviders;
+
+    /** The post condition providers by key, read once. */
+    private volatile Map<String, PostConditionProvider> conditionsByKey;
+
     /**
      * The conditions of a query and their parameters, and the parameters of its ordering, which the count query
      * leaves out. The first condition names the site.
@@ -135,6 +146,29 @@ public class PostQueries {
         }
     }
 
+    /** Reads the post condition providers at start, so that two providing one key stop the application. */
+    void checkConditionKeys(@Observes StartupEvent start) {
+        conditionsByKey();
+    }
+
+    /** The post condition providers by key; a key provided twice is refused. */
+    private Map<String, PostConditionProvider> conditionsByKey() {
+        Map<String, PostConditionProvider> known = conditionsByKey;
+        if (known == null) {
+            Map<String, PostConditionProvider> byKey = new LinkedHashMap<>();
+            for (InstanceHandle<PostConditionProvider> handle : conditionProviders) {
+                PostConditionProvider provider = handle.get();
+                if (byKey.putIfAbsent(provider.key(), provider) != null) {
+                    throw new IllegalStateException(
+                            "QuarkPress: the post condition key " + provider.key() + " is provided more than once");
+                }
+            }
+            known = Map.copyOf(byKey);
+            conditionsByKey = known;
+        }
+        return known;
+    }
+
     /** The posts of {@code siteId} matching the query after the query filters changed it. */
     PostPage run(SiteId siteId, PostQuery requested) {
         PostQuery query = Filters.apply(
@@ -164,7 +198,7 @@ public class PostQueries {
         for (DateCondition condition : query.dates()) {
             dateCondition(condition, where);
         }
-        if (!termConditions(siteId, query, where)) {
+        if (!termConditions(siteId, query, where) || !moduleConditions(siteId, query, where)) {
             return new PostPage(stickyFirst(siteId, requested, query, queriedTypes, perPage(query), List.of()), 0, 0);
         }
         TypedQuery<PostEntity> select = posts.getEntityManager()
@@ -564,6 +598,45 @@ public class PostQueries {
                 return false;
             }
             case TermCondition.None none -> {}
+        }
+        return true;
+    }
+
+    /**
+     * The conditions other modules add, each from the provider of its key, in the order given, with parameters named
+     * from {@code c}, its position and an underscore; false when one matches nothing, so that the query runs no
+     * statement. Every key is checked before any provider is asked.
+     */
+    private boolean moduleConditions(SiteId siteId, PostQuery query, Where where) {
+        if (query.conditions().isEmpty()) {
+            return true;
+        }
+        Map<String, PostConditionProvider> byKey = conditionsByKey();
+        for (String key : query.conditions().keySet()) {
+            if (!byKey.containsKey(key)) {
+                throw new IllegalArgumentException("no post condition provider for " + key);
+            }
+        }
+        int position = 0;
+        for (Map.Entry<String, JsonNode> entry : query.conditions().entrySet()) {
+            String prefix = "c" + position++ + "_";
+            TermCondition condition = byKey.get(entry.getKey()).condition(siteId, entry.getValue(), "p.id", prefix);
+            switch (condition) {
+                case TermCondition.Jpql jpql -> {
+                    for (String name : jpql.params().keySet()) {
+                        if (!name.startsWith(prefix)) {
+                            throw new IllegalArgumentException(
+                                    "the post condition parameter " + name + " does not start with " + prefix);
+                        }
+                    }
+                    jpql.params().forEach(where::bind);
+                    where.and(jpql.text());
+                }
+                case TermCondition.Nothing nothing -> {
+                    return false;
+                }
+                case TermCondition.None none -> {}
+            }
         }
         return true;
     }

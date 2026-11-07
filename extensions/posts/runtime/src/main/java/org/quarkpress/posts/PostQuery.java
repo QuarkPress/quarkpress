@@ -1,11 +1,15 @@
 package org.quarkpress.posts;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -66,6 +70,12 @@ import org.quarkpress.core.UserId;
  * TaxClause.Group} combines its own clauses the same way and counts as one clause. The term filters hold next to every
  * other condition.
  *
+ * <p>{@code conditions} are the conditions other modules add by key, each with its argument, in the order given (a key
+ * given again keeps its place and takes the new argument). Each is answered by the {@link PostConditionProvider} of
+ * its key and holds next to every other condition, after the term filters: one that matches nothing empties the
+ * query, which then runs no statement and counts no post, and one with no condition is skipped. A key no provider
+ * answers is refused with {@link IllegalArgumentException} when the query runs.
+ *
  * <p>{@code stickyFirst} (off by default, as in WordPress's {@code get_posts}) puts sticky posts first as WordPress's
  * main query does, and only where it does: on the first page (a query without paging always counts as on it, and
  * {@code offset} does not move it off), and not for a query for one post, a query given a search (even an empty or
@@ -104,7 +114,8 @@ public record PostQuery(
         List<PostOrder> orderBy,
         OptionalInt perPage,
         int page,
-        OptionalInt offset) {
+        OptionalInt offset,
+        Map<String, JsonNode> conditions) {
 
     /**
      * The longest search string, in bytes of UTF-8, that is searched for; a longer one is ignored, as WordPress empties
@@ -135,6 +146,11 @@ public record PostQuery(
         orderBy = List.copyOf(orderBy);
         Objects.requireNonNull(perPage, "perPage");
         Objects.requireNonNull(offset, "offset");
+        Objects.requireNonNull(conditions, "conditions");
+        Map<String, JsonNode> ordered = new LinkedHashMap<>();
+        conditions.forEach((key, argument) ->
+                ordered.put(Objects.requireNonNull(key, "key"), Objects.requireNonNull(argument, "argument")));
+        conditions = Collections.unmodifiableMap(ordered);
     }
 
     /** A query for one post, by id or by a slug that is not blank: never paged, and each post found is checked. */
@@ -215,6 +231,7 @@ public record PostQuery(
         builder.perPage = perPage;
         builder.page = page;
         builder.offset = offset;
+        builder.conditions.putAll(conditions);
         return builder;
     }
 
@@ -245,6 +262,7 @@ public record PostQuery(
         private OptionalInt perPage = OptionalInt.empty();
         private int page = 1;
         private OptionalInt offset = OptionalInt.empty();
+        private final Map<String, JsonNode> conditions = new LinkedHashMap<>();
 
         private Builder() {}
 
@@ -399,6 +417,15 @@ public record PostQuery(
             return this;
         }
 
+        /**
+         * Adds the condition of another module named by {@code key}, with its argument; AND-ed with the rest of the
+         * query, in the order given. A key given again keeps its place and takes the new argument.
+         */
+        public Builder condition(String key, JsonNode argument) {
+            conditions.put(Objects.requireNonNull(key, "key"), Objects.requireNonNull(argument, "argument"));
+            return this;
+        }
+
         public PostQuery build() {
             return new PostQuery(
                     types,
@@ -426,7 +453,8 @@ public record PostQuery(
                     orderBy,
                     perPage,
                     page,
-                    offset);
+                    offset,
+                    conditions);
         }
     }
 }
