@@ -25,7 +25,10 @@ import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteFeatureDisabledException;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteInfo;
+import org.quarkpress.lib.wpkses.TextFields;
 import org.quarkpress.media.Media;
+import org.quarkpress.media.MediaChanges;
+import org.quarkpress.media.MediaException;
 import org.quarkpress.media.MediaFeature;
 import org.quarkpress.media.MediaSize;
 import org.quarkpress.media.MediaSnapshot;
@@ -33,12 +36,14 @@ import org.quarkpress.media.MediaStorage;
 import org.quarkpress.media.Processing;
 import org.quarkpress.media.Upload;
 import org.quarkpress.persistence.runtime.QuarkPressRuntimeConfig;
+import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.Acting;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
 import org.quarkpress.posts.runtime.PostEntity;
+import org.quarkpress.posts.runtime.PostLocks;
 import org.quarkpress.posts.runtime.PostRepository;
 
 /** The media library of the current site, on the posts module's attachments and the media rows. */
@@ -88,6 +93,9 @@ public class JpaMedia implements Media {
 
     @Inject
     PostCapabilityFacts facts;
+
+    @Inject
+    PostLocks postLocks;
 
     @Override
     public MediaSnapshot store(Upload upload) {
@@ -183,6 +191,64 @@ public class JpaMedia implements Media {
                 .flatMap(post -> mediaRows
                         .findMedia(post.site(), post.id())
                         .map(row -> snapshot(post, row, storage.storage(), site.site(), runtimeConfig.mainSiteId())));
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public MediaSnapshot update(PostId attachment, MediaChanges changes) {
+        Objects.requireNonNull(attachment, "attachment");
+        Objects.requireNonNull(changes, "changes");
+        requireFeature(site);
+        SiteId siteId = site.siteId();
+        // every refusal comes before the first write
+        PostSnapshot stored = postRows.findPost(siteId, attachment)
+                .map(PostEntity::toSnapshot)
+                .filter(post -> post.type().equals("attachment"))
+                .orElseThrow(() -> PostException.invalidPost(attachment));
+        if (mediaRows.findMedia(siteId, attachment).isEmpty()) {
+            throw PostException.invalidPost(attachment);
+        }
+        acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
+        if (changes.parent().isPresent()
+                && changes.parent().getAsLong() > 0
+                && postRows.findPost(siteId, PostId.of(changes.parent().getAsLong()))
+                        .filter(parent -> parent.type.equals("attachment") || parent.type.equals("revision"))
+                        .isPresent()) {
+            throw new MediaException("rest_invalid_param", UploadPipeline.INVALID_PARENT_TYPE);
+        }
+        PostChanges.Builder post = PostChanges.builder();
+        changes.title().ifPresent(post::title);
+        changes.caption().ifPresent(post::excerpt);
+        changes.description().ifPresent(post::content);
+        changes.parent().ifPresent(post::parent);
+        changes.author().ifPresent(post::author);
+        changes.status().ifPresent(post::status);
+        changes.expectedVersion().ifPresent(post::expectedVersion);
+        // the post is saved even for the alternative text alone: WordPress dates and announces that edit too
+        PostSnapshot saved = posts.update(attachment, post.build());
+        try {
+            // the site's post lock comes before the media row in the lock order; posts' save took it already in this
+            // transaction, so taking it again is a re-entrant no-op that keeps the order explicit here
+            postLocks.lock(siteId);
+            MediaEntity row =
+                    mediaRows.lockMedia(siteId, attachment).orElseThrow(() -> PostException.invalidPost(attachment));
+            changes.altText().ifPresent(alt -> row.altText = TextFields.textField(alt));
+            mediaRows.flush();
+            return snapshot(saved, row, storage.storage(), site.site(), runtimeConfig.mainSiteId());
+        } catch (RuntimeException failure) {
+            // the post is written: a failure after it must not leave it for the caller to commit
+            markRollbackOnly(failure);
+            throw failure;
+        }
+    }
+
+    private void markRollbackOnly(RuntimeException failure) {
+        try {
+            transactionManager.setRollbackOnly();
+        } catch (SystemException | IllegalStateException rollbackFailure) {
+            failure.addSuppressed(rollbackFailure);
+        }
     }
 
     /** Refuses when the current site's media feature is off. */

@@ -55,4 +55,19 @@ public interface Media {
 
     /** The attachment with this id on the current site, as {@code Posts.find} reads it; empty for any other post. */
     Optional<MediaSnapshot> find(PostId attachment);
+
+    /**
+     * Updates an attachment as WordPress's REST update does, in one transaction (joining the caller's): the title,
+     * caption and description, the parent, the author and the status are saved by {@code Posts.update} with its
+     * capability, text, slug and status rules; the alternative text is cleaned as a text field and written to the
+     * media row. Needs {@code edit_post} on the attachment. The attachment post is saved even when only the
+     * alternative text changes, as WordPress saves it: its modification date and version move and the save is
+     * announced as an attachment edit. A parent that is an attachment or a revision is refused with
+     * {@link MediaException} {@code rest_invalid_param} before anything is written; 0 detaches the attachment.
+     *
+     * @throws org.quarkpress.posts.PostException when {@code attachment} is not an attachment of the site
+     * @throws jakarta.persistence.OptimisticLockException when the attachment changed since
+     *     {@link MediaChanges#expectedVersion}
+     */
+    MediaSnapshot update(PostId attachment, MediaChanges changes);
 }
