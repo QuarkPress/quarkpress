@@ -1,6 +1,7 @@
 package org.quarkpress.media.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -12,6 +13,7 @@ import jakarta.transaction.Status;
 import jakarta.transaction.SystemException;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.Transactional;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -25,20 +27,29 @@ import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteFeatureDisabledException;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteInfo;
+import org.quarkpress.core.UserId;
 import org.quarkpress.lib.wpkses.TextFields;
 import org.quarkpress.media.Media;
 import org.quarkpress.media.MediaChanges;
 import org.quarkpress.media.MediaException;
 import org.quarkpress.media.MediaFeature;
+import org.quarkpress.media.MediaPage;
+import org.quarkpress.media.MediaQuery;
 import org.quarkpress.media.MediaSize;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.MediaStorage;
 import org.quarkpress.media.Processing;
 import org.quarkpress.media.Upload;
 import org.quarkpress.persistence.runtime.QuarkPressRuntimeConfig;
+import org.quarkpress.persistence.runtime.TenantIds;
+import org.quarkpress.posts.DateCondition;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostException;
+import org.quarkpress.posts.PostOrder;
+import org.quarkpress.posts.PostPage;
+import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
+import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.runtime.Acting;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
@@ -96,6 +107,9 @@ public class JpaMedia implements Media {
 
     @Inject
     PostLocks postLocks;
+
+    @Inject
+    PostTypes postTypes;
 
     @Override
     public MediaSnapshot store(Upload upload) {
@@ -262,6 +276,82 @@ public class JpaMedia implements Media {
         // the deletion reads the row again under its lock, so the snapshot is the attachment as it was deleted
         return posts.delete(attachment, true)
                 .map(before -> snapshot(before, row.get(), storage.storage(), site.site(), runtimeConfig.mainSiteId()));
+    }
+
+    /** The most ids one query of media rows binds, so that an unpaged query stays within the databases' limits. */
+    static final int ROW_CHUNK = 1000;
+
+    /** {@code values} in consecutive pieces of at most {@code size}, in order. */
+    static <T> List<List<T>> chunks(List<T> values, int size) {
+        List<List<T>> chunks = new ArrayList<>();
+        for (int start = 0; start < values.size(); start += size) {
+            chunks.add(values.subList(start, Math.min(values.size(), start + size)));
+        }
+        return chunks;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public MediaPage query(MediaQuery query) {
+        Objects.requireNonNull(query, "query");
+        requireFeature(site);
+        SiteId siteId = site.siteId();
+        PostPage page = posts.query(postQuery(siteId, query));
+        List<Long> ids = page.posts().stream().map(post -> post.id().value()).toList();
+        Map<Long, MediaEntity> rows = new LinkedHashMap<>();
+        for (List<Long> chunk : chunks(ids, ROW_CHUNK)) {
+            mediaRows
+                    .find("siteId = ?1 and postId in ?2", TenantIds.param(siteId), chunk)
+                    .list()
+                    .forEach(row -> rows.put(row.postId, row));
+        }
+        MediaStorage files = storage.storage();
+        long mainSiteId = runtimeConfig.mainSiteId();
+        List<MediaSnapshot> items = new ArrayList<>(ids.size());
+        for (PostSnapshot post : page.posts()) {
+            MediaEntity row = rows.get(post.id().value());
+            if (row != null) {
+                items.add(snapshot(post, row, files, site.site(), mainSiteId));
+            }
+        }
+        return new MediaPage(items, page.found(), page.maxPages());
+    }
+
+    /**
+     * The post query of type {@code attachment} for {@code query}: no statuses means {@code inherit}, plus {@code
+     * private} for a caller who may read others' private attachments; the media condition of {@link
+     * MimeConditionProvider} is always added, with the MIME types as an array of texts.
+     */
+    private PostQuery postQuery(SiteId siteId, MediaQuery query) {
+        PostQuery.Builder builder = PostQuery.builder().types("attachment");
+        if (!query.statuses().isEmpty()) {
+            builder.statuses(query.statuses().toArray(String[]::new));
+        } else if (acting.can(
+                siteId, postTypes.capabilitiesOrPost("attachment").readPrivatePosts(), Optional.empty())) {
+            builder.statuses("inherit", "private");
+        } else {
+            builder.statuses("inherit");
+        }
+        // always: an attachment without a media row is no media, neither listed nor counted
+        ArrayNode types = JsonNodeFactory.instance.arrayNode();
+        query.mimeTypes().forEach(types::add);
+        builder.condition(MimeConditionProvider.KEY, types);
+        query.parent().ifPresent(builder::parent);
+        builder.parentIn(query.parentIn().stream().map(PostId::of).toArray(PostId[]::new));
+        query.author().ifPresent(builder::author);
+        builder.authorIn(query.authorIn().toArray(UserId[]::new));
+        query.search().ifPresent(builder::search);
+        for (DateCondition condition : query.dates()) {
+            builder.date(condition);
+        }
+        for (PostOrder order : query.orderBy()) {
+            builder.orderBy(order.key(), order.ascending());
+        }
+        query.perPage().ifPresent(builder::perPage);
+        builder.page(query.page());
+        query.offset().ifPresent(builder::offset);
+        return builder.build();
     }
 
     private void markRollbackOnly(RuntimeException failure) {

@@ -83,4 +83,11 @@ public interface Media {
      * @return the attachment as it was; empty when {@code attachment} is no attachment of the site
      */
     Optional<MediaSnapshot> delete(PostId attachment);
+
+    /**
+     * The attachments of the current site matching {@code query}, read as {@code Posts.query} reads a post query of
+     * type {@code attachment} (its capability and read rules included), each with its media row. An attachment
+     * without a media row is not media: it is neither listed nor counted.
+     */
+    MediaPage query(MediaQuery query);
 }
