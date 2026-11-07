@@ -52,6 +52,28 @@ as on WordPress's Network Setup screen), so the network's `upload_filetypes` is 
 runs with `display_errors=0`, `html_errors=0` and `log_errors=1`: PHP notices go to `php-errors.log` in the run's
 directory, never into a body.
 
+## The media parity run
+
+`MediaParityDbTest` in `integration-tests/media` compares the media library below the REST layer with WordPress's
+(`mvn -pl integration-tests/media -am verify -Pwp-parity`). The 19 scenarios of `scenarios/media/index.txt`
+(`MediaScenarios`) each run on a fresh subdirectory site on both sides: WordPress is uploaded to through its REST media
+routes, QuarkPress through the test application's media resource, with the files of `MediaFixtures`. After each step
+`MediaComparison` compares, under WordPress's names, the outcome (accepted, or the refusal's code and message), the
+attachment's post columns, its meta, every pointer of its metadata, the files of its upload folder, a query's
+attachments and the setup posts' featured images. Ids become the scenario's refs, the site URL, a network site's
+`sites/<id>/` folder and the current `yyyy/MM` folder are normalised, and the byte size of every file a side wrote
+itself becomes `{bytes}` (pixels are never compared). Scenarios marked `editor` need GD on WordPress's side and are
+skipped with a message without it (QuarkPress still plays them); `-Dwp.media.require-editor=true`, as in CI, fails
+instead. Each scenario's observations go to `integration-tests/media/target/media-parity/<id>.json` and every
+difference to `differences.tsv` there; `-Dmedia.parity.only=m01,m04` narrows the run for local debugging (such a run
+never passes). CI runs it with QuarkPress on PostgreSQL and on MySQL.
+
+Its known differences are `integration-tests/media/src/test/resources/wp-media-parity-known-differences.txt`, in the
+form of the REST run's below, labelled with the rows of the "Differences from WordPress" table of
+`extensions/media/README.md`; `MediaKnownDifferenceLabelsTest` checks that both name the same labels. Entries of a
+skipped scenario are left out of the run, and so are those whose reason says `(needs gd_webp)` or `(needs gd_avif)`
+when WordPress's GD does not write that format. The run needs at least 3,700 comparisons and one per scenario.
+
 ## The WordPress side
 
 `WordPressRestSite.start` clones the template network into a database of its own, prepares it and starts `php -S` on a

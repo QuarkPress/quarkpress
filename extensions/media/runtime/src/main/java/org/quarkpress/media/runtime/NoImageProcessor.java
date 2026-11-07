@@ -10,9 +10,11 @@ import org.quarkpress.media.ImageProcessingException;
 import org.quarkpress.media.ImageProcessor;
 
 /**
- * The image processor when no image processor module is installed: it handles no type, so images are stored as
- * WordPress stores them without an image editor, with their dimensions and metadata and without generated sizes. An
- * image processor module's bean replaces it.
+ * The image processor when no image processor module is installed: it handles no type. An upload that declares an
+ * image type other than SVG, HEIC or HEIF is therefore refused as one no editor can make sizes for, as WordPress without
+ * an image editor refuses it, unless it asks for no sizes or unprocessable images are accepted; those images, and
+ * images that declare no type, are stored with their dimensions and metadata and without generated sizes. An image
+ * processor module's bean replaces it.
  */
 @DefaultBean
 @ApplicationScoped
