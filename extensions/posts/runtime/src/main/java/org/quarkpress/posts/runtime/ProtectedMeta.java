@@ -1,6 +1,7 @@
 package org.quarkpress.posts.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -38,6 +39,21 @@ public class ProtectedMeta {
         Objects.requireNonNull(value, "value");
         ObjectNode meta = MetaRows.copy(locked.meta);
         meta.putArray(key).add(value.deepCopy());
+        write(site, locked, meta);
+    }
+
+    /** Makes {@code values} the key's values, in order; the key goes when there is none. */
+    public void set(SiteId site, PostEntity locked, String key, List<JsonNode> values) {
+        requireKey(key);
+        Objects.requireNonNull(values, "values");
+        ObjectNode meta = MetaRows.copy(locked.meta);
+        if (values.isEmpty()) {
+            meta.remove(key);
+        } else {
+            ArrayNode array = meta.putArray(key);
+            values.forEach(
+                    value -> array.add(Objects.requireNonNull(value, "value").deepCopy()));
+        }
         write(site, locked, meta);
     }
 

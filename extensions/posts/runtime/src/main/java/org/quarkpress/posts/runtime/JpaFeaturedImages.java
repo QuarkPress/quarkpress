@@ -46,6 +46,9 @@ public class JpaFeaturedImages implements FeaturedImages {
     @Inject
     ProtectedMeta meta;
 
+    @Inject
+    FeaturedImageReferences references;
+
     /** The stored id cast to an integer as WordPress casts it; 0 when absent. */
     public static long thumbnailId(PostSnapshot post) {
         List<JsonNode> values = Objects.requireNonNull(post, "post").meta(THUMBNAIL_ID);
@@ -80,5 +83,35 @@ public class JpaFeaturedImages implements FeaturedImages {
         } else {
             meta.remove(siteId, row, THUMBNAIL_ID);
         }
+    }
+
+    /**
+     * Removes from every post of {@code site} the {@code _thumbnail_id} values naming {@code attachment}, as WordPress
+     * deletes the meta rows holding its id when it deletes an attachment: a value naming it is its id as a whole number
+     * or as its decimal text; the post's other values stay, and the key goes once none is left. The posts are locked
+     * in id order and their values read again under the lock; the meta alone is written, so their modification dates
+     * and versions stay. The caller holds the site's post lock, in a transaction; no capability is checked.
+     */
+    public void forget(SiteId site, PostId attachment) {
+        Objects.requireNonNull(site, "site");
+        Objects.requireNonNull(attachment, "attachment");
+        String id = Long.toString(attachment.value());
+        for (long candidate : references.postsNaming(site, attachment.value())) {
+            posts.lockPost(site, PostId.of(candidate)).ifPresent(row -> {
+                List<JsonNode> values = MetaRows.values(row.meta, THUMBNAIL_ID);
+                List<JsonNode> kept =
+                        values.stream().filter(value -> !names(value, id)).toList();
+                if (kept.size() != values.size()) {
+                    meta.set(site, row, THUMBNAIL_ID, kept);
+                }
+            });
+        }
+    }
+
+    /** Whether a stored value is {@code id}, as a whole number or as that text. */
+    private static boolean names(JsonNode value, String id) {
+        return value.isTextual()
+                ? value.textValue().equals(id)
+                : value.isIntegralNumber() && value.asText().equals(id);
     }
 }
