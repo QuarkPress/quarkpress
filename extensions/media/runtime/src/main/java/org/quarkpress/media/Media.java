@@ -70,4 +70,17 @@ public interface Media {
      *     {@link MediaChanges#expectedVersion}
      */
     MediaSnapshot update(PostId attachment, MediaChanges changes);
+
+    /**
+     * Deletes an attachment for good, as WordPress's {@code wp_delete_attachment} does with media trash off (its
+     * default): through {@code Posts.delete} with {@code force}, so it needs {@code delete_post} on the attachment, in
+     * one transaction (joining the caller's). The featured images that name it are cleared and the media row goes with
+     * the post; once the delete has committed, every file of it is removed (the sizes, the untouched original, the
+     * editor's backups and the main file last). A file already missing is skipped and a storage failure is logged,
+     * never raised; a delete that rolls back keeps every file. Deleting the attachment through {@code Posts.delete}
+     * removes its files alike.
+     *
+     * @return the attachment as it was; empty when {@code attachment} is no attachment of the site
+     */
+    Optional<MediaSnapshot> delete(PostId attachment);
 }

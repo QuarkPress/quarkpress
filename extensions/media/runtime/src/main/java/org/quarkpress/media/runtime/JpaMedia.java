@@ -243,6 +243,27 @@ public class JpaMedia implements Media {
         }
     }
 
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<MediaSnapshot> delete(PostId attachment) {
+        Objects.requireNonNull(attachment, "attachment");
+        requireFeature(site);
+        SiteId siteId = site.siteId();
+        if (postRows.findPost(siteId, attachment)
+                .filter(post -> post.type.equals("attachment"))
+                .isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<MediaEntity> row = mediaRows.findMedia(siteId, attachment);
+        if (row.isEmpty()) {
+            return Optional.empty();
+        }
+        // the deletion reads the row again under its lock, so the snapshot is the attachment as it was deleted
+        return posts.delete(attachment, true)
+                .map(before -> snapshot(before, row.get(), storage.storage(), site.site(), runtimeConfig.mainSiteId()));
+    }
+
     private void markRollbackOnly(RuntimeException failure) {
         try {
             transactionManager.setRollbackOnly();

@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.quarkpress.core.SiteInfo;
 import org.quarkpress.media.KeyTakenException;
@@ -43,6 +44,8 @@ public class TestStorage implements MediaStorage {
     private final AtomicInteger unpaddedPuts = new AtomicInteger(Integer.MAX_VALUE);
     private volatile int padding;
     private volatile RuntimeException openFailure;
+    private final List<String> deleted = new CopyOnWriteArrayList<>();
+    private volatile RuntimeException deleteFailure;
 
     /** Removes every file and resets the switches. */
     public void clear() {
@@ -54,6 +57,18 @@ public class TestStorage implements MediaStorage {
         unpaddedPuts.set(Integer.MAX_VALUE);
         padding = 0;
         openFailure = null;
+        deleted.clear();
+        deleteFailure = null;
+    }
+
+    /** The keys callers asked to delete since the last {@link #clear}, in call order, whether or not they existed. */
+    public List<String> deletes() {
+        return List.copyOf(deleted);
+    }
+
+    /** Every delete throws {@code failure} and removes nothing, as a backend whose client fails would; null to delete. */
+    public void deleteFails(RuntimeException failure) {
+        deleteFailure = failure;
     }
 
     /** How many files callers stored since the last {@link #clear}, whether or not they were removed again. */
@@ -169,7 +184,12 @@ public class TestStorage implements MediaStorage {
 
     @Override
     public boolean delete(String key) {
-        return files.remove(StoredKey.require(key)) != null;
+        deleted.add(StoredKey.require(key));
+        RuntimeException failure = deleteFailure;
+        if (failure != null) {
+            throw failure;
+        }
+        return files.remove(key) != null;
     }
 
     @Override
