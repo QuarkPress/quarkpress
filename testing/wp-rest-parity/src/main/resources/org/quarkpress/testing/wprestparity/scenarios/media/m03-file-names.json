@@ -1,0 +1,200 @@
+{
+  "id": "m03",
+  "rule": "File names from the client's name: sanitising (MU13 table), the lower-case extension (MU15), titles from the client name (MU22)",
+  "steps": [
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "my photo & co.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "  --.hidden.png..",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": ".jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "JPG",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "shell.php.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "pdf",
+      "name": "report.final.v2.pdf",
+      "type": "application/pdf"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "page.html.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "as": "carol",
+      "name": "page.html.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "my%20file.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "a_b\u2014c.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "photo x.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "text",
+      "args": [
+        "m03 readme\n"
+      ],
+      "name": "README",
+      "type": "text/plain"
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "a+b.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "x .jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "My.Photo.JPEG",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "IMG_1234.JPG",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "a\tb\nc.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

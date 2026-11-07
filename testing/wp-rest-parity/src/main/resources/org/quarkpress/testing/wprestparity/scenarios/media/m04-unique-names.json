@@ -1,0 +1,249 @@
+{
+  "id": "m04",
+  "rule": "Unique names in a folder that already holds files: the lower-case extension twin (MU15), names that look like sizes (MU16), the folder listing (MU17, its overwrite case last: D1), alternate formats (MU18)",
+  "setup": [
+    {
+      "folder": {
+        "IMG_1234.jpg": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "photo.jpg": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "photo-300x200.jpg": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "pic-300x200.jpg": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "Snap-SCALED.JPG": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "trip.heic": {
+          "fixture": "heif",
+          "args": [
+            "heic"
+          ]
+        },
+        "tour.jpg": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "Case.jpg": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "shot-150x150.png": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "shot-1.png": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "IMG_1234.JPG",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "logo-150x150.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "logo-150x150.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "holiday-scaled.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "holiday-rotated.JPG",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "logo-150X150.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "photo.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "pic.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "snap.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "trip.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "heic"
+      ],
+      "name": "tour.heic",
+      "type": "image/heic",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "case.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "trip.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "convert_format": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "shot.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

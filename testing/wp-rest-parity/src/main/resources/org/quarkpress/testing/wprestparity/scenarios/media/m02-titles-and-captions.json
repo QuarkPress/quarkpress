@@ -1,0 +1,342 @@
+{
+  "id": "m02",
+  "rule": "Title fallback order and embedded title, caption and alt text; the request's title, caption, description and alt_text fields (MU21-MU23; MI36, MI39)",
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "\u00c9t\u00e9 \u00e0 Paris (2).JPG",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "105": [
+            "Sunset at S\u00e8te"
+          ],
+          "120": [
+            "Taken from the pier, 2025"
+          ]
+        }
+      },
+      "name": "m02-a-headline.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "5": [
+            "m02 object name"
+          ]
+        }
+      },
+      "name": "m02-b-object-name.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "120": [
+            "m02 caption xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        }
+      },
+      "name": "m02-c-caption-79.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "120": [
+            "m02 caption xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        }
+      },
+      "name": "m02-d-caption-80.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "5": [
+            "2024"
+          ]
+        }
+      },
+      "name": "m02-e-object-2024.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "5": [
+            "3.5"
+          ]
+        }
+      },
+      "name": "m02-f-object-3.5.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "5": [
+            "0012"
+          ]
+        }
+      },
+      "name": "m02-f2-object-0012.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "5": [
+            "IMG 4711"
+          ]
+        }
+      },
+      "name": "m02-f3-object-img.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "ImageDescription": "OLYMPUS DIGITAL CAMERA"
+        }
+      },
+      "name": "m02-g-description.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "UserComment": "m02 user comment"
+        }
+      },
+      "name": "m02-h-user-comment.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "ImageDescription": "Sunset",
+          "UserComment": "Shot at Malibu"
+        }
+      },
+      "name": "m02-i-description-and-comment.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "ImageDescription": "Same text",
+          "UserComment": "Same text"
+        }
+      },
+      "name": "m02-j-description-equals-comment.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "ImageDescription": "m02 long description xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "UserComment": "Short comment"
+        }
+      },
+      "name": "m02-k-long-description-and-comment.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "105": [
+            "Beach"
+          ]
+        },
+        "exif": {
+          "ImageDescription": "Sunset",
+          "UserComment": "Malibu"
+        }
+      },
+      "name": "m02-k2-headline-description-comment.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "105": [
+            "m02 embedded headline"
+          ]
+        }
+      },
+      "name": "m02-p-request-title.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "title": "m02 given title",
+        "alt_text": ""
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "105": [
+            "m02 embedded headline"
+          ],
+          "120": [
+            "m02 embedded caption"
+          ]
+        }
+      },
+      "name": "m02-q-request-caption.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "caption": "m02 given caption",
+        "alt_text": "m02 given alt",
+        "description": "m02 given description"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m02-r-empty-title.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "title": ""
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "as": "carol",
+      "name": "m02-s-markup.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "title": "<b>m02</b> <script>x</script>",
+        "caption": "a & b",
+        "alt_text": "  spaced alt  "
+      }
+    },
+    {
+      "update": "step2",
+      "fields": {
+        "title": "m02 updated title",
+        "caption": "m02 updated caption",
+        "description": "m02 updated description",
+        "alt_text": "m02 updated alt"
+      }
+    },
+    {
+      "update": "step17",
+      "fields": {
+        "alt_text": ""
+      }
+    }
+  ]
+}

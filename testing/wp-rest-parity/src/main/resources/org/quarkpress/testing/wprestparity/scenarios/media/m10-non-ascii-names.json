@@ -1,0 +1,90 @@
+{
+  "id": "m10",
+  "rule": "File names, slugs, titles and URLs of non-ASCII client names (MU13 rules 1 and 3, MU19 rule 6)",
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "\u0424\u043e\u0442\u043e 1.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "Gr\u00fc\u00dfe.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "\u00c6ble \u00a35 \u20ac.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "x\ud83d\ude00.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "cafe\u0301.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "\u65e5\u672c\u8a9e \u5199\u771f.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "a\u00a0b\u3000c.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

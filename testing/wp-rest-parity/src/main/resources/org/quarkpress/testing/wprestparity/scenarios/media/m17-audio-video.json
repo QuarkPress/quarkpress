@@ -1,0 +1,68 @@
+{
+  "id": "m17",
+  "rule": "Audio and video metadata (MI29, MI30; D4)",
+  "steps": [
+    {
+      "upload": "mp3",
+      "args": {
+        "id3": {
+          "title": "m17 song",
+          "artist": "m17 artist",
+          "album": "m17 album"
+        }
+      },
+      "name": "m17-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "upload": "mp3",
+      "args": {},
+      "name": "m17-bare.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "upload": "mp4",
+      "args": [
+        64,
+        48,
+        2
+      ],
+      "name": "m17-clip.mp4",
+      "type": "video/mp4"
+    },
+    {
+      "upload": "m4a",
+      "name": "m17-audio.m4a",
+      "type": "audio/mp4"
+    },
+    {
+      "upload": "wav",
+      "args": [
+        2
+      ],
+      "name": "m17-tone.wav",
+      "type": "audio/wav"
+    },
+    {
+      "upload": "ogg",
+      "name": "m17-audio.ogg",
+      "type": "audio/ogg"
+    },
+    {
+      "upload": "webm",
+      "name": "m17-clip.webm",
+      "type": "video/webm"
+    },
+    {
+      "upload": "mp3",
+      "args": {
+        "id3": {
+          "title": "m17 covered"
+        },
+        "cover": true
+      },
+      "name": "m17-covered.mp3",
+      "type": "audio/mpeg"
+    }
+  ]
+}

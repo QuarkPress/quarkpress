@@ -1,0 +1,21 @@
+# The media parity scenarios (MediaParityDbTest), in run order. "editor": true marks those that need GD on
+# WordPress's side.
+m01-plain-images.json
+m02-titles-and-captions.json
+m03-file-names.json
+m04-unique-names.json
+m05-non-image-types.json
+m06-image-renames.json
+m07-declared-types.json
+m08-image-meta.json
+m09-folder-dates.json
+m10-non-ascii-names.json
+m11-delete.json
+m12-sizes-table.json
+m13-threshold.json
+m14-orientations.json
+m15-portrait-shared-file.json
+m16-post-process.json
+m17-audio-video.json
+m18-unprocessable-images.json
+m19-mime-queries.json

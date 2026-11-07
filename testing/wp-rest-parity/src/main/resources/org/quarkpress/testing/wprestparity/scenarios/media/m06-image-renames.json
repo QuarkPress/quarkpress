@@ -1,0 +1,83 @@
+{
+  "id": "m06",
+  "rule": "The extension rewrite from the real image type, all declared application/octet-stream (MU10)",
+  "steps": [
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m06-png-as.jpg",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m06-jpeg-as.PNG",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m06-png-as.webp",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "heif"
+      ],
+      "name": "m06-heif.heif",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "heif"
+      ],
+      "name": "m06-heif-upper.HEIF",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "avif"
+      ],
+      "name": "m06-avif-as.heif",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "pdf",
+      "name": "m06-pdf-as.jpg",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

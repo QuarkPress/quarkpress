@@ -1,0 +1,37 @@
+{
+  "id": "m16",
+  "rule": "Post-processing an image uploaded without sub-sizes makes them (MI26, MI27)",
+  "editor": true,
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        1200,
+        800
+      ],
+      "name": "m16-a-1200-wide.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "process": "step1"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        4000,
+        3000
+      ],
+      "name": "m16-b-4000-wide.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "process": "step3"
+    }
+  ]
+}

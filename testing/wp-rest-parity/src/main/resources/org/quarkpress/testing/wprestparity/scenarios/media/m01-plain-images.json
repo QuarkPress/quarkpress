@@ -1,0 +1,43 @@
+{
+  "id": "m01",
+  "rule": "Stored rows, meta, metadata and files of plain JPEG, PNG and GIF uploads without sub-sizes (uploads reference MU21, MU24, MU25; images reference MI24)",
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m01-plain.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m01-plain.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "gif",
+      "args": [
+        64,
+        48,
+        1
+      ],
+      "name": "m01-plain.gif",
+      "type": "image/gif",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "id": "m19",
+  "rule": "Library queries by MIME type: groups, wildcards, lists, case, the values that drop the filter (MU30); and a/b/c, a whitespace-only value, ' %' and '% ' (ruling T18b)",
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m19.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m19.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "mp4",
+      "args": [
+        32,
+        24,
+        1
+      ],
+      "name": "m19.mp4",
+      "type": "video/mp4"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "m19 text\n"
+      ],
+      "name": "m19.txt",
+      "type": "text/plain"
+    },
+    {
+      "upload": "pdf",
+      "name": "m19.pdf",
+      "type": "application/pdf"
+    },
+    {
+      "upload": "xls",
+      "name": "m19.xls",
+      "type": "application/vnd.ms-excel"
+    },
+    {
+      "query": [
+        "image"
+      ]
+    },
+    {
+      "query": [
+        "IMAGE"
+      ]
+    },
+    {
+      "query": [
+        "image/jpeg"
+      ]
+    },
+    {
+      "query": [
+        "IMAGE/JPEG"
+      ]
+    },
+    {
+      "query": [
+        "image/"
+      ]
+    },
+    {
+      "query": [
+        "image/*,video"
+      ]
+    },
+    {
+      "query": [
+        "image/*",
+        "video"
+      ]
+    },
+    {
+      "query": [
+        "*"
+      ]
+    },
+    {
+      "query": [
+        "application/vnd.ms-*"
+      ]
+    },
+    {
+      "query": [
+        "image",
+        ""
+      ]
+    },
+    {
+      "query": [
+        "image,"
+      ]
+    },
+    {
+      "query": [
+        "%"
+      ]
+    },
+    {
+      "query": [
+        "%/%"
+      ]
+    },
+    {
+      "query": [
+        "video/mp4",
+        "text/plain"
+      ]
+    },
+    {
+      "query": [
+        "a/b/c"
+      ]
+    },
+    {
+      "query": [
+        "   "
+      ]
+    },
+    {
+      "query": [
+        " %"
+      ]
+    },
+    {
+      "query": [
+        "% "
+      ]
+    }
+  ]
+}

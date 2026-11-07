@@ -1,0 +1,71 @@
+{
+  "id": "m11",
+  "rule": "Deleting an attachment for good: its files go, the folder's other files stay, featured images that name it are removed (MU27-MU29); the sizes part is in m12",
+  "setup": [
+    {
+      "post": "p:post",
+      "type": "post",
+      "status": "publish"
+    },
+    {
+      "post": "p:other",
+      "type": "post",
+      "status": "publish"
+    }
+  ],
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m11-keep.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m11-gone.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "update": "p:post",
+      "fields": {
+        "featured_media": "step2"
+      }
+    },
+    {
+      "update": "p:other",
+      "fields": {
+        "featured_media": "step1"
+      }
+    },
+    {
+      "delete": "step2"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "m11 text\n"
+      ],
+      "name": "m11.txt",
+      "type": "text/plain"
+    },
+    {
+      "delete": "step6"
+    },
+    {
+      "delete": "step1"
+    }
+  ]
+}

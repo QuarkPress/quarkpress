@@ -1,0 +1,39 @@
+{
+  "id": "m18",
+  "rule": "Images no editor here processes: HEIC, a TIFF declared application/octet-stream (past the unsupported-image refusal on both sides), a PDF without a decoder, an AVIF declared application/octet-stream whose header gives 3000x2000 (MI20, MI32, MI44; images Part G item 7)",
+  "steps": [
+    {
+      "upload": "heif",
+      "args": [
+        "heic"
+      ],
+      "name": "m18.heic",
+      "type": "image/heic"
+    },
+    {
+      "upload": "tiff",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m18.tif",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "pdf",
+      "name": "m18.pdf",
+      "type": "application/pdf"
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "avif"
+      ],
+      "name": "m18.avif",
+      "type": "application/octet-stream",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

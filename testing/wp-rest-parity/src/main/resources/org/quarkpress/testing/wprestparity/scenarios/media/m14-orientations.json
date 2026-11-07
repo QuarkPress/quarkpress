@@ -1,0 +1,87 @@
+{
+  "id": "m14",
+  "rule": "EXIF orientations 2-8: -rotated main files, swapped dimensions, orientation reset, upright sizes; orientation 6 on a large image: one -scaled file (MI16-MI19)",
+  "editor": true,
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 2
+      },
+      "name": "m14-orientation-2.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 3
+      },
+      "name": "m14-orientation-3.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 4
+      },
+      "name": "m14-orientation-4.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 5
+      },
+      "name": "m14-orientation-5.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 6
+      },
+      "name": "m14-orientation-6.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 7
+      },
+      "name": "m14-orientation-7.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 1000,
+        "h": 800,
+        "orientation": 8
+      },
+      "name": "m14-orientation-8.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 4000,
+        "h": 3000,
+        "orientation": 6
+      },
+      "name": "m14-large-orientation-6.jpg",
+      "type": "image/jpeg"
+    }
+  ]
+}

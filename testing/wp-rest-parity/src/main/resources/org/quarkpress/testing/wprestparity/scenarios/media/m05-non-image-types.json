@@ -1,0 +1,201 @@
+{
+  "id": "m05",
+  "rule": "Content checks, all declared application/octet-stream, on a network whose upload types leave out webp: non-image files (MU9, MU10 rule 4; Tika where WordPress uses libmagic: D8), then a WebP, a PNG and a JPEG named .webp (ruling T7c)",
+  "setup": [
+    {
+      "network_option": "upload_filetypes",
+      "value": "jpg jpeg jpe gif png bmp tiff tif avif ico heic heif heics heifs asf asx wmv wmx wm avi divx flv mov qt mpeg mpg mpe mp4 m4v ogv webm mkv 3gp 3gpp 3g2 3gp2 txt asc c cc h srt csv tsv ics rtx css htm html vtt dfxp mp3 m4a m4b aac ra ram wav x-wav ogg oga flac mid midi wma wax mka rtf js pdf class tar zip gz gzip rar 7z psd xcf doc pot pps ppt wri xla xls xlt xlw mdb mpp docx docm dotx dotm xlsx xlsm xlsb xltx xltm xlam pptx pptm ppsx ppsm potx potm ppam sldx sldm onetoc onetoc2 onetmp onepkg oxps xps odt odp ods odg odc odb odf wp wpd key numbers pages"
+    }
+  ],
+  "steps": [
+    {
+      "upload": "ico",
+      "name": "m05.ico",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "psd",
+      "name": "m05.psd",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "#include <stdio.h>\nint main(void) {\n    return 0;\n}\n"
+      ],
+      "name": "m05.c",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "body {\n  color: red;\n}\n"
+      ],
+      "name": "m05.css",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "1\n00:00:01,000 --> 00:00:02,000\nHello\n\n"
+      ],
+      "name": "m05.srt",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "name\tvalue\none\t1\ntwo\t2\n"
+      ],
+      "name": "m05.tsv",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "m4a",
+      "name": "m05-audio.m4a",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "mp4",
+      "args": [
+        64,
+        48,
+        1
+      ],
+      "name": "m05-video.m4a",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "zipOoxml",
+      "args": [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      "name": "m05.docx",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "name,value\none,1\ntwo,2\n"
+      ],
+      "name": "m05.csv",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "gzip",
+      "args": [
+        "m05 gzip content\n"
+      ],
+      "name": "m05.gz",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "hex",
+      "args": [
+        "526172211A0700CF907300000D00000000000000C43D7B00400700"
+      ],
+      "name": "m05.rar",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "ogv",
+      "name": "m05.ogv",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "console.log('m05');\n"
+      ],
+      "name": "m05.js",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n"
+      ],
+      "name": "m05.vtt",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Times;}}\\f0 Hello}\n"
+      ],
+      "name": "m05.rtf",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "hex",
+      "args": [
+        "664C614380000022100010000000000000000AC442F00000000000000000000000000000000000000000"
+      ],
+      "name": "m05.flac",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "wav",
+      "args": [
+        1
+      ],
+      "name": "m05.wav",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "xls",
+      "name": "m05.xls",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "odt",
+      "name": "m05.odt",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "ogg",
+      "name": "m05.ogg",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "console.log('m05 carol');\n"
+      ],
+      "as": "carol",
+      "name": "m05-carol.js",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "text",
+      "args": [
+        "m05 plain text\n"
+      ],
+      "name": "m05.txt",
+      "type": "text/plain"
+    },
+    {
+      "upload": "webp",
+      "name": "m05-real.webp",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "png",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m05-png-as.webp",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "x.webp",
+      "type": "application/octet-stream"
+    }
+  ]
+}

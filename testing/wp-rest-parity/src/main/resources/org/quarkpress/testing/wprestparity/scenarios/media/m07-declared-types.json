@@ -1,0 +1,106 @@
+{
+  "id": "m07",
+  "rule": "The unsupported-image refusal by declared type with GD as the editor (MU12 rules 4-7; BMP: D2; WebP and AVIF that this GD writes: D16)",
+  "editor": true,
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-jpeg.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-jpg.jpg",
+      "type": "image/jpg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-pjpeg.jpg",
+      "type": "image/pjpeg"
+    },
+    {
+      "upload": "png",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-png.png",
+      "type": "image/png"
+    },
+    {
+      "upload": "gif",
+      "args": [
+        64,
+        48,
+        1
+      ],
+      "name": "m07-gif.gif",
+      "type": "image/gif"
+    },
+    {
+      "upload": "bmp",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-bmp.bmp",
+      "type": "image/bmp"
+    },
+    {
+      "upload": "tiff",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-tiff.tif",
+      "type": "image/tiff"
+    },
+    {
+      "upload": "ico",
+      "name": "m07-ico.ico",
+      "type": "image/x-icon"
+    },
+    {
+      "upload": "webp",
+      "name": "m07-webp.webp",
+      "type": "image/webp"
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "avif"
+      ],
+      "name": "m07-avif.avif",
+      "type": "image/avif"
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "heic"
+      ],
+      "name": "m07-heic-sequence.heic",
+      "type": "image/heic-sequence"
+    },
+    {
+      "upload": "bmp",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-bmp-octet.bmp",
+      "type": "application/octet-stream"
+    }
+  ]
+}

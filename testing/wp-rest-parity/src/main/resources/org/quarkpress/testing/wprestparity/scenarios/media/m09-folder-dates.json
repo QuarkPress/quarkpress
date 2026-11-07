@@ -1,0 +1,122 @@
+{
+  "id": "m09",
+  "rule": "The upload folder from the parent's date: a dated post, a page (now), a future post, a draft; a missing parent and an attachment as parent (MU4, MU20)",
+  "setup": [
+    {
+      "post": "p:dated",
+      "type": "post",
+      "status": "publish",
+      "date": "2019-03-14 12:00:00"
+    },
+    {
+      "post": "p:page",
+      "type": "page",
+      "status": "publish",
+      "date": "2019-03-14 12:00:00"
+    },
+    {
+      "post": "p:future",
+      "type": "post",
+      "status": "future",
+      "date": "2027-01-10 12:00:00"
+    },
+    {
+      "post": "p:draft",
+      "type": "post",
+      "status": "draft",
+      "date": "2018-05-20 10:00:00"
+    }
+  ],
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-post.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "post": "p:dated"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-page.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "post": "p:page"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-future.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "post": "p:future"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-draft.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "post": "p:draft"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-missing.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "post": "999999"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-to-attachment.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false",
+        "post": "step1"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        16,
+        16
+      ],
+      "name": "m09-unattached.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}

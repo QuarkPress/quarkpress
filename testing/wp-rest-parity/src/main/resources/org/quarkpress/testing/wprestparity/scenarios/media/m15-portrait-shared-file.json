@@ -1,0 +1,25 @@
+{
+  "id": "m15",
+  "rule": "A portrait image whose medium_large and large sizes have the same dimensions share one file (MI7, MI9)",
+  "editor": true,
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        3000,
+        4000
+      ],
+      "name": "m15-portrait.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        768,
+        1024
+      ],
+      "name": "m15-small-portrait.jpg",
+      "type": "image/jpeg"
+    }
+  ]
+}

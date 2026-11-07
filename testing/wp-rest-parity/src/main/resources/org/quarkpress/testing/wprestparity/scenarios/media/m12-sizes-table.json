@@ -1,0 +1,76 @@
+{
+  "id": "m12",
+  "rule": "Default sub-sizes of the worked size table (MI7) made with GD, and deleting an attachment with sizes (MU29)",
+  "editor": true,
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        4000,
+        3000
+      ],
+      "name": "m12-a-landscape.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        3000,
+        4000
+      ],
+      "name": "m12-b-portrait.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        1200,
+        800
+      ],
+      "name": "m12-c-1200-wide.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        600,
+        300
+      ],
+      "name": "m12-d-600-wide.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        301,
+        200
+      ],
+      "name": "m12-e-301-wide.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        1024,
+        1024
+      ],
+      "name": "m12-f-square.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        120,
+        90
+      ],
+      "name": "m12-g-small.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "delete": "step3"
+    },
+    {
+      "delete": "step1"
+    }
+  ]
+}

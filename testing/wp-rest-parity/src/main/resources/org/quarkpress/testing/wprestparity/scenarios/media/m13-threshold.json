@@ -1,0 +1,62 @@
+{
+  "id": "m13",
+  "rule": "The big-image threshold: -scaled files, the 2561 trap, PNG and animated GIF scaled too (MI13, MI14)",
+  "editor": true,
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": [
+        6000,
+        4000
+      ],
+      "name": "m13-a-6000-wide.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        2561,
+        2561
+      ],
+      "name": "m13-b-2561-square.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        2561,
+        1000
+      ],
+      "name": "m13-c-2561-wide.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        2560,
+        2560
+      ],
+      "name": "m13-d-2560-square.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "upload": "png",
+      "args": [
+        3000,
+        3000
+      ],
+      "name": "m13-e-3000-square.png",
+      "type": "image/png"
+    },
+    {
+      "upload": "gif",
+      "args": [
+        3000,
+        2000,
+        2
+      ],
+      "name": "m13-animated.gif",
+      "type": "image/gif"
+    }
+  ]
+}

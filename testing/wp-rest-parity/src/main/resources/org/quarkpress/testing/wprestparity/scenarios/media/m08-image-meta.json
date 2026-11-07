@@ -1,0 +1,221 @@
+{
+  "id": "m08",
+  "rule": "image_meta read from EXIF and IPTC (MI35-MI40), without sub-sizes",
+  "steps": [
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "FNumber": "28/10",
+          "ExposureTime": "1/60",
+          "FocalLength": "50/1",
+          "ISOSpeedRatings": "100",
+          "Model": "m08 camera",
+          "DateTimeDigitized": "2023:10:15 14:30:00",
+          "Artist": "m08 artist",
+          "Copyright": "m08 copyright"
+        }
+      },
+      "name": "m08-camera.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "FNumber": "1775/1000",
+          "ExposureTime": "1/100000",
+          "FocalLength": "1/3",
+          "DateTimeOriginal": "2023:10:15 14:30:00"
+        }
+      },
+      "name": "m08-fractions.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "ExposureTime": "1/250",
+          "FNumber": "8/1",
+          "ISOSpeedRatings": "100,200"
+        }
+      },
+      "name": "m08-iso-list.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "orientation": 6,
+        "exif": {
+          "Model": "m08 rotated camera"
+        }
+      },
+      "name": "m08-orientation.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "110": [
+            "m08 credit"
+          ],
+          "80": [
+            "m08 byline"
+          ],
+          "116": [
+            "m08 copyright"
+          ],
+          "105": [
+            "m08 headline"
+          ]
+        }
+      },
+      "name": "m08-iptc-credit.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "25": [
+            "one",
+            " two ",
+            "three"
+          ],
+          "55": [
+            "20231015"
+          ],
+          "60": [
+            "143000+0200"
+          ]
+        }
+      },
+      "name": "m08-iptc-keywords.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "55": [
+            "20231015"
+          ]
+        }
+      },
+      "name": "m08-iptc-date-only.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "120": [
+            "<b>bold</b> & co <script>x</script>"
+          ]
+        }
+      },
+      "name": "m08-iptc-markup.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "exif": {
+          "Comments": "m08 comments"
+        }
+      },
+      "name": "m08-comments.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "jpeg",
+      "args": {
+        "w": 32,
+        "h": 24,
+        "iptc": {
+          "120": [
+            "Caption \u00e9t\u00e9"
+          ]
+        }
+      },
+      "name": "m08-iptc-accents.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "png",
+      "args": [
+        32,
+        24
+      ],
+      "name": "m08-plain.png",
+      "type": "image/png",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    },
+    {
+      "upload": "gif",
+      "args": [
+        32,
+        24,
+        1
+      ],
+      "name": "m08-plain.gif",
+      "type": "image/gif",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ]
+}
