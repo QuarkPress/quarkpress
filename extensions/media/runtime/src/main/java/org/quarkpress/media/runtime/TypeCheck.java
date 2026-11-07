@@ -12,8 +12,10 @@ import java.util.Set;
  * WordPress's check of an upload's type against its name and content.
  *
  * <ol>
- *   <li>The client's file name gives the extension and type (the first pattern of the site's whole type list
- *       holding the name's last extension, without regard to case); no type, no upload.
+ *   <li>The client's file name must have an extension the user may upload; then it gives the extension and type
+ *       (the first pattern of the site's whole type list holding the name's last extension, without regard to case);
+ *       no type, no upload. A name whose extension is not allowed is refused before its content is read, so it is
+ *       never renamed ({@code x.webp} holding a JPEG is refused where WebP is not allowed).
  *   <li>For an image type, the real image type is read from the content. When it differs from the name's type, or
  *       the extension is literally {@code heif}, {@code heics} or {@code heifs}, the name's last extension is
  *       replaced by the real type's ({@code photo.png} holding a JPEG becomes {@code photo.jpg}) and the type is
@@ -23,8 +25,8 @@ import java.util.Set;
  *       level; plain text for the text types WordPress lists; CSV and RTF answers for their related types; any other
  *       answer only when it equals the name's type.
  *   <li>The final extension must be one the user may upload, with the same type: the user's narrowed list and the
- *       denied extensions apply to the name after any correction (a JPEG named {@code x.webp} where WebP is denied is
- *       accepted as {@code x.jpg}).
+ *       denied extensions apply to the name after any correction too ({@code x.jpg} holding a PNG is refused where
+ *       PNG is not allowed).
  * </ol>
  *
  * The type an accepted upload is stored as is {@link TypeResult#mimeType()}: the allowed list's type for the final
@@ -101,6 +103,9 @@ public final class TypeCheck {
     public static TypeResult check(
             Path file, String clientName, List<Map.Entry<String, String>> fullMap, AllowedTypes allowed)
             throws IOException {
+        if (allowed.lookup(clientName).isEmpty()) {
+            return TypeResult.REFUSED;
+        }
         AllowedTypes full = AllowedTypes.of(fullMap, true, List.of(), Optional.empty());
         Optional<AllowedTypes.Match> match = full.lookup(clientName);
         if (match.isEmpty()) {

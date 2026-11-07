@@ -196,10 +196,16 @@ class TypeCheckTest {
         AllowedTypes noPng = AllowedTypes.of(PATTERNS, false, List.of("png"), Optional.empty());
         assertThat(TypeCheck.check(write(MediaFixtures.png(8, 8)), "x.jpg", PATTERNS, noPng))
                 .isEqualTo(TypeResult.REFUSED);
-        // a real JPEG named x.webp with webp denied: the name is looked up in the whole list, renamed, then allowed
+        // a real JPEG or PNG named .webp with webp denied: the client's name is not allowed, so nothing is renamed and
+        // the upload is refused, as WordPress refuses it (recorded by the media parity run)
         AllowedTypes noWebp = AllowedTypes.of(PATTERNS, false, List.of("webp"), Optional.empty());
         assertThat(TypeCheck.check(write(MediaFixtures.jpeg(8, 8)), "x.webp", PATTERNS, noWebp))
-                .isEqualTo(result("jpg", "image/jpeg", "x.jpg"));
+                .isEqualTo(TypeResult.REFUSED);
+        assertThat(TypeCheck.check(write(MediaFixtures.png(8, 8)), "pic.webp", PATTERNS, noWebp))
+                .isEqualTo(TypeResult.REFUSED);
+        // with webp allowed the same PNG is renamed
+        assertThat(TypeCheck.check(write(MediaFixtures.png(8, 8)), "pic.webp", PATTERNS, author))
+                .isEqualTo(result("png", "image/png", "pic.png"));
         // a real WebP named x.webp with webp denied keeps its denied extension
         assertThat(TypeCheck.check(write(MediaFixtures.webp()), "x.webp", PATTERNS, noWebp))
                 .isEqualTo(TypeResult.REFUSED);

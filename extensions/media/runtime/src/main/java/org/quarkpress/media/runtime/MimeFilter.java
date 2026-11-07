@@ -12,7 +12,8 @@ import java.util.Optional;
  * its subtype (the rest), an empty subtype meaning {@code *}; a value without a slash keeps {@code -*.a-zA-Z0-9} and
  * gets {@code /*} unless it holds a star. Each run of stars becomes one SQL wildcard {@code %}; a pattern with a
  * wildcard is compared with LIKE, any other for equality. As in WordPress, a piece that is empty, {@code %} or {@code
- * %/%} drops the whole filter, whatever the other pieces; so does a trailing comma.
+ * %/%} once its whitespace is removed drops the whole filter, whatever the other pieces; so does a trailing comma, a
+ * piece of whitespace only or {@code " %"}.
  */
 public final class MimeFilter {
 
@@ -37,7 +38,8 @@ public final class MimeFilter {
     public static Optional<List<MimeClause>> parse(List<String> given) {
         List<String> values = pieces(given);
         for (String value : values) {
-            if (value.isEmpty() || value.equals("%") || value.equals("%/%")) {
+            String bare = withoutWhitespace(value);
+            if (bare.isEmpty() || bare.equals("%") || bare.equals("%/%")) {
                 return Optional.empty();
             }
         }
@@ -49,6 +51,18 @@ public final class MimeFilter {
             clauses.add(clause(value));
         }
         return Optional.of(List.copyOf(clauses));
+    }
+
+    /** The value without ASCII whitespace (space, tab, line feed, vertical tab, form feed, carriage return). */
+    private static String withoutWhitespace(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c != ' ' && (c < '\t' || c > '\r')) {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     /** Every value split on commas, empty pieces kept; at most {@link #MAX_VALUES} pieces. */

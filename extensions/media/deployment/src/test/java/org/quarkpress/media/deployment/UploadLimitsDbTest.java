@@ -300,6 +300,12 @@ class UploadLimitsDbTest {
                         .mimeType())
                 .isEqualTo("image/jpeg");
         assertThat(extensions(frank)).containsExactlyInAnyOrder("jpg", "jpeg", "jpe", "png", "pdf");
+        // a JPEG named with an extension the list leaves out is refused, not renamed to .jpg (as WordPress does)
+        assertRefused(
+                frank,
+                upload("x.webp", MediaFixtures.jpeg(8, 8), "application/octet-stream"),
+                "upload_error",
+                NOT_ALLOWED);
         network.delete("upload_filetypes");
         assertThat(extensions(frank)).containsExactlyInAnyOrder("jpg", "jpeg", "jpe", "png", "gif");
         assertThat(extensions(alice)).containsExactlyInAnyOrder("jpg", "jpeg", "jpe", "png", "gif");

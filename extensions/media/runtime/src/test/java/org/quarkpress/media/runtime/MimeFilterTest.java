@@ -36,6 +36,14 @@ class MimeFilterTest {
             assertThat(MimeFilter.parse(List.of("image", v))).as(v).isEmpty();
             assertThat(MimeFilter.parse(List.of(v, "image"))).as(v).isEmpty();
         }
+        // whitespace is removed first, as WordPress does (recorded by the media parity run): a value of whitespace
+        // only, or one of those values with whitespace around it, drops the filter too
+        for (String v : List.of("   ", " %", "% ", "\t%/% ", " \n", "\r%", "%\f", "\u000B%/%", "\r\f\u000B")) {
+            assertThat(MimeFilter.parse(List.of("image", v))).as("[%s]", v).isEmpty();
+        }
+        assertThat(MimeFilter.parse(List.of("image, %"))).isEmpty();
+        // the character after carriage return is not whitespace: the value stays a filter
+        assertThat(MimeFilter.parse(List.of("\u000E%"))).isPresent();
         // only those exact values: the same characters inside other values are cleaned away
         assertThat(MimeFilter.parse(List.of("%%"))).contains(List.of(new MimeClause("/%", true)));
         assertThat(MimeFilter.parse(List.of("image/%"))).contains(List.of(new MimeClause("image/%", true)));
@@ -103,7 +111,9 @@ class MimeFilterTest {
         Properties.check(
                 "MimeFilterTest.clauses", 3_000, Gens.lists(Gens.strings("ab+*/-.%! \t9Z_", 0, 12), 1, 4), values -> {
                     Optional<List<MimeClause>> parsed = MimeFilter.parse(values);
-                    boolean dropped = values.stream().anyMatch(v -> v.isEmpty() || v.equals("%") || v.equals("%/%"));
+                    boolean dropped = values.stream()
+                            .map(v -> v.replace(" ", "").replace("\t", ""))
+                            .anyMatch(v -> v.isEmpty() || v.equals("%") || v.equals("%/%"));
                     assertThat(parsed.isEmpty()).isEqualTo(dropped);
                     parsed.ifPresent(clauses -> {
                         assertThat(clauses).hasSize(values.size());

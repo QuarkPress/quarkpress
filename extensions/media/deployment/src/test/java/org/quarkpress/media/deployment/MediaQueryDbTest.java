@@ -166,6 +166,10 @@ class MediaQueryDbTest {
         assertThat(ids(query().mimeTypes(List.of("image/JPEG")))).containsExactlyInAnyOrder(jpeg, carolJpeg);
         assertThat(ids(query().mimeTypes(List.of("*")))).hasSize(5);
         assertThat(ids(query().mimeTypes(List.of("%")))).hasSize(5);
+        // whitespace goes first, as in WordPress: these drop the filter as well
+        assertThat(ids(query().mimeTypes(List.of("   ")))).hasSize(5);
+        assertThat(ids(query().mimeTypes(List.of(" %")))).hasSize(5);
+        assertThat(ids(query().mimeTypes(List.of("% ")))).hasSize(5);
         assertThat(ids(query().mimeTypes(List.of("image/jp*", "application/vnd.ms-*"))))
                 .containsExactlyInAnyOrder(jpeg, carolJpeg);
         assertThat(ids(query().mimeTypes(List.of("audio")))).isEmpty();
