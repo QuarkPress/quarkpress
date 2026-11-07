@@ -40,6 +40,9 @@ public class TestStorage implements MediaStorage {
     private final AtomicInteger appearAlways = new AtomicInteger();
     private volatile boolean listingFails;
     private final AtomicInteger puts = new AtomicInteger();
+    private final AtomicInteger unpaddedPuts = new AtomicInteger(Integer.MAX_VALUE);
+    private volatile int padding;
+    private volatile RuntimeException openFailure;
 
     /** Removes every file and resets the switches. */
     public void clear() {
@@ -48,6 +51,9 @@ public class TestStorage implements MediaStorage {
         appearAlways.set(0);
         listingFails = false;
         puts.set(0);
+        unpaddedPuts.set(Integer.MAX_VALUE);
+        padding = 0;
+        openFailure = null;
     }
 
     /** How many files callers stored since the last {@link #clear}, whether or not they were removed again. */
@@ -63,6 +69,20 @@ public class TestStorage implements MediaStorage {
     /** Every create-exclusive write finds its key taken by another upload, at most {@code times} times. */
     public void takeEveryName(int times) {
         appearAlways.set(times);
+    }
+
+    /**
+     * After the next {@code skipped} writes, every write stores {@code bytes} more bytes than its source holds, as a
+     * backend that adds to what it stores would: sizes must then be read from the storage, not from the source.
+     */
+    public void padWritesAfter(int skipped, int bytes) {
+        unpaddedPuts.set(skipped);
+        padding = bytes;
+    }
+
+    /** Every read throws {@code failure}, as a backend whose client fails would; null to read again. */
+    public void openFails(RuntimeException failure) {
+        openFailure = failure;
     }
 
     public void listingFails(boolean fails) {
@@ -92,6 +112,9 @@ public class TestStorage implements MediaStorage {
             }
         }
         byte[] bytes = Files.readAllBytes(source);
+        if (unpaddedPuts.getAndUpdate(n -> n == Integer.MAX_VALUE ? n : Math.max(-1, n - 1)) <= 0) {
+            bytes = java.util.Arrays.copyOf(bytes, bytes.length + padding);
+        }
         if (mode == WriteMode.CREATE_NEW) {
             byte[] other = appearBeforeWrite.remove(key);
             if (other != null) {
@@ -111,6 +134,10 @@ public class TestStorage implements MediaStorage {
 
     @Override
     public InputStream open(String key) throws IOException {
+        RuntimeException failure = openFailure;
+        if (failure != null) {
+            throw failure;
+        }
         byte[] bytes = files.get(StoredKey.require(key));
         if (bytes == null) {
             throw new NoSuchFileException(key);

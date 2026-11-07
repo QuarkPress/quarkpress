@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -28,8 +29,9 @@ import org.quarkpress.media.ImageProcessor;
 
 /**
  * An image processor on the JDK's own ImageIO codecs that handles JPEG, PNG and GIF only, the types WordPress's GD
- * editor handles without WebP and AVIF support. Switches let a test make one output size fail to encode or make
- * decoding throw.
+ * editor handles without WebP and AVIF support. Switches let a test make one output size fail to encode, make one cut
+ * throw, make decoding throw or slow it down; counters tell how often it decoded and how many decoded images were open
+ * at once (an image and every image made from it count as one until all of them are closed).
  */
 @ApplicationScoped
 public class TestProcessor implements ImageProcessor {
@@ -38,11 +40,29 @@ public class TestProcessor implements ImageProcessor {
             Map.of("image/jpeg", "jpeg", "image/png", "png", "image/gif", "gif");
 
     private final Set<String> failingSizes = ConcurrentHashMap.newKeySet();
+    private final Set<String> failingRegions = ConcurrentHashMap.newKeySet();
     private volatile RuntimeException decodeFailure;
+    private volatile Error decodeError;
+    private volatile Throwable turnFailure;
+    private volatile RuntimeException supportsFailure;
+    private volatile long decodeMillis;
+    private final AtomicInteger decodes = new AtomicInteger();
+    private final AtomicInteger encodes = new AtomicInteger();
+    private volatile java.util.concurrent.CyclicBarrier encodeBarrier;
+    private final AtomicInteger barrierParties = new AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicReference<Runnable> duringDecode =
+            new java.util.concurrent.atomic.AtomicReference<>();
+    private final AtomicInteger open = new AtomicInteger();
+    private final AtomicInteger maxOpen = new AtomicInteger();
 
     /** Encoding an image of {@code width}&times;{@code height} fails with {@link ImageProcessingException}. */
     public void failSize(int width, int height) {
         failingSizes.add(width + "x" + height);
+    }
+
+    /** Cutting a region scaled to {@code width}&times;{@code height} throws {@link IllegalStateException}. */
+    public void failRegion(int width, int height) {
+        failingRegions.add(width + "x" + height);
     }
 
     /** Decoding throws {@code failure}; null to decode again. */
@@ -50,14 +70,81 @@ public class TestProcessor implements ImageProcessor {
         decodeFailure = failure;
     }
 
-    /** Resets the switches. */
+    /** Decoding throws {@code error} (such as an {@link OutOfMemoryError}); null to decode again. */
+    public void errorOnDecode(Error error) {
+        decodeError = error;
+    }
+
+    /** Turning an image upright throws {@code failure}, a runtime exception or an error; null to turn again. */
+    public void failTurns(Throwable failure) {
+        turnFailure = failure;
+    }
+
+    /** {@link #supports} throws {@code failure}; null to answer again. */
+    public void throwOnSupports(RuntimeException failure) {
+        supportsFailure = failure;
+    }
+
+    /** Each decode takes at least {@code millis} milliseconds longer. */
+    public void slowDecodes(long millis) {
+        decodeMillis = millis;
+    }
+
+    /** How many times an image was encoded since the last {@link #reset}. */
+    public int encodes() {
+        return encodes.get();
+    }
+
+    /**
+     * The first {@code parties} encodes wait for each other (at most ten seconds) before they write: concurrent runs
+     * then reach their saves together.
+     */
+    public void encodeBarrier(int parties) {
+        barrierParties.set(parties);
+        encodeBarrier = new java.util.concurrent.CyclicBarrier(parties);
+    }
+
+    /**
+     * The next decode first runs {@code work} once, on its own thread, and waits for it; then it decodes (or fails as
+     * the switches say, as they are once {@code work} has ended).
+     */
+    public void duringNextDecode(Runnable work) {
+        duringDecode.set(work);
+    }
+
+    /** How many times {@link #decode} was called since the last {@link #reset}. */
+    public int decodes() {
+        return decodes.get();
+    }
+
+    /** The highest number of decoded images open at once since the last {@link #reset}. */
+    public int maxOpenDecodes() {
+        return maxOpen.get();
+    }
+
+    /** Resets the switches and the counters. */
     public void reset() {
         failingSizes.clear();
+        failingRegions.clear();
         decodeFailure = null;
+        decodeError = null;
+        turnFailure = null;
+        supportsFailure = null;
+        decodeMillis = 0;
+        decodes.set(0);
+        encodes.set(0);
+        encodeBarrier = null;
+        barrierParties.set(0);
+        duringDecode.set(null);
+        maxOpen.set(open.get());
     }
 
     @Override
     public boolean supports(String mimeType) {
+        RuntimeException failure = supportsFailure;
+        if (failure != null) {
+            throw failure;
+        }
         return FORMATS.containsKey(mimeType);
     }
 
@@ -87,16 +174,41 @@ public class TestProcessor implements ImageProcessor {
 
     @Override
     public DecodedImage decode(Path file, String mimeType) throws ImageProcessingException {
+        decodes.incrementAndGet();
+        Runnable work = duringDecode.getAndSet(null);
+        if (work != null) {
+            Thread helper = new Thread(work, "test-during-decode");
+            helper.start();
+            try {
+                helper.join(60_000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
         RuntimeException failure = decodeFailure;
         if (failure != null) {
             throw failure;
+        }
+        Error error = decodeError;
+        if (error != null) {
+            throw error;
         }
         try {
             BufferedImage image = ImageIO.read(file.toFile());
             if (image == null) {
                 throw new ImageProcessingException("No image reader knows the file's type.");
             }
-            return new Image(image);
+            Root root = new Root();
+            Image decoded = new Image(image, root);
+            long millis = decodeMillis;
+            if (millis > 0) {
+                try {
+                    Thread.sleep(millis);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return decoded;
         } catch (IOException unreadable) {
             throw new ImageProcessingException("The image could not be decoded.");
         }
@@ -111,12 +223,34 @@ public class TestProcessor implements ImageProcessor {
         };
     }
 
+    /** A decoded image and the images made from it: open while any of them is. */
+    private final class Root {
+        private final AtomicInteger live = new AtomicInteger();
+
+        void opened() {
+            if (live.getAndIncrement() == 0) {
+                int now = open.incrementAndGet();
+                maxOpen.accumulateAndGet(now, Math::max);
+            }
+        }
+
+        void closed() {
+            if (live.decrementAndGet() == 0) {
+                open.decrementAndGet();
+            }
+        }
+    }
+
     private final class Image implements DecodedImage {
 
         private final BufferedImage pixels;
+        private final Root root;
+        private boolean closed;
 
-        Image(BufferedImage pixels) {
+        Image(BufferedImage pixels, Root root) {
             this.pixels = pixels;
+            this.root = root;
+            root.opened();
         }
 
         @Override
@@ -131,6 +265,13 @@ public class TestProcessor implements ImageProcessor {
 
         @Override
         public DecodedImage oriented(int exifOrientation) {
+            Throwable failure = turnFailure;
+            if (failure instanceof RuntimeException runtime && exifOrientation >= 2 && exifOrientation <= 8) {
+                throw runtime;
+            }
+            if (failure instanceof Error error && exifOrientation >= 2 && exifOrientation <= 8) {
+                throw error;
+            }
             if (exifOrientation < 2 || exifOrientation > 8) {
                 return this;
             }
@@ -152,11 +293,14 @@ public class TestProcessor implements ImageProcessor {
                     target.setRGB(x, y, pixels.getRGB(from[0], from[1]));
                 }
             }
-            return new Image(target);
+            return new Image(target, root);
         }
 
         @Override
         public DecodedImage region(int x, int y, int w, int h, int targetWidth, int targetHeight) {
+            if (failingRegions.contains(targetWidth + "x" + targetHeight)) {
+                throw new IllegalStateException("the test processor cannot cut this region");
+            }
             BufferedImage target = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = target.createGraphics();
             try {
@@ -165,7 +309,7 @@ public class TestProcessor implements ImageProcessor {
             } finally {
                 g.dispose();
             }
-            return new Image(target);
+            return new Image(target, root);
         }
 
         @Override
@@ -173,6 +317,15 @@ public class TestProcessor implements ImageProcessor {
             String format = FORMATS.get(mimeType);
             if (format == null) {
                 throw new ImageProcessingException("The image cannot be written as " + mimeType + ".");
+            }
+            encodes.incrementAndGet();
+            java.util.concurrent.CyclicBarrier barrier = encodeBarrier;
+            if (barrier != null && barrierParties.getAndDecrement() > 0) {
+                try {
+                    barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (Exception broken) {
+                    throw new IllegalStateException("the encode barrier broke", broken);
+                }
             }
             if (failingSizes.contains(pixels.getWidth() + "x" + pixels.getHeight())) {
                 throw new ImageProcessingException("The image could not be written.");
@@ -209,8 +362,12 @@ public class TestProcessor implements ImageProcessor {
         }
 
         @Override
-        public void close() {
-            pixels.flush();
+        public synchronized void close() {
+            if (!closed) {
+                closed = true;
+                pixels.flush();
+                root.closed();
+            }
         }
     }
 }

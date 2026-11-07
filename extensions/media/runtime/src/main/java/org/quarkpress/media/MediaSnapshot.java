@@ -100,14 +100,14 @@ public record MediaSnapshot(
      * The attachment's metadata as WordPress stores it ({@code _wp_attachment_metadata}): empty while the upload is
      * pending; for an image of known dimensions {@code width}, {@code height}, {@code file}, {@code filesize},
      * {@code sizes}, {@code image_meta}, then {@code original_image} when there is one, then the other keys; for any
-     * other file the other keys, then {@code filesize} unless they hold one.
+     * other file (a video of known dimensions included) the other keys, then {@code filesize} unless they hold one.
      */
     public ObjectNode wordPressMetadata() {
         ObjectNode metadata = JsonNodeFactory.instance.objectNode();
         if (processing == Processing.PENDING) {
             return metadata;
         }
-        if (width.isPresent() && height.isPresent()) {
+        if (mimeType.startsWith("image/") && width.isPresent() && height.isPresent()) {
             metadata.put("width", width.getAsInt());
             metadata.put("height", height.getAsInt());
             metadata.put("file", attachedFile);
