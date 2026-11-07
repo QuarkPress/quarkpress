@@ -85,7 +85,9 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   stored value on `update`. `author` and `parent` use 0 for none. `date` is the local date in the site's zone,
   `dateGmt` the GMT date; `editDate` lets an update date a draft whose date floats (WordPress's `edit_date`);
   `clearDates` clears both dates as WordPress's empty `post_date` and `post_date_gmt` do: given dates are ignored and
-  the post is dated now, its date floating when the status it gets is draft, pending or auto-draft.
+  the post is dated now, its date floating when the status it gets is draft, pending or auto-draft. `guid` is the
+  guid of a new post, stored as given (the media module gives an attachment its file's URL); without it the guid is
+  generated, and an update ignores it, as WordPress never changes a guid.
 - With `expectedVersion`, an update of a post that changed since that version throws
   `jakarta.persistence.OptimisticLockException`. A post's version changes with every write of its row, meta writes
   included, except sticking and unsticking, the parent change a deleted parent hands down, and the internal meta
@@ -168,7 +170,8 @@ A save follows `wp_insert_post` and `wp_update_post`:
 - **Hierarchy.** A parent must be a post of the same site. On every save of every type the parent goes through
   WordPress's loop check: a post that is its own parent, or whose parent's chain leads back to it, gets none; a loop
   further up the chain is cut by giving each of its posts no parent, in WordPress's order.
-- **Guid.** Set once on insert: the plain permalink on the site's `http` home.
+- **Guid.** Set once on insert: the `guid` given (refused as `db_insert_error` when longer than its column), else the
+  plain permalink on the site's `http` home.
 
 `publish` changes only the status, as WordPress's scheduled publishing (`wp_publish_post`) does; it returns false for a
 published post. `publishIfDue` is the scheduled-publishing handler itself (`check_and_publish_future_post`): under the
@@ -209,6 +212,10 @@ site's `posts_per_page` option as default, and sticky posts first (`stickyFirst`
 It also takes a slug list (`nameIn`, ordered by `OrderKey.NAME_IN`), the columns a search looks in (`searchColumns`),
 an exact search (`exactSearch`, whole columns) and term filters (`taxQuery`, whose conditions come from the taxonomy
 module's `TermConditionProvider`; a positive clause makes the query an archive without sticky posts first).
+`condition(key, argument)` adds another module's condition, answered by the `PostConditionProvider` bean of that key
+(the media module's MIME-type filter is one): conditions hold next to every other one, in the order given, one that
+matches nothing empties the query, a key no bean provides is refused with `IllegalArgumentException` when the query
+runs, and two beans providing one key stop the application at start.
 Without statuses a query shows published posts and, to a logged-in user, the private posts it may read; the system
 identity counts as logged out. A query by id or slug is never paged and checks each post it finds as WordPress checks a
 single post. `PostPage` holds the posts, the number of matching posts and the number of pages. The Javadoc of
@@ -232,13 +239,19 @@ it for rollback, whatever the exception type) and again to `@ObservesAsync` obse
 | `PostRestored` | `untrashed_post` | a post left the trash, with the status recorded when it was trashed |
 | `PostDeleting` | `before_delete_post`, `delete_attachment` | before a delete changes anything; observers clean up what they keep about the post |
 | `PostDeleted` | `deleted_post`, `deleted_post_{type}` | after the delete, with the post's id and type |
+| `AttachmentAdded` | `add_attachment` | an attachment created by `create`, in place of the save events |
+| `AttachmentEdited` | `edit_attachment`, `attachment_updated` | an attachment updated by `update`, with the attachment before and after, in place of the save events |
 
-Saves of attachments by `create` and `update` fire none of the save events (WordPress announces attachments with
-events of their own, which come with the media module); `publish` fires `PostStatusChanged`, `PostPublished` and
-`PostSaved` for every type, attachments included, and never `PostUpdated`.
+Saves of attachments by `create` and `update` fire `AttachmentAdded` and `AttachmentEdited` instead of the save events
+(`PostStatusChanged`, `PostPublished`, `PostScheduled`, `PostUpdated`, `PostSaved`, `PostCreated`), as WordPress
+announces attachments with events of their own. Trashing or restoring an attachment fires only `PostTrashed` or
+`PostRestored`, not `AttachmentEdited` (what WordPress fires there has not been recorded); deleting one fires
+`PostDeleting` and `PostDeleted`. `publish` fires `PostStatusChanged`, `PostPublished` and `PostSaved` for every type,
+attachments included, and never `PostUpdated`.
 
-The taxonomy module observes `PostStatusChanged` and `PostDeleting` inside the saving transaction: it gives saved posts
-their default terms, keeps term counts, and removes a deleted post's assignments.
+The taxonomy module observes `PostStatusChanged`, `AttachmentAdded`, `AttachmentEdited` and `PostDeleting` inside the
+saving transaction: it gives saved posts and attachments their default terms, keeps term counts, and removes a deleted
+post's assignments.
 
 The revisions module observes `PostSaved` (except for a new post) and `PostDeleting` inside the saving transaction: it
 saves a revision after every update-like save, and removes a deleted post's revisions one by one.
@@ -313,8 +326,8 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 ## Limits
 
 - Slugs are at most 200 bytes, type, status, comment status and ping status names at most 20 characters, passwords
-  255 characters and guids 255 characters (a longer guid is cut). A search string longer than 1,600 bytes is ignored,
-  as WordPress ignores it.
+  255 characters and guids 255 characters (a longer generated guid is cut, a longer given one refused). A search
+  string longer than 1,600 bytes is ignored, as WordPress ignores it.
 - Write a new site's posts only after the transaction that creates the site has committed: the post lock's row checks
   the site's row through its foreign key, so a site scope spawned before then fails on PostgreSQL and waits on MySQL
   until the lock-wait timeout.
@@ -369,7 +382,7 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D8 | Only type `post` can be sticky, never a password-protected post; `stickyPosts` lists ids in id order. WordPress's `stick_post` accepts any id and keeps insertion order. |
 | D9 | A post type or status registered twice fails the build; WordPress replaces the earlier registration. Status names longer than 20 characters are refused when registered, as type keys are; WordPress fails only when a post is saved with one. |
 | D10 | The built-in types are `post`, `page`, `attachment` and `wp_block`; WordPress's other built-in types come with the modules that use them. |
-| D11 | The guid is always the plain permalink on the site's `http` home; WordPress uses the pretty permalink for posts published while pretty permalinks are on. |
+| D11 | A guid not given is always the plain permalink on the site's `http` home; WordPress uses the pretty permalink for posts published while pretty permalinks are on. |
 | D12 | Post ids are unique across the network; WordPress numbers posts per site. |
 | D13 | No pingback or enclosure markers (`_pingme`, `_encloseme`) are written, and nothing about comments happens yet (deleting a post deletes no comments). |
 | D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` (the taxonomy module assigns terms after the save) and `meta_input` are not stored; global styles are not filtered on save. |
@@ -384,7 +397,7 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D23 | An author of `0` (no author) is accepted from a caller holding the type's `edit_others_posts`; WordPress's REST layer refuses it as an invalid author. |
 | D24 | When breaking a parent loop re-parents another post and that change is refused (possible only with a loop made outside QuarkPress), the whole save fails and changes nothing; WordPress ignores the refused change and saves the post. |
 | D25 | A trash that fails or is refused changes nothing; WordPress, which has no transaction, keeps the trash meta, the unstick and the reset reading settings it wrote before the failure. |
-| D26 | Deleting an attachment does not remove other posts' `_thumbnail_id` meta that points to it (the media module adds it), and a sticky attachment (possible only after a type change) is unstuck with a `StickyChanged` event, which WordPress's attachment path does not send. |
+| D26 | Without the media module, deleting an attachment leaves other posts' `_thumbnail_id`; with it they are removed. A sticky attachment (possible only after a type change) is unstuck with a `StickyChanged` event, which WordPress's attachment path does not send. |
 | D27 | A single-post query whose post the caller may not see reports `found` 0; WordPress counts it (1) and returns no post. |
 | D28 | In a list query that names statuses, an attachment whose parent is trashed is judged against the parent's `trash` status; WordPress's REST layer judges it by the status the parent had before it was trashed, so an author may miss other users' attachments under a trashed published post. |
 | D29 | Ordering by relevance a search made only of excluded terms orders by date; WordPress builds an invalid SQL statement for it. |
