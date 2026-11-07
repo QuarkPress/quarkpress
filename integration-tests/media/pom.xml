@@ -80,7 +80,9 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- MediaFixtures: the test files (JPEGs with EXIF, IPTC and ICC segments, WebP, MP4, OOXML) written by hand. -->
+    <!-- MediaFixtures: the test files (JPEGs with EXIF, IPTC and ICC segments, WebP, MP4, OOXML) written by hand; and
+         the media parity comparison (MediaParityDbTest, -Pwp-parity): WordPress served by php -S, the scenarios and
+         the comparison library. -->
     <dependency>
       <groupId>org.quarkpress.testing</groupId>
       <artifactId>quarkpress-test-wp-rest-parity</artifactId>
@@ -199,6 +201,17 @@
       <plugin>
         <groupId>io.quarkus</groupId>
         <artifactId>quarkus-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- MediaParityDbTest sends its requests with java.net.http and names the network's host (localhost,
+                 without the test port) in the Host header. -->
+            <jdk.httpclient.allowRestrictedHeaders>host</jdk.httpclient.allowRestrictedHeaders>
+          </systemPropertyVariables>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

@@ -17,7 +17,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -194,14 +196,15 @@ public class ItMediaResource {
     }
 
     /**
-     * The site's attachments matching the arguments (each optional): {@code mime_type} (repeatable), {@code parent}
-     * (0 for the unattached ones) and {@code author}; at most 100, as the posts module orders them by default.
+     * The site's attachments matching the arguments (each optional): {@code mime_type} (repeatable; an empty value is
+     * kept, as the media module's filter gives it a meaning), {@code parent} (0 for the unattached ones) and {@code
+     * author}; at most 100, as the posts module orders them by default.
      */
     @GET
     public List<MediaView> query(
-            @QueryParam("mime_type") List<String> mimeTypes,
-            @QueryParam("parent") Long parent,
-            @QueryParam("author") Long author) {
+            @Context UriInfo uri, @QueryParam("parent") Long parent, @QueryParam("author") Long author) {
+        // read from the raw query parameters: a declared list parameter drops empty values
+        List<String> mimeTypes = uri.getQueryParameters().get("mime_type");
         MediaQuery.Builder query = MediaQuery.builder().perPage(100);
         if (mimeTypes != null && !mimeTypes.isEmpty()) {
             query.mimeTypes(mimeTypes);
