@@ -58,8 +58,8 @@ import org.quarkpress.security.runtime.InstallMode;
  * Stores an upload as WordPress's REST upload does, in WordPress's order: the checks that come before the file is
  * read (the caller may upload and may name another author, the parent exists and the caller may edit it, an image the
  * processor cannot make sizes for, a parent that is an attachment or a revision), the folder's time, the size limit,
- * the upload filters, the empty file, the type check, the folder and the unique file name, then the file, the
- * attachment post and its media row.
+ * the network's upload limits on a network, the upload filters, the empty file, the type check, the folder and the
+ * unique file name, then the file, the attachment post and its media row.
  * Every refusal comes before anything is written.
  *
  * <p>The file is written create-exclusive: when another upload took the name between the folder listing and the
@@ -133,6 +133,9 @@ public class UploadPipeline {
     AllowedTypesFor allowedTypes;
 
     @Inject
+    UploadLimits uploadLimits;
+
+    @Inject
     MimeTypes mimeTypes;
 
     @Inject
@@ -191,6 +194,10 @@ public class UploadPipeline {
         if (limit.isPresent() && size > limit.get().asLongValue()) {
             throw MediaException.upload("This file is too big. Files must be less than "
                     + limit.get().asLongValue() / 1024 + " KB in size.");
+        }
+        Optional<MediaException> overNetworkLimit = uploadLimits.forSite(size);
+        if (overNetworkLimit.isPresent()) {
+            throw overNetworkLimit.get();
         }
         UploadCheck check =
                 new UploadCheck(siteId, acting.user(), upload.clientName(), upload.declaredType(), size, upload.file());

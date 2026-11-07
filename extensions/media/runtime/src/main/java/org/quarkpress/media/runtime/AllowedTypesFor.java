@@ -25,14 +25,18 @@ public class AllowedTypesFor {
     @Inject
     Acting acting;
 
+    @Inject
+    NetworkUploadTypes networkTypes;
+
     /**
      * The acting user's upload types on the current site: the site's type list, with {@code htm|html} and {@code js}
-     * only for a user who may post unfiltered HTML, without the configured denied extensions.
+     * only for a user who may post unfiltered HTML (on a network, super admins only), without the configured denied
+     * extensions, and on a network only the patterns the network's list of upload types keeps.
      */
     public AllowedTypes current() {
         SiteId siteId = site.siteId();
         boolean unfilteredHtml = acting.can(siteId, "unfiltered_html", Optional.empty());
         return AllowedTypes.of(
-                mimeTypes.patterns(), unfilteredHtml, config.deniedExtensions().orElse(List.of()), Optional.empty());
+                mimeTypes.patterns(), unfilteredHtml, config.deniedExtensions().orElse(List.of()), networkTypes.list());
     }
 }
