@@ -36,6 +36,7 @@
     <module>dev-ui-posts</module>
     <module>host-coexistence</module>
     <module>rest-wp-v2</module>
+    <module>media</module>
     <module>media-native-spike</module>
   </modules>
 
