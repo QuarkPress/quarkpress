@@ -12,9 +12,9 @@ import java.util.Optional;
 import org.quarkpress.testing.wporacle.OracleJson;
 
 /**
- * A request and the response it got: the status, the header lines by name, the body as sent, and {@code sentAt}, the
- * moment the request was sent (neither side records a request time; the comparison uses it to tell a fresh date from a
- * stored one).
+ * A request and the response it got (the call keeps what was sent, its {@link RestCall#headerLines} included): the
+ * status, the header lines by name, the body as sent, and {@code sentAt}, the moment the request was sent (neither side
+ * records a request time; the comparison uses it to tell a fresh date from a stored one).
  */
 public record Exchange(RestCall call, int status, Map<String, List<String>> headers, byte[] body, Instant sentAt) {
 

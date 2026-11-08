@@ -211,11 +211,31 @@ public final class WordPressRestSite implements AutoCloseable {
         return password;
     }
 
-    /** Runs one rest-setup.php operation on the site's database (CLI, not HTTP); returns its JSON answer. */
+    /**
+     * Runs one rest-setup.php operation on the site's database (CLI, not HTTP); returns its JSON answer. The answer of
+     * {@code role} names the user it gave the role to, with that user's id and a new application password; the user is
+     * registered as a caller from then on ({@link #userId}, {@link #applicationPassword}, {@link #knows}).
+     */
     public JsonNode operation(String op, ObjectNode args) throws IOException, InterruptedException {
         Objects.requireNonNull(op, "op");
         Objects.requireNonNull(args, "args");
-        return exec(op, args);
+        JsonNode answer = exec(op, args);
+        if ("role".equals(op)) {
+            if (!answer.path("user").isTextual()
+                    || !answer.path("id").isIntegralNumber()
+                    || !answer.path("password").isTextual()) {
+                throw new IllegalStateException("rest-setup.php role did not answer a user and a password: " + answer);
+            }
+            String user = answer.get("user").textValue();
+            ids.put(user, answer.get("id").longValue());
+            passwords.put(user, answer.get("password").textValue());
+        }
+        return answer;
+    }
+
+    /** Whether {@code user} is a caller of the site: a {@link #USERS} entry or a user a {@code role} operation made. */
+    public boolean knows(String user) {
+        return passwords.containsKey(user);
     }
 
     /** Sets an option of the main site (operation {@code option}). */

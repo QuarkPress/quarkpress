@@ -294,7 +294,13 @@ final class QuarkPressMediaSide implements MediaSide {
         Map<String, String> headers = new LinkedHashMap<>(call.headers());
         headers.put("Host", "localhost");
         return client.send(new RestCall(
-                call.as(), call.method(), prefix + call.target(), headers, call.contentType(), call.body()));
+                call.as(),
+                call.method(),
+                prefix + call.target(),
+                headers,
+                call.contentType(),
+                call.body(),
+                call.headerLines()));
     }
 
     private static Exchange expect(Exchange exchange, int status, Object what) {

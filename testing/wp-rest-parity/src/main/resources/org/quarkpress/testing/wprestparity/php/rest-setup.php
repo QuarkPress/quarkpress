@@ -68,6 +68,16 @@
  *   get_option {site, name}        get_option on the site
  *   query_attachments {site, args: {post_mime_type}}  get_posts of inherit attachments, ids ascending
  *   remove_upload {site, file}     deletes one file of the site's uploads
+ * REST media facts operations (MediaRestFactsDbTest; each a harness rule):
+ *   role {site, name, caps}        adds the role "name" on the site with exactly the capabilities "caps" (a list),
+ *                                  gives it to the network user "uploader" (created on first use, a member of no other
+ *                                  site) on that site and creates an application password for him; answers
+ *                                  {user, id, password, role, caps}
+ *   trash_post {site, id}          wp_trash_post; answers {trashed}
+ *   delete_post {site, id, force}  wp_delete_post; answers {deleted}
+ *   batch {as, requests}           the body of a POST /batch/v1 holding the given sub-requests ({method, path, body?}
+ *                                  each, in order); answers {as, body}. It only builds the body: the test sends it
+ *                                  through the REST client as "as", so the exchange is recorded
  * The script calls WordPress functions; every rule it applies itself is marked "Harness rule" where it happens.
  */
 
@@ -287,6 +297,10 @@ const QP_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4n
 function qp_post(array $input): array
 {
     switch_to_blog(qp_site_id((string) $input['site']));
+    if (function_exists('qp_parity_register_hidden')) {
+        // the item site's non-REST type, registered by the mu-plugin for the served site only (harness rule)
+        qp_parity_register_hidden();
+    }
     $author = qp_user_id($input, 'as');
     wp_set_current_user($author);
     $fields = isset($input['fields']) && is_array($input['fields']) ? $input['fields'] : [];
@@ -1063,6 +1077,75 @@ function qp_remove_upload(array $input): array
     return ['removed' => is_file($path) && unlink($path)];
 }
 
+// ---- REST media facts operations (MediaRestFactsDbTest) -----------------------------------------------------------
+
+/**
+ * Harness rule: a role holding exactly the given capabilities on the site at path "site", given to the network user
+ * "uploader" there (created on first use with wpmu_create_user, so he has no role on any other site), with a new
+ * application password.
+ */
+function qp_role(array $input): array
+{
+    $site = qp_site_id((string) $input['site']);
+    $name = (string) $input['name'];
+    $caps = [];
+    foreach ((array) $input['caps'] as $cap) {
+        $caps[(string) $cap] = true;
+    }
+    switch_to_blog($site);
+    remove_role($name);
+    if (null === add_role($name, $name, $caps)) {
+        restore_current_blog();
+        throw new RuntimeException("add_role($name) refused");
+    }
+    restore_current_blog();
+    $user = get_user_by('login', 'uploader');
+    $id = false === $user ? wpmu_create_user('uploader', 'uploader', 'uploader@quarkpress.test') : $user->ID;
+    if (false === $id) {
+        throw new RuntimeException('wpmu_create_user refused uploader');
+    }
+    $added = add_user_to_blog($site, (int) $id, $name);
+    if (is_wp_error($added)) {
+        throw new RuntimeException('add_user_to_blog(uploader): ' . $added->get_error_code());
+    }
+    $created = WP_Application_Passwords::create_new_application_password((int) $id, ['name' => 'parity']);
+    if (is_wp_error($created)) {
+        throw new RuntimeException('create_new_application_password(uploader): ' . $created->get_error_code());
+    }
+    return ['user' => 'uploader', 'id' => (int) $id, 'password' => $created[0], 'role' => $name,
+        'caps' => array_keys($caps)];
+}
+
+function qp_trash_post(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $trashed = wp_trash_post((int) $input['id']);
+    restore_current_blog();
+    return ['trashed' => $trashed instanceof WP_Post];
+}
+
+function qp_delete_post(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $deleted = wp_delete_post((int) $input['id'], !empty($input['force']));
+    restore_current_blog();
+    return ['deleted' => $deleted instanceof WP_Post];
+}
+
+/** Harness rule: the batch route's body {"requests": [{method, path, body?}...]}, nothing else. */
+function qp_batch(array $input): array
+{
+    $requests = [];
+    foreach ((array) $input['requests'] as $request) {
+        $sub = ['method' => (string) $request['method'], 'path' => (string) $request['path']];
+        if (array_key_exists('body', $request)) {
+            $sub['body'] = $request['body'];
+        }
+        $requests[] = $sub;
+    }
+    return ['as' => (string) $input['as'], 'body' => ['requests' => $requests]];
+}
+
 $qp_input = json_decode((string) file_get_contents($qp_input_file), true, 512, JSON_THROW_ON_ERROR);
 try {
     if ('prepare' === $qp_mode) {
@@ -1117,6 +1200,10 @@ try {
         'get_option' => qp_get_option($qp_input),
         'query_attachments' => qp_query_attachments($qp_input),
         'remove_upload' => qp_remove_upload($qp_input),
+        'role' => qp_role($qp_input),
+        'trash_post' => qp_trash_post($qp_input),
+        'delete_post' => qp_delete_post($qp_input),
+        'batch' => qp_batch($qp_input),
         default => throw new InvalidArgumentException("unknown operation $qp_mode"),
     };
     qp_write($qp_output_file, ['out' => $qp_out]);

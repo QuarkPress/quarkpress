@@ -28,6 +28,12 @@
  *     is written the second time in a request, i.e. after the base save and the first sub-size's save; qp_parity_extra_sizes "900" registers
  *     the size qp-900w (900x0), "gravity" the sizes qp-left (100x100, left/top) and qp-right (100x100,
  *     right/bottom).
+ *   - REST media switches (site options "1"): qp_parity_fatal_on_second_size raises a real PHP fatal error (memory
+ *     exhausted, E_ERROR) at the same point as qp_parity_fail_on_second_size (the second write of
+ *     _wp_attachment_metadata in a request, after the base save and the first sub-size's save), so WordPress's
+ *     fatal-error handler answers the request; qp_parity_media_trashable makes
+ *     rest_attachment_trashable answer true (the stand-in for MEDIA_TRASH); qp_parity_hidden_type registers the public
+ *     custom type qp_hidden with show_in_rest false.
  */
 
 /**
@@ -119,13 +125,31 @@ foreach (QP_PARITY_LOGGED_HOOKS as $qp_hook) {
 }
 unset($qp_hook);
 
+/**
+ * Harness rule, not WordPress behaviour: ends the request with an engine fatal error (E_ERROR "Allowed memory size
+ * exhausted"), which no catch block can intercept, as a real memory exhaustion during image generation does. The
+ * limit is set a little above what is in use, so the shutdown handlers (WordPress's fatal-error handler) still run.
+ */
+function qp_parity_exhaust_memory(): void
+{
+    ini_set('memory_limit', (string) (memory_get_usage(true) + 16 * 1024 * 1024));
+    $GLOBALS['qp_parity_ballast'] = str_repeat('x', 256 * 1024 * 1024);
+}
+
+// One counter for both "second size" switches: qp_parity_fail_on_second_size throws an uncaught \Error (as before);
+// qp_parity_fatal_on_second_size exhausts memory instead, a real PHP fatal error.
 $qp_parity_metadata_writes = 0;
 foreach (['added_post_meta', 'updated_post_meta'] as $qp_meta_hook) {
     add_action($qp_meta_hook, static function ($meta_id, $object_id, $meta_key) use (&$qp_parity_metadata_writes): void {
-        if ('_wp_attachment_metadata' !== $meta_key || '1' !== get_option('qp_parity_fail_on_second_size')) {
+        $fail = '1' === get_option('qp_parity_fail_on_second_size');
+        $fatal = '1' === get_option('qp_parity_fatal_on_second_size');
+        if ('_wp_attachment_metadata' !== $meta_key || (!$fail && !$fatal)) {
             return;
         }
         if (++$qp_parity_metadata_writes >= 2) {
+            if ($fatal) {
+                qp_parity_exhaust_memory();
+            }
             throw new Error('qp_parity_fail_on_second_size: the request ends after the first sub-size');
         }
     }, 10, 3);
@@ -141,3 +165,25 @@ add_action('init', static function (): void {
         add_image_size('qp-right', 100, 100, ['right', 'bottom']);
     }
 }, 10);
+
+
+add_filter('rest_attachment_trashable', static function ($supports_trash) {
+    return '1' === get_option('qp_parity_media_trashable') ? true : $supports_trash;
+}, 20);
+
+/**
+ * Registers "qp_hidden" (public, not in REST) when the current site's switch is set. Called at init for the served
+ * site, and by rest-setup.php after switch_to_blog() before it inserts a post.
+ */
+function qp_parity_register_hidden(): void
+{
+    if ('1' === get_option('qp_parity_hidden_type') && !post_type_exists('qp_hidden')) {
+        register_post_type('qp_hidden', [
+            'labels' => ['name' => 'Hidden', 'singular_name' => 'Hidden'],
+            'public' => true,
+            'show_in_rest' => false,
+        ]);
+    }
+}
+
+add_action('init', 'qp_parity_register_hidden', 10);

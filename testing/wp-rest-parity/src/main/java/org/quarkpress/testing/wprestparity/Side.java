@@ -117,11 +117,17 @@ public interface Side extends AutoCloseable {
         };
     }
 
-    /** {@code call} with its target moved under {@code sitePath}. */
+    /** {@code call} with its target moved under {@code sitePath}; everything else, header lines included, kept. */
     static RestCall underSite(String sitePath, RestCall call) {
         String prefix = sitePath.endsWith("/") ? sitePath.substring(0, sitePath.length() - 1) : sitePath;
         return new RestCall(
-                call.as(), call.method(), prefix + call.target(), call.headers(), call.contentType(), call.body());
+                call.as(),
+                call.method(),
+                prefix + call.target(),
+                call.headers(),
+                call.contentType(),
+                call.body(),
+                call.headerLines());
     }
 
     /** The path of the site a user gets by an own-site step of the scenario at {@code sitePath}. */

@@ -53,6 +53,25 @@ class VerificationFactsTest {
     }
 
     @Test
+    void theHeaderLinesSentAreRecordedInOrderOnlyWhenThereAreSome() throws Exception {
+        Map<String, List<String>> lines = new LinkedHashMap<>();
+        lines.put("Content-Disposition", List.of("attachment; filename=\"b.png\"", "attachment; filename=\"a.png\""));
+        lines.put("Content-MD5", List.of(""));
+        RestCall call =
+                RestCall.raw("alice", "/wp-json/wp/v2/media", Optional.of("image/png"), lines, new byte[] {'x'});
+
+        ObjectNode entry = VerificationFacts.toJson(new Exchange(call, 201, Map.of(), new byte[0]));
+
+        assertThat(entry.get("request").get("headerLines"))
+                .isEqualTo(json("{\"Content-Disposition\":[\"attachment; filename=\\\"b.png\\\"\",\"attachment;"
+                        + " filename=\\\"a.png\\\"\"],\"Content-MD5\":[\"\"]}"));
+        assertThat(VerificationFacts.toJson(exchange(Map.of(), "{}"))
+                        .get("request")
+                        .has("headerLines"))
+                .isFalse();
+    }
+
+    @Test
     void anHtmlPageIsSummarisedWithItsTitleBodyClassFragmentsAndDigest() {
         String html = "<html><head><title>Edit Post</title></head><body class=\"wp-admin post-php\">"
                 + "<time datetime=\"2026-11-03T05:06:08+00:00\">November 3, 2026</time>"

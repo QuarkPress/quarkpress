@@ -68,7 +68,19 @@ class MediaFactsDbTest {
 
     /** The PHP extensions of the server (rest-setup.php {@code extensions}). */
     record Extensions(
-            boolean gd, boolean gdWebp, boolean gdAvif, boolean imagick, boolean dom, boolean exif, boolean fileinfo) {}
+            boolean gd, boolean gdWebp, boolean gdAvif, boolean imagick, boolean dom, boolean exif, boolean fileinfo) {
+
+        /** Skips the running item without GD, or fails it under {@code -Dwp.media.require-editor=true}. */
+        void requireEditor() {
+            if (gd) {
+                return;
+            }
+            if (Boolean.getBoolean("wp.media.require-editor")) {
+                fail("php8.4-gd is required (-Dwp.media.require-editor=true) but the server's PHP has no GD");
+            }
+            assumeTrue(false, GD_SKIP);
+        }
+    }
 
     /** The item the running test records under; null when it records nothing. */
     String item;
@@ -1514,13 +1526,7 @@ class MediaFactsDbTest {
 
     /** Skips the item without GD, or fails it under {@code -Dwp.media.require-editor=true}. */
     static void requireEditor() {
-        if (extensions.gd()) {
-            return;
-        }
-        if (Boolean.getBoolean("wp.media.require-editor")) {
-            fail("php8.4-gd is required (-Dwp.media.require-editor=true) but the server's PHP has no GD");
-        }
-        assumeTrue(false, GD_SKIP);
+        extensions.requireEditor();
     }
 
     /** Creates the item's subdirectory site {@code /<id>/} with empty uploads; answers its URL prefix {@code /<id>}. */

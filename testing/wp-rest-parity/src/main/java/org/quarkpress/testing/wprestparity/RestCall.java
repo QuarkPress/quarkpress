@@ -2,15 +2,19 @@ package org.quarkpress.testing.wprestparity;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A request as a user names it: who sends it ({@code "anonymous"}, a {@link WordPressRestSite#USERS} entry, or
- * {@code "invalid"}, a credential the server must refuse), the method, the target (path and query, starting with
- * {@code /}), extra headers, and an optional body with its content type.
+ * A request as a user names it: who sends it ({@code "anonymous"}, a {@link WordPressRestSite#USERS} entry, a user a
+ * setup operation registered on the site, or {@code "invalid"}, a credential the server must refuse), the method, the
+ * target (path and query, starting with {@code /}), extra headers, an optional body with its content type, and header
+ * lines sent as given after the headers ({@code headerLines}: one line per value, in order, so a name can be sent
+ * twice; empty unless the call was made by {@link #raw}).
  */
 public record RestCall(
         String as,
@@ -18,7 +22,8 @@ public record RestCall(
         String target,
         Map<String, String> headers,
         Optional<String> contentType,
-        Optional<byte[]> body) {
+        Optional<byte[]> body,
+        Map<String, List<String>> headerLines) {
 
     public RestCall {
         Objects.requireNonNull(as, "as");
@@ -26,11 +31,37 @@ public record RestCall(
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(contentType, "contentType");
         Objects.requireNonNull(body, "body");
+        Objects.requireNonNull(headerLines, "headerLines");
         if (!target.startsWith("/")) {
             throw new IllegalArgumentException("a target starts with '/': " + target);
         }
         headers = Map.copyOf(headers);
         body = body.map(byte[]::clone);
+        Map<String, List<String>> lines = new LinkedHashMap<>();
+        headerLines.forEach((name, values) -> lines.put(name, List.copyOf(values)));
+        headerLines = Collections.unmodifiableMap(lines);
+    }
+
+    /** A call without header lines (every factory but {@link #raw}). */
+    public RestCall(
+            String as,
+            String method,
+            String target,
+            Map<String, String> headers,
+            Optional<String> contentType,
+            Optional<byte[]> body) {
+        this(as, method, target, headers, contentType, body, Map.of());
+    }
+
+    /**
+     * A POST whose body is {@code body} as is, with {@code contentType} (none when empty) and each value of
+     * {@code headers} sent as a header line of its own, in the map's iteration order (two values of
+     * {@code Content-Disposition} are two lines). The raw-body upload's form.
+     */
+    public static RestCall raw(
+            String as, String target, Optional<String> contentType, Map<String, List<String>> headers, byte[] body) {
+        Objects.requireNonNull(body, "body");
+        return new RestCall(as, "POST", target, Map.of(), contentType, Optional.of(body), headers);
     }
 
     /** A GET of {@code target} with no extra headers and no body. */
@@ -144,7 +175,7 @@ public record RestCall(
      * This call with one more header, sent as given ({@code Cookie} and {@code X-WP-Nonce} of a cookie session
      * included); a header of the same name, compared without case, is replaced. A {@code Cookie} header makes the call
      * a cookie session: {@link RestClient} then sends no application password for {@link #as()}, whatever the cookie
-     * holds.
+     * holds. The call's {@link #headerLines} are kept.
      */
     public RestCall withHeader(String name, String value) {
         Objects.requireNonNull(name, "name");
@@ -156,6 +187,6 @@ public record RestCall(
             }
         }
         all.put(name, value);
-        return new RestCall(as, method, target, all, contentType, body);
+        return new RestCall(as, method, target, all, contentType, body, headerLines);
     }
 }

@@ -247,8 +247,14 @@ final class QuarkPressSide implements Side {
         RestCall moved = Side.underSite(sitePath, call);
         Map<String, String> headers = new LinkedHashMap<>(moved.headers());
         headers.put("Host", "localhost");
-        return client.send(
-                new RestCall(moved.as(), moved.method(), moved.target(), headers, moved.contentType(), moved.body()));
+        return client.send(new RestCall(
+                moved.as(),
+                moved.method(),
+                moved.target(),
+                headers,
+                moved.contentType(),
+                moved.body(),
+                moved.headerLines()));
     }
 
     private static Exchange expect(Exchange exchange, int status, String what) {

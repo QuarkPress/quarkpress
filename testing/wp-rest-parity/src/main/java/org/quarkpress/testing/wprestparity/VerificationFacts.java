@@ -25,11 +25,12 @@ import org.quarkpress.testing.wporacle.OracleJson;
  * the notes, to {@code target/wp-rest-parity/verification-facts.json} as {@code {"items": {item: [{request, status,
  * headers, body, bodyText}...]}, "notes": {item: {key: value}}}}. {@code body} is the parsed JSON when the body is
  * JSON, else the text; {@code bodyText} is always the body exactly as sent (escapes included). Header names are
- * lower-case, each with its lines in the order received. A {@code text/html} answer (an admin or front-end page) is
- * kept whole only under {@code target/wp-rest-parity/pages/<item>-<n>.html}; its entry holds, instead of the text, a
- * summary: the page's path, byte length and SHA-256, its {@code <title>}, the {@code <body>} class, the first 4 KB and
- * the fragments the items read ({@code postLock}, {@code initializeEditor}, {@code <time>} tags, the wp_die message),
- * and no {@code bodyText}.
+ * lower-case, each with its lines in the order received. A request's header lines ({@link RestCall#headerLines}) are
+ * kept under {@code request.headerLines}, by name as sent, each with its values in the order sent. A {@code text/html}
+ * answer (an admin or front-end page) is kept whole only under {@code target/wp-rest-parity/pages/<item>-<n>.html};
+ * its entry holds, instead of the text, a summary: the page's path, byte length and SHA-256, its {@code <title>}, the
+ * {@code <body>} class, the first 4 KB and the fragments the items read ({@code postLock}, {@code initializeEditor},
+ * {@code <time>} tags, the wp_die message), and no {@code bodyText}.
  */
 public final class VerificationFacts {
 
@@ -217,6 +218,13 @@ public final class VerificationFacts {
         request.put("target", call.target());
         ObjectNode requestHeaders = request.putObject("headers");
         new TreeMap<>(call.headers()).forEach(requestHeaders::put);
+        if (!call.headerLines().isEmpty()) {
+            ObjectNode lines = request.putObject("headerLines");
+            call.headerLines().forEach((name, values) -> {
+                ArrayNode sent = lines.putArray(name);
+                values.forEach(sent::add);
+            });
+        }
         call.contentType().ifPresent(type -> request.put("contentType", type));
         call.body().ifPresent(body -> request.put("body", new String(body, StandardCharsets.UTF_8)));
         entry.put("status", exchange.status());

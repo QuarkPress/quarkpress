@@ -52,6 +52,27 @@ as on WordPress's Network Setup screen), so the network's `upload_filetypes` is 
 runs with `display_errors=0`, `html_errors=0` and `log_errors=1`: PHP notices go to `php-errors.log` in the run's
 directory, never into a body.
 
+## The REST media facts run
+
+`MediaRestFactsDbTest` (run with `-Pwp-parity -Dtest=MediaRestFactsDbTest`) records what WordPress answers for the REST
+media references' verification lists into the same `verification-facts.json`: items `r01`-`r24` (the media routes:
+uploads, reads, writes, delete and post-process), `r26` (the upload header on a plain 201) and `s01`-`s18` (the
+attachment responses), each on a subdirectory site of its own (`/er01/`, `/es01/`, ...) whose uploads are emptied
+before and after it, plus the OPTIONS bodies of `/wp/v2/media`, `/wp/v2/media/{id}` and
+`/wp/v2/media/{id}/post-process` under `options/`. Raw-body uploads go through `RestCall.raw`, whose header lines are
+sent one line per value (two `Content-Disposition` lines are two lines) and recorded under the request's
+`headerLines`. Its setup operations are `role` (a role with exactly the given capabilities, held by the network user
+`uploader` on the item's site, whose new application password `WordPressRestSite` registers so that calls can be made
+as `uploader`), `trash_post`, `delete_post` and `batch` (which only builds the body of a `POST /batch/v1`; the test
+sends it). Its must-use plugin switches, site options set to `"1"` by the item and switched off in its `finally`, are
+`qp_parity_fatal_on_second_size` (a real PHP fatal error, memory exhausted, while the second sub-size is made, so
+WordPress's fatal-error handler answers), `qp_parity_media_trashable` (`rest_attachment_trashable` answers true,
+standing in for `MEDIA_TRASH`) and `qp_parity_hidden_type` (a public custom type `qp_hidden` outside REST). A request carrying
+`X-QP-Parity-Https: 1` is presented to WordPress as one over HTTPS (`php -S` has no TLS). Images are uploaded with
+`generate_sub_sizes=false` except in the items that need GD, which are skipped with a message without it (or fail
+under `-Dwp.media.require-editor=true`); the Imagick items, the editor's recovery loop (a browser) and the outbound
+URL uploads never run here.
+
 ## The media parity run
 
 `MediaParityDbTest` in `integration-tests/media` compares the media library below the REST layer with WordPress's
