@@ -24,6 +24,7 @@ import org.quarkpress.testing.wporacle.ParityRun;
 import org.quarkpress.testing.wporacle.ParitySkipList;
 import org.quarkpress.testing.wprestparity.MediaComparison;
 import org.quarkpress.testing.wprestparity.MediaComparison.Observed;
+import org.quarkpress.testing.wprestparity.MediaKnownDifferences;
 import org.quarkpress.testing.wprestparity.MediaScenario;
 import org.quarkpress.testing.wprestparity.MediaScenarios;
 import org.quarkpress.testing.wprestparity.MediaSide;
@@ -47,10 +48,12 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
  * is skipped with {@link #EDITOR_SKIP} (its known differences are then left out of the run, as nothing can show them;
  * QuarkPress's side still plays it, so a scenario that cannot run fails here and not first in CI), unless {@code
  * -Dwp.media.require-editor=true}, which fails the run instead. Lines whose reason says {@code (needs gd_webp)} or
- * {@code (needs gd_avif)} apply only when the GD build writes that format. Runs with {@code -Pwp-parity} only, and
- * then fails without a container runtime instead of skipping. The installing super admin is the current user while
- * WordPress's template network is created (harness rule, as {@code MediaFactsDbTest}), so the network's upload types
- * are the ones an administrator's installation writes.
+ * {@code (needs gd_avif)} apply only when the GD build writes that format: without it (WordPress then refuses those
+ * uploads too) they are left out and counted in the run's summary, with or without {@code
+ * -Dwp.media.require-editor=true} ({@link MediaKnownDifferences}).
+ * Runs with {@code -Pwp-parity} only, and then fails without a container runtime instead of skipping. The installing
+ * super admin is the current user while WordPress's template network is created (harness rule, as {@code
+ * MediaFactsDbTest}), so the network's upload types are the ones an administrator's installation writes.
  */
 @QuarkusTest
 @WithTestResource(MediaFilesResource.class)
@@ -114,13 +117,16 @@ class MediaParityDbTest {
                     skipped.add(scenario.id());
                 }
             }
+            boolean gdWebp = extensions.path("gd_webp").asBoolean();
+            boolean gdAvif = extensions.path("gd_avif").asBoolean();
+            MediaKnownDifferences.Effective known = MediaKnownDifferences.effective(
+                    Files.readAllLines(KNOWN, StandardCharsets.UTF_8), skipped, gdWebp, gdAvif);
+            System.out.println("media-parity: GD writes WebP " + gdWebp + ", AVIF " + gdAvif + "; "
+                    + known.leftOutForFormats() + " known differences left out for a format it lacks");
+            Path effective = DUMPS.resolve("known-differences.effective.txt");
+            Files.writeString(effective, known.text(), StandardCharsets.UTF_8);
             run = new ParityRun(
-                    "media-parity",
-                    ParitySkipList.load(effectiveKnownDifferences(
-                            skipped,
-                            extensions.path("gd_webp").asBoolean(),
-                            extensions.path("gd_avif").asBoolean())),
-                    Path.of("target", "media-parity-failures.json"));
+                    "media-parity", ParitySkipList.load(effective), Path.of("target", "media-parity-failures.json"));
             MediaSide wordpress =
                     MediaSide.wordpress(site, new RestClient(site.root(), RestClient.applicationPasswords(site)));
             MediaSide quarkpress = new QuarkPressMediaSide(root.toURI(), keycloak, Path.of(storageDirectory));
@@ -174,31 +180,6 @@ class MediaParityDbTest {
         } finally {
             System.clearProperty(WordPressScenarioOracle.INSTALLER_CURRENT_USER);
         }
-    }
-
-    /**
-     * The known differences this run can show, written to {@code target/media-parity/}: without the entries of
-     * skipped scenarios, and without those that need a GD format ({@code (needs gd_webp)}, {@code (needs gd_avif)})
-     * the server's GD does not write.
-     */
-    static Path effectiveKnownDifferences(List<String> skipped, boolean gdWebp, boolean gdAvif) throws Exception {
-        StringBuilder kept = new StringBuilder();
-        for (String line : Files.readAllLines(KNOWN, StandardCharsets.UTF_8)) {
-            String text = line.strip();
-            if (!text.isEmpty() && !text.startsWith("#")) {
-                int space = text.indexOf(' ');
-                String scenario = space < 0 ? text : text.substring(0, space);
-                if (skipped.contains(scenario)
-                        || (!gdWebp && text.contains("(needs gd_webp)"))
-                        || (!gdAvif && text.contains("(needs gd_avif)"))) {
-                    kept.append("# left out of this run: ");
-                }
-            }
-            kept.append(line).append('\n');
-        }
-        Path effective = DUMPS.resolve("known-differences.effective.txt");
-        Files.writeString(effective, kept, StandardCharsets.UTF_8);
-        return effective;
     }
 
     /** Writes both sides' observations to {@code target/media-parity/<id>.json}, for reading a difference. */
