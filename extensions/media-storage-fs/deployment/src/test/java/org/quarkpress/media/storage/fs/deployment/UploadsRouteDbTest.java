@@ -5,7 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.test.QuarkusExtensionTest;
 import io.quarkus.test.common.http.TestHTTPResource;
 import jakarta.inject.Inject;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,6 +19,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.api.BeforeEach;
@@ -172,7 +177,7 @@ class UploadsRouteDbTest {
         RawHttp.Answer whole = RawHttp.send(root, "GET", "/wp-content/uploads/2026/11/large.txt");
         assertThat(whole.status()).isEqualTo(200);
         assertThat(whole.header("Content-Length")).isEqualTo(String.valueOf(content.length()));
-        assertThat(whole.text()).isEqualTo(content.toString());
+        assertSameBytes(whole.body(), content.toString().getBytes(StandardCharsets.UTF_8), "whole file");
         RawHttp.Answer head = RawHttp.send(root, "HEAD", "/wp-content/uploads/2026/11/large.txt");
         assertThat(head.header("Content-Length")).isEqualTo(String.valueOf(content.length()));
         assertThat(head.body()).isEmpty();
@@ -180,7 +185,78 @@ class UploadsRouteDbTest {
         RawHttp.Answer part =
                 RawHttp.send(root, "GET", "/wp-content/uploads/2026/11/large.txt", "Range: bytes=" + first + "-\r\n");
         assertThat(part.status()).isEqualTo(206);
-        assertThat(part.text()).isEqualTo(content.substring((int) first));
+        assertSameBytes(part.body(), content.substring((int) first).getBytes(StandardCharsets.UTF_8), "range");
+    }
+
+    @Test
+    void chunksArriveInOrderToASlowReader() throws Exception {
+        // a client with a tiny receive buffer fills the connection after almost every chunk, so the transfer waits for
+        // the connection to drain again and again: each chunk must still be read once, in order
+        byte[] content = new byte[8 << 20];
+        new java.util.Random(42).nextBytes(content);
+        Path source = Files.createDirectories(DIRECTORY.getParent().resolve("sources"))
+                .resolve("slow.bin");
+        Files.write(source, content);
+        if (!storage.exists("2026/11/slow.bin")) {
+            storage.put("2026/11/slow.bin", source, "application/octet-stream", WriteMode.CREATE_NEW);
+        }
+        long first = 3 * 65536 + 17;
+        for (int i = 0; i < 4; i++) {
+            assertSameBytes(slowGet("/wp-content/uploads/2026/11/slow.bin", ""), content, "whole file, run " + i);
+            assertSameBytes(
+                    slowGet("/wp-content/uploads/2026/11/slow.bin", "Range: bytes=" + first + "-\r\n"),
+                    Arrays.copyOfRange(content, (int) first, content.length),
+                    "range, run " + i);
+        }
+    }
+
+    /** The body of a GET read through a small receive buffer, a little at a time. */
+    private byte[] slowGet(String path, String headerLines) throws Exception {
+        try (Socket socket = new Socket()) {
+            socket.setReceiveBufferSize(4096);
+            socket.connect(new InetSocketAddress(root.getHost(), root.getPort()));
+            socket.setSoTimeout(60_000);
+            socket.getOutputStream()
+                    .write((("GET " + path + " HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n" + headerLines
+                                    + "\r\n"))
+                            .getBytes(StandardCharsets.ISO_8859_1));
+            InputStream in = socket.getInputStream();
+            ByteArrayOutputStream all = new ByteArrayOutputStream();
+            byte[] buffer = new byte[2048];
+            int reads = 0;
+            for (int n; (n = in.read(buffer)) >= 0; ) {
+                all.write(buffer, 0, n);
+                if (++reads % 64 == 0) {
+                    Thread.sleep(1);
+                }
+            }
+            byte[] raw = all.toByteArray();
+            int end = 0;
+            while (end + 3 < raw.length
+                    && !(raw[end] == '\r' && raw[end + 1] == '\n' && raw[end + 2] == '\r' && raw[end + 3] == '\n')) {
+                end++;
+            }
+            assertThat(end + 3).as("end of the headers").isLessThan(raw.length);
+            return Arrays.copyOfRange(raw, end + 4, raw.length);
+        }
+    }
+
+    /** Compares bodies by length, SHA-256 and the first differing offset, never by printing them. */
+    private static void assertSameBytes(byte[] actual, byte[] expected, String what) throws IOException {
+        int differs = Arrays.mismatch(actual, expected);
+        String digest;
+        try {
+            java.security.MessageDigest sha = java.security.MessageDigest.getInstance("SHA-256");
+            digest = java.util.HexFormat.of().formatHex(sha.digest(actual)) + " vs "
+                    + java.util.HexFormat.of().formatHex(sha.digest(expected));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IOException(impossible);
+        }
+        assertThat(differs)
+                .as(
+                        "%s: %d bytes vs %d expected, sha-256 %s, first difference at offset %d",
+                        what, actual.length, expected.length, digest, differs)
+                .isEqualTo(-1);
     }
 
     private static void link(String key, Path target) throws IOException {

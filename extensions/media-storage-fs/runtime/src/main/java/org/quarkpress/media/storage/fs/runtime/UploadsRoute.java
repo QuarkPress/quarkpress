@@ -145,7 +145,9 @@ public class UploadsRoute {
     /**
      * Sends {@code length} bytes of an opened file from {@code offset}: each chunk is read on a worker thread and
      * written when the connection takes more, and the file is closed at the end, on a failure or when the client
-     * goes away.
+     * goes away. Exactly one read is in flight at a time and each chunk is written before the next read starts: the
+     * state below is touched on the request's event loop only (the read's completion and the drain handler run
+     * there), and the drain handler resumes only a transfer that is waiting for it.
      */
     private static final class Transfer {
 
@@ -154,6 +156,8 @@ public class UploadsRoute {
         private long position;
         private long remaining;
         private boolean closed;
+        private boolean reading;
+        private boolean waitingForDrain;
 
         Transfer(RoutingContext context, FsMediaStorage.Served file, long offset, long length) {
             this.context = context;
@@ -164,14 +168,25 @@ public class UploadsRoute {
             // response is also asked whether it is closed before each chunk is read and once it has been read
             context.response().closeHandler(gone -> finish());
             context.response().exceptionHandler(failure -> finish());
+            // the connection calls this whenever its queue drains, not only after a full one: only a transfer that
+            // stopped for a full queue goes on
+            context.response().drainHandler(drained -> {
+                if (waitingForDrain) {
+                    waitingForDrain = false;
+                    next();
+                }
+            });
         }
 
         void next() {
-            if (stopped()) {
+            if (stopped() || reading || waitingForDrain) {
                 return;
             }
+            reading = true;
+            long at = position;
             int count = (int) Math.min(CHUNK, remaining);
-            context.vertx().executeBlocking(() -> read(count), true).onComplete(read -> {
+            context.vertx().executeBlocking(() -> read(at, count), true).onComplete(read -> {
+                reading = false;
                 if (stopped()) {
                     return;
                 }
@@ -180,8 +195,8 @@ public class UploadsRoute {
                     return;
                 }
                 HttpServerResponse response = context.response();
+                position = at + count;
                 remaining -= count;
-                position += count;
                 if (remaining == 0) {
                     finish();
                     response.end(read.result());
@@ -189,17 +204,17 @@ public class UploadsRoute {
                 }
                 response.write(read.result());
                 if (response.writeQueueFull()) {
-                    response.drainHandler(drained -> next());
+                    waitingForDrain = true;
                 } else {
                     next();
                 }
             });
         }
 
-        private Buffer read(int count) throws IOException {
+        private Buffer read(long at, int count) throws IOException {
             ByteBuffer chunk = ByteBuffer.allocate(count);
             SeekableByteChannel channel = file.channel();
-            channel.position(position);
+            channel.position(at);
             while (chunk.hasRemaining()) {
                 if (channel.read(chunk) < 0) {
                     throw new EOFException("the file is shorter than when it was opened");
