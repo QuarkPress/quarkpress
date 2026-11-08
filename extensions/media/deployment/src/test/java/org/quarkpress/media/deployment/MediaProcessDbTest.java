@@ -2,6 +2,7 @@ package org.quarkpress.media.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -34,8 +35,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.PostId;
+import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.media.Media;
+import org.quarkpress.media.MediaChanges;
 import org.quarkpress.media.MediaProcessed;
 import org.quarkpress.media.MediaSize;
 import org.quarkpress.media.MediaSnapshot;
@@ -154,7 +157,12 @@ class MediaProcessDbTest {
      * (the transaction runner wraps it).
      */
     private <T> T as(UserId user, Callable<T> work) throws Exception {
-        return Identities.onSite(TestData.MAIN, Identities.user(user), () -> {
+        return on(TestData.MAIN, user, work);
+    }
+
+    /** As {@link #as}, on {@code site}. */
+    private <T> T on(SiteId site, UserId user, Callable<T> work) throws Exception {
+        return Identities.onSite(site, Identities.user(user), () -> {
             try {
                 return QuarkusTransaction.suspendingExisting().call(work);
             } catch (QuarkusTransactionException wrapped) {
@@ -494,6 +502,31 @@ class MediaProcessDbTest {
     }
 
     @Test
+    void aVideoDeclaringAHugeBoxIsStoredWithItsSizeAndTypeOnly() throws Exception {
+        byte[] mp4 = MediaFixtures.mp4(640, 480, 5);
+        int mvhd = 0;
+        while (mp4[mvhd + 4] != 'm' || mp4[mvhd + 5] != 'v' || mp4[mvhd + 6] != 'h' || mp4[mvhd + 7] != 'd') {
+            mvhd++;
+        }
+        // the movie header declares about 2 GB in a file of a few hundred bytes
+        mp4[mvhd] = 0x7F;
+        mp4[mvhd + 1] = (byte) 0xFF;
+        // the allocation is measured over all threads of the JVM: in the sync mode (this application's) the upload
+        // processes the file before it returns, but a site scope may run that work on a thread of its own
+        com.sun.management.ThreadMXBean threads =
+                (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        long before = threads.getTotalThreadAllocatedBytes();
+        MediaSnapshot m = upload("huge-box.mp4", mp4);
+        long allocated = threads.getTotalThreadAllocatedBytes() - before;
+        assertThat(m.mimeType()).isEqualTo("video/mp4");
+        assertThat(m.storageKey()).isEqualTo("2026/11/huge-box.mp4");
+        assertThat(m.processing()).isEqualTo(Processing.DONE);
+        assertThat(fieldNames(m.wordPressMetadata())).containsExactly("filesize", "mime_type");
+        assertThat(m.wordPressMetadata().get("filesize").longValue()).isEqualTo(mp4.length);
+        assertThat(allocated).as("bytes allocated by the upload").isLessThan(256L << 20);
+    }
+
+    @Test
     void aPixelBombIsStoredWithoutSizes() throws Exception {
         MediaSnapshot m = upload("bomb.png", MediaFixtures.pngHeaderOnly(40000, 40000));
         assertThat(m.width()).hasValue(40000);
@@ -628,6 +661,8 @@ class MediaProcessDbTest {
         processor.reset();
         int puts = storage.puts();
         PostId id = base.post().id();
+        recorder.processed.clear();
+        processor.slowDecodes(200);
         List<Object> results = Races.run(List.of(() -> process(id), () -> process(id)));
         for (Object result : results) {
             assertThat(result).isInstanceOf(MediaSnapshot.class);
@@ -644,6 +679,10 @@ class MediaProcessDbTest {
             total += storage.size(key).orElseThrow();
         }
         assertThat(storedBytes(after)).isEqualTo(total);
+        // announced once: the run that found everything made changed nothing
+        assertThat(recorder.processed)
+                .singleElement()
+                .satisfies(event -> assertThat(event.media().processing()).isEqualTo(Processing.DONE));
     }
 
     @Test
@@ -797,15 +836,15 @@ class MediaProcessDbTest {
     }
 
     @Test
-    void anUnexpectedFailureInARunEndsPartial() throws Exception {
+    void anUnexpectedFailureInARunEndsFailed() throws Exception {
         MediaSnapshot stored = Identities.onSite(
                 TestData.MAIN,
                 Identities.user(carol),
                 () -> media.store(uploadOf("x.jpg", jpeg(1200, 800)).build()));
         processor.throwOnSupports(new IllegalStateException("a bug in the processor"));
         MediaSnapshot m = process(stored.post().id());
-        assertThat(m.processing()).isEqualTo(Processing.PARTIAL);
-        assertThat(find(stored.post().id()).processing()).isEqualTo(Processing.PARTIAL);
+        assertThat(m.processing()).isEqualTo(Processing.FAILED);
+        assertThat(find(stored.post().id()).processing()).isEqualTo(Processing.FAILED);
     }
 
     @Test
@@ -825,5 +864,188 @@ class MediaProcessDbTest {
         processor.reset();
         MediaSnapshot resumed = process(n.post().id());
         assertThat(resumed.sizes().get("medium").file()).isEqualTo("other-240x300.jpg");
+    }
+
+    // ---- final fix round: no metadata, errors, two runs and the main-file copy, other sites ---------------------
+
+    private MediaSnapshot store(String name, byte[] bytes) throws Exception {
+        return Identities.onSite(
+                TestData.MAIN,
+                Identities.user(carol),
+                () -> media.store(uploadOf(name, bytes).build()));
+    }
+
+    private String processingOf(String key) {
+        return Jdbc.strings(dataSource, "select processing from qp_media where storage_key = ?", key)
+                .get(0);
+    }
+
+    private PostId postOf(String key) {
+        return PostId.of(Jdbc.count(dataSource, "select post_id from qp_media where storage_key = ?", key));
+    }
+
+    private static boolean causedBy(Throwable thrown, Class<? extends Throwable> type) {
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            if (type.isInstance(t)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void aFailedRunWithoutMetadataIsMadeAgainFromScratch() throws Exception {
+        storage.openFails(new IllegalStateException("the bucket is gone"));
+        MediaSnapshot m = upload("gone.jpg", jpeg(1200, 800));
+        assertThat(m.processing()).isEqualTo(Processing.FAILED);
+        // no metadata: every registered size is missing, whatever the image's dimensions allow
+        assertThat(missing(m.post().id())).containsExactlyElementsOf(SIX);
+        // still unreadable: failed again, nothing changed, nothing announced
+        int events = recorder.processed.size();
+        assertThat(process(m.post().id()).processing()).isEqualTo(Processing.FAILED);
+        assertThat(recorder.processed).hasSize(events);
+        storage.openFails(null);
+        MediaSnapshot redone = process(m.post().id());
+        assertThat(redone.processing()).isEqualTo(Processing.DONE);
+        assertThat(redone.width()).hasValue(1200);
+        assertThat(redone.height()).hasValue(800);
+        assertThat(redone.imageMeta()).isPresent();
+        assertThat(redone.sizes().keySet()).containsExactly("medium", "large", "thumbnail", "medium_large");
+        assertThat(missing(m.post().id())).isEmpty();
+        assertThat(find(m.post().id())).isEqualTo(redone);
+    }
+
+    @Test
+    void aRunThatThrowsBeforeItsFirstSaveIsMadeAgainFromScratch() throws Exception {
+        MediaSnapshot stored = store("bare.jpg", jpeg(4000, 3000));
+        processor.throwOnSupports(new IllegalStateException("a bug in the processor"));
+        MediaSnapshot m = process(stored.post().id());
+        assertThat(m.processing()).isEqualTo(Processing.FAILED);
+        assertThat(missing(m.post().id())).containsExactlyElementsOf(SIX);
+        processor.reset();
+        MediaSnapshot redone = process(m.post().id());
+        assertThat(redone.processing()).isEqualTo(Processing.DONE);
+        assertThat(redone.storageKey()).isEqualTo("2026/11/bare-scaled.jpg");
+        assertThat(redone.originalImage()).contains("bare.jpg");
+        assertThat(redone.width()).hasValue(2560);
+        assertThat(redone.sizes()).hasSize(6);
+        assertThat(missing(m.post().id())).isEmpty();
+    }
+
+    @Test
+    void anImageTypeFileThatIsNoImageStaysAsItIs() throws Exception {
+        // its metadata is its file size: WordPress finds nothing missing and its post-process saves nothing
+        MediaSnapshot tiff = upload("stuck.tif", MediaFixtures.tiff(40, 30));
+        assertThat(tiff.processing()).isEqualTo(Processing.DONE);
+        assertThat(tiff.width()).isEmpty();
+        assertThat(missing(tiff.post().id())).isEmpty();
+        long before = version(tiff);
+        int puts = storage.puts();
+        int events = recorder.processed.size();
+        assertThat(process(tiff.post().id())).isEqualTo(tiff);
+        assertThat(version(tiff)).isEqualTo(before);
+        assertThat(storage.puts()).isEqualTo(puts);
+        assertThat(recorder.processed).hasSize(events);
+        assertThat(missing(tiff.post().id())).isEmpty();
+    }
+
+    @Test
+    void anErrorInARunMarksTheAttachmentFailedAndIsRethrown() throws Exception {
+        for (Error error : List.of(
+                new StackOverflowError("a decoder recursed too deep"),
+                new NoClassDefFoundError("a class the native image lacks"))) {
+            String name = error instanceof StackOverflowError ? "deep.jpg" : "lacking.jpg";
+            processor.errorOnDecode(error);
+            Throwable thrown = catchThrowable(() -> upload(name, jpeg(1200, 800)));
+            assertThat(causedBy(thrown, error.getClass()))
+                    .as(String.valueOf(thrown))
+                    .isTrue();
+            // committed, and never left pending
+            assertThat(processingOf(folderKey(name))).isEqualTo("failed");
+            processor.reset();
+            MediaSnapshot redone = process(postOf(folderKey(name)));
+            assertThat(redone.processing()).isEqualTo(Processing.DONE);
+            assertThat(redone.sizes()).hasSize(4);
+        }
+    }
+
+    @Test
+    void aRunWhoseFirstReadFailsMarksTheAttachmentFailed() throws Exception {
+        storage.failNextUrlAfterStore();
+        MediaSnapshot m = upload("unread.jpg", jpeg(1200, 800));
+        assertThat(m.processing()).isEqualTo(Processing.FAILED);
+        assertThat(processingOf(folderKey("unread.jpg"))).isEqualTo("failed");
+        MediaSnapshot redone = process(m.post().id());
+        assertThat(redone.processing()).isEqualTo(Processing.DONE);
+        assertThat(redone.sizes()).hasSize(4);
+    }
+
+    @Test
+    void aSecondRunDoesNotCompleteAMainFileCopyItCouldNotMake() throws Exception {
+        MediaSnapshot stored = store("twice.jpg", jpeg(4000, 3000));
+        PostId id = stored.post().id();
+        processor.failSize(2560, 1920);
+        // another run saves the base metadata first, without its copy, while this one decodes
+        processor.duringNextDecode(() -> Jdbc.update(
+                dataSource,
+                "update qp_media set processing = 'partial', width = 4000, height = 3000 where post_id = ?",
+                id.value()));
+        MediaSnapshot m = process(id);
+        assertThat(m.storageKey()).isEqualTo("2026/11/twice.jpg");
+        assertThat(m.originalImage()).isEmpty();
+        assertThat(m.sizes()).hasSize(6);
+        assertThat(m.processing()).isEqualTo(Processing.PARTIAL);
+        processor.reset();
+        MediaSnapshot retried = process(id);
+        assertThat(retried.storageKey()).isEqualTo("2026/11/twice-scaled.jpg");
+        assertThat(retried.processing()).isEqualTo(Processing.DONE);
+    }
+
+    @Test
+    void aSecondRunStoresTheMainFileCopyTheFirstCouldNot() throws Exception {
+        MediaSnapshot stored = store("other.jpg", jpeg(4000, 3000));
+        PostId id = stored.post().id();
+        processor.duringNextDecode(() -> Jdbc.update(
+                dataSource,
+                "update qp_media set processing = 'partial', width = 4000, height = 3000 where post_id = ?",
+                id.value()));
+        MediaSnapshot m = process(id);
+        assertThat(m.storageKey()).isEqualTo("2026/11/other-scaled.jpg");
+        assertThat(m.originalImage()).contains("other.jpg");
+        assertThat(m.width()).hasValue(2560);
+        assertThat(m.height()).hasValue(1920);
+        assertThat(m.sizes()).hasSize(6);
+        assertThat(m.processing()).isEqualTo(Processing.DONE);
+        long total = 0;
+        for (String key : storage.keys()) {
+            total += storage.size(key).orElseThrow();
+        }
+        assertThat(storedBytes(m)).isEqualTo(total);
+    }
+
+    @Test
+    void anotherSitesAttachmentIsNotFound() throws Exception {
+        MediaSnapshot m = upload("mine.jpg", jpeg(400, 300));
+        PostId id = m.post().id();
+        SiteId other = TestData.siteIn(dataSource, "UTC");
+        TestData.member(dataSource, other, bob, "[\"administrator\"]");
+        assertThatThrownBy(() -> on(
+                        other,
+                        bob,
+                        () -> media.update(
+                                id,
+                                MediaChanges.builder()
+                                        .title("Taken")
+                                        .altText("Taken")
+                                        .build())))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(on(other, bob, () -> media.delete(id))).isEmpty();
+        assertThatThrownBy(() -> on(other, bob, () -> media.process(id))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> on(other, bob, () -> media.missingSizes(id)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(on(other, bob, () -> media.find(id))).isEmpty();
+        // untouched in its own site
+        assertThat(find(id)).isEqualTo(m);
+        assertThat(storage.keys()).contains("2026/11/mine.jpg");
     }
 }

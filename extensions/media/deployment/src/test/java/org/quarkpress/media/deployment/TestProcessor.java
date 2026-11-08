@@ -9,11 +9,15 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -30,8 +34,8 @@ import org.quarkpress.media.ImageProcessor;
 /**
  * An image processor on the JDK's own ImageIO codecs that handles JPEG, PNG and GIF only, the types WordPress's GD
  * editor handles without WebP and AVIF support. Switches let a test make one output size fail to encode, make one cut
- * throw, make decoding throw or slow it down; counters tell how often it decoded and how many decoded images were open
- * at once (an image and every image made from it count as one until all of them are closed).
+ * throw, make decoding throw (always or once) or slow it down; counters tell how often it decoded and how many
+ * decoded images were open at once (an image and every image made from it count as one until all of them are closed).
  */
 @ApplicationScoped
 public class TestProcessor implements ImageProcessor {
@@ -43,15 +47,15 @@ public class TestProcessor implements ImageProcessor {
     private final Set<String> failingRegions = ConcurrentHashMap.newKeySet();
     private volatile RuntimeException decodeFailure;
     private volatile Error decodeError;
+    private final AtomicReference<Error> nextDecodeError = new AtomicReference<>();
     private volatile Throwable turnFailure;
     private volatile RuntimeException supportsFailure;
     private volatile long decodeMillis;
     private final AtomicInteger decodes = new AtomicInteger();
     private final AtomicInteger encodes = new AtomicInteger();
-    private volatile java.util.concurrent.CyclicBarrier encodeBarrier;
+    private volatile CyclicBarrier encodeBarrier;
     private final AtomicInteger barrierParties = new AtomicInteger();
-    private final java.util.concurrent.atomic.AtomicReference<Runnable> duringDecode =
-            new java.util.concurrent.atomic.AtomicReference<>();
+    private final AtomicReference<Runnable> duringDecode = new AtomicReference<>();
     private final AtomicInteger open = new AtomicInteger();
     private final AtomicInteger maxOpen = new AtomicInteger();
 
@@ -73,6 +77,11 @@ public class TestProcessor implements ImageProcessor {
     /** Decoding throws {@code error} (such as an {@link OutOfMemoryError}); null to decode again. */
     public void errorOnDecode(Error error) {
         decodeError = error;
+    }
+
+    /** The next decode alone throws {@code error}. */
+    public void errorOnNextDecode(Error error) {
+        nextDecodeError.set(error);
     }
 
     /** Turning an image upright throws {@code failure}, a runtime exception or an error; null to turn again. */
@@ -101,7 +110,7 @@ public class TestProcessor implements ImageProcessor {
      */
     public void encodeBarrier(int parties) {
         barrierParties.set(parties);
-        encodeBarrier = new java.util.concurrent.CyclicBarrier(parties);
+        encodeBarrier = new CyclicBarrier(parties);
     }
 
     /**
@@ -128,6 +137,7 @@ public class TestProcessor implements ImageProcessor {
         failingRegions.clear();
         decodeFailure = null;
         decodeError = null;
+        nextDecodeError.set(null);
         turnFailure = null;
         supportsFailure = null;
         decodeMillis = 0;
@@ -193,6 +203,10 @@ public class TestProcessor implements ImageProcessor {
         if (error != null) {
             throw error;
         }
+        Error once = nextDecodeError.getAndSet(null);
+        if (once != null) {
+            throw once;
+        }
         try {
             BufferedImage image = ImageIO.read(file.toFile());
             if (image == null) {
@@ -215,7 +229,7 @@ public class TestProcessor implements ImageProcessor {
     }
 
     private static String mimeType(String formatName) {
-        return switch (formatName.toLowerCase(java.util.Locale.ROOT)) {
+        return switch (formatName.toLowerCase(Locale.ROOT)) {
             case "jpeg", "jpg" -> "image/jpeg";
             case "png" -> "image/png";
             case "gif" -> "image/gif";
@@ -319,10 +333,10 @@ public class TestProcessor implements ImageProcessor {
                 throw new ImageProcessingException("The image cannot be written as " + mimeType + ".");
             }
             encodes.incrementAndGet();
-            java.util.concurrent.CyclicBarrier barrier = encodeBarrier;
+            CyclicBarrier barrier = encodeBarrier;
             if (barrier != null && barrierParties.getAndDecrement() > 0) {
                 try {
-                    barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                    barrier.await(10, TimeUnit.SECONDS);
                 } catch (Exception broken) {
                     throw new IllegalStateException("the encode barrier broke", broken);
                 }

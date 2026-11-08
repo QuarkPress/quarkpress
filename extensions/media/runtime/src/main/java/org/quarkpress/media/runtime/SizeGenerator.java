@@ -63,8 +63,9 @@ import org.quarkpress.posts.runtime.PostRepository;
  * commit, so a stored entry always names an existing file and a file is never stored for a row that is gone (the run
  * ends there). Two runs of one attachment at once therefore agree: a size the other run saved first is kept, never
  * made twice. Decodes wait for a {@link DecodeLimiter} permit, held until the run's last size. A failing decode, cut
- * or encode never fails the run: the size is left out and the attachment ends {@link Processing#PARTIAL}; only a
- * failing save marks it {@link Processing#FAILED}.
+ * or encode never fails the run: the size is left out and the attachment ends {@link Processing#PARTIAL}. A run that
+ * saves no metadata (the file cannot be read, its first save fails, or it throws before) marks the attachment {@link
+ * Processing#FAILED}, and the next run of a failed attachment starts from scratch.
  */
 @ApplicationScoped
 public class SizeGenerator {
@@ -160,33 +161,92 @@ public class SizeGenerator {
     }
 
     /**
-     * Processes the attachment {@code post} of the current site {@code siteId}: from scratch while it is pending,
-     * otherwise its missing sizes. Call it outside any transaction. Returns the attachment as the run left it, or
-     * empty when it is gone.
+     * Processes the attachment {@code post} of the current site {@code siteId}: from scratch while it is pending or
+     * failed, otherwise its missing sizes. Call it outside any transaction. Returns the attachment as the run left it,
+     * or empty when it is gone.
      */
     public Optional<MediaSnapshot> run(SiteId siteId, PostId post, Options options) {
-        Optional<MediaSnapshot> start = read(siteId, post);
-        if (start.isEmpty()) {
-            return Optional.empty();
-        }
-        Map<String, ImageSizeDefinition> registered = inTransaction(imageSizes::registered);
-        // the options the upload kept with its row win over the defaults of a later run
-        Options effective = storedOptions(siteId, post).orElse(options);
-        Run run = new Run(siteId, post, start.get());
         try {
+            Optional<MediaSnapshot> start = read(siteId, post);
+            if (start.isEmpty()) {
+                return Optional.empty();
+            }
+            boolean restarted = false;
+            if (start.get().processing() == Processing.FAILED) {
+                // an earlier run ended before saving any metadata: everything is made again, from scratch
+                start = restart(siteId, post);
+                if (start.isEmpty()) {
+                    return Optional.empty();
+                }
+                restarted = start.get().processing() == Processing.PENDING;
+            }
+            Map<String, ImageSizeDefinition> registered = inTransaction(imageSizes::registered);
+            // the options the upload kept with its row win over the defaults of a later run
+            Options effective = storedOptions(siteId, post).orElse(options);
+            Run run = new Run(siteId, post, start.get(), restarted);
             if (start.get().processing() == Processing.PENDING) {
                 return run.fromScratch(effective, registered);
             }
             return Optional.of(run.missing(registered, effective));
         } catch (SaveFailed failure) {
             LOG.warnf(failure.getCause(), "the metadata of attachment %s could not be saved", post.value());
-            markFailed(siteId, post);
+            markAfterFailedSave(siteId, post);
             return read(siteId, post);
-        } catch (RuntimeException | OutOfMemoryError failure) {
-            // whatever went wrong, the attachment is never left pending: a later post-process makes what is missing
+        } catch (RuntimeException failure) {
+            // whatever went wrong, the attachment is never left pending; a later post-process starts it again
+            LOG.warnf(failure, "attachment %s could not be processed; it is marked failed", post.value());
+            markFailedIfPending(siteId, post, null);
+            return read(siteId, post);
+        } catch (OutOfMemoryError failure) {
+            // the stored dimensions stand: a later post-process makes what is missing
             LOG.warnf(failure, "attachment %s could not be processed; it is left partial", post.value());
             markPartialIfPending(siteId, post);
             return read(siteId, post);
+        } catch (Error failure) {
+            // an error the run cannot recover from: the attachment is still never left pending
+            LOG.errorf(failure, "attachment %s could not be processed; it is marked failed", post.value());
+            markFailedIfPending(siteId, post, failure);
+            throw failure;
+        }
+    }
+
+    /**
+     * Takes a failed attachment, which has no metadata of a run, back to pending, so that this run makes it from
+     * scratch (and a run that stops on the way leaves it to the start-up resume); left as it is when another run saved
+     * its metadata meanwhile. Answers the attachment as it now is, or empty when it is gone.
+     */
+    private Optional<MediaSnapshot> restart(SiteId siteId, PostId post) {
+        try {
+            return QuarkusTransaction.requiringNew()
+                    .call(() -> mediaRows.lockMedia(siteId, post).flatMap(row -> {
+                        if (MediaEntity.FAILED.equals(row.processing)) {
+                            row.processing = MediaEntity.PENDING;
+                            mediaRows.flush();
+                        }
+                        return snapshot(siteId, row);
+                    }));
+        } catch (RuntimeException failure) {
+            throw new SaveFailed(failure);
+        }
+    }
+
+    /**
+     * Marks the attachment failed when it is still pending, in a transaction of its own; best effort: a failure to
+     * do so is added to {@code cause}.
+     */
+    void markFailedIfPending(SiteId siteId, PostId post, Throwable cause) {
+        try {
+            QuarkusTransaction.requiringNew()
+                    .run(() -> mediaRows
+                            .lockMedia(siteId, post)
+                            .filter(row -> MediaEntity.PENDING.equals(row.processing))
+                            .ifPresent(row -> row.processing = MediaEntity.FAILED));
+        } catch (Throwable failure) {
+            if (cause != null && cause != failure) {
+                cause.addSuppressed(failure);
+            } else {
+                LOG.warnf(failure, "attachment %s could not be marked as failed", post.value());
+            }
         }
     }
 
@@ -334,17 +394,24 @@ public class SizeGenerator {
         return QuarkusTransaction.requiringNew().call(work);
     }
 
-    private void markFailed(SiteId siteId, PostId post) {
+    /**
+     * After a save failed: failed when the attachment is still pending (no metadata was saved); otherwise left as it
+     * is, since a saved state (partial, or done by another run) stands.
+     */
+    private void markAfterFailedSave(SiteId siteId, PostId post) {
         try {
             QuarkusTransaction.requiringNew()
-                    .run(() -> mediaRows.lockMedia(siteId, post).ifPresent(row -> row.processing = MediaEntity.FAILED));
+                    .run(() -> mediaRows
+                            .lockMedia(siteId, post)
+                            .filter(row -> MediaEntity.PENDING.equals(row.processing))
+                            .ifPresent(row -> row.processing = MediaEntity.FAILED));
         } catch (RuntimeException failure) {
-            LOG.warnf(failure, "attachment %s could not be marked as failed", post.value());
+            LOG.warnf(failure, "the processing state of attachment %s could not be saved", post.value());
         }
     }
 
-    /** Sets the final state, announces the run and answers the attachment as it now is. */
-    private MediaSnapshot finish(SiteId siteId, MediaEntity row, String processing) {
+    /** Sets the final state, announces the run when {@code announce} and answers the attachment as it now is. */
+    private MediaSnapshot finish(SiteId siteId, MediaEntity row, String processing, boolean announce) {
         row.processing = processing;
         if (MediaEntity.DONE.equals(processing) && row.extra instanceof ObjectNode extra) {
             // kept while anything is left to make, so a post-process still honours them
@@ -353,7 +420,9 @@ public class SizeGenerator {
         mediaRows.flush();
         MediaSnapshot snapshot = snapshot(siteId, row)
                 .orElseThrow(() -> new IllegalStateException("the attachment post of a media row is gone"));
-        transactions.publish(processedEvents, new MediaProcessed(siteId, clock.now(), snapshot));
+        if (announce) {
+            transactions.publish(processedEvents, new MediaProcessed(siteId, clock.now(), snapshot));
+        }
         return snapshot;
     }
 
@@ -517,10 +586,17 @@ public class SizeGenerator {
         /** The finished attachment, when the first save already ended the run. */
         private MediaSnapshot finished;
 
-        Run(SiteId siteId, PostId post, MediaSnapshot media) {
+        /** Whether a save of this run changed the row: only then, or when its state changes, is the run announced. */
+        private boolean changed;
+
+        /** Whether this run took a failed attachment back to pending: its state before the run was failed. */
+        private final boolean restarted;
+
+        Run(SiteId siteId, PostId post, MediaSnapshot media, boolean restarted) {
             this.siteId = siteId;
             this.post = post;
             this.media = media;
+            this.restarted = restarted;
         }
 
         private String sourceKey() {
@@ -614,31 +690,37 @@ public class SizeGenerator {
                         return MediaEntity.PARTIAL;
                     });
                 }
-                boolean[] mainFailed = {false};
+                boolean copyApplies = false;
                 MainCopy main = null;
                 try {
                     main = mainCopy(original, upright, orientation, w0, h0, realType, outputType, sourceName, images);
+                    copyApplies = main != null;
                 } catch (ImageProcessingException | RuntimeException | OutOfMemoryError failure) {
-                    mainFailed[0] = true;
+                    copyApplies = true;
                     LOG.warnf(
                             "the main-file copy of attachment %s could not be made: %s",
                             post.value(), failure.getMessage());
                 }
                 List<Planned> planned = plan(registered, upright, sourceName, realType, outputType);
                 MainCopy copy = main;
+                boolean needsCopy = copyApplies;
                 Saved<String> first = save(siteId, post, row -> {
                     if (!MediaEntity.PENDING.equals(row.processing)) {
-                        // another run saved the base metadata first; its main file stands
-                        mainFailed[0] = false;
+                        // another run saved the base metadata first; this run's copy is stored only when that run
+                        // could not store its own
+                        if (copy != null && row.originalKey == null && useMainCopy(row, copy)) {
+                            changed = true;
+                        }
                         return row.processing;
                     }
                     row.width = w0;
                     row.height = h0;
-                    if (copy != null && !useMainCopy(row, copy)) {
-                        mainFailed[0] = true;
+                    changed = true;
+                    if (copy != null) {
+                        useMainCopy(row, copy);
                     }
                     if (planned.isEmpty()) {
-                        String state = mainFailed[0] ? MediaEntity.PARTIAL : MediaEntity.DONE;
+                        String state = lacksCopy(row, needsCopy) ? MediaEntity.PARTIAL : MediaEntity.DONE;
                         finished = finish(siteId, row, state);
                         return state;
                     }
@@ -651,7 +733,7 @@ public class SizeGenerator {
                 if (finished != null) {
                     return Optional.of(finished);
                 }
-                return sizes(planned, upright, outputType, mainFailed[0]);
+                return sizes(planned, upright, outputType, needsCopy);
             }
         }
 
@@ -745,15 +827,14 @@ public class SizeGenerator {
                         decodeFailed(failure);
                         return media;
                     }
-                    boolean copyFailed = false;
                     if (retryCopy) {
-                        copyFailed = !retryMainCopy(decoded, upright, orientation, info, outputType, images);
+                        retryMainCopy(decoded, upright, orientation, info, outputType, images);
                     }
                     List<Planned> planned = plan(ordered, upright, fileName(sourceKey()), realType, outputType);
                     if (planned.isEmpty() && !retryCopy) {
                         return media;
                     }
-                    return sizes(planned, upright, outputType, copyFailed).orElse(media);
+                    return sizes(planned, upright, outputType, retryCopy).orElse(media);
                 }
             } finally {
                 temporary.forEach(SizeGenerator::deleteQuietly);
@@ -769,8 +850,8 @@ public class SizeGenerator {
             return !outputType.equals(info.mimeType()) || (orientation >= 2 && orientation <= 8);
         }
 
-        /** Makes the main-file copy again and saves it, unless another run did; false when it failed again. */
-        private boolean retryMainCopy(
+        /** Makes the main-file copy again and saves it, unless another run did. */
+        private void retryMainCopy(
                 DecodedImage decoded,
                 DecodedImage upright,
                 int orientation,
@@ -793,13 +874,17 @@ public class SizeGenerator {
                 LOG.warnf(
                         "the main-file copy of attachment %s could not be made: %s",
                         post.value(), failure.getMessage());
-                return false;
+                return;
             }
             if (copy == null) {
-                return true;
+                return;
             }
-            Saved<Boolean> saved = save(siteId, post, row -> row.originalKey != null || useMainCopy(row, copy));
-            return !saved.gone() && Boolean.TRUE.equals(saved.value());
+            save(siteId, post, row -> {
+                if (row.originalKey == null && useMainCopy(row, copy)) {
+                    changed = true;
+                }
+                return null;
+            });
         }
 
         /** The JPEG orientation of the original file itself (the stored metadata may say 1 after a rotated copy). */
@@ -919,9 +1004,13 @@ public class SizeGenerator {
             return planned;
         }
 
-        /** Makes and saves each planned size, then the final state. Empty when the attachment went meanwhile. */
+        /**
+         * Makes and saves each planned size, then the final state: done when every planned size is there and, when
+         * {@code copyApplies}, the main-file copy too (whichever run stored it). Empty when the attachment went
+         * meanwhile.
+         */
         private Optional<MediaSnapshot> sizes(
-                List<Planned> planned, DecodedImage upright, String outputType, boolean mainFailed) {
+                List<Planned> planned, DecodedImage upright, String outputType, boolean copyApplies) {
             Map<String, MediaSize> made = new HashMap<>();
             for (Planned size : planned) {
                 MediaSize shared = made.get(size.file());
@@ -974,6 +1063,7 @@ public class SizeGenerator {
                     }
                     sizes.set(size.name(), entry(entry.get()));
                     row.sizes = sizes;
+                    changed = true;
                     return entry.get();
                 });
                 if (saved.gone()) {
@@ -990,9 +1080,26 @@ public class SizeGenerator {
             Saved<MediaSnapshot> last = save(siteId, post, row -> {
                 ObjectNode sizes = sizesOf(row);
                 boolean complete = planned.stream().allMatch(size -> sizes.has(size.name()));
-                return finish(siteId, row, complete && !mainFailed ? MediaEntity.DONE : MediaEntity.PARTIAL);
+                return finish(
+                        siteId, row, complete && !lacksCopy(row, copyApplies) ? MediaEntity.DONE : MediaEntity.PARTIAL);
             });
             return last.gone() ? Optional.empty() : Optional.of(last.value());
+        }
+
+        /** Whether the row still lacks the main-file copy this image needs ({@code copyApplies}). */
+        private static boolean lacksCopy(MediaEntity row, boolean copyApplies) {
+            return copyApplies && row.originalKey == null;
+        }
+
+        /**
+         * Sets the final state; the run is announced when it changed the row or the state changes (a failed
+         * attachment this run took back to pending and that ends failed again has not changed).
+         */
+        private MediaSnapshot finish(SiteId siteId, MediaEntity row, String processing) {
+            String before =
+                    restarted && MediaEntity.PENDING.equals(row.processing) ? MediaEntity.FAILED : row.processing;
+            boolean announce = changed || !processing.equals(before);
+            return SizeGenerator.this.finish(siteId, row, processing, announce);
         }
 
         /** Whether the row holds a size named {@code name} now (another run may have made it meanwhile). */

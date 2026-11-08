@@ -7,6 +7,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.ObservesAsync;
 import jakarta.inject.Inject;
+import jakarta.transaction.Status;
+import jakarta.transaction.TransactionManager;
+import java.util.Optional;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 import org.quarkpress.core.PostId;
@@ -22,7 +25,7 @@ import org.quarkpress.security.SystemIdentity;
  * system. The options of an upload (no sizes, no format conversion) are written into the pending row's stored
  * metadata while it is stored, so that the background run, a start-up resume or a post-process of the still-pending
  * attachment honours them; the run removes them. A failing run is logged; the attachment keeps whatever state its last
- * save gave it.
+ * save gave it, and is never left pending.
  */
 @ApplicationScoped
 public class AsyncProcessing {
@@ -46,6 +49,9 @@ public class AsyncProcessing {
 
     @Inject
     MediaRepository mediaRows;
+
+    @Inject
+    TransactionManager transactionManager;
 
     /** Runs {@code store}, keeping {@code options} with the attachment it stores. */
     MediaSnapshot store(SizeGenerator.Options options, Supplier<MediaSnapshot> store) {
@@ -79,12 +85,49 @@ public class AsyncProcessing {
         SiteId site = event.site();
         PostId post = event.media().post().id();
         try {
-            siteScope.call(
-                    site,
-                    () -> system.call(() -> QuarkusTransaction.suspendingExisting()
-                            .call(() -> generator.run(site, post, SizeGenerator.Options.DEFAULT))));
+            run(site, post);
         } catch (Throwable failure) {
             LOG.warnf(failure, "the background processing of attachment %s of site %s failed", post.value(), site);
+        }
+    }
+
+    /**
+     * Processes the attachment {@code post} of {@code site} as the system, bound to that site, from a thread without a
+     * transaction. The site's scope opens a transaction of its own; it is ended before the run and a new one is begun
+     * after it, so that no transaction stays open, and so none can time out, however long the run takes. When the run
+     * throws, the attachment is marked failed if it is still pending, and the failure is rethrown.
+     */
+    Optional<MediaSnapshot> run(SiteId site, PostId post) throws Exception {
+        if (transactionManager.getStatus() != Status.STATUS_NO_TRANSACTION) {
+            throw new IllegalStateException(
+                    "a background run of attachment " + post.value() + " must start outside a transaction");
+        }
+        try {
+            return siteScope.call(site, () -> {
+                // the scope's own transaction, which has written nothing
+                QuarkusTransaction.commit();
+                Optional<MediaSnapshot> result;
+                try {
+                    result = system.call(() -> generator.run(site, post, SizeGenerator.Options.DEFAULT));
+                } catch (Throwable thrown) {
+                    // the scope ends the transaction it began: it finds a new one, begun now
+                    try {
+                        QuarkusTransaction.begin();
+                    } catch (Throwable beginFailure) {
+                        thrown.addSuppressed(beginFailure);
+                    }
+                    throw thrown;
+                }
+                QuarkusTransaction.begin();
+                return result;
+            });
+        } catch (Throwable failure) {
+            try {
+                siteScope.run(site, () -> generator.markFailedIfPending(site, post, failure));
+            } catch (Throwable marking) {
+                failure.addSuppressed(marking);
+            }
+            throw failure;
         }
     }
 }

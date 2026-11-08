@@ -34,10 +34,11 @@ public interface Media {
     MediaSnapshot upload(Upload upload);
 
     /**
-     * WordPress's post-process of an attachment: one still {@link Processing#PENDING} is processed from scratch;
-     * otherwise its {@linkplain #missingSizes missing sizes} are made from the original file. With nothing missing,
-     * or nothing the image processor can make, the attachment is returned unchanged and nothing is written. Needs
-     * {@code edit_post} on the attachment.
+     * WordPress's post-process of an attachment: one without metadata, still {@link Processing#PENDING} or {@link
+     * Processing#FAILED} (no run saved its metadata), is processed from scratch, as WordPress does; otherwise its
+     * {@linkplain #missingSizes missing sizes} are made from the original file. With nothing missing, or nothing the
+     * image processor can make, the attachment is returned unchanged and nothing is written. Needs {@code edit_post}
+     * on the attachment.
      *
      * @throws IllegalStateException when a transaction is active
      * @throws org.quarkpress.posts.PostException when {@code attachment} is not an attachment of the site
@@ -46,8 +47,8 @@ public interface Media {
 
     /**
      * The registered sizes the attachment lacks, as WordPress lists them for its REST view, in registration order:
-     * every size while the upload is pending; for an image the sizes possible for the original's stored dimensions
-     * (never rotated) that are not present by name; none for anything else.
+     * every size while it has no metadata (pending or failed), whatever its dimensions; for an image the sizes possible
+     * for the original's stored dimensions (never rotated) that are not present by name; none for anything else.
      *
      * @throws org.quarkpress.posts.PostException when {@code attachment} is not an attachment of the site
      */

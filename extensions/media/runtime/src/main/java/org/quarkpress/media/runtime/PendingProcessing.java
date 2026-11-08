@@ -17,9 +17,7 @@ import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.Processing;
-import org.quarkpress.persistence.SiteScope;
 import org.quarkpress.persistence.SiteScopedNativeSql;
-import org.quarkpress.security.SystemIdentity;
 
 /**
  * Processes again, at start-up in the {@code async} mode, the uploads an earlier run of the application stored but
@@ -51,13 +49,7 @@ public class PendingProcessing {
     MediaRepository mediaRows;
 
     @Inject
-    SiteScope siteScope;
-
-    @Inject
-    SystemIdentity system;
-
-    @Inject
-    SizeGenerator generator;
+    AsyncProcessing background;
 
     @Inject
     QuarkPressClock clock;
@@ -82,7 +74,8 @@ public class PendingProcessing {
      * Processes the attachments of every site still pending whose post was created more than five minutes before
      * {@code now}, oldest first, at most a hundred, each in its site as the system. Answers how many were processed
      * (left pending done or partial); one whose file is gone ends failed, and one whose run throws, whatever it
-     * throws, is logged and left as it is: neither counts, and neither stops the others.
+     * throws, is logged and marked failed when it is still pending, so that a later start passes it: neither counts,
+     * and neither stops the others.
      */
     public int resume(Instant now) {
         int resumed = 0;
@@ -90,10 +83,7 @@ public class PendingProcessing {
             SiteId site = SiteId.of(((Number) row[0]).longValue());
             PostId post = PostId.of(((Number) row[1]).longValue());
             try {
-                Optional<MediaSnapshot> result = siteScope.call(
-                        site,
-                        () -> system.call(() -> QuarkusTransaction.suspendingExisting()
-                                .call(() -> generator.run(site, post, SizeGenerator.Options.DEFAULT))));
+                Optional<MediaSnapshot> result = background.run(site, post);
                 if (result.map(media ->
                                 media.processing() == Processing.DONE || media.processing() == Processing.PARTIAL)
                         .orElse(false)) {

@@ -1,6 +1,7 @@
 package org.quarkpress.media.deployment;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,16 +12,19 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.quarkpress.core.SiteInfo;
 import org.quarkpress.media.KeyTakenException;
 import org.quarkpress.media.MediaStorage;
+import org.quarkpress.media.MediaStored;
 import org.quarkpress.media.StoredKey;
 import org.quarkpress.media.WriteMode;
 
@@ -46,6 +50,8 @@ public class TestStorage implements MediaStorage {
     private volatile RuntimeException openFailure;
     private final List<String> deleted = new CopyOnWriteArrayList<>();
     private volatile RuntimeException deleteFailure;
+    private final AtomicBoolean failUrlAfterStore = new AtomicBoolean();
+    private final AtomicBoolean failNextUrl = new AtomicBoolean();
 
     /** Removes every file and resets the switches. */
     public void clear() {
@@ -59,6 +65,22 @@ public class TestStorage implements MediaStorage {
         openFailure = null;
         deleted.clear();
         deleteFailure = null;
+        failUrlAfterStore.set(false);
+        failNextUrl.set(false);
+    }
+
+    /**
+     * Once the next upload is stored (its snapshot made), the next public URL asked for throws: the first read of the
+     * processing run that follows fails, as a database or backend failure there would.
+     */
+    public void failNextUrlAfterStore() {
+        failUrlAfterStore.set(true);
+    }
+
+    void stored(@Observes MediaStored event) {
+        if (failUrlAfterStore.getAndSet(false)) {
+            failNextUrl.set(true);
+        }
     }
 
     /** The keys callers asked to delete since the last {@link #clear}, in call order, whether or not they existed. */
@@ -130,7 +152,7 @@ public class TestStorage implements MediaStorage {
         }
         byte[] bytes = Files.readAllBytes(source);
         if (unpaddedPuts.getAndUpdate(n -> n == Integer.MAX_VALUE ? n : Math.max(-1, n - 1)) <= 0) {
-            bytes = java.util.Arrays.copyOf(bytes, bytes.length + padding);
+            bytes = Arrays.copyOf(bytes, bytes.length + padding);
         }
         if (mode == WriteMode.CREATE_NEW) {
             byte[] other = appearBeforeWrite.remove(key);
@@ -202,6 +224,9 @@ public class TestStorage implements MediaStorage {
 
     @Override
     public String publicUrl(SiteInfo site, String key) {
+        if (failNextUrl.getAndSet(false)) {
+            throw new IllegalStateException("the test storage cannot tell the URL of " + key);
+        }
         return site.url("http") + "test-uploads/" + StoredKey.require(key);
     }
 }

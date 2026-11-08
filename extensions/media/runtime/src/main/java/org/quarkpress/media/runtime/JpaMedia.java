@@ -135,6 +135,10 @@ public class JpaMedia implements Media {
                     "attachment %s could not be processed",
                     stored.post().id().value());
             return stored;
+        } catch (Error failure) {
+            // not left pending, whatever failed: the run marks it failed, and so does this, should the run not have
+            generator.markFailedIfPending(site.siteId(), stored.post().id(), failure);
+            throw failure;
         }
     }
 

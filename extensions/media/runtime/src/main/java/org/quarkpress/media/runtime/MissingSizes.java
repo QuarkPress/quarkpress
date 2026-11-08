@@ -19,12 +19,12 @@ public final class MissingSizes {
 
     /**
      * The names of {@code registered} that {@code media} lacks, in registration order. None for an attachment that is
-     * not an image (its type does not start with {@code image/}); every registered name while the upload is pending
-     * (it has no metadata yet). Otherwise the sizes possible for the reference dimensions whose name is not among the
-     * attachment's sizes: the reference is {@code original}, the untouched upload's stored dimensions as read from its
-     * file, when the main file is a copy of it and the original could be read; else the main file's dimensions
-     * (unknown dimensions make no size possible). The dimensions are never rotated, so a size can be listed that the
-     * upright image can never give, as in WordPress.
+     * not an image (its type does not start with {@code image/}); every registered name while it has no metadata
+     * (see {@link #hasNoMetadata}), whatever its dimensions. Otherwise the sizes possible for the reference dimensions
+     * whose name is not among the attachment's sizes: the reference is {@code original}, the untouched upload's stored
+     * dimensions as read from its file, when the main file is a copy of it and the original could be read; else the
+     * main file's dimensions (unknown dimensions make no size possible). The dimensions are never rotated, so a size
+     * can be listed that the upright image can never give, as in WordPress.
      *
      * @param original the dimensions read from the original file, when there is one and it could be read
      */
@@ -33,7 +33,7 @@ public final class MissingSizes {
         if (!media.mimeType().startsWith("image/")) {
             return List.of();
         }
-        if (media.processing() == Processing.PENDING) {
+        if (hasNoMetadata(media)) {
             return List.copyOf(registered.keySet());
         }
         int width;
@@ -55,5 +55,15 @@ public final class MissingSizes {
             }
         }
         return List.copyOf(missing);
+    }
+
+    /**
+     * Whether no run has saved the attachment's metadata: it is pending, or failed (a run ended before its first save,
+     * or could not read the file). Processing it again then starts from scratch, as WordPress does for an attachment
+     * without metadata. A partial attachment has its metadata, and so does one a run finished without dimensions (a
+     * file of an image type that cannot be read as an image keeps its file size alone, as in WordPress).
+     */
+    public static boolean hasNoMetadata(MediaSnapshot media) {
+        return media.processing() == Processing.PENDING || media.processing() == Processing.FAILED;
     }
 }

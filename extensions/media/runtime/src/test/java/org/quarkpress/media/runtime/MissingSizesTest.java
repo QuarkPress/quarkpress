@@ -138,6 +138,38 @@ class MissingSizesTest {
     }
 
     @Test
+    void aFailedAttachmentHasNoMetadataAndLacksEverySize() {
+        // no run saved its metadata: every size, whatever the stored dimensions allow
+        for (OptionalInt width : List.of(OptionalInt.empty(), OptionalInt.of(200))) {
+            OptionalInt height = width.isPresent() ? OptionalInt.of(100) : OptionalInt.empty();
+            MediaSnapshot failed =
+                    media("image/jpeg", Optional.empty(), width, height, List.of("thumbnail"), Processing.FAILED);
+            assertThat(MissingSizes.hasNoMetadata(failed)).isTrue();
+            assertThat(MissingSizes.of(failed, DEFAULTS, Optional.empty())).containsExactlyElementsOf(SIX);
+        }
+        // a partial run saved its metadata: what fits and is not there
+        MediaSnapshot partial = media(
+                "image/jpeg",
+                Optional.empty(),
+                OptionalInt.of(200),
+                OptionalInt.of(100),
+                List.of(),
+                Processing.PARTIAL);
+        assertThat(MissingSizes.hasNoMetadata(partial)).isFalse();
+        assertThat(MissingSizes.of(partial, DEFAULTS, Optional.empty())).containsExactly("thumbnail");
+        // a finished run's file size alone is metadata, as in WordPress: nothing is missing
+        MediaSnapshot fileSizeOnly = media(
+                "image/jpeg", Optional.empty(), OptionalInt.empty(), OptionalInt.empty(), List.of(), Processing.DONE);
+        assertThat(MissingSizes.hasNoMetadata(fileSizeOnly)).isFalse();
+        assertThat(MissingSizes.of(fileSizeOnly, DEFAULTS, Optional.empty())).isEmpty();
+        // a failed non-image has no metadata either, but never lacks a size
+        MediaSnapshot failedVideo = media(
+                "video/mp4", Optional.empty(), OptionalInt.empty(), OptionalInt.empty(), List.of(), Processing.FAILED);
+        assertThat(MissingSizes.hasNoMetadata(failedVideo)).isTrue();
+        assertThat(MissingSizes.of(failedVideo, DEFAULTS, Optional.empty())).isEmpty();
+    }
+
+    @Test
     void theOriginalIsUsedOnlyWhenTheMainFileIsACopy() {
         // the original's dimensions are read only when there is an original image
         MediaSnapshot small = image(1200, 800, List.of());
