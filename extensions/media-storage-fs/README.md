@@ -23,7 +23,7 @@ README). Everything in `org.quarkpress.media.storage.fs.runtime` is implementati
 |---|---|---|
 | `quarkpress.media.fs.directory` | none | The directory that holds the files. Required when this backend is the one in use: without it the start fails ("quarkpress.media.fs.directory is required by quarkpress-media-storage-fs"). It is created on the first write when missing. |
 | `quarkpress.media.fs.base-url` | unset | The URL the files are published under, such as a CDN's. Set, the application does not serve the files itself. |
-| `quarkpress.media.fs.path` | `/wp-content/uploads` | The URL path the files are served under, after the site's address. |
+| `quarkpress.media.fs.path` | `/wp-content/uploads` | The URL path the files are served under, after the site's address. Without a base URL it must have a segment: `/` fails the start ("quarkpress.media.fs.path must name a path below the site's root, such as /wp-content/uploads: /"), since the route would take every request. |
 
 When another backend is the one in use, the directory is not required, nothing is checked at start-up and no route is
 registered.
@@ -47,7 +47,16 @@ folder:
   application's other routes. The rest of the path is the key, taken from the raw request path and percent-decoded
   once as UTF-8.
 - A malformed escape, an invalid key, a key with a segment starting with `.` (so never the temporary folder), a folder
-  (no listings), a symbolic link and a missing file all answer 404.
+  (no listings), a symbolic link anywhere on the key's path (to a file or a folder, inside the directory or out of it)
+  and a missing file all answer 404.
+- The file served is the one checked: each folder of the key is opened relative to the one before it and the file
+  relative to its folder, never following a link, and the answer is read from that open file, never reopened by name.
+  Where the file system cannot open relative to a folder (the JDK offers it on Linux and other POSIX systems), each
+  segment is checked first and the file opened after: a link put in a folder's place in between, by someone who can
+  write to the directory, would be followed. On either way a name replaced between the check and the opening (by
+  another regular file below the directory) serves that file with the `Last-Modified` of the one checked; replaced by a
+  named pipe or another special file, which also needs write access to the directory, the opening waits on a worker
+  thread until something writes to it.
 - The content type is the one WordPress's upload type list gives the file's extension, else
   `application/octet-stream`, with `X-Content-Type-Options: nosniff`. `Last-Modified` is sent and `If-Modified-Since`
   answers 304; a single byte range is served (206, or 416 when no byte of the file satisfies it), and `If-Range`

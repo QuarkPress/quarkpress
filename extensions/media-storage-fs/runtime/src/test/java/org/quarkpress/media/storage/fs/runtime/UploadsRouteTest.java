@@ -1,6 +1,7 @@
 package org.quarkpress.media.storage.fs.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.List;
@@ -106,5 +107,19 @@ class UploadsRouteTest {
         assertThat(UploadsRoute.rawKey("/a/b/c/d/wp-content/uploads/x", prefix)).contains("x");
         assertThat(UploadsRoute.rawKey("/a/b/c/d/e/wp-content/uploads/x", prefix))
                 .isEmpty();
+    }
+
+    @Test
+    void theUploadsPathMustNameAFolderBelowTheRoot() {
+        for (String path : List.of("", "/", "//", "///")) {
+            assertThatThrownBy(() -> UploadsRoute.requireServablePath(path))
+                    .as("'%s'", path)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("quarkpress.media.fs.path must name a path below the site's root, such as"
+                            + " /wp-content/uploads: " + path);
+        }
+        for (String path : List.of("/wp-content/uploads", "media", "/files/")) {
+            UploadsRoute.requireServablePath(path);
+        }
     }
 }

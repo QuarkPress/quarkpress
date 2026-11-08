@@ -3,18 +3,22 @@ package org.quarkpress.media.storage.fs.runtime;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SecureDirectoryStream;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
@@ -251,25 +255,89 @@ public class FsMediaStorage implements MediaStorage {
         return served.isEmpty() ? siteUrl + key : siteUrl + served + "/" + key;
     }
 
-    /** A file to serve: its path (checked to be inside the directory), size and modification time. */
-    record Served(Path file, long size, Instant lastModified) {}
+    /**
+     * A stored file opened for serving: the channel reads the file that was checked, whatever happens to its name
+     * afterwards. The caller closes it.
+     */
+    record Served(SeekableByteChannel channel, long size, Instant lastModified) implements Closeable {
+
+        @Override
+        public void close() throws IOException {
+            channel.close();
+        }
+    }
 
     /**
-     * The file a key names, for serving it: empty when the key is invalid, names no regular file (a symbolic link is
-     * none), or names a temporary file. The real path is checked again right before the attributes are read.
+     * The file a key names, opened for serving: empty when the key is invalid, names a temporary file, or names no
+     * regular file reached without a symbolic link. No segment of the key is followed when it is a link: each folder
+     * is opened relative to the one before it, and the file relative to its folder, without following links, so what
+     * is opened is always below the directory. Where the file system cannot open relative to a folder, each segment is
+     * checked first and the file opened after, a gap in which a link put in a folder's place would be followed.
      */
     Optional<Served> servable(String key) {
         try {
-            Path file = resolve(key);
-            BasicFileAttributes attributes =
-                    Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-            if (!attributes.isRegularFile() || !file.toRealPath().startsWith(directory.toRealPath())) {
-                return Optional.empty();
+            Path relative = directory.relativize(resolve(key));
+            try (DirectoryStream<Path> top = Files.newDirectoryStream(directory)) {
+                if (top instanceof SecureDirectoryStream<Path> secure) {
+                    return servable(secure, relative);
+                }
             }
-            return Optional.of(new Served(
-                    file, attributes.size(), attributes.lastModifiedTime().toInstant()));
+            return servableByPath(relative);
         } catch (IllegalArgumentException | IOException refusedOrMissing) {
             return Optional.empty();
+        }
+    }
+
+    private static Optional<Served> servable(SecureDirectoryStream<Path> top, Path relative) throws IOException {
+        List<SecureDirectoryStream<Path>> opened = new ArrayList<>();
+        try {
+            SecureDirectoryStream<Path> folder = top;
+            for (int i = 0; i < relative.getNameCount() - 1; i++) {
+                folder = folder.newDirectoryStream(relative.getName(i), LinkOption.NOFOLLOW_LINKS);
+                opened.add(folder);
+            }
+            Path name = relative.getFileName();
+            BasicFileAttributes attributes = folder.getFileAttributeView(
+                            name, BasicFileAttributeView.class, LinkOption.NOFOLLOW_LINKS)
+                    .readAttributes();
+            if (!attributes.isRegularFile()) {
+                return Optional.empty();
+            }
+            return Optional.of(served(
+                    folder.newByteChannel(name, Set.of(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)),
+                    attributes));
+        } finally {
+            for (SecureDirectoryStream<Path> folder : opened) {
+                folder.close();
+            }
+        }
+    }
+
+    private Optional<Served> servableByPath(Path relative) throws IOException {
+        Path current = directory;
+        for (Path segment : relative) {
+            current = current.resolve(segment);
+            if (Files.isSymbolicLink(current)) {
+                return Optional.empty();
+            }
+        }
+        BasicFileAttributes attributes =
+                Files.readAttributes(current, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attributes.isRegularFile()) {
+            return Optional.empty();
+        }
+        return Optional.of(
+                served(Files.newByteChannel(current, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS), attributes));
+    }
+
+    /** The opened file with its size (that of the open file) and the modification time read before opening it. */
+    private static Served served(SeekableByteChannel channel, BasicFileAttributes attributes) throws IOException {
+        try {
+            return new Served(
+                    channel, channel.size(), attributes.lastModifiedTime().toInstant());
+        } catch (IOException | RuntimeException failure) {
+            channel.close();
+            throw failure;
         }
     }
 

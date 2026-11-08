@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
@@ -324,10 +325,16 @@ class FsMediaStorageTest {
         assertThatThrownBy(() -> storage.open("2026/11/link.jpg"))
                 .isInstanceOf(java.nio.file.NoSuchFileException.class);
         assertThat(storage.delete("2026/11/link.jpg")).isFalse();
-        assertThat(storage.servable("2026/11/real.jpg")).hasValueSatisfying(served -> {
+        try (FsMediaStorage.Served served = storage.servable("2026/11/real.jpg").orElseThrow()) {
             assertThat(served.size()).isEqualTo(4);
-            assertThat(served.file()).isEqualTo(dir.resolve("2026/11/real.jpg"));
-        });
+            ByteBuffer content = ByteBuffer.allocate(8);
+            served.channel().read(content);
+            assertThat(new String(content.array(), 0, content.position(), StandardCharsets.UTF_8))
+                    .isEqualTo("real");
+        }
+        // a folder link is not followed either, even to a folder inside the directory
+        Files.createSymbolicLink(dir.resolve("2026/inside"), dir.resolve("2026/11"));
+        assertThat(storage.servable("2026/inside/real.jpg")).isEmpty();
     }
 
     @Test

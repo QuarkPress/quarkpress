@@ -1,6 +1,7 @@
 package org.quarkpress.media.storage.fs.runtime;
 
 import io.smallrye.common.annotation.Identifier;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
@@ -8,8 +9,11 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import java.io.EOFException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +52,9 @@ public class UploadsRoute {
 
     private static final String OCTET_STREAM = "application/octet-stream";
 
+    /** The most bytes read from a file at a time while sending it. */
+    private static final int CHUNK = 64 * 1024;
+
     private static final Map<String, String> TYPES = types();
 
     @Inject
@@ -82,11 +89,21 @@ public class UploadsRoute {
                     if (found.failed() || found.result().isEmpty()) {
                         notFound(context);
                     } else {
-                        send(context, key.get(), found.result().get());
+                        FsMediaStorage.Served file = found.result().get();
+                        try {
+                            send(context, key.get(), file);
+                        } catch (RuntimeException failure) {
+                            close(file);
+                            throw failure;
+                        }
                     }
                 });
     }
 
+    /**
+     * Answers with the opened file, which is read from its channel (never reopened by name) and closed once sent or
+     * once the answer needs none of it.
+     */
     private static void send(RoutingContext context, String key, FsMediaStorage.Served file) {
         HttpServerResponse response = context.response();
         response.putHeader(HttpHeaders.CONTENT_TYPE, contentType(key));
@@ -96,6 +113,7 @@ public class UploadsRoute {
         response.putHeader(HttpHeaders.LAST_MODIFIED, httpDate(modified));
         Optional<Instant> since = parseHttpDate(context.request().getHeader(HttpHeaders.IF_MODIFIED_SINCE));
         if (notModified(modified, since, Instant.now())) {
+            close(file);
             response.setStatusCode(304).end();
             return;
         }
@@ -105,6 +123,7 @@ public class UploadsRoute {
         long offset = 0;
         long length = size;
         if (range == Range.UNSATISFIABLE) {
+            close(file);
             response.putHeader(HttpHeaders.CONTENT_RANGE, "bytes */" + size);
             response.setStatusCode(416).end();
             return;
@@ -114,13 +133,112 @@ public class UploadsRoute {
             response.putHeader(HttpHeaders.CONTENT_RANGE, "bytes " + range.first() + "-" + range.last() + "/" + size);
             response.setStatusCode(206);
         }
-        response.sendFile(file.file().toString(), offset, length).onFailure(failure -> {
-            if (!response.headWritten()) {
+        response.putHeader(HttpHeaders.CONTENT_LENGTH, Long.toString(length));
+        if (context.request().method() == HttpMethod.HEAD || length == 0) {
+            close(file);
+            response.end();
+            return;
+        }
+        new Transfer(context, file, offset, length).next();
+    }
+
+    /**
+     * Sends {@code length} bytes of an opened file from {@code offset}: each chunk is read on a worker thread and
+     * written when the connection takes more, and the file is closed at the end, on a failure or when the client
+     * goes away.
+     */
+    private static final class Transfer {
+
+        private final RoutingContext context;
+        private final FsMediaStorage.Served file;
+        private long position;
+        private long remaining;
+        private boolean closed;
+
+        Transfer(RoutingContext context, FsMediaStorage.Served file, long offset, long length) {
+            this.context = context;
+            this.file = file;
+            this.position = offset;
+            this.remaining = length;
+            // a close handler set now misses a connection that closed while the file was being opened, so the
+            // response is also asked whether it is closed before each chunk is read and once it has been read
+            context.response().closeHandler(gone -> finish());
+            context.response().exceptionHandler(failure -> finish());
+        }
+
+        void next() {
+            if (stopped()) {
+                return;
+            }
+            int count = (int) Math.min(CHUNK, remaining);
+            context.vertx().executeBlocking(() -> read(count), true).onComplete(read -> {
+                if (stopped()) {
+                    return;
+                }
+                if (read.failed()) {
+                    fail();
+                    return;
+                }
+                HttpServerResponse response = context.response();
+                remaining -= count;
+                position += count;
+                if (remaining == 0) {
+                    finish();
+                    response.end(read.result());
+                    return;
+                }
+                response.write(read.result());
+                if (response.writeQueueFull()) {
+                    response.drainHandler(drained -> next());
+                } else {
+                    next();
+                }
+            });
+        }
+
+        private Buffer read(int count) throws IOException {
+            ByteBuffer chunk = ByteBuffer.allocate(count);
+            SeekableByteChannel channel = file.channel();
+            channel.position(position);
+            while (chunk.hasRemaining()) {
+                if (channel.read(chunk) < 0) {
+                    throw new EOFException("the file is shorter than when it was opened");
+                }
+            }
+            return Buffer.buffer(chunk.array());
+        }
+
+        /** Whether the transfer is over: finished, or its response closed because the client went away. */
+        private boolean stopped() {
+            if (!closed && context.response().closed()) {
+                finish();
+            }
+            return closed;
+        }
+
+        private void fail() {
+            finish();
+            if (!context.response().headWritten()) {
                 notFound(context);
             } else {
                 context.request().connection().close();
             }
-        });
+        }
+
+        private void finish() {
+            if (!closed) {
+                closed = true;
+                close(file);
+            }
+        }
+    }
+
+    private static void close(FsMediaStorage.Served file) {
+        try {
+            file.close();
+        } catch (IOException ignored) {
+            // nothing was written through it
+        }
     }
 
     /** A byte range of a file, both ends included. */
@@ -341,6 +459,18 @@ public class UploadsRoute {
         }
         String type = TYPES.get(lowerAscii(key.substring(dot + 1)));
         return type != null ? type : OCTET_STREAM;
+    }
+
+    /**
+     * Refuses an uploads path with no segment ({@code /}, or empty): the route would then take every request of the
+     * application.
+     */
+    static void requireServablePath(String path) {
+        if (segments(path).isEmpty()) {
+            throw new IllegalStateException(
+                    "quarkpress.media.fs.path must name a path below the site's root, such as /wp-content/uploads: "
+                            + path);
+        }
     }
 
     /** The non-empty {@code /}-separated segments of a configured path. */

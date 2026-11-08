@@ -141,6 +141,56 @@ class UploadsRouteDbTest {
     }
 
     @Test
+    void symbolicLinksAreNotServed() throws IOException {
+        Path outside = Files.writeString(DIRECTORY.getParent().resolve("outside.txt"), "outside");
+        Path outsideFolder = Files.createDirectories(DIRECTORY.getParent().resolve("outside-folder"));
+        Files.writeString(outsideFolder.resolve("photo.jpg"), "outside folder");
+        link("2026/11/out.jpg", outside);
+        link("2026/11/in.jpg", DIRECTORY.resolve("2026/11/photo.jpg"));
+        link("2026/out", outsideFolder);
+        link("2026/in", DIRECTORY.resolve("2026/11"));
+        for (String key : List.of("2026/11/out.jpg", "2026/11/in.jpg", "2026/out/photo.jpg", "2026/in/photo.jpg")) {
+            for (String method : List.of("GET", "HEAD")) {
+                RawHttp.Answer answer = RawHttp.send(root, method, "/wp-content/uploads/" + key);
+                assertThat(answer.status()).as(method + " " + key).isEqualTo(404);
+                assertThat(answer.text()).as(method + " " + key).doesNotContain("outside", "jpeg bytes");
+            }
+        }
+        // the file the links name is served under its own key
+        assertThat(RawHttp.send(root, "GET", "/wp-content/uploads/2026/11/photo.jpg")
+                        .text())
+                .isEqualTo("jpeg bytes");
+    }
+
+    @Test
+    void largeFilesAreSentWhole() throws IOException {
+        StringBuilder content = new StringBuilder();
+        for (int i = 0; content.length() < 3 << 20; i++) {
+            content.append(i).append('\n');
+        }
+        put("2026/11/large.txt", content.toString());
+        RawHttp.Answer whole = RawHttp.send(root, "GET", "/wp-content/uploads/2026/11/large.txt");
+        assertThat(whole.status()).isEqualTo(200);
+        assertThat(whole.header("Content-Length")).isEqualTo(String.valueOf(content.length()));
+        assertThat(whole.text()).isEqualTo(content.toString());
+        RawHttp.Answer head = RawHttp.send(root, "HEAD", "/wp-content/uploads/2026/11/large.txt");
+        assertThat(head.header("Content-Length")).isEqualTo(String.valueOf(content.length()));
+        assertThat(head.body()).isEmpty();
+        long first = (1 << 20) + 5;
+        RawHttp.Answer part =
+                RawHttp.send(root, "GET", "/wp-content/uploads/2026/11/large.txt", "Range: bytes=" + first + "-\r\n");
+        assertThat(part.status()).isEqualTo(206);
+        assertThat(part.text()).isEqualTo(content.substring((int) first));
+    }
+
+    private static void link(String key, Path target) throws IOException {
+        Path link = DIRECTORY.resolve(key);
+        Files.createDirectories(link.getParent());
+        Files.deleteIfExists(link);
+        Files.createSymbolicLink(link, target);
+    }
+
+    @Test
     void singleRangesAreServed() throws IOException {
         put("2026/11/range.txt", "0123456789");
         String path = "/wp-content/uploads/2026/11/range.txt";
