@@ -60,8 +60,8 @@ class MediaParityDbTest {
     /** 90 % of the comparisons of the first green run without GD (4130), rounded down to a multiple of 50. */
     static final int MIN_WITHOUT_EDITOR = 3700;
 
-    /** Equal to {@link #MIN_WITHOUT_EDITOR} until the first green CI run with GD gives its own number. */
-    static final int MIN_WITH_EDITOR = MIN_WITHOUT_EDITOR;
+    /** 90 % of the comparisons of the first CI run with an editor (5934), rounded down to a multiple of 50. */
+    static final int MIN_WITH_EDITOR = 5300;
 
     static final String EDITOR_SKIP =
             "SKIPPED (needs an image editor): php8.4-gd is not installed; the CI parity cell installs it";
@@ -101,6 +101,11 @@ class MediaParityDbTest {
                 WordPressRestSite site = start(database)) {
             JsonNode extensions = site.operation("extensions", OracleJson.MAPPER.createObjectNode());
             gd = extensions.path("gd").asBoolean();
+            // the reference editor is GD alone: WordPress prefers Imagick when both are loaded, and Imagick accepts
+            // types GD refuses (TIFF, ICO, BMP), so a server with Imagick would compare another WordPress
+            assertThat(extensions.path("imagick").asBoolean())
+                    .as("WordPress's PHP must not load Imagick: the parity reference is WordPress with GD")
+                    .isFalse();
             if (!gd && Boolean.getBoolean("wp.media.require-editor")) {
                 fail("php8.4-gd is required (-Dwp.media.require-editor=true) but WordPress's PHP has no GD");
             }

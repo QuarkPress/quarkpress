@@ -15,7 +15,7 @@ m04 step14:metadata:/file D1 WordPress's file is the overwritten shot-1.png; Qua
 m04 step14:files D1 QuarkPress's folder also holds shot-2.png; WordPress's shot-1.png was replaced
 
 # D2: BMP declared image/bmp (GD cannot write BMP; ImageIO can).
-m07 step6:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkPress stores it
+m07 step10:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkPress stores it
 
 # D4: audio and video metadata. QuarkPress does not read what getID3 reads (format, codec, rates, channels, tags, MP3
 # playing time, the cover's description) and stores the attachment's type as mime_type.
@@ -68,8 +68,8 @@ m17 step8:meta:_thumbnail_id D4 WordPress makes the MP3's embedded cover an atta
 m17 step8:files D4 WordPress writes the embedded cover beside the MP3 (m17-covered-mp3-image.jpg); QuarkPress does not
 
 # D16: WebP and AVIF declared as such, which GD writes when built with them and ImageIO cannot write.
-m07 step9:outcome D16 WordPress's GD writes WebP and accepts the upload; QuarkPress refuses it without accept-unprocessable-images (needs gd_webp)
-m07 step10:outcome D16 WordPress's GD writes AVIF and accepts the upload; QuarkPress refuses it without accept-unprocessable-images (needs gd_avif)
+m07 step11:outcome D16 WordPress's GD writes WebP and accepts the upload; QuarkPress refuses it without accept-unprocessable-images (needs gd_webp)
+m07 step12:outcome D16 WordPress's GD writes AVIF and accepts the upload; QuarkPress refuses it without accept-unprocessable-images (needs gd_avif)
 
 
 # Rows no scenario shows (scenario "none"), each with the reason.
