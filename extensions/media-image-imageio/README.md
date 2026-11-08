@@ -48,7 +48,9 @@ made, it holds the decoded original and its upright copy (about 8 bytes per pixe
 is cut and encoded, further rasters exist for a moment, so processing one image needs about 2–3× its decoded raster
 (width × height × 4 bytes, so 8–12 bytes per pixel) of heap at peak. `quarkpress.media.max-image-pixels`
 bounds the largest raster: the media module checks it from the file's header before any decode, and this processor
-checks it again from the reader's dimensions (for a GIF, the logical screen's too) before reading any pixel. Plan the
+checks it again from the reader's dimensions (for a GIF, the logical screen's too) before reading any pixel. It also
+refuses an image with a side longer than 65535 pixels, whatever the pixel limit, since the row buffers of a decode and
+of scaling grow with one side alone: its decode fails, and the media module keeps it without sizes. Plan the
 heap for about 8 bytes × `max-image-pixels` × `max-concurrent-decodes` (the steady state of each run), plus the
 sizes in flight and the peak of one decode (up to 12 bytes per pixel): with the defaults (100 million pixels, half
 the processors) that is about 800 MB per concurrent decode, so lower either setting for a small heap.

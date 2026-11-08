@@ -398,6 +398,22 @@ class ImageIoProcessorTest {
     }
 
     @Test
+    void aSideLongerThanTheLongestRowIsNotDecoded() throws Exception {
+        // within the pixel limit, but a row this long would need row buffers of hundreds of megabytes
+        for (int[] size : new int[][] {{100_000_000, 1}, {1, 100_000_000}, {65536, 2}}) {
+            assertThatThrownBy(() -> new ImageIoProcessor(100_000_000)
+                            .decode(write(MediaFixtures.pngHeaderOnly(size[0], size[1])), "image/png"))
+                    .isInstanceOf(ImageProcessingException.class)
+                    .hasMessage("The image is too large to process: " + size[0] + "x" + size[1]
+                            + " pixels (a side may have at most 65535).");
+        }
+        BufferedImage edge = new BufferedImage(65535, 1, BufferedImage.TYPE_INT_RGB);
+        try (DecodedImage decoded = p.decode(write(encode(edge, "png")), "image/png")) {
+            assertThat(decoded.width()).isEqualTo(65535);
+        }
+    }
+
+    @Test
     void aTruncatedImageFailsCleanly() throws Exception {
         byte[] jpeg = MediaFixtures.jpeg(400, 300);
         Path half = write(Arrays.copyOf(jpeg, jpeg.length / 2));

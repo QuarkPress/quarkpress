@@ -40,6 +40,12 @@ public class ImageIoProcessor implements ImageProcessor {
 
     private static final Set<String> SUPPORTED = Set.of("image/jpeg", "image/png", "image/gif", "image/bmp");
 
+    /**
+     * The longest side decoded, whatever the pixel limit: the row buffers of a decode and of scaling grow with one
+     * side alone, so a very long, thin image would need far more memory than its pixel count suggests.
+     */
+    static final int MAX_SIDE = 65535;
+
     private final long maxPixels;
 
     @Inject
@@ -94,10 +100,11 @@ public class ImageIoProcessor implements ImageProcessor {
 
     /**
      * Decodes the first image of {@code file}. The reader is chosen by the file's content; {@code mimeType} is
-     * informational only and never selects or overrides it. The dimensions are checked against the pixel limit before
-     * any pixel is read. An RGB or grey image with an ICC profile keeps its samples unconverted, in that profile's
-     * colour space; any other image (CMYK, for one) is converted to sRGB without a profile. A GIF gives its first frame
-     * drawn at its place on a transparent canvas of the GIF's logical screen, the dimensions its header declares.
+     * informational only and never selects or overrides it. The dimensions are checked against the pixel limit, and
+     * each side against {@value #MAX_SIDE} pixels, before any pixel is read. An RGB or grey image with an ICC profile
+     * keeps its samples unconverted, in that profile's colour space; any other image (CMYK, for one) is converted to
+     * sRGB without a profile. A GIF gives its first frame drawn at its place on a transparent canvas of the GIF's
+     * logical screen, the dimensions its header declares.
      */
     @Override
     public DecodedImage decode(Path file, String mimeType) throws ImageProcessingException {
@@ -177,6 +184,10 @@ public class ImageIoProcessor implements ImageProcessor {
         if ((long) width * height > maxPixels) {
             throw new ImageProcessingException(
                     "The image is too large to process: " + width + "x" + height + " pixels.");
+        }
+        if (width > MAX_SIDE || height > MAX_SIDE) {
+            throw new ImageProcessingException("The image is too large to process: " + width + "x" + height
+                    + " pixels (a side may have at most " + MAX_SIDE + ").");
         }
     }
 
