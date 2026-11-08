@@ -92,15 +92,15 @@ Run time unless said; every key is checked at start-up with the other `quarkpres
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.media.max-upload-size` | unset: no limit | The largest file a site accepts (`20M`); a larger one is refused with "This file is too big. Files must be less than {n} KB in size.", `n` the limit's bytes / 1024 rounded down. |
+| `quarkpress.media.max-upload-size` | unset: no limit | The largest file a site accepts (`20M`); a larger one is refused with "This file is too big. Files must be less than {n} KB in size.", `n` the limit's bytes / 1024 rounded down. On a network, the network's limits (`fileupload_maxk`, the site's upload space) still apply. |
 | `quarkpress.media.network-limits.enabled` | unset: follow the network | Whether the network's upload limits apply on a network; unset, they apply when the network option `upload_space_check_disabled` is false as PHP reads it. A network QuarkPress creates sets that option to `"1"`, as WordPress's network setup does, so the limits start off. |
-| `quarkpress.media.allowed-types."<pattern>"` | none | Upload types added to WordPress's list, extension pattern (`jpg\|jpeg`) to MIME type. A pattern WordPress's list holds takes the new type in its place; the others come after the list, sorted by pattern. A pattern holding a dot fails the start (a file's type is looked up by the part of its name after its last dot). |
+| `quarkpress.media.allowed-types."<pattern>"` | none | Upload types added to WordPress's list, extension pattern (`jpg\|jpeg`) to MIME type. A pattern WordPress's list holds takes the new type in its place; the others come after the list, sorted by pattern. A pattern holding a dot fails the start (a file's type is looked up by the part of its name after its last dot), and so does a type longer than 100 characters (an attachment's type holds at most 100). |
 | `quarkpress.media.denied-extensions` | none | Extensions no site may upload, whatever the types say; each is trimmed and may start with a dot (`.exe`). A pattern left without extensions is dropped. |
 | `quarkpress.media.accept-unprocessable-images` | `false` | Store an image the image processor cannot make sizes for (WebP and AVIF with ImageIO), without sizes, instead of refusing it. |
 | `quarkpress.media.processing` | `sync` | When the sizes are made: during `upload` (`sync`) or after it, in the background (`async`). |
 | `quarkpress.media.big-image-threshold` | `2560` | The longest side above which an image is scaled down into a `-scaled` copy used in place of the original, which is kept; `0` turns the scaling off. |
 | `quarkpress.media.max-image-pixels` | `100000000` | The most pixels (width × height, read from the file's header) an image may have to be decoded at all; a larger image is stored without sizes. |
-| `quarkpress.media.max-concurrent-decodes` | unset: half the available processors, at least 1 | How many images are decoded at once; further runs wait for their turn, they never fail for it. |
+| `quarkpress.media.max-concurrent-decodes` | unset: half the available processors, at most one per 512 MiB of the maximum heap, at least 1 | How many images are decoded at once; further runs wait for their turn, they never fail for it. |
 | `quarkpress.media.output-formats."<mime>"` | `image/heic`, `image/heif`, `image/heic-sequence`, `image/heif-sequence` → `image/jpeg` | The type sizes of an image type are written in, applied over the defaults; a mapping to a type the image processor does not write is ignored. |
 | `quarkpress.media.storage` (build time) | unset | The storage backend to use when several are present: a backend module's name (`fs`, `s3`) or the `@Identifier` (else the class's simple name) of an application's `MediaStorage` bean. Needed only then. |
 
@@ -147,7 +147,9 @@ A new image whose type and dimensions are read from its header gets, when the im
 it is within `max-image-pixels`: one main-file copy when one applies (scaled down above `big-image-threshold` and
 turned upright from its JPEG orientation, else converted to the output type, else turned upright), then its
 registered sizes, each cut from the upright original decoded once, encoded at quality 82. Audio and video get the
-metadata their container states; any other file its size only.
+metadata their container states; a box or chunk that declares more bytes than the file holds ends the reading there,
+and an MP4 or QuickTime file is read from a checked copy of at most 32 MB of its movie headers and sample tables, so
+reading the metadata never allocates more than the file holds. Any other file gets its size only.
 
 - In the `sync` mode `upload` answers the processed attachment. In the `async` mode it answers the stored one, still
   `pending`, and the run starts once the storing transaction has committed, on a thread of its own bound to the
@@ -156,13 +158,19 @@ metadata their container states; any other file its size only.
   again, oldest first, at most a hundred per start; failures are logged and never fail the start.
 - An upload that asks for no sizes, or no format conversion, keeps that choice with its pending row, so a background
   run, a start-up resume or a post-process honours it.
-- `process` on a `pending` attachment processes it from scratch; otherwise it makes the missing sizes from the
-  original (and the main-file copy again when an earlier run failed to make it, see D20); with nothing missing the
-  attachment is returned unchanged and nothing is written.
+- `process` on an attachment without metadata processes it from scratch, as WordPress does: one still `pending` or
+  `failed`; `missingSizes` then lists every registered size, whatever the image's dimensions. Otherwise it makes the
+  missing sizes from the original (and the main-file copy again when an earlier run failed to make it, see D20); with
+  nothing missing the attachment is returned unchanged and nothing is written. A file of an image type that cannot be
+  read as an image keeps its file size as its metadata: nothing is missing and `process` changes nothing, as in
+  WordPress.
 - Processing never fails an upload. The processing state (`MediaSnapshot.processing`) is `pending` until a run ends,
   then `done` (everything made, or nothing to make), `partial` (a decode, a size or the main-file copy failed; a
-  post-process makes what is missing) or `failed` (the stored file could not be read, or a save failed). A run that
-  throws never leaves the attachment `pending`.
+  post-process makes what is missing; also a later save that failed, or a run out of memory) or `failed` (no metadata
+  was saved: the stored file could not be read, the first save failed, or the run threw before it; an error such as
+  `StackOverflowError` is rethrown after marking). A run that throws never leaves the attachment `pending`. The
+  `MediaProcessed` event is fired by a run that changed the attachment or its state; a second run of the same attachment
+  that found everything made is not announced.
 - Decodes wait for one of `max-concurrent-decodes` permits, handed out in arrival order and held from the decode to
   the run's last size. Memory: see the image processor's README (ImageIO: about 2–3× the decoded raster of an image at
   peak); `max-image-pixels` bounds the largest raster, checked from the header before any processor decodes.
@@ -227,7 +235,9 @@ attachments the default terms of taxonomies registered for them on `AttachmentAd
   with an error); a fractional `blog_upload_space` is floored to whole bytes; an `upload_filetypes` that is null or an
   array counts as unset, so WordPress's fallback list `jpg jpeg png gif` applies.
 - A crash between storing a file and committing its attachment leaves that file (and any temporary file) behind. It is
-  not counted in the site's used space, and later uploads number their names around it.
+  not counted in the site's used space, and later uploads number their names around it. So does a transaction whose
+  outcome is unknown (the connection was lost while it committed): its files are kept and a warning is logged, since a
+  file no attachment names is better than an attachment naming a file that is gone.
 - Patterns added through `quarkpress.media.allowed-types` take part in the type check, but not in file-name cleaning's
   rule that renames a name that is only an extension to `unnamed-file.<ext>`, which uses WordPress's list of types.
 - Configured upload types without a place in WordPress's list come after it sorted by pattern, so the lookup order is
@@ -265,6 +275,7 @@ storage and ImageIO modules together.
 | D20 | `Media.process` also makes again a `-scaled`, `-rotated` or converted main-file copy that an earlier run failed to make (a `partial` image without an original), so a copy a failed run could not make is not lost for good; WordPress's post-process makes only the missing sizes. |
 | D21 | Deleting an attachment skips a size, backup or other derived file whose name holds a `/`, and an attachment of the main site whose main file is under `sites/<n>/` keeps every file; WordPress deletes such files when they stay inside the uploads folder. A derived name is placed only as a single name in the main file's folder, and a main-site file under `sites/` belongs to another site's uploads. |
 | D22 | Attachments without a media row (created through `Posts.create`, or before the media module was installed) are left out of `Media.query`'s items and counts, since a library item needs its file data; WordPress lists every attachment. |
+| D23 | HEIC conversion and PDF previews behave as WordPress with GD as its image editor: a HEIC or HEIF upload keeps its file size only and a PDF gets no preview image. WordPress with Imagick reads HEIC images, makes their sizes (as JPEG by default, which is why `output-formats` maps HEIC and HEIF to JPEG) and renders a PDF's first page as its preview sizes. No image processor module decodes HEIC or renders PDFs yet. |
 
 Labels D15, D17 and D18 are not used: the differences they were kept for turned out not to exist once WordPress's
 answers were recorded (WordPress keeps an AVIF's header dimensions, refuses a real JPEG named `.webp` when WebP is not

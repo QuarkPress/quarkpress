@@ -88,3 +88,4 @@ none * D19 no scenario image reaches these bounds (DOCTYPE, depth, sizes, other 
 none * D20 no scenario makes a main-file copy fail, so post-processes have no copy to make again
 none * D21 the scenarios store no size file name holding a slash and no main-site file under sites/
 none * D22 every scenario attachment is uploaded through the media module, so each has its media row
+none * D23 the parity run uses GD as WordPress's only image editor, so WordPress converts no HEIC and renders no PDF either
