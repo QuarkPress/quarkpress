@@ -13,8 +13,8 @@ import java.util.stream.Stream;
 /**
  * A new, empty storage directory for each start of the application under test ({@code target/media-files/<uuid>},
  * absolute), so that the stored file names never depend on an earlier run, and its removal when the tests end. In
- * {@code @QuarkusTest} the setting overrides the application's configuration; in {@code @QuarkusIntegrationTest} Quarkus
- * passes it to the launched jar or native executable as a system property.
+ * {@code @QuarkusTest} the setting overrides the application's configuration; in {@code @QuarkusIntegrationTest}
+ * Quarkus passes it to the launched jar or native executable as a system property.
  */
 public class MediaFilesResource implements QuarkusTestResourceLifecycleManager {
 

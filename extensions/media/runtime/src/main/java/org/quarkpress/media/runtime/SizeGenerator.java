@@ -287,6 +287,9 @@ public class SizeGenerator {
 
     /** Turning an image upright failed. */
     private static final class TurnFailed extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
         TurnFailed(Throwable cause) {
             super("the image could not be turned upright: " + cause.getMessage(), cause);
         }
@@ -294,6 +297,9 @@ public class SizeGenerator {
 
     /** A save that failed in the database; the run marks the attachment failed. */
     private static final class SaveFailed extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
         SaveFailed(RuntimeException cause) {
             super(cause);
         }
@@ -540,6 +546,7 @@ public class SizeGenerator {
             }
         }
 
+        @SuppressWarnings("try") // the decode permit is held by its try block alone, never referenced
         private Optional<MediaSnapshot> process(
                 Path source, Options options, Map<String, ImageSizeDefinition> registered) {
             String mimeType = media.mimeType();
@@ -681,6 +688,7 @@ public class SizeGenerator {
          * not make it (the attachment is partial and has no original image while a copy applies). Unchanged, and
          * nothing written, when nothing can be made.
          */
+        @SuppressWarnings("try") // the decode permit is held by its try block alone, never referenced
         MediaSnapshot missing(Map<String, ImageSizeDefinition> registered, Options options) {
             boolean mayLackCopy = media.processing() == Processing.PARTIAL
                     && media.originalImage().isEmpty()

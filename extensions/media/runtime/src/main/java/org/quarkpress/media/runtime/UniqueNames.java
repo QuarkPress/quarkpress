@@ -195,10 +195,10 @@ public final class UniqueNames {
     }
 
     /**
-     * The extensions ({@code .heic}, {@code .jpg} and so on) of the formats an image named {@code name} shares derived files
-     * with: when the output formats convert its type to another, every type converted to its type or to that one, and
-     * that one; otherwise every type converted to its type; never its own type. Empty for a name that is not an image
-     * by its extension.
+     * The extensions ({@code .heic}, {@code .jpg} and so on) of the formats an image named {@code name} shares derived
+     * files with: when the output formats convert its type to another, every type converted to its type or to that one,
+     * and that one; otherwise every type converted to its type; never its own type. Empty for a name that is not an
+     * image by its extension.
      */
     private static List<String> alternateExtensions(
             String name, AllowedTypes allowed, Map<String, String> outputFormats) {

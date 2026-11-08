@@ -20,8 +20,8 @@ public final class PhpValues {
     /**
      * The leading number of {@code text} as PHP's {@code (float)} cast reads it: optional whitespace (space, tab, line
      * feed, carriage return, vertical tab, form feed), an optional sign, digits with an optional fraction (at least one
-     * digit), an optional exponent; the rest is ignored. Empty when the text starts with no number (PHP then gives 0) or
-     * the number is longer than {@value #MAX_NUMBER_TEXT} characters.
+     * digit), an optional exponent; the rest is ignored. Empty when the text starts with no number (PHP then gives 0)
+     * or the number is longer than {@value #MAX_NUMBER_TEXT} characters.
      */
     static OptionalDouble leadingFloat(String text) {
         int length = text.length();

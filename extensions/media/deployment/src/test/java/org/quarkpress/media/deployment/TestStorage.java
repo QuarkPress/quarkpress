@@ -66,7 +66,9 @@ public class TestStorage implements MediaStorage {
         return List.copyOf(deleted);
     }
 
-    /** Every delete throws {@code failure} and removes nothing, as a backend whose client fails would; null to delete. */
+    /**
+     * Every delete throws {@code failure} and removes nothing, as a backend whose client fails would; null to delete.
+     */
     public void deleteFails(RuntimeException failure) {
         deleteFailure = failure;
     }

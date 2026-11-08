@@ -3,9 +3,9 @@ package org.quarkpress.media;
 /**
  * The rule every storage key follows. A key is a relative path of {@code /}-separated segments, such as
  * {@code sites/2/2026/11/photo.jpg}: not empty, at most {@value #MAX_BYTES} bytes in UTF-8, no leading {@code /}, no
- * empty segment (so no trailing or doubled {@code /}), no {@code .} or {@code ..} segment, no {@code \}, no NUL or other
- * control character below U+0020, and no unpaired surrogate. Storage backends check every key with {@link #require}
- * before touching their storage.
+ * empty segment (so no trailing or doubled {@code /}), no {@code .} or {@code ..} segment, no {@code \}, no NUL or
+ * other control character below U+0020, and no unpaired surrogate. Storage backends check every key with
+ * {@link #require} before touching their storage.
  */
 public final class StoredKey {
 

@@ -134,7 +134,9 @@ class UploadLimitsDbTest {
                 dataSource, "select count(*) from qp_post where site_id = ? and type = 'attachment'", site.value());
     }
 
-    /** {@code upload} by {@code user} is refused with {@code code} and {@code message}; nothing is stored or written. */
+    /**
+     * {@code upload} by {@code user} is refused with {@code code} and {@code message}; nothing is stored or written.
+     */
     private void assertRefused(UserId user, Upload.Builder upload, String code, String message) {
         List<String> keys = storage.keys();
         int puts = storage.puts();

@@ -11,10 +11,11 @@ import org.quarkpress.media.MediaException;
 import org.quarkpress.posts.PostException;
 
 /**
- * The test resources' answers to refusals, as {@code {code, message}} (no {@code message} when the exception has none): a media refusal with its WordPress code, 400 for
- * the REST preamble's codes ({@code rest_...}) and 500 for the upload's own ({@code upload_error}, the status WordPress
- * gives it); a post refusal 400; a capability refusal 403, or 401 without a user. A malformed
- * request (a {@code post} field that is no post id) is answered 400 by the resource itself. Test scaffolding, not an API.
+ * The test resources' answers to refusals, as {@code {code, message}} (no {@code message} when the exception has none):
+ * a media refusal with its WordPress code, 400 for the REST preamble's codes ({@code rest_...}) and 500 for the
+ * upload's own ({@code upload_error}, the status WordPress gives it); a post refusal 400; a capability refusal 403, or
+ * 401 without a user. A malformed request (a {@code post} field that is no post id) is answered 400 by the resource
+ * itself. Test scaffolding, not an API.
  */
 public class ItRefusals {
 

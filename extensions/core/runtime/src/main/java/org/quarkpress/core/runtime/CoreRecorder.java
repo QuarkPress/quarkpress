@@ -26,7 +26,8 @@ public class CoreRecorder {
      * Fails the start when a {@code quarkpress.*} property, from any source except environment variables (whose names
      * are ambiguous: {@code QUARKPRESS_A_B} could be {@code a.b} or {@code a-b}), matches none of the declared keys. A
      * declared {@code name[]} accepts {@code name} and {@code name[n]}; a declared {@code name.*} accepts exactly one
-     * further segment, plain ({@code name.a}, without {@code [}, {@code ]} or {@code *}) or quoted ({@code name."a.b"}).
+     * further segment, plain ({@code name.a}, without {@code [}, {@code ]} or {@code *}) or quoted
+     * ({@code name."a.b"}).
      */
     public void checkConfigKeys(List<String> declared) {
         java.util.Set<String> exact = new java.util.HashSet<>();

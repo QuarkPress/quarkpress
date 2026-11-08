@@ -17,10 +17,10 @@ import org.quarkpress.posts.PostOrder;
  * argument: {@code image} and {@code image/*} find every image, {@code image/jpeg} one type, {@code *} any type, case
  * ignored; each value may be a comma-separated list, and a piece that is empty, {@code %} or {@code %/%} once its
  * whitespace is removed drops the whole filter (so does a trailing comma), as no value does. Only attachments with
- * media data are found. {@code parent} 0 finds the unattached attachments and wins over {@code parentIn}; {@code author} and {@code authorIn}
- * combine. {@code search} looks in titles, captions and descriptions. No {@code statuses} means {@code inherit}, plus
- * {@code private} for a caller who may read others' private attachments; statuses given are read as the posts module
- * reads them, so a caller sees only the attachments it may read.
+ * media data are found. {@code parent} 0 finds the unattached attachments and wins over {@code parentIn};
+ * {@code author} and {@code authorIn} combine. {@code search} looks in titles, captions and descriptions. No
+ * {@code statuses} means {@code inherit}, plus {@code private} for a caller who may read others' private attachments;
+ * statuses given are read as the posts module reads them, so a caller sees only the attachments it may read.
  */
 public record MediaQuery(
         List<String> mimeTypes,
