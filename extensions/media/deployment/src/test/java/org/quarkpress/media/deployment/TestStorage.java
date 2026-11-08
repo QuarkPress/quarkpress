@@ -52,6 +52,7 @@ public class TestStorage implements MediaStorage {
     private volatile RuntimeException deleteFailure;
     private final AtomicBoolean failUrlAfterStore = new AtomicBoolean();
     private final AtomicBoolean failNextUrl = new AtomicBoolean();
+    private final AtomicInteger failingUrls = new AtomicInteger();
     private volatile Runnable duringPut;
 
     /** Removes every file and resets the switches. */
@@ -68,6 +69,7 @@ public class TestStorage implements MediaStorage {
         deleteFailure = null;
         failUrlAfterStore.set(false);
         failNextUrl.set(false);
+        failingUrls.set(0);
         duringPut = null;
     }
 
@@ -82,6 +84,11 @@ public class TestStorage implements MediaStorage {
      */
     public void failNextUrlAfterStore() {
         failUrlAfterStore.set(true);
+    }
+
+    /** The next {@code times} public URLs asked for throw, as a backend that fails for a while would. */
+    public void failUrls(int times) {
+        failingUrls.set(times);
     }
 
     void stored(@Observes MediaStored event) {
@@ -235,7 +242,7 @@ public class TestStorage implements MediaStorage {
 
     @Override
     public String publicUrl(SiteInfo site, String key) {
-        if (failNextUrl.getAndSet(false)) {
+        if (failingUrls.getAndUpdate(n -> Math.max(0, n - 1)) > 0 || failNextUrl.getAndSet(false)) {
             throw new IllegalStateException("the test storage cannot tell the URL of " + key);
         }
         return site.url("http") + "test-uploads/" + StoredKey.require(key);

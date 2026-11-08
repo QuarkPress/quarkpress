@@ -5,12 +5,17 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.ObservesAsync;
 import jakarta.inject.Inject;
 import jakarta.transaction.Status;
+import jakarta.transaction.Synchronization;
 import jakarta.transaction.TransactionManager;
+import jakarta.transaction.TransactionSynchronizationRegistry;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
@@ -29,7 +34,8 @@ import org.quarkpress.security.SystemIdentity;
  * attachment honours them; the run removes them. At most the configured number of background runs (by default the
  * number of concurrent decodes) hold a temporary copy of their file at once; the others wait for their turn first,
  * without a transaction. A failing run is logged; the attachment keeps whatever state its last save gave it, and is
- * never left pending.
+ * never left pending. An upload stored {@linkplain #storeDeferred deferred} is not run once its transaction commits:
+ * its run is {@linkplain #queue queued} by the caller later, or never.
  */
 @ApplicationScoped
 public class AsyncProcessing {
@@ -38,6 +44,15 @@ public class AsyncProcessing {
 
     /** The options of the upload the current thread is storing. */
     private static final ThreadLocal<SizeGenerator.Options> STORING = new ThreadLocal<>();
+
+    /** Whether the upload the current thread is storing is processed only when its caller queues it. */
+    private static final ThreadLocal<Boolean> DEFERRING = new ThreadLocal<>();
+
+    /** A background run asked for by {@link #queue}. */
+    record Queued(SiteId site, PostId post) {}
+
+    /** The attachments stored deferred whose committed storing has not yet reached {@link #process}. */
+    private final Set<Long> deferred = ConcurrentHashMap.newKeySet();
 
     @Inject
     MediaConfig config;
@@ -56,6 +71,12 @@ public class AsyncProcessing {
 
     @Inject
     TransactionManager transactionManager;
+
+    @Inject
+    TransactionSynchronizationRegistry registry;
+
+    @Inject
+    Event<Queued> queued;
 
     /** The background runs that may hold a temporary copy of their file at once, handed out in arrival order. */
     private Semaphore runs;
@@ -77,8 +98,32 @@ public class AsyncProcessing {
         }
     }
 
+    /**
+     * As {@link #store}; in the {@code async} mode the stored attachment is not processed once its transaction
+     * commits, but only when {@link #queue} asks for it.
+     */
+    MediaSnapshot storeDeferred(SizeGenerator.Options options, Supplier<MediaSnapshot> store) {
+        DEFERRING.set(Boolean.TRUE);
+        try {
+            return store(options, store);
+        } finally {
+            DEFERRING.remove();
+        }
+    }
+
+    /** Queues the background run of an attachment stored deferred, on another thread. */
+    void queue(SiteId site, PostId post) {
+        queued.fireAsync(new Queued(site, post)).exceptionally(failure -> {
+            LOG.warnf(failure, "the background processing of attachment %s of site %s failed", post.value(), site);
+            return null;
+        });
+    }
+
     /** Inside the storing transaction: writes the upload's options other than the defaults into its row. */
     void remember(@Observes MediaStored event) {
+        if (DEFERRING.get() != null) {
+            defer(event.media().post().id().value());
+        }
         SizeGenerator.Options options = STORING.get();
         if (options == null || options.equals(SizeGenerator.Options.DEFAULT)) {
             return;
@@ -91,13 +136,41 @@ public class AsyncProcessing {
         });
     }
 
+    /**
+     * Marks the attachment being stored as deferred until its committed storing reaches {@link #process}; a storing
+     * that does not commit takes the mark away again.
+     */
+    private void defer(long post) {
+        deferred.add(post);
+        registry.registerInterposedSynchronization(new Synchronization() {
+            @Override
+            public void beforeCompletion() {}
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != Status.STATUS_COMMITTED) {
+                    deferred.remove(post);
+                }
+            }
+        });
+    }
+
     /** After the storing transaction committed: the run, in the attachment's site, as the system. */
     void process(@ObservesAsync MediaStored event) {
-        if (config.processing() != MediaConfig.ProcessingMode.ASYNC) {
+        // a deferred attachment is run when its caller queues it, if ever
+        if (deferred.remove(event.media().post().id().value())
+                || config.processing() != MediaConfig.ProcessingMode.ASYNC) {
             return;
         }
-        SiteId site = event.site();
-        PostId post = event.media().post().id();
+        runLogged(event.site(), event.media().post().id());
+    }
+
+    /** A queued run, on a thread of its own. */
+    void processQueued(@ObservesAsync Queued event) {
+        runLogged(event.site(), event.post());
+    }
+
+    private void runLogged(SiteId site, PostId post) {
         try {
             run(site, post);
         } catch (Throwable failure) {

@@ -74,6 +74,10 @@ class UploadSettingsDbTest {
         assertThat(store("x.webp", MediaFixtures.webp(), "image/webp"))
                 .extracting(MediaSnapshot::storageKey, MediaSnapshot::mimeType)
                 .containsExactly("2026/11/x.webp", "image/webp");
+        // and the rule the REST create asks before reading the file says so too
+        assertThat(Identities.onSite(
+                        TestData.MAIN, Identities.user(carol), () -> media.refusesImageType("image/webp", true)))
+                .isFalse();
     }
 
     @Test

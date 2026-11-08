@@ -13,6 +13,11 @@ import jakarta.transaction.Status;
 import jakarta.transaction.SystemException;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.Transactional;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +34,7 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteInfo;
 import org.quarkpress.core.UserId;
 import org.quarkpress.lib.wpkses.TextFields;
+import org.quarkpress.media.ImageProcessor;
 import org.quarkpress.media.Media;
 import org.quarkpress.media.MediaChanges;
 import org.quarkpress.media.MediaException;
@@ -51,6 +57,7 @@ import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.Posts;
+import org.quarkpress.posts.SearchColumn;
 import org.quarkpress.posts.runtime.Acting;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
 import org.quarkpress.posts.runtime.PostEntity;
@@ -111,6 +118,15 @@ public class JpaMedia implements Media {
     @Inject
     PostTypes postTypes;
 
+    @Inject
+    AllowedTypesFor allowedTypesFor;
+
+    @Inject
+    ImageProcessor processor;
+
+    @Inject
+    AsSystem asSystem;
+
     @Override
     public MediaSnapshot store(Upload upload) {
         return pipeline.store(upload);
@@ -118,28 +134,69 @@ public class JpaMedia implements Media {
 
     @Override
     public MediaSnapshot upload(Upload upload) {
+        return upload(upload, stored -> {});
+    }
+
+    @Override
+    public MediaSnapshot upload(Upload upload, AfterStore afterStore) {
         Objects.requireNonNull(upload, "upload");
+        Objects.requireNonNull(afterStore, "afterStore");
         requireNoTransaction();
         SizeGenerator.Options options = new SizeGenerator.Options(upload.generateSubSizes(), upload.convertFormat());
         if (config.processing() == MediaConfig.ProcessingMode.ASYNC) {
-            return asyncProcessing.store(options, () -> pipeline.store(upload));
+            // the background run waits for the step after storing: queued only once it returned
+            MediaSnapshot stored = asyncProcessing.storeDeferred(options, () -> pipeline.store(upload));
+            afterStore.stored(stored);
+            // the answer shows what the step wrote; it is read before the run can start
+            MediaSnapshot answer = reread(stored);
+            asyncProcessing.queue(stored.post().site(), stored.post().id());
+            return answer;
         }
         // the options are kept with the pending row too, for a later run should this one never end
         MediaSnapshot stored = asyncProcessing.store(options, () -> pipeline.store(upload));
+        // a failure here leaves the stored attachment pending, unprocessed
+        afterStore.stored(stored);
         try {
-            return generator.run(site.siteId(), stored.post().id(), options).orElse(stored);
+            return generator.run(site.siteId(), stored.post().id(), options).orElseGet(() -> reread(stored));
         } catch (RuntimeException | OutOfMemoryError failure) {
             // processing never fails an upload that is stored
             LOG.warnf(
                     failure,
                     "attachment %s could not be processed",
                     stored.post().id().value());
-            return stored;
+            return reread(stored);
         } catch (Error failure) {
             // not left pending, whatever failed: the run marks it failed, and so does this, should the run not have
             generator.markFailedIfPending(site.siteId(), stored.post().id(), failure);
             throw failure;
         }
+    }
+
+    /**
+     * The stored attachment as it is now, read in a transaction of its own (the step after storing may have changed
+     * it); {@code stored} itself when it cannot be read.
+     */
+    private MediaSnapshot reread(MediaSnapshot stored) {
+        SiteId siteId = stored.post().site();
+        PostId id = stored.post().id();
+        try {
+            return QuarkusTransaction.requiringNew()
+                    .call(() -> unchecked(siteId, id))
+                    .orElse(stored);
+        } catch (RuntimeException failure) {
+            LOG.debugf(failure, "attachment %s could not be read again after its upload", id.value());
+            return stored;
+        }
+    }
+
+    /** The attachment {@code id} of {@code siteId} with its media row, as stored; no capability is checked. */
+    private Optional<MediaSnapshot> unchecked(SiteId siteId, PostId id) {
+        return postRows.findPost(siteId, id)
+                .filter(post -> post.type.equals("attachment"))
+                .flatMap(post -> mediaRows
+                        .findMedia(siteId, id)
+                        .map(row -> snapshot(
+                                post.toSnapshot(), row, storage.storage(), site.site(), runtimeConfig.mainSiteId())));
     }
 
     @Override
@@ -214,6 +271,61 @@ public class JpaMedia implements Media {
     @Override
     @Transactional(
             dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<MediaSnapshot> read(PostId attachment) {
+        Objects.requireNonNull(attachment, "attachment");
+        requireFeature(site);
+        return unchecked(site.siteId(), attachment);
+    }
+
+    @Override
+    public Path spool(InputStream body) throws IOException {
+        Objects.requireNonNull(body, "body");
+        requireFeature(site);
+        Path file = storage.storage().temporaryFile();
+        try (OutputStream out = Files.newOutputStream(file)) {
+            body.transferTo(out);
+        } catch (IOException | RuntimeException | Error failure) {
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException deleteFailure) {
+                failure.addSuppressed(deleteFailure);
+            }
+            throw failure;
+        }
+        return file;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<Map.Entry<String, String>> allowedTypes() {
+        requireFeature(site);
+        return allowedTypesFor.current().patterns().stream()
+                .map(pattern -> Map.entry(pattern.key(), pattern.mimeType()))
+                .toList();
+    }
+
+    @Override
+    public Optional<String> outputType(String mimeType) {
+        Objects.requireNonNull(mimeType, "mimeType");
+        requireFeature(site);
+        if (!processor.supports(mimeType)) {
+            return Optional.empty();
+        }
+        String output = SizePlan.outputType(mimeType, config.effectiveOutputFormats(), processor);
+        return output.equals(mimeType) ? Optional.empty() : Optional.of(output);
+    }
+
+    @Override
+    public boolean refusesImageType(String declaredType, boolean generateSubSizes) {
+        Objects.requireNonNull(declaredType, "declaredType");
+        requireFeature(site);
+        return pipeline.unsupportedImage(declaredType, generateSubSizes);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
     public MediaSnapshot update(PostId attachment, MediaChanges changes) {
         Objects.requireNonNull(attachment, "attachment");
         Objects.requireNonNull(changes, "changes");
@@ -243,6 +355,11 @@ public class JpaMedia implements Media {
         changes.author().ifPresent(post::author);
         changes.status().ifPresent(post::status);
         changes.expectedVersion().ifPresent(post::expectedVersion);
+        changes.date().ifPresent(post::date);
+        changes.dateGmt().ifPresent(post::dateGmt);
+        changes.slug().ifPresent(post::slug);
+        changes.commentStatus().ifPresent(post::commentStatus);
+        changes.pingStatus().ifPresent(post::pingStatus);
         // the post is saved even for the alternative text alone: WordPress dates and announces that edit too
         PostSnapshot saved = posts.update(attachment, post.build());
         try {
@@ -301,7 +418,9 @@ public class JpaMedia implements Media {
         Objects.requireNonNull(query, "query");
         requireFeature(site);
         SiteId siteId = site.siteId();
-        PostPage page = posts.query(postQuery(siteId, query));
+        PostQuery postQuery = postQuery(siteId, query);
+        // no capability of the caller is asked: an unfiltered query is for a caller that decides per row
+        PostPage page = query.unfiltered() ? asSystem.call(() -> posts.query(postQuery)) : posts.query(postQuery);
         List<Long> ids = page.posts().stream().map(post -> post.id().value()).toList();
         Map<Long, MediaEntity> rows = new LinkedHashMap<>();
         for (List<Long> chunk : chunks(ids, ROW_CHUNK)) {
@@ -325,7 +444,8 @@ public class JpaMedia implements Media {
     /**
      * The post query of type {@code attachment} for {@code query}: no statuses means {@code inherit}, plus {@code
      * private} for a caller who may read others' private attachments; the media condition of {@link
-     * MimeConditionProvider} is always added, with the MIME types as an array of texts.
+     * MimeConditionProvider} is always added, with the MIME types as an array of texts (or, for exact types, as an
+     * object holding them), and so is the search of the file path ({@link FilePathSearch}).
      */
     private PostQuery postQuery(SiteId siteId, MediaQuery query) {
         PostQuery.Builder builder = PostQuery.builder().types("attachment");
@@ -339,13 +459,30 @@ public class JpaMedia implements Media {
         }
         // always: an attachment without a media row is no media, neither listed nor counted
         ArrayNode types = JsonNodeFactory.instance.arrayNode();
-        query.mimeTypes().forEach(types::add);
-        builder.condition(MimeConditionProvider.KEY, types);
+        if (query.exactMimeTypes().isEmpty()) {
+            query.mimeTypes().forEach(types::add);
+            builder.condition(MimeConditionProvider.KEY, types);
+        } else {
+            query.exactMimeTypes().forEach(types::add);
+            builder.condition(
+                    MimeConditionProvider.KEY,
+                    JsonNodeFactory.instance.objectNode().set(MimeConditionProvider.EXACT, types));
+        }
         query.parent().ifPresent(builder::parent);
-        builder.parentIn(query.parentIn().stream().map(PostId::of).toArray(PostId[]::new));
+        // 0 stands for the unattached attachments in both lists
+        builder.parentIn(query.parentIn().stream().mapToLong(Long::longValue).toArray());
+        builder.parentNotIn(
+                query.parentNotIn().stream().mapToLong(Long::longValue).toArray());
         query.author().ifPresent(builder::author);
         builder.authorIn(query.authorIn().toArray(UserId[]::new));
+        builder.authorNotIn(query.authorNotIn().toArray(UserId[]::new));
+        builder.postIn(query.include().toArray(PostId[]::new));
+        builder.postNotIn(query.exclude().toArray(PostId[]::new));
+        builder.nameIn(query.slugs().toArray(String[]::new));
         query.search().ifPresent(builder::search);
+        builder.exactSearch(query.exactSearch());
+        builder.searchColumns(query.searchColumns().toArray(SearchColumn[]::new));
+        builder.searchAlso(FilePathSearch.KEY);
         for (DateCondition condition : query.dates()) {
             builder.date(condition);
         }

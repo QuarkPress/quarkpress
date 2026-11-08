@@ -499,7 +499,13 @@ class UploadPipelineDbTest {
                 built.status(),
                 built.author(),
                 built.generateSubSizes(),
-                built.convertFormat());
+                built.convertFormat(),
+                built.date(),
+                built.dateGmt(),
+                built.slug(),
+                built.commentStatus(),
+                built.pingStatus(),
+                built.imageTypeCheck());
         assertNothingWritten(
                 () -> as(Identities.user(carol), () -> media.store(lying)), IllegalArgumentException.class, null, null);
     }

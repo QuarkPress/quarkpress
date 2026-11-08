@@ -1,6 +1,10 @@
 package org.quarkpress.media;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.PostId;
 
@@ -34,6 +38,30 @@ public interface Media {
     MediaSnapshot upload(Upload upload);
 
     /**
+     * A step run between storing an upload and processing it, such as the fields a REST request sets on the new
+     * attachment.
+     */
+    @FunctionalInterface
+    interface AfterStore {
+
+        /** Runs with the stored attachment, still {@link Processing#PENDING}, outside any transaction. */
+        void stored(MediaSnapshot stored);
+    }
+
+    /**
+     * Stores an upload as {@link #upload(Upload)} does, in a committed transaction of its own, then runs {@code
+     * afterStore} with the stored, still pending attachment outside any transaction, then processes it as {@link
+     * #upload(Upload)} does (in the {@code async} mode, the background run is queued only once {@code afterStore}
+     * returned). The answer is the attachment as it is after {@code afterStore}, so it shows what the step wrote: the
+     * processed attachment, or in the {@code async} mode the stored one read again. An exception thrown by {@code
+     * afterStore} reaches the caller unchanged; the attachment then stays stored and unprocessed ({@link
+     * Processing#PENDING}, without metadata), in either mode.
+     *
+     * @throws IllegalStateException when a transaction is active: processing commits each save on its own
+     */
+    MediaSnapshot upload(Upload upload, AfterStore afterStore);
+
+    /**
      * WordPress's post-process of an attachment: one without metadata, still {@link Processing#PENDING} or {@link
      * Processing#FAILED} (no run saved its metadata), is processed from scratch, as WordPress does; otherwise its
      * {@linkplain #missingSizes missing sizes} are made from the original file. With nothing missing, or nothing the
@@ -56,6 +84,40 @@ public interface Media {
 
     /** The attachment with this id on the current site, as {@code Posts.find} reads it; empty for any other post. */
     Optional<MediaSnapshot> find(PostId attachment);
+
+    /**
+     * The attachment with this id on the current site with its media row, as stored, whoever asks: no capability is
+     * checked, as WordPress's own lookup checks none. For callers that decide access themselves. Empty for any other
+     * post, and for an attachment without a media row.
+     */
+    Optional<MediaSnapshot> read(PostId attachment);
+
+    /**
+     * Copies {@code body} to a new file in the active storage's temporary area ({@link MediaStorage#temporaryFile})
+     * and answers that file, which the caller deletes once done with it. When the copy fails, the file is deleted and
+     * the failure thrown. The stream is read to its end, not closed.
+     */
+    Path spool(InputStream body) throws IOException;
+
+    /**
+     * The file types the caller may upload on the current site, as extension patterns (such as {@code jpg|jpeg|jpe})
+     * with their MIME types, in lookup order: the site's list, with the network's list and the caller's {@code
+     * unfiltered_html} applied, as WordPress's {@code get_allowed_mime_types()} answers.
+     */
+    List<Map.Entry<String, String>> allowedTypes();
+
+    /**
+     * The type generated sizes of an image of {@code mimeType} are written in, when the image processor supports that
+     * type and the configured output formats map it to another type the processor writes; empty otherwise.
+     */
+    Optional<String> outputType(String mimeType);
+
+    /**
+     * Whether an upload declaring {@code declaredType} is refused as an image the server cannot make sizes for,
+     * before its file is read: an image type the processor does not support (SVG, HEIC and HEIF excepted), when sizes
+     * are generated ({@code generateSubSizes}) and unprocessable images are not accepted.
+     */
+    boolean refusesImageType(String declaredType, boolean generateSubSizes);
 
     /**
      * Updates an attachment as WordPress's REST update does, in one transaction (joining the caller's): the title,
@@ -87,8 +149,9 @@ public interface Media {
 
     /**
      * The attachments of the current site matching {@code query}, read as {@code Posts.query} reads a post query of
-     * type {@code attachment} (its capability and read rules included), each with its media row. An attachment
-     * without a media row is not media: it is neither listed nor counted.
+     * type {@code attachment} (its capability and read rules included, unless the query is {@linkplain
+     * MediaQuery#unfiltered() unfiltered}), each with its media row. An attachment without a media row is not media:
+     * it is neither listed nor counted.
      */
     MediaPage query(MediaQuery query);
 }

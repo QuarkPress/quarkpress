@@ -246,8 +246,13 @@ class AsyncProcessingDbTest {
 
     @Test
     void aBackgroundRunWhoseFirstReadFailsMarksTheAttachmentFailed() throws Exception {
-        storage.failNextUrlAfterStore();
-        MediaSnapshot m = upload(jpeg("unread.jpg", 1200, 800));
+        // the upload's own read of its answer fails first (it then answers the stored attachment), then the run's
+        MediaSnapshot m = Identities.onSite(
+                TestData.MAIN,
+                Identities.user(carol),
+                () -> QuarkusTransaction.suspendingExisting()
+                        .call(() ->
+                                media.upload(jpeg("unread.jpg", 1200, 800).build(), stored -> storage.failUrls(2))));
         // polled past the service, so that the background run's first read is the one that fails
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (processing(m.post().id()).equals("pending") && System.nanoTime() < deadline) {

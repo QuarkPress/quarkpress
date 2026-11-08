@@ -2,6 +2,7 @@ package org.quarkpress.media;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
@@ -49,4 +50,13 @@ public interface MediaStorage {
 
     /** The public URL of the file under {@code key} for {@code site}; the key's characters are used as they are. */
     String publicUrl(SiteInfo site, String key);
+
+    /**
+     * A new empty file for a request body on its way into the storage, which the caller deletes once done with it:
+     * by default in the JVM's temporary folder; a backend that writes local files answers one where its own
+     * temporary files are, so that the upload is read from the file system it is stored on.
+     */
+    default Path temporaryFile() throws IOException {
+        return Files.createTempFile("quarkpress-media-", ".tmp");
+    }
 }

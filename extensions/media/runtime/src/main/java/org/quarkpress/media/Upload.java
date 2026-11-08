@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Optional;
 import org.quarkpress.core.PostId;
@@ -27,6 +29,14 @@ import org.quarkpress.core.UserId;
  * @param author the attachment's author; when absent, the caller (another user needs {@code edit_others_posts})
  * @param generateSubSizes whether sizes are generated (false also lets an image the processor cannot handle through)
  * @param convertFormat whether sizes may be written in another type than the file's (HEIC images in JPEG)
+ * @param date the attachment's date in the site's time zone, as {@code PostChanges} takes it (a date never
+ *     schedules an attachment)
+ * @param dateGmt the attachment's date in UTC, as {@code PostChanges} takes it
+ * @param slug the attachment's slug, made unique as any post's; when absent, from the title
+ * @param commentStatus the comment status; when absent, the site's {@code default_comment_status}
+ * @param pingStatus the ping status; when absent, {@code closed}
+ * @param imageTypeCheck whether an image declared in a type the image processor cannot make sizes for is refused
+ *     before its file is read; false lets it through, stored without sizes
  */
 public record Upload(
         String clientName,
@@ -41,7 +51,13 @@ public record Upload(
         Optional<String> status,
         Optional<UserId> author,
         boolean generateSubSizes,
-        boolean convertFormat) {
+        boolean convertFormat,
+        Optional<LocalDateTime> date,
+        Optional<Instant> dateGmt,
+        Optional<String> slug,
+        Optional<String> commentStatus,
+        Optional<String> pingStatus,
+        boolean imageTypeCheck) {
 
     public Upload {
         Objects.requireNonNull(clientName, "clientName");
@@ -54,6 +70,11 @@ public record Upload(
         Objects.requireNonNull(altText, "altText");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(author, "author");
+        Objects.requireNonNull(date, "date");
+        Objects.requireNonNull(dateGmt, "dateGmt");
+        Objects.requireNonNull(slug, "slug");
+        Objects.requireNonNull(commentStatus, "commentStatus");
+        Objects.requireNonNull(pingStatus, "pingStatus");
         if (size < 0) {
             throw new IllegalArgumentException("a file size is not negative: " + size);
         }
@@ -83,6 +104,12 @@ public record Upload(
         private UserId author;
         private boolean generateSubSizes = true;
         private boolean convertFormat = true;
+        private LocalDateTime date;
+        private Instant dateGmt;
+        private String slug;
+        private String commentStatus;
+        private String pingStatus;
+        private boolean imageTypeCheck = true;
 
         private Builder(String clientName, Path file) {
             this.clientName = Objects.requireNonNull(clientName, "clientName");
@@ -144,6 +171,39 @@ public record Upload(
             return this;
         }
 
+        /** The attachment's date in the site's time zone. */
+        public Builder date(LocalDateTime value) {
+            this.date = Objects.requireNonNull(value, "date");
+            return this;
+        }
+
+        /** The attachment's date in UTC. */
+        public Builder dateGmt(Instant value) {
+            this.dateGmt = Objects.requireNonNull(value, "dateGmt");
+            return this;
+        }
+
+        public Builder slug(String value) {
+            this.slug = Objects.requireNonNull(value, "slug");
+            return this;
+        }
+
+        public Builder commentStatus(String value) {
+            this.commentStatus = Objects.requireNonNull(value, "commentStatus");
+            return this;
+        }
+
+        public Builder pingStatus(String value) {
+            this.pingStatus = Objects.requireNonNull(value, "pingStatus");
+            return this;
+        }
+
+        /** Whether an image the processor cannot make sizes for is refused (true by default). */
+        public Builder imageTypeCheck(boolean value) {
+            this.imageTypeCheck = value;
+            return this;
+        }
+
         public Upload build() {
             return new Upload(
                     clientName,
@@ -158,7 +218,13 @@ public record Upload(
                     Optional.ofNullable(status),
                     Optional.ofNullable(author),
                     generateSubSizes,
-                    convertFormat);
+                    convertFormat,
+                    Optional.ofNullable(date),
+                    Optional.ofNullable(dateGmt),
+                    Optional.ofNullable(slug),
+                    Optional.ofNullable(commentStatus),
+                    Optional.ofNullable(pingStatus),
+                    imageTypeCheck);
         }
     }
 }

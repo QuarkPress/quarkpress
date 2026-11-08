@@ -38,7 +38,7 @@ import org.quarkpress.testing.wprestparity.MediaFixtures;
 /**
  * Library queries: the MIME filter as WordPress reads it (recorded for WordPress 7.1.3: {@code IMAGE} finds the
  * images, {@code image/*,video} the videos too, an empty value among others drops the filter), parent, author,
- * search, paging, and the site and read rules of the posts module.
+ * search (the stored file path included), paging, and the site and read rules of the posts module.
  */
 class MediaQueryDbTest {
 
@@ -203,8 +203,9 @@ class MediaQueryDbTest {
         assertThat(last.found()).isEqualTo(5);
         assertThat(page(bob, query().perPage(2).offset(4)).items()).hasSize(1);
 
-        // titles, captions and descriptions are searched, never the file name
-        assertThat(ids(query().search("IMG"))).containsExactly(carolJpeg);
+        // titles, captions and descriptions are searched, and the stored file path
+        assertThat(ids(query().search("IMG"))).containsExactlyInAnyOrder(carolJpeg, jpeg);
+        assertThat(ids(query().search("beach"))).containsExactly(carolJpeg);
         assertThat(ids(query().search("Sunset"))).containsExactly(jpeg);
 
         assertThat(ids(query().orderBy(OrderKey.TITLE, true).mimeTypes(List.of("image"))))
@@ -288,7 +289,7 @@ class MediaQueryDbTest {
         // a dropped MIME filter still asks for the media row
         assertThat(page(bob, query().mimeTypes(List.of("image", "")).perPage(2)).found())
                 .isEqualTo(5);
-        assertThat(ids(query().search("IMG"))).containsExactly(carolJpeg);
+        assertThat(ids(query().search("IMG"))).containsExactlyInAnyOrder(carolJpeg, jpeg);
         assertThat(ids(query().parent(0))).containsExactlyInAnyOrder(jpeg, png, pdf, mp4);
     }
 
@@ -329,10 +330,12 @@ class MediaQueryDbTest {
     }
 
     @Test
-    void parentInRefusesZero() {
-        assertThatThrownBy(() -> MediaQuery.builder().parentIn(List.of(5L, 0L)).build())
+    void parentInRefusesNegativeIds() {
+        assertThatThrownBy(() -> MediaQuery.builder().parentIn(List.of(5L, -1L)).build())
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("parentIn holds post ids; use parent(0) for unattached attachments");
+                .hasMessage("parentIn holds post ids, or 0 for the unattached attachments");
+        assertThat(MediaQuery.builder().parentIn(List.of(5L, 0L)).build().parentIn())
+                .containsExactly(5L, 0L);
         assertThat(MediaQuery.builder().parentIn(List.of(5L)).build().parentIn())
                 .containsExactly(5L);
     }

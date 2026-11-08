@@ -350,15 +350,25 @@ public class UploadPipeline {
         }
     }
 
-    /** Whether WordPress refuses the upload as an image no image editor can make sizes for. */
+    /**
+     * Whether WordPress refuses the upload as an image no image editor can make sizes for; never for an upload without
+     * the image type check.
+     */
     private boolean unsupportedImage(Upload upload) {
-        if (upload.declaredType().isEmpty()) {
-            return false;
-        }
-        String declared = upload.declaredType().get();
+        return upload.imageTypeCheck()
+                && upload.declaredType().isPresent()
+                && unsupportedImage(upload.declaredType().get(), upload.generateSubSizes());
+    }
+
+    /**
+     * Whether an upload declaring {@code declared} is refused as an image no image editor can make sizes for: an
+     * image type other than SVG and HEIC/HEIF that the processor does not support, when sizes are generated and
+     * unprocessable images are not accepted.
+     */
+    public boolean unsupportedImage(String declared, boolean generateSubSizes) {
         return declared.startsWith("image/")
                 && !ALWAYS_ACCEPTED_IMAGES.contains(declared)
-                && upload.generateSubSizes()
+                && generateSubSizes
                 && !config.acceptUnprocessableImages()
                 && !processor.supports(declared);
     }
@@ -466,6 +476,11 @@ public class UploadPipeline {
         upload.status().ifPresent(changes::status);
         upload.author().ifPresent(changes::author);
         upload.parent().ifPresent(changes::parent);
+        upload.date().ifPresent(changes::date);
+        upload.dateGmt().ifPresent(changes::dateGmt);
+        upload.slug().ifPresent(changes::slug);
+        upload.commentStatus().ifPresent(changes::commentStatus);
+        upload.pingStatus().ifPresent(changes::pingStatus);
         PostSnapshot post = posts.create(changes.build());
 
         MediaEntity row = MediaEntity.create(siteId, post.id());
