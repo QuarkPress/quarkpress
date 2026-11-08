@@ -20,24 +20,37 @@ public class StoredFiles {
     ActiveStorage storage;
 
     /**
-     * Removes the file under {@code key} once the current transaction has ended without committing, so a file stored
-     * for a row that was never written does not stay behind. A failure to remove it is logged.
+     * Removes the file under {@code key} once the current transaction has rolled back, so a file stored for a row
+     * that was never written does not stay behind. A failure to remove it is logged. When the outcome is unknown (the
+     * database may have committed the row that names the file), the file is kept and a warning logged: a file no row
+     * names is better than a row naming a file that is gone.
      */
     public void removeOnRollback(String key) {
-        registry.registerInterposedSynchronization(new Synchronization() {
-            @Override
-            public void beforeCompletion() {}
+        registry.registerInterposedSynchronization(new RemoveOnRollback(storage, key));
+    }
 
-            @Override
-            public void afterCompletion(int status) {
-                if (status != Status.STATUS_COMMITTED) {
-                    try {
-                        storage.storage().delete(key);
-                    } catch (RuntimeException failure) {
-                        LOG.warnf(failure, "the stored file %s of a rolled-back upload could not be removed", key);
-                    }
-                }
+    /** The synchronisation of one stored file. */
+    record RemoveOnRollback(ActiveStorage storage, String key) implements Synchronization {
+
+        @Override
+        public void beforeCompletion() {}
+
+        @Override
+        public void afterCompletion(int status) {
+            if (status == Status.STATUS_COMMITTED) {
+                return;
             }
-        });
+            if (status != Status.STATUS_ROLLEDBACK) {
+                LOG.warnf(
+                        "the outcome of the transaction that stored %s is unknown (status %d); the file is kept",
+                        key, status);
+                return;
+            }
+            try {
+                storage.storage().delete(key);
+            } catch (RuntimeException failure) {
+                LOG.warnf(failure, "the stored file %s of a rolled-back upload could not be removed", key);
+            }
+        }
     }
 }
