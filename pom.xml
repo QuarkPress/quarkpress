@@ -65,8 +65,9 @@
 
     <!-- Extra JVM flags for test forks. They are here because the maintainers' build host faults
          under heavy multi-threaded JIT load (C1 only, 8 visible processors); they are not needed
-         for correctness. Override with -Dsurefire.argLine.additional=... -->
-    <surefire.argLine.additional>-XX:TieredStopAtLevel=1 -XX:ActiveProcessorCount=8</surefire.argLine.additional>
+         for correctness. The larger code cache keeps forks that start many Quarkus apps from running
+         out of it. Override with -Dsurefire.argLine.additional=... -->
+    <surefire.argLine.additional>-XX:TieredStopAtLevel=1 -XX:ActiveProcessorCount=8 -XX:ReservedCodeCacheSize=512m</surefire.argLine.additional>
     <!-- Database used by container-backed tests: postgresql or mysql. CI runs both. -->
     <testDb>postgresql</testDb>
   </properties>
