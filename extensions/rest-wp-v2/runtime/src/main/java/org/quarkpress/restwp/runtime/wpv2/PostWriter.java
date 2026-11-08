@@ -95,6 +95,7 @@ class PostWriter {
                 posts.stick(id);
             }
             if (prepared.featuredMedia().isPresent()) {
+                // whether the value changed is not used: WordPress's posts controller ignores the answer too
                 featuredImages.set(id, prepared.featuredMedia().getAsLong());
             }
             if (prepared.format().isPresent()) {
@@ -158,6 +159,7 @@ class PostWriter {
                 formats.set(id, prepared.format().get());
             }
             if (prepared.featuredMedia().isPresent()) {
+                // whether the value changed is not used: WordPress's posts controller ignores the answer too
                 featuredImages.set(id, prepared.featuredMedia().getAsLong());
             }
             if (prepared.sticky().isPresent()) {

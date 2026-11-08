@@ -12,12 +12,10 @@ import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
@@ -56,13 +54,13 @@ import org.quarkpress.taxonomy.Taxonomies;
  * <p>An item is looked up on the request's site and must be of the route's type, else it does not exist. Its checks
  * run in WordPress's order: the edit context needs {@code edit_post}; a {@code password} in the query string that
  * differs from the stored one is refused, even on a post without password; then the post must be readable (its
- * status public, {@code read_post}, or an inherited status whose parent is readable). The edit context of a caller
- * who may edit the post, or a matching {@code password} from any source, lifts the protection of a post with a
- * password. A viewable type's item carries a {@code Link} to its permalink in place of the API root's. POST, PUT and
- * PATCH on an item update it alike, with WordPress's update checks. DELETE moves the post to the trash, or with
- * {@code force} deletes it for good, for a caller with {@code delete_post}; both answers are in the edit context. A
- * type that keeps revisions gets WordPress's revisions routes right after its own, while the revisions module is
- * present.
+ * status public, {@code read_post}, or an inherited status whose parent is readable and of a type shown in REST). The
+ * edit context of a caller who may edit the post, or a matching {@code password} from any source, lifts the
+ * protection of a post with a password. A viewable type's item carries a {@code Link} to its permalink in place of
+ * the API root's. POST, PUT and PATCH on an item update it alike, with WordPress's update checks. DELETE moves the
+ * post to the trash, or with {@code force} deletes it for good, for a caller with {@code delete_post}; both answers
+ * are in the edit context. A type that keeps revisions gets WordPress's revisions routes right after its own, while
+ * the revisions module is present.
  */
 @ApplicationScoped
 public class PostsController implements RestRouteProvider {
@@ -71,9 +69,6 @@ public class PostsController implements RestRouteProvider {
     private static final List<String> OWN_CONTROLLERS = List.of("attachment", "wp_block");
 
     private volatile Map<String, PostRoutes> served = Map.of();
-
-    /** The deepest chain of inherited statuses followed when deciding whether a post is readable. */
-    private static final int MAX_INHERITANCE = 100;
 
     @Inject
     PostTypes types;
@@ -273,7 +268,7 @@ public class PostsController implements RestRouteProvider {
             return PermissionResult.denied(
                     RestError.of("rest_post_incorrect_password", "Incorrect post password.", 403));
         }
-        if (!readable(caller, post)) {
+        if (!permissions.restReadable(caller, post)) {
             return PermissionResult.forbidden(request);
         }
         return PermissionResult.allowed();
@@ -290,41 +285,6 @@ public class PostsController implements RestRouteProvider {
                     "rest_cannot_delete", "Sorry, you are not allowed to delete this post.", request.authCode()));
         }
         return PermissionResult.allowed();
-    }
-
-    /**
-     * WordPress's read decision: a published post, {@code read_post}, a public status, or an inherited status whose
-     * parent is readable (a missing parent reads); the chain of parents is followed until a post repeats, and a chain
-     * deeper than {@value #MAX_INHERITANCE} is not readable.
-     */
-    private boolean readable(SecurityIdentity caller, PostSnapshot post) {
-        Set<Long> seen = new HashSet<>();
-        PostSnapshot current = post;
-        while (true) {
-            if (current.status().equals("publish")
-                    || permissions.can(caller, "read_post", current)
-                    || statuses.find(current.status())
-                            .map(PostStatusDefinition::publicly)
-                            .orElse(false)) {
-                return true;
-            }
-            if (!current.status().equals("inherit") || !seen.add(current.id().value())) {
-                return false;
-            }
-            if (seen.size() > MAX_INHERITANCE) {
-                // a chain too deep to decide is not granted
-                return false;
-            }
-            if (current.parent().isEmpty()) {
-                return true;
-            }
-            Optional<PostSnapshot> parent =
-                    rows.findPost(site.siteId(), current.parent().get()).map(PostEntity::toSnapshot);
-            if (parent.isEmpty()) {
-                return true;
-            }
-            current = parent.get();
-        }
     }
 
     // ---- handlers
