@@ -32,13 +32,25 @@ jobs:
           coverage: none
       - name: Build and test (Gutenberg conformance and WordPress parity)
         if: matrix.java == 21 && matrix.db == 'postgresql'
-        run: mvn -B -ntp verify -Pconformance,wp-parity -Dwp.media.require-editor=true -DtestDb=${{ matrix.db }}
+        run: |
+          mvn -B -ntp verify -Pconformance,wp-parity -Dwp.media.require-editor=true -DtestDb=${{ matrix.db }}
+          bash .github/scripts/require-tests-ran.sh \
+            integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkpress.it.restwp.RestParityDbTest.xml \
+            integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
       - name: Build and test
         if: matrix.java != 21 || matrix.db != 'postgresql'
         run: mvn -B -ntp verify -DtestDb=${{ matrix.db }}
       - name: WordPress parity on MySQL
         if: matrix.java == 21 && matrix.db == 'mysql'
-        run: mvn -B -ntp -pl integration-tests/rest-wp-v2,integration-tests/media -am verify -Pwp-parity -Dtest='RestParityDbTest,MediaParityDbTest' -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -DtestDb=mysql
+        # the upstream modules have none of the named tests, hence failIfNoSpecifiedTests=false; the reports, removed
+        # first (the step before wrote skipped ones), must then show that both parity tests ran
+        run: |
+          rm -f integration-tests/rest-wp-v2/target/surefire-reports/TEST-*ParityDbTest.xml \
+            integration-tests/media/target/surefire-reports/TEST-*ParityDbTest.xml
+          mvn -B -ntp -pl integration-tests/rest-wp-v2,integration-tests/media -am verify -Pwp-parity -Dtest='RestParityDbTest,MediaParityDbTest' -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -DtestDb=mysql
+          bash .github/scripts/require-tests-ran.sh \
+            integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkpress.it.restwp.RestParityDbTest.xml \
+            integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
       - name: Check formatting
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check
