@@ -10,10 +10,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -40,6 +43,9 @@ import org.quarkpress.testing.wpscenario.WordPressScenarioOracle;
  * {@code target/wp-rest-parity/<database>/}. The harness's must-use plugin ({@code qp-parity-mu.php}: the custom type
  * {@code book} and the per-site switches of the parity run) is written into the tree's {@code wp-content/mu-plugins/}
  * before the server starts and removed in {@link #close()} whatever happened; its {@code qp-} prefix marks a leftover.
+ * Because the plugin and the uploads folders live in the shared tree, one process at a time serves a tree: a site
+ * waits for the tree's lock file ({@code wp-content/qp-rest-site.lock}) while another process's sites are open, as in
+ * a parallel Maven build where two modules' parity tests run at once.
  */
 public final class WordPressRestSite implements AutoCloseable {
 
@@ -77,6 +83,29 @@ public final class WordPressRestSite implements AutoCloseable {
 
     private boolean createdMuPlugins;
 
+    /** Whether this site holds a lease of its tree ({@link #lease}); released in {@link #close()}. */
+    private boolean leased;
+
+    /**
+     * The tree's exclusive use by this JVM: a file lock on {@value #TREE_LOCK} (other processes, such as another
+     * module's tests in a parallel Maven build, wait for it) and the number of this JVM's open sites using the tree.
+     */
+    private static final class TreeLease {
+        final FileChannel channel;
+        final FileLock lock;
+        int users;
+
+        TreeLease(FileChannel channel, FileLock lock) {
+            this.channel = channel;
+            this.lock = lock;
+        }
+    }
+
+    /** The lock file, in the tree's {@code wp-content/} (the {@code qp-} prefix marks a harness file). */
+    static final String TREE_LOCK = "qp-rest-site.lock";
+
+    private static final Map<Path, TreeLease> LEASES = new HashMap<>();
+
     private WordPressRestSite(Path wordpress, ScenarioDatabase database, String php, String databaseName, Path runDir) {
         this.wordpress = wordpress;
         this.database = database;
@@ -98,6 +127,8 @@ public final class WordPressRestSite implements AutoCloseable {
         Files.createDirectories(runDir);
         WordPressRestSite site = new WordPressRestSite(tree, database, php, name, runDir);
         try {
+            lease(tree);
+            site.leased = true;
             site.writeConfiguration();
             site.installMuPlugin();
             ObjectNode input = OracleJson.MAPPER.createObjectNode();
@@ -213,7 +244,61 @@ public final class WordPressRestSite implements AutoCloseable {
                 throw new IllegalStateException("cannot drop the REST site's database " + databaseName, e);
             }
         } finally {
-            removeMuPlugin();
+            if (leased) {
+                leased = false;
+                release(wordpress, this::removeMuPlugin);
+            }
+        }
+    }
+
+    /**
+     * Harness rule: takes the tree for this JVM's sites. The must-use plugin and the uploads folders are the tree's
+     * own files, shared by every process serving it; a site of another process that closed would remove the plugin
+     * (and clear its sites' uploads) under this one's requests. So the first site of a JVM waits for the tree's file
+     * lock and holds it until the JVM's last site on the tree has closed; sites of one JVM share it.
+     */
+    private static void lease(Path tree) throws IOException {
+        synchronized (LEASES) {
+            TreeLease lease = LEASES.get(tree);
+            if (lease == null) {
+                Path file = tree.resolve("wp-content").resolve(TREE_LOCK);
+                FileChannel channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                try {
+                    FileLock lock = channel.tryLock();
+                    if (lock == null) {
+                        System.out.println("wp-rest-parity: waiting for " + file
+                                + " (another process serves this WordPress tree)");
+                        lock = channel.lock();
+                    }
+                    lease = new TreeLease(channel, lock);
+                } catch (IOException | RuntimeException e) {
+                    channel.close();
+                    throw e;
+                }
+                LEASES.put(tree, lease);
+            }
+            lease.users++;
+        }
+    }
+
+    /** Ends one site's use of the tree; the last one runs {@code lastOut} (removing the plugin) and frees the lock. */
+    private static void release(Path tree, Runnable lastOut) {
+        synchronized (LEASES) {
+            TreeLease lease = LEASES.get(tree);
+            if (lease == null || --lease.users > 0) {
+                return;
+            }
+            LEASES.remove(tree);
+            try {
+                lastOut.run();
+            } finally {
+                try {
+                    lease.lock.release();
+                    lease.channel.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("cannot release the WordPress tree's lock", e);
+                }
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 {
   "id": "m07",
-  "rule": "The unsupported-image refusal by declared type with GD as the editor (MU12 rules 4-7; BMP: D2; WebP and AVIF that this GD writes: D16)",
+  "rule": "The unsupported-image refusal by declared type with GD as the only editor (MU12 rules 4-7): types both sides accept, then types both refuse, then BMP (D2) and WebP and AVIF that this GD writes (D16) last, so their files are in no earlier listing",
   "editor": true,
   "steps": [
     {
@@ -11,24 +11,6 @@
       ],
       "name": "m07-jpeg.jpg",
       "type": "image/jpeg"
-    },
-    {
-      "upload": "jpeg",
-      "args": [
-        64,
-        48
-      ],
-      "name": "m07-jpg.jpg",
-      "type": "image/jpg"
-    },
-    {
-      "upload": "jpeg",
-      "args": [
-        64,
-        48
-      ],
-      "name": "m07-pjpeg.jpg",
-      "type": "image/pjpeg"
     },
     {
       "upload": "png",
@@ -55,8 +37,26 @@
         64,
         48
       ],
-      "name": "m07-bmp.bmp",
-      "type": "image/bmp"
+      "name": "m07-bmp-octet.bmp",
+      "type": "application/octet-stream"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-jpg.jpg",
+      "type": "image/jpg"
+    },
+    {
+      "upload": "jpeg",
+      "args": [
+        64,
+        48
+      ],
+      "name": "m07-pjpeg.jpg",
+      "type": "image/pjpeg"
     },
     {
       "upload": "tiff",
@@ -73,19 +73,6 @@
       "type": "image/x-icon"
     },
     {
-      "upload": "webp",
-      "name": "m07-webp.webp",
-      "type": "image/webp"
-    },
-    {
-      "upload": "heif",
-      "args": [
-        "avif"
-      ],
-      "name": "m07-avif.avif",
-      "type": "image/avif"
-    },
-    {
       "upload": "heif",
       "args": [
         "heic"
@@ -99,8 +86,21 @@
         64,
         48
       ],
-      "name": "m07-bmp-octet.bmp",
-      "type": "application/octet-stream"
+      "name": "m07-bmp.bmp",
+      "type": "image/bmp"
+    },
+    {
+      "upload": "webp",
+      "name": "m07-webp.webp",
+      "type": "image/webp"
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "avif"
+      ],
+      "name": "m07-avif.avif",
+      "type": "image/avif"
     }
   ]
 }
