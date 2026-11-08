@@ -90,6 +90,41 @@ class FeaturedImagesDbTest {
     }
 
     @Test
+    void withoutMediaEveryAttachmentIsAnImage() throws Exception {
+        SiteId site = TestData.site(dataSource);
+        UserId editor = TestData.memberOfMain(dataSource, "editor");
+        PostId post = TestData.post(dataSource, site, "post", "publish", "", "Pictured");
+        // an attachment without any file: without the media module nothing tells it from an image
+        PostId attachment = TestData.post(dataSource, site, "attachment", "inherit", "", "Picture");
+        PostId page = TestData.post(dataSource, site, "page", "publish", "about", "About");
+
+        assertThat(set(site, editor, post, attachment.value())).isTrue();
+        assertThat(of(site, editor, post)).isEqualTo(attachment.value());
+        // the value already stored, its negative and a missing post change nothing
+        assertThat(set(site, editor, post, attachment.value())).isFalse();
+        assertThat(set(site, editor, post, -attachment.value())).isFalse();
+        assertThat(set(site, editor, post, 999_999)).isFalse();
+        assertThat(of(site, editor, post)).isEqualTo(attachment.value());
+        // another post removes it, once
+        assertThat(set(site, editor, post, page.value())).isTrue();
+        assertThat(of(site, editor, post)).isZero();
+        assertThat(set(site, editor, post, page.value())).isFalse();
+        assertThat(set(site, editor, post, 0)).isFalse();
+        assertThat(set(site, editor, post, attachment.value())).isTrue();
+        assertThat(set(site, editor, post, 0)).isTrue();
+        assertThat(of(site, editor, post)).isZero();
+
+        // the id kept as its decimal text, as WordPress stores meta, is the value already stored: left as it is
+        PostId imported = postNaming(site, "[\"" + attachment.value() + "\"]");
+        assertThat(set(site, editor, imported, attachment.value())).isFalse();
+        assertThat(meta(imported)).isEqualTo("{\"_thumbnail_id\":[\"" + attachment.value() + "\"],\"other\":[\"x\"]}");
+        // a text that only starts with it is not
+        PostId lookalike = postNaming(site, "[\"" + attachment.value() + "abc\"]");
+        assertThat(set(site, editor, lookalike, attachment.value())).isTrue();
+        assertThat(of(site, editor, lookalike)).isEqualTo(attachment.value());
+    }
+
+    @Test
     void forgetRemovesEveryReferenceToTheAttachment() throws Exception {
         SiteId site = TestData.site(dataSource);
         SiteId other = TestData.site(dataSource);
@@ -227,11 +262,8 @@ class FeaturedImagesDbTest {
                 .replace(" ", "");
     }
 
-    private void set(SiteId site, UserId user, PostId post, long attachment) throws Exception {
-        Identities.onSite(site, Identities.user(user), () -> {
-            images.set(post, attachment);
-            return null;
-        });
+    private boolean set(SiteId site, UserId user, PostId post, long attachment) throws Exception {
+        return Identities.onSite(site, Identities.user(user), () -> images.set(post, attachment));
     }
 
     private long of(SiteId site, UserId user, PostId post) throws Exception {

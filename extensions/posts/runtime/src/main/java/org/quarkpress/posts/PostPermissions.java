@@ -2,6 +2,8 @@ package org.quarkpress.posts;
 
 import io.quarkus.security.identity.SecurityIdentity;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
@@ -29,6 +31,23 @@ public interface PostPermissions {
     boolean can(String metaCapability, PostSnapshot post);
 
     boolean can(SecurityIdentity identity, String metaCapability, PostSnapshot post);
+
+    /**
+     * WordPress's REST read decision for a post of the bound site: readable when published, when the caller has
+     * {@code read_post} on it (an attachment checked with the status it inherits), when its status is public, or when
+     * its status is {@code inherit} and its parent is readable by the same rule. A post without parent, or whose
+     * parent is not found, reads; a parent of a type not shown in REST does not. Parents are followed until one
+     * repeats, and a chain deeper than 100 is not readable. A post of another site than the bound one is never
+     * readable. Never throws for a refusal.
+     */
+    boolean restReadable(SecurityIdentity caller, PostSnapshot post);
+
+    /**
+     * {@link #restReadable(SecurityIdentity, PostSnapshot)} reading each parent through {@code parents} (an empty
+     * answer is a parent not found), for the inherited status as for the chain of parents: a caller deciding for many
+     * posts passes a function that remembers what it read, so each parent is read once.
+     */
+    boolean restReadable(SecurityIdentity caller, PostSnapshot post, Function<PostId, Optional<PostSnapshot>> parents);
 
     /**
      * A type capability by its generic name ({@code edit_posts}, {@code create_posts}, {@code publish_posts},

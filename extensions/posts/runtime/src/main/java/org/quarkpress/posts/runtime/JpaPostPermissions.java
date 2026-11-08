@@ -5,14 +5,17 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.SiteId;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatuses;
@@ -25,6 +28,9 @@ import org.quarkpress.security.PostTypeCapabilities;
 /** Post capability checks answered by security's {@code Capabilities} with the facts of stored posts. */
 @ApplicationScoped
 public class JpaPostPermissions implements PostPermissions {
+
+    /** The deepest chain of inherited statuses followed when deciding whether a post is readable through REST. */
+    private static final int MAX_INHERITANCE = 100;
 
     @Inject
     Capabilities capabilities;
@@ -78,6 +84,64 @@ public class JpaPostPermissions implements PostPermissions {
                 ? facts.of(post)
                 : new MissingObject(post.id().value());
         return capabilities.can(identity, metaCapability, Optional.of(object));
+    }
+
+    @Override
+    @Transactional
+    public boolean restReadable(SecurityIdentity caller, PostSnapshot post) {
+        Objects.requireNonNull(post, "post");
+        SiteId owner = post.site();
+        return restReadable(caller, post, id -> posts.findPost(owner, id).map(PostEntity::toSnapshot));
+    }
+
+    @Override
+    @Transactional
+    public boolean restReadable(
+            SecurityIdentity caller, PostSnapshot post, Function<PostId, Optional<PostSnapshot>> parents) {
+        Objects.requireNonNull(caller, "caller");
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(parents, "parents");
+        if (!post.site().equals(site.siteId())) {
+            // another site's post is never readable here, whatever its status
+            return false;
+        }
+        Set<Long> seen = new HashSet<>();
+        PostSnapshot current = post;
+        while (true) {
+            if (current.status().equals("publish")
+                    || readPost(caller, current, parents)
+                    || statuses.find(current.status())
+                            .map(PostStatusDefinition::publicly)
+                            .orElse(false)) {
+                return true;
+            }
+            if (!current.status().equals("inherit") || !seen.add(current.id().value())) {
+                return false;
+            }
+            if (seen.size() > MAX_INHERITANCE) {
+                // a chain too deep to decide is not granted
+                return false;
+            }
+            if (current.parent().isEmpty()) {
+                return true;
+            }
+            Optional<PostSnapshot> parent = parents.apply(current.parent().get());
+            if (parent.isEmpty()) {
+                return true;
+            }
+            current = parent.get();
+            if (!types.find(current.type()).map(PostTypeDefinition::showInRest).orElse(false)) {
+                // the parent's own read decision is that of a route that does not exist
+                return false;
+            }
+        }
+    }
+
+    /** {@code read_post} on {@code post} of the bound site, with its parents read through {@code parents}. */
+    private boolean readPost(
+            SecurityIdentity caller, PostSnapshot post, Function<PostId, Optional<PostSnapshot>> parents) {
+        CapObject object = PostCapabilityFacts.facts(post, types, statuses, parents);
+        return capabilities.can(caller, "read_post", Optional.of(object));
     }
 
     @Override
