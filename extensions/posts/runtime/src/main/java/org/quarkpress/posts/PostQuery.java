@@ -40,6 +40,8 @@ import org.quarkpress.core.UserId;
  *
  * <p>{@code authorNotIn} wins over {@code author} and {@code authorIn}; {@code parent} (0 means top level) over {@code
  * parentIn}, which wins over {@code parentNotIn}; {@code id} over {@code postIn}, which wins over {@code postNotIn}.
+ * {@code parentInTopLevel} adds the top-level posts to {@code parentIn} (WordPress's {@code post_parent__in} holding
+ * 0), {@code parentNotInTopLevel} leaves them out next to {@code parentNotIn}; either alone is a list too.
  * {@code name} and {@code title} are trimmed as PHP trims, and a blank one applies no condition; {@code title} matches
  * the whole title, ignoring case. {@code nameIn} (WordPress's {@code post_name__in}) matches posts whose slug is one of
  * the slugs given, each sanitized as a slug from a URL, next to {@code name}; a query by it alone is not for one post.
@@ -75,6 +77,11 @@ import org.quarkpress.core.UserId;
  * its key and holds next to every other condition, after the term filters: one that matches nothing empties the
  * query, which then runs no statement and counts no post, and one with no condition is skipped. A key no provider
  * answers is refused with {@link IllegalArgumentException} when the query runs.
+ *
+ * <p>{@code searchAlso} names further searchable columns other modules provide, each by the key of its {@link
+ * PostSearchProvider} (each key once, in the order first given): a search term then matches a post when it is in one
+ * of the searched post columns or in one of those columns, and an excluded term must be in none of them either. A key
+ * no provider answers is refused with {@link IllegalArgumentException} when the query runs.
  *
  * <p>{@code stickyFirst} (off by default, as in WordPress's {@code get_posts}) puts sticky posts first as WordPress's
  * main query does, and only where it does: on the first page (a query without paging always counts as on it, and
@@ -115,7 +122,10 @@ public record PostQuery(
         OptionalInt perPage,
         int page,
         OptionalInt offset,
-        Map<String, JsonNode> conditions) {
+        Map<String, JsonNode> conditions,
+        List<String> searchAlso,
+        boolean parentInTopLevel,
+        boolean parentNotInTopLevel) {
 
     /**
      * The longest search string, in bytes of UTF-8, that is searched for; a longer one is ignored, as WordPress empties
@@ -151,6 +161,7 @@ public record PostQuery(
         conditions.forEach((key, argument) ->
                 ordered.put(Objects.requireNonNull(key, "key"), Objects.requireNonNull(argument, "argument")));
         conditions = Collections.unmodifiableMap(ordered);
+        searchAlso = List.copyOf(new LinkedHashSet<>(searchAlso));
     }
 
     /** A query for one post, by id or by a slug that is not blank: never paged, and each post found is checked. */
@@ -232,6 +243,9 @@ public record PostQuery(
         builder.page = page;
         builder.offset = offset;
         builder.conditions.putAll(conditions);
+        builder.searchAlso.addAll(searchAlso);
+        builder.parentInTopLevel = parentInTopLevel;
+        builder.parentNotInTopLevel = parentNotInTopLevel;
         return builder;
     }
 
@@ -263,6 +277,9 @@ public record PostQuery(
         private int page = 1;
         private OptionalInt offset = OptionalInt.empty();
         private final Map<String, JsonNode> conditions = new LinkedHashMap<>();
+        private final Set<String> searchAlso = new LinkedHashSet<>();
+        private boolean parentInTopLevel;
+        private boolean parentNotInTopLevel;
 
         private Builder() {}
 
@@ -307,6 +324,30 @@ public record PostQuery(
 
         public Builder parentNotIn(PostId... values) {
             parentNotIn.addAll(Arrays.asList(values));
+            return this;
+        }
+
+        /** Parent ids, as WordPress's {@code post_parent__in}: 0 adds the top-level posts. */
+        public Builder parentIn(long... values) {
+            for (long value : values) {
+                if (value == 0) {
+                    parentInTopLevel = true;
+                } else {
+                    parentIn.add(PostId.of(value));
+                }
+            }
+            return this;
+        }
+
+        /** Excluded parent ids, as WordPress's {@code post_parent__not_in}: 0 leaves out the top-level posts. */
+        public Builder parentNotIn(long... values) {
+            for (long value : values) {
+                if (value == 0) {
+                    parentNotInTopLevel = true;
+                } else {
+                    parentNotIn.add(PostId.of(value));
+                }
+            }
             return this;
         }
 
@@ -426,6 +467,15 @@ public record PostQuery(
             return this;
         }
 
+        /**
+         * Searches the column another module provides under {@code key} too ({@link PostSearchProvider}), next to the
+         * post columns; a key given again is kept once.
+         */
+        public Builder searchAlso(String key) {
+            searchAlso.add(Objects.requireNonNull(key, "key"));
+            return this;
+        }
+
         public PostQuery build() {
             return new PostQuery(
                     types,
@@ -454,7 +504,10 @@ public record PostQuery(
                     perPage,
                     page,
                     offset,
-                    conditions);
+                    conditions,
+                    List.copyOf(searchAlso),
+                    parentInTopLevel,
+                    parentNotInTopLevel);
         }
     }
 }

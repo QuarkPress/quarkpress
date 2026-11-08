@@ -39,6 +39,7 @@ import org.quarkpress.posts.PostOrder;
 import org.quarkpress.posts.PostPage;
 import org.quarkpress.posts.PostQuery;
 import org.quarkpress.posts.PostQueryFilter;
+import org.quarkpress.posts.PostSearchProvider;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
@@ -95,6 +96,13 @@ public class PostQueries {
     /** The post condition providers by key, read once. */
     private volatile Map<String, PostConditionProvider> conditionsByKey;
 
+    @Inject
+    @All
+    List<InstanceHandle<PostSearchProvider>> searchProviders;
+
+    /** The post search providers by key, read once. */
+    private volatile Map<String, PostSearchProvider> searchesByKey;
+
     /**
      * The conditions of a query and their parameters, and the parameters of its ordering, which the count query
      * leaves out. The first condition names the site.
@@ -146,9 +154,45 @@ public class PostQueries {
         }
     }
 
-    /** Reads the post condition providers at start, so that two providing one key stop the application. */
+    /** Reads the post condition and search providers at start, so that two providing one key stop the application. */
     void checkConditionKeys(@Observes StartupEvent start) {
         conditionsByKey();
+        searchesByKey();
+    }
+
+    /** The post search providers by key; a key provided twice is refused. */
+    private Map<String, PostSearchProvider> searchesByKey() {
+        Map<String, PostSearchProvider> known = searchesByKey;
+        if (known == null) {
+            Map<String, PostSearchProvider> byKey = new LinkedHashMap<>();
+            for (InstanceHandle<PostSearchProvider> handle : searchProviders) {
+                PostSearchProvider provider = handle.get();
+                if (byKey.putIfAbsent(provider.key(), provider) != null) {
+                    throw new IllegalStateException(
+                            "QuarkPress: the post search key " + provider.key() + " is provided more than once");
+                }
+            }
+            known = Map.copyOf(byKey);
+            searchesByKey = known;
+        }
+        return known;
+    }
+
+    /** The providers of the query's further searched columns, in order; a key no provider answers is refused. */
+    private List<PostSearchProvider> searchProviders(PostQuery query) {
+        if (query.searchAlso().isEmpty()) {
+            return List.of();
+        }
+        Map<String, PostSearchProvider> byKey = searchesByKey();
+        List<PostSearchProvider> providers = new ArrayList<>(query.searchAlso().size());
+        for (String key : query.searchAlso()) {
+            PostSearchProvider provider = byKey.get(key);
+            if (provider == null) {
+                throw new IllegalArgumentException("no post search provider for " + key);
+            }
+            providers.add(provider);
+        }
+        return providers;
     }
 
     /** The post condition providers by key; a key provided twice is refused. */
@@ -175,6 +219,7 @@ public class PostQueries {
                 Filters.ordered(filters),
                 requested,
                 (filter, value) -> filter.apply(value, new QueryContext(siteId, acting.user())));
+        List<PostSearchProvider> searchedAlso = searchProviders(query);
         Where where = new Where(siteId);
         List<String> queriedTypes = queriedTypes(requested, query);
         where.and(queriedTypes.isEmpty() ? "1 = 0" : "p.type in " + where.param(queriedTypes));
@@ -194,7 +239,7 @@ public class PostQueries {
         Optional<SearchTerms.Parsed> parsed = query.searching()
                 ? Optional.of(SearchTerms.parse(query.search().get(), query.sentence()))
                 : Optional.empty();
-        parsed.ifPresent(terms -> searchCondition(terms, query, where));
+        parsed.ifPresent(terms -> searchCondition(siteId, terms, query, searchedAlso, where));
         for (DateCondition condition : query.dates()) {
             dateCondition(condition, where);
         }
@@ -507,10 +552,22 @@ public class PostQueries {
         if (query.parent().isPresent()) {
             long parent = query.parent().getAsLong();
             where.and(parent == 0 ? "p.parentId is null" : "p.parentId = " + where.param(parent));
-        } else if (!query.parentIn().isEmpty()) {
-            where.and("p.parentId in " + where.param(postIds(query.parentIn())));
-        } else if (!query.parentNotIn().isEmpty()) {
-            where.and("p.parentId is null or p.parentId not in " + where.param(postIds(query.parentNotIn())));
+        } else if (!query.parentIn().isEmpty() || query.parentInTopLevel()) {
+            String in = query.parentIn().isEmpty() ? null : "p.parentId in " + where.param(postIds(query.parentIn()));
+            if (!query.parentInTopLevel()) {
+                where.and(in);
+            } else {
+                where.and(in == null ? "p.parentId is null" : "p.parentId is null or " + in);
+            }
+        } else if (!query.parentNotIn().isEmpty() || query.parentNotInTopLevel()) {
+            String notIn = query.parentNotIn().isEmpty()
+                    ? null
+                    : "p.parentId not in " + where.param(postIds(query.parentNotIn()));
+            if (!query.parentNotInTopLevel()) {
+                where.and("p.parentId is null or " + notIn);
+            } else {
+                where.and(notIn == null ? "p.parentId is not null" : "p.parentId is not null and " + notIn);
+            }
         }
     }
 
@@ -535,21 +592,27 @@ public class PostQueries {
 
     /**
      * The search condition: each term in one of the searched columns (the title, the excerpt and the content unless
-     * the query names some of them), each excluded term in none of them, as parts of the column or, for an exact
-     * search, as the whole of it; password-protected posts only for a logged-in caller.
+     * the query names some of them) or in a column another module provides, each excluded term in none of them, as
+     * parts of the column or, for an exact search, as the whole of it; password-protected posts only for a logged-in
+     * caller. The provided columns' parameters are named from {@code s}, the term's position and an underscore.
      */
-    private void searchCondition(SearchTerms.Parsed parsed, PostQuery query, Where where) {
+    private void searchCondition(
+            SiteId siteId, SearchTerms.Parsed parsed, PostQuery query, List<PostSearchProvider> provided, Where where) {
         List<String> columns = new ArrayList<>();
         for (SearchColumn column : SearchColumn.values()) {
             if (query.searchColumns().isEmpty() || query.searchColumns().contains(column)) {
                 columns.add(column(column));
             }
         }
+        int position = 0;
         for (String term : parsed.positive()) {
             String like = where.param(SearchRank.pattern(term, query.exactSearch()));
             List<String> parts = new ArrayList<>();
             for (String column : columns) {
                 parts.add(SearchRank.contains(column, like));
+            }
+            for (String condition : providedTerms(siteId, provided, term, query.exactSearch(), position++, where)) {
+                parts.add("(" + condition + ")");
             }
             where.and(String.join(" or ", parts));
         }
@@ -559,11 +622,38 @@ public class PostQueries {
             for (String column : columns) {
                 parts.add(SearchRank.lacks(column, like));
             }
+            for (String condition : providedTerms(siteId, provided, term, query.exactSearch(), position++, where)) {
+                parts.add("not (" + condition + ")");
+            }
             where.and(String.join(" and ", parts));
         }
         if (!acting.loggedIn()) {
             where.and("p.password = ''");
         }
+    }
+
+    /**
+     * The conditions the provided columns give for one term, their parameters bound; a provider that matches nothing
+     * or adds no condition gives none. A parameter named outside the prefix is refused.
+     */
+    private static List<String> providedTerms(
+            SiteId siteId, List<PostSearchProvider> provided, String term, boolean exact, int position, Where where) {
+        List<String> conditions = new ArrayList<>();
+        for (int i = 0; i < provided.size(); i++) {
+            String prefix = "s" + position + (i == 0 ? "" : "x" + i) + "_";
+            TermCondition condition = provided.get(i).term(siteId, term, exact, "p.id", prefix);
+            if (condition instanceof TermCondition.Jpql jpql) {
+                for (String name : jpql.params().keySet()) {
+                    if (!name.startsWith(prefix)) {
+                        throw new IllegalArgumentException(
+                                "the post search parameter " + name + " does not start with " + prefix);
+                    }
+                }
+                jpql.params().forEach(where::bind);
+                conditions.add(jpql.text());
+            }
+        }
+        return conditions;
     }
 
     private static String column(SearchColumn column) {
