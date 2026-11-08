@@ -442,8 +442,13 @@ public class FsMediaStorage implements MediaStorage {
         setPermissions(folder, permissions);
     }
 
-    /** A new empty temporary file in the temporary folder, readable and writable by its owner only. */
-    private Path temporaryFile() throws IOException {
+    /**
+     * A new empty temporary file in the temporary folder, readable and writable by its owner only: on the file system
+     * of the stored files, out of every key's reach and never listed. The start-up sweep removes those left there for
+     * more than an hour.
+     */
+    @Override
+    public Path temporaryFile() throws IOException {
         if (!Files.isDirectory(directory)) {
             Files.createDirectories(directory);
         }

@@ -142,6 +142,31 @@ class FsMediaStorageTest {
     }
 
     @Test
+    void temporaryFilesAreCreatedInTheHiddenFolder() throws Exception {
+        Path spool = storage.temporaryFile();
+        assertThat(spool.getParent()).isEqualTo(dir.resolve(".tmp"));
+        assertThat(spool).isEmptyFile();
+        assertThat(storage.temporaryFile()).isNotEqualTo(spool);
+        if (spool.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(spool)))
+                    .isEqualTo("rw-------");
+        }
+        Files.writeString(spool, "a request body");
+        // never listed, never a key
+        assertThat(storage.list("")).isEmpty();
+        assertThatThrownBy(() -> storage.exists(".tmp/" + spool.getFileName()))
+                .isInstanceOf(IllegalArgumentException.class);
+        // swept like the other temporary files once an hour old
+        Instant now = Instant.parse("2026-11-05T12:00:00Z");
+        Files.setLastModifiedTime(spool, FileTime.from(now.minus(Duration.ofMinutes(59))));
+        assertThat(storage.sweep(now)).isZero();
+        assertThat(spool).exists();
+        Files.setLastModifiedTime(spool, FileTime.from(now.minus(Duration.ofMinutes(61))));
+        assertThat(storage.sweep(now)).isEqualTo(1);
+        assertThat(spool).doesNotExist();
+    }
+
+    @Test
     void replaceIsAtomic() throws Exception {
         String key = "2026/11/replace.jpg";
         Path a = bytes('a', MIB);
