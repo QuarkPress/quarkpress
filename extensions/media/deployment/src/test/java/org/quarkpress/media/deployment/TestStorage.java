@@ -32,7 +32,7 @@ import org.quarkpress.media.WriteMode;
  * The storage of the upload tests, held in memory: files are served under {@code <site url>test-uploads/<key>}, a
  * name segment longer than 255 UTF-8 bytes is refused as a Linux filesystem refuses it, the main site's uploads base
  * (the empty folder key) can be listed, and switches let a test make a file appear between the listing and the write
- * or make listing fail.
+ * or make listing fail, or run a test's work during each write.
  */
 @ApplicationScoped
 public class TestStorage implements MediaStorage {
@@ -52,6 +52,7 @@ public class TestStorage implements MediaStorage {
     private volatile RuntimeException deleteFailure;
     private final AtomicBoolean failUrlAfterStore = new AtomicBoolean();
     private final AtomicBoolean failNextUrl = new AtomicBoolean();
+    private volatile Runnable duringPut;
 
     /** Removes every file and resets the switches. */
     public void clear() {
@@ -67,6 +68,12 @@ public class TestStorage implements MediaStorage {
         deleteFailure = null;
         failUrlAfterStore.set(false);
         failNextUrl.set(false);
+        duringPut = null;
+    }
+
+    /** Every write first runs {@code work} on the writing thread; null to write at once. */
+    public void duringPuts(Runnable work) {
+        duringPut = work;
     }
 
     /**
@@ -145,6 +152,10 @@ public class TestStorage implements MediaStorage {
     @Override
     public void put(String key, Path source, String mimeType, WriteMode mode) throws IOException {
         StoredKey.require(key);
+        Runnable work = duringPut;
+        if (work != null) {
+            work.run();
+        }
         for (String segment : key.split("/")) {
             if (segment.getBytes(StandardCharsets.UTF_8).length > MAX_SEGMENT_BYTES) {
                 throw new FileSystemException(key, null, "File name too long");

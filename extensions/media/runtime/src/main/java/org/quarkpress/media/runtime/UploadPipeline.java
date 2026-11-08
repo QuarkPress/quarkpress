@@ -3,15 +3,15 @@ package org.quarkpress.media.runtime;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.arc.All;
 import io.quarkus.arc.InstanceHandle;
+import io.quarkus.narayana.jta.QuarkusTransaction;
+import io.quarkus.narayana.jta.QuarkusTransactionException;
 import io.quarkus.runtime.configuration.MemorySize;
-import io.quarkus.security.ForbiddenException;
-import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
+import jakarta.transaction.Status;
 import jakarta.transaction.SystemException;
 import jakarta.transaction.TransactionManager;
-import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -24,12 +24,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.jboss.logging.Logger;
 import org.quarkpress.core.Filters;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteInfo;
+import org.quarkpress.core.UserId;
 import org.quarkpress.media.ImageInfo;
 import org.quarkpress.media.ImageProcessor;
 import org.quarkpress.media.KeyTakenException;
@@ -62,10 +64,12 @@ import org.quarkpress.security.runtime.InstallMode;
  * unique file name, then the file, the attachment post and its media row.
  * Every refusal comes before anything is written.
  *
- * <p>The file is written create-exclusive: when another upload took the name between the folder listing and the
- * write, a new name is chosen from a fresh listing, a bounded number of times. Once the file is stored, any failure
- * marks the transaction for rollback (refusals of the posts module are {@link IllegalArgumentException}s, which would
- * otherwise commit), and the file is removed when the transaction has rolled back.
+ * <p>Only the checks that read rows and the rows themselves are done in a transaction: the file is checked, read and
+ * stored between them, so that copying a large file never holds a database connection (unless the caller's own
+ * transaction is open around the whole upload). The file is written create-exclusive: when another upload took the
+ * name between the folder listing and the write, a new name is chosen from a fresh listing, a bounded number of
+ * times. Once the rows' transaction holds the file, any failure marks it for rollback, and the file is removed when
+ * it has rolled back.
  */
 @ApplicationScoped
 public class UploadPipeline {
@@ -154,11 +158,69 @@ public class UploadPipeline {
     @Inject
     TransactionManager transactionManager;
 
-    /** Stores {@code upload}; see {@link org.quarkpress.media.Media#store}. */
-    @Transactional(
-            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    /**
+     * Stores {@code upload}; see {@link org.quarkpress.media.Media#store}. The checks that read rows come first, in the
+     * caller's transaction or else in a short one of their own; the file is then checked, read and stored outside
+     * any transaction of the upload's own, and only the attachment's rows are written in a transaction, which joins
+     * the caller's when there is one. A refusal before the rows are written never marks the caller's transaction.
+     */
     public MediaSnapshot store(Upload upload) {
         Objects.requireNonNull(upload, "upload");
+        Checked checked = callerTransaction() ? check(upload) : checkInOwnTransaction(upload);
+        FileWork file = storeFile(upload, checked);
+        return writeRows(upload, checked, file);
+    }
+
+    /** {@link #check} in a short transaction of its own; an error it throws reaches the caller as itself. */
+    private Checked checkInOwnTransaction(Upload upload) {
+        try {
+            return QuarkusTransaction.requiringNew().call(() -> check(upload));
+        } catch (QuarkusTransactionException failure) {
+            throw unwrapped(failure);
+        }
+    }
+
+    /** The error the transaction runner wrapped, else {@code failure} itself. */
+    private static RuntimeException unwrapped(QuarkusTransactionException failure) {
+        if (failure.getCause() instanceof Error error) {
+            throw error;
+        }
+        return failure;
+    }
+
+    /** What the checks that read rows found, for the file work and the rows that follow them. */
+    private record Checked(
+            SiteId siteId,
+            Optional<UserId> user,
+            Instant now,
+            UploadFolders.Folder folder,
+            long size,
+            AllowedTypes allowed,
+            SiteInfo siteInfo,
+            String locale) {}
+
+    /** The stored file and what was read from it. */
+    private record FileWork(
+            MediaStorage storage,
+            Placed placed,
+            String mimeType,
+            Optional<ImageInfo> header,
+            Optional<ObjectNode> imageMeta) {}
+
+    /** Whether the caller has a transaction (one marked for rollback counts). */
+    private boolean callerTransaction() {
+        try {
+            return transactionManager.getStatus() != Status.STATUS_NO_TRANSACTION;
+        } catch (SystemException failure) {
+            throw new IllegalStateException(failure);
+        }
+    }
+
+    /**
+     * The refusals that come before the file is read, in WordPress's order, and what the later steps need from the
+     * database: the folder, the size limits, the allowed types and the site's language.
+     */
+    private Checked check(Upload upload) {
         JpaMedia.requireFeature(site);
         SiteId siteId = site.siteId();
         acting.require(siteId, "upload_files", Optional.empty());
@@ -199,18 +261,31 @@ public class UploadPipeline {
         if (overNetworkLimit.isPresent()) {
             throw overNetworkLimit.get();
         }
-        UploadCheck check =
-                new UploadCheck(siteId, acting.user(), upload.clientName(), upload.declaredType(), size, upload.file());
+        return new Checked(siteId, acting.user(), now, folder, size, allowedTypes.current(), site.site(), locale());
+    }
+
+    /**
+     * The upload filters, the empty file, the type check, the header and embedded data, then the file stored under a
+     * unique name; nothing here touches the database.
+     */
+    private FileWork storeFile(Upload upload, Checked checked) {
+        UploadCheck check = new UploadCheck(
+                checked.siteId(),
+                checked.user(),
+                upload.clientName(),
+                upload.declaredType(),
+                checked.size(),
+                upload.file());
         for (UploadFilter filter : Filters.ordered(uploadFilters)) {
             Optional<String> refusal = filter.refuse(check);
             if (refusal.isPresent()) {
                 throw MediaException.upload(refusal.get());
             }
         }
-        if (size <= 0) {
+        if (checked.size() <= 0) {
             throw MediaException.upload(installMode.multisite() ? EMPTY_FILE : EMPTY_FILE_SINGLE_SITE);
         }
-        AllowedTypes allowed = allowedTypes.current();
+        AllowedTypes allowed = checked.allowed();
         TypeCheck.TypeResult type;
         try {
             type = TypeCheck.check(upload.file(), upload.clientName(), mimeTypes.patterns(), allowed);
@@ -223,14 +298,55 @@ public class UploadPipeline {
         String mimeType = type.mimeType().orElseThrow();
         String sanitized = FileNames.sanitize(type.properName().orElse(upload.clientName()), allowed);
         Map<String, String> outputFormats = upload.convertFormat() ? config.effectiveOutputFormats() : Map.of();
+        Optional<ImageInfo> header = header(upload.file());
+        Optional<ObjectNode> imageMeta =
+                header.map(info -> imageMeta(upload.file(), info.mimeType(), checked.locale()));
         MediaStorage storage = activeStorage.storage();
-        SiteInfo siteInfo = site.site();
-        Placed placed = place(storage, siteInfo, folder, sanitized, allowed, outputFormats, upload.file(), mimeType);
+        Placed placed = place(
+                storage,
+                checked.siteInfo(),
+                checked.folder(),
+                sanitized,
+                allowed,
+                outputFormats,
+                upload.file(),
+                mimeType);
+        return new FileWork(storage, placed, mimeType, header, imageMeta);
+    }
+
+    /**
+     * Writes the attachment's rows in a transaction, the caller's when there is one. The stored file goes with that
+     * transaction when it rolls back; when it cannot even begin, the file is removed at once. Any failure once the
+     * transaction holds the file marks it for rollback (refusals of the posts module are {@link
+     * IllegalArgumentException}s, which would otherwise commit).
+     */
+    private MediaSnapshot writeRows(Upload upload, Checked checked, FileWork file) {
+        AtomicBoolean fileHandled = new AtomicBoolean();
         try {
-            return record(upload, siteId, siteInfo, storage, placed, mimeType, now);
-        } catch (RuntimeException | Error failure) {
-            markRollbackOnly(failure);
-            throw failure;
+            return QuarkusTransaction.joiningExisting().call(() -> {
+                fileHandled.set(true);
+                removeOnRollback(file.storage(), file.placed().key());
+                try {
+                    return record(upload, checked, file);
+                } catch (RuntimeException | Error failure) {
+                    markRollbackOnly(failure);
+                    throw failure;
+                }
+            });
+        } catch (RuntimeException failure) {
+            if (!fileHandled.get()) {
+                deleteQuietly(file, failure);
+            }
+            // the transaction runner wraps an error; the caller gets the error itself
+            throw failure instanceof QuarkusTransactionException wrapped ? unwrapped(wrapped) : failure;
+        }
+    }
+
+    private static void deleteQuietly(FileWork file, Throwable cause) {
+        try {
+            file.storage().delete(file.placed().key());
+        } catch (RuntimeException deleteFailure) {
+            cause.addSuppressed(deleteFailure);
         }
     }
 
@@ -286,7 +402,6 @@ public class UploadPipeline {
             }
             try {
                 storage.put(key, file, mimeType, WriteMode.CREATE_NEW);
-                removeOnRollback(storage, key);
                 return new Placed(name, key, url);
             } catch (KeyTakenException taken) {
                 LOG.debugf("the upload name %s was taken meanwhile; choosing again", key);
@@ -334,16 +449,11 @@ public class UploadPipeline {
     }
 
     /** Writes the attachment post and its media row for the stored file, then announces it. */
-    private MediaSnapshot record(
-            Upload upload,
-            SiteId siteId,
-            SiteInfo siteInfo,
-            MediaStorage storage,
-            Placed placed,
-            String mimeType,
-            Instant now) {
-        Optional<ImageInfo> header = header(upload.file());
-        Optional<ObjectNode> imageMeta = header.map(info -> imageMeta(upload.file(), info.mimeType()));
+    private MediaSnapshot record(Upload upload, Checked checked, FileWork file) {
+        SiteId siteId = checked.siteId();
+        Placed placed = file.placed();
+        Optional<ImageInfo> header = file.header();
+        Optional<ObjectNode> imageMeta = file.imageMeta();
         EmbeddedText embedded = imageMeta.map(EmbeddedText::of).orElse(new EmbeddedText("", "", ""));
         String title = AttachmentFields.title(upload.title(), embedded, upload.clientName(), placed.name());
         String excerpt = AttachmentFields.caption(upload.caption(), embedded);
@@ -360,7 +470,7 @@ public class UploadPipeline {
 
         MediaEntity row = MediaEntity.create(siteId, post.id());
         row.storageKey = placed.key();
-        row.mimeType = mimeType;
+        row.mimeType = file.mimeType();
         row.fileSize = upload.size();
         row.width = header.map(ImageInfo::width).orElse(null);
         row.height = header.map(ImageInfo::height).orElse(null);
@@ -371,8 +481,9 @@ public class UploadPipeline {
         mediaRows.persist(row);
         mediaRows.flush();
 
-        MediaSnapshot snapshot = JpaMedia.snapshot(post, row, storage, siteInfo, runtimeConfig.mainSiteId());
-        transactions.publish(storedEvents, new MediaStored(siteId, now, snapshot));
+        MediaSnapshot snapshot =
+                JpaMedia.snapshot(post, row, file.storage(), checked.siteInfo(), runtimeConfig.mainSiteId());
+        transactions.publish(storedEvents, new MediaStored(siteId, checked.now(), snapshot));
         return snapshot;
     }
 
@@ -388,9 +499,8 @@ public class UploadPipeline {
         }
     }
 
-    /** The image's embedded data. */
-    private ObjectNode imageMeta(Path file, String imageType) {
-        String locale = locale();
+    /** The image's embedded data, its texts read for the site's language {@code locale}. */
+    private static ObjectNode imageMeta(Path file, String imageType, String locale) {
         return readImageMeta(() -> ImageMetaReader.read(file, imageType, locale));
     }
 

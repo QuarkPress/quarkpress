@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,8 +35,9 @@ import org.quarkpress.media.ImageProcessor;
 /**
  * An image processor on the JDK's own ImageIO codecs that handles JPEG, PNG and GIF only, the types WordPress's GD
  * editor handles without WebP and AVIF support. Switches let a test make one output size fail to encode, make one cut
- * throw, make decoding throw (always or once) or slow it down; counters tell how often it decoded and how many
- * decoded images were open at once (an image and every image made from it count as one until all of them are closed).
+ * throw, make decoding throw (always or once), slow it down or hold it until a gate opens; counters tell how often it
+ * decoded and how many decoded images were open at once (an image and every image made from it count as one until all
+ * of them are closed).
  */
 @ApplicationScoped
 public class TestProcessor implements ImageProcessor {
@@ -49,13 +51,14 @@ public class TestProcessor implements ImageProcessor {
     private volatile Error decodeError;
     private final AtomicReference<Error> nextDecodeError = new AtomicReference<>();
     private volatile Throwable turnFailure;
-    private volatile RuntimeException supportsFailure;
+    private volatile Throwable supportsFailure;
     private volatile long decodeMillis;
     private final AtomicInteger decodes = new AtomicInteger();
     private final AtomicInteger encodes = new AtomicInteger();
     private volatile CyclicBarrier encodeBarrier;
     private final AtomicInteger barrierParties = new AtomicInteger();
     private final AtomicReference<Runnable> duringDecode = new AtomicReference<>();
+    private volatile CountDownLatch decodeGate;
     private final AtomicInteger open = new AtomicInteger();
     private final AtomicInteger maxOpen = new AtomicInteger();
 
@@ -94,6 +97,11 @@ public class TestProcessor implements ImageProcessor {
         supportsFailure = failure;
     }
 
+    /** {@link #supports} throws {@code error} (such as a {@link StackOverflowError}); null to answer again. */
+    public void errorOnSupports(Error error) {
+        supportsFailure = error;
+    }
+
     /** Each decode takes at least {@code millis} milliseconds longer. */
     public void slowDecodes(long millis) {
         decodeMillis = millis;
@@ -121,6 +129,11 @@ public class TestProcessor implements ImageProcessor {
         duringDecode.set(work);
     }
 
+    /** Each decode first waits (at most a minute) until {@code gate} is open; null to decode at once. */
+    public void holdDecodes(CountDownLatch gate) {
+        decodeGate = gate;
+    }
+
     /** How many times {@link #decode} was called since the last {@link #reset}. */
     public int decodes() {
         return decodes.get();
@@ -146,14 +159,18 @@ public class TestProcessor implements ImageProcessor {
         encodeBarrier = null;
         barrierParties.set(0);
         duringDecode.set(null);
+        decodeGate = null;
         maxOpen.set(open.get());
     }
 
     @Override
     public boolean supports(String mimeType) {
-        RuntimeException failure = supportsFailure;
-        if (failure != null) {
-            throw failure;
+        Throwable failure = supportsFailure;
+        if (failure instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        if (failure instanceof Error error) {
+            throw error;
         }
         return FORMATS.containsKey(mimeType);
     }
@@ -185,6 +202,14 @@ public class TestProcessor implements ImageProcessor {
     @Override
     public DecodedImage decode(Path file, String mimeType) throws ImageProcessingException {
         decodes.incrementAndGet();
+        CountDownLatch gate = decodeGate;
+        if (gate != null) {
+            try {
+                gate.await(60, TimeUnit.SECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
         Runnable work = duringDecode.getAndSet(null);
         if (work != null) {
             Thread helper = new Thread(work, "test-during-decode");

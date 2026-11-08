@@ -62,7 +62,8 @@ import org.quarkpress.posts.runtime.PostRepository;
  * the row lock, create-exclusive (a taken name gets a number), and removed again when that transaction does not
  * commit, so a stored entry always names an existing file and a file is never stored for a row that is gone (the run
  * ends there). Two runs of one attachment at once therefore agree: a size the other run saved first is kept, never
- * made twice. Decodes wait for a {@link DecodeLimiter} permit, held until the run's last size. A failing decode, cut
+ * made twice. Decodes wait for a {@link DecodeLimiter} permit, held until the run's last size; a run that waits longer
+ * than the configured decode wait stops there, a pending attachment marked failed. A failing decode, cut
  * or encode never fails the run: the size is left out and the attachment ends {@link Processing#PARTIAL}. A run that
  * saves no metadata (the file cannot be read, its first save fails, or it throws before) marks the attachment {@link
  * Processing#FAILED}, and the next run of a failed attachment starts from scratch.
@@ -191,6 +192,15 @@ public class SizeGenerator {
         } catch (SaveFailed failure) {
             LOG.warnf(failure.getCause(), "the metadata of attachment %s could not be saved", post.value());
             markAfterFailedSave(siteId, post);
+            return read(siteId, post);
+        } catch (DecodeLimiter.DecodeWaitTimeout timeout) {
+            // a permit never released must not hold the run forever: a pending attachment ends failed, and a later
+            // post-process starts it again
+            LOG.warnf(
+                    "attachment %s waited %d ms for a decode permit; the run stops, and the attachment is marked failed"
+                            + " if it is still pending",
+                    post.value(), timeout.waited().toMillis());
+            markFailedIfPending(siteId, post, null);
             return read(siteId, post);
         } catch (RuntimeException failure) {
             // whatever went wrong, the attachment is never left pending; a later post-process starts it again
@@ -665,7 +675,7 @@ public class SizeGenerator {
             String outputType = SizePlan.outputType(realType, formats, processor);
             String sourceName = fileName(sourceKey());
             int orientation = realType.equals(JPEG) ? orientation(media.imageMeta()) : 0;
-            try (DecodeLimiter.Permit permit = limiter.acquire();
+            try (DecodeLimiter.Permit permit = limiter.acquire(config.decodeWait());
                     Images images = new Images()) {
                 DecodedImage original;
                 try {
@@ -811,7 +821,7 @@ public class SizeGenerator {
                         ordered.put(size.getKey(), size.getValue());
                     }
                 }
-                try (DecodeLimiter.Permit permit = limiter.acquire();
+                try (DecodeLimiter.Permit permit = limiter.acquire(config.decodeWait());
                         Images images = new Images()) {
                     DecodedImage decoded;
                     try {

@@ -5,6 +5,7 @@ import io.quarkus.runtime.annotations.ConfigRoot;
 import io.quarkus.runtime.configuration.MemorySize;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +70,19 @@ public interface MediaConfig {
      * and at most one per 512 MiB of the maximum heap, at least one.
      */
     Optional<Integer> maxConcurrentDecodes();
+
+    /**
+     * How long a processing run waits for its turn to decode (see {@link #maxConcurrentDecodes()}); a run that waits
+     * longer ends with the attachment marked failed, and the wait is logged.
+     */
+    @WithDefault("30s")
+    Duration decodeWait();
+
+    /**
+     * How many background runs (the {@code async} processing mode) hold a temporary copy of their file at once;
+     * further runs wait for their turn before they copy anything. Unset, the number of concurrent decodes.
+     */
+    Optional<Integer> asyncRuns();
 
     /**
      * The type sub-sizes are written in, by source MIME type, on top of {@link #DEFAULT_OUTPUT_FORMATS}; see
