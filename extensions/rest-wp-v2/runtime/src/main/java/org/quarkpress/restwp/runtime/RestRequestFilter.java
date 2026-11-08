@@ -146,10 +146,15 @@ public class RestRequestFilter {
     /**
      * Re-routes as a POST, whatever the method, so that the entry resource reads every request's body (WordPress reads
      * a JSON body for any method); the entry keeps the real method, and a HEAD response still goes out without a body.
+     * A multipart body goes to the resource's multipart path, any other (none included) to its generic one, so that the
+     * resource never has to guess the body's kind from a missing content type.
      */
     private static void reroute(RoutingContext context, Entry entry) {
         context.put(ENTRY, entry);
-        context.reroute(HttpMethod.POST, RestPaths.entryPath() + "/route");
+        String target = IncomingRequest.isMultipart(context.request().getHeader("Content-Type"))
+                ? RestEntryResource.MULTIPART_PATH
+                : "/route";
+        context.reroute(HttpMethod.POST, RestPaths.entryPath() + target);
     }
 
     /** PHP's {@code empty()} of a query value: an empty string or {@code "0"}. */

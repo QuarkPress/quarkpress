@@ -77,11 +77,20 @@ public final class PhpQuery {
                     name = decode(raw, start, end);
                     value = "";
                 }
-                register(result, name, value, nextIndex);
+                add(result, name, value, nextIndex);
             }
             start = end + 1;
         }
         return result;
+    }
+
+    /**
+     * Adds one {@code name=value} pair (both decoded) to {@code form} as PHP adds a form field: by the rules
+     * {@link #parse} applies to each pair, so brackets in the name make arrays and {@code []} appends after the largest
+     * integer key an array already has. Used for a multipart body's text parts.
+     */
+    public static void add(ObjectNode form, String name, String value) {
+        add(form, name, value, new IdentityHashMap<>());
     }
 
     /** PHP's rawurldecode: {@code %XX} as a byte, other text (a {@code +} included) as is. */
@@ -139,8 +148,11 @@ public final class PhpQuery {
         return -1;
     }
 
-    /** PHP's registration of one variable {@code name} (decoded) with {@code value}. */
-    private static void register(ObjectNode result, String name, String value, Map<ObjectNode, long[]> nextIndex) {
+    /**
+     * PHP's registration of one variable {@code name} (decoded) with {@code value}; {@code nextIndex} keeps each array's
+     * next free index once known.
+     */
+    private static void add(ObjectNode result, String name, String value, Map<ObjectNode, long[]> nextIndex) {
         int nul = name.indexOf('\0');
         if (nul >= 0) {
             name = name.substring(0, nul);
@@ -215,7 +227,7 @@ public final class PhpQuery {
         container.set(key, value);
         Long integer = integerKey(key);
         if (integer != null) {
-            long[] next = nextIndex.computeIfAbsent(container, ignored -> new long[] {Long.MIN_VALUE, 0});
+            long[] next = nextIndex.computeIfAbsent(container, PhpQuery::nextIndex);
             // next[1]: 0 = unset, 1 = set, 2 = exhausted (after the largest integer key)
             if (next[1] == 0 || (next[1] == 1 && integer >= next[0])) {
                 if (integer == Long.MAX_VALUE) {
@@ -230,12 +242,33 @@ public final class PhpQuery {
 
     /** The key {@code []} appends under, or null when the array has no next index left. */
     private static String append(ObjectNode container, Map<ObjectNode, long[]> nextIndex) {
-        long[] next = nextIndex.computeIfAbsent(container, ignored -> new long[] {Long.MIN_VALUE, 0});
+        long[] next = nextIndex.computeIfAbsent(container, PhpQuery::nextIndex);
         if (next[1] == 2) {
             return null;
         }
         long index = next[1] == 0 ? 0 : next[0];
         return Long.toString(index);
+    }
+
+    /**
+     * The next free index of an array not seen before, from the keys it holds: one after its largest integer key (none
+     * left after the largest 64-bit one), or 0 without one. As in {@link #put}, {@code next[1]} is 0 when unset, 1 when
+     * set and 2 when exhausted.
+     */
+    private static long[] nextIndex(ObjectNode container) {
+        long[] next = {Long.MIN_VALUE, 0};
+        container.fieldNames().forEachRemaining(key -> {
+            Long integer = integerKey(key);
+            if (integer != null && (next[1] == 0 || (next[1] == 1 && integer >= next[0]))) {
+                if (integer == Long.MAX_VALUE) {
+                    next[1] = 2;
+                } else {
+                    next[0] = integer + 1;
+                    next[1] = 1;
+                }
+            }
+        });
+        return next;
     }
 
     /** A PHP integer array key: a canonical decimal integer in the 64-bit range ({@code -0} and {@code 05} are not). */

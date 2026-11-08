@@ -164,7 +164,8 @@ public final class LinkRenderer {
                     caller::user,
                     urls,
                     this,
-                    caller.secure());
+                    caller.secure(),
+                    RestServer.Body.NONE);
             allowed = AllowHeader.methods(match.matchedRoute(), request);
         } catch (RuntimeException failure) {
             return Optional.empty();

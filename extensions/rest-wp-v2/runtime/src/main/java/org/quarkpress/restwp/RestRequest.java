@@ -3,6 +3,8 @@ package org.quarkpress.restwp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -43,7 +45,8 @@ public interface RestRequest {
      * deleted one's previous state in the view context). Only a request the REST server built honours it: from then on
      * {@link #context()} and {@link #isEditContext()} answer with that context, and the server computes the answer's
      * {@code Allow} header, after the handler, with it, as WordPress does. A request that wraps another ignores it, as
-     * it answers the served-request accessors {@link #paramNames()} and {@link #secure()} with their defaults.
+     * it answers the served-request accessors {@link #paramNames()}, {@link #secure()}, {@link #headerValues},
+     * {@link #files()} and {@link #rawBody()} with their defaults.
      */
     default void useContext(String context) {}
 
@@ -64,6 +67,36 @@ public interface RestRequest {
      */
     default Set<String> paramNames() {
         return Set.of();
+    }
+
+    /**
+     * Every value of request header {@code name} (compared ignoring case), one per header line in the order received,
+     * never split at commas. A request the REST server built answers it from the HTTP request; any other answers an
+     * empty list.
+     */
+    default List<String> headerValues(String name) {
+        return List.of();
+    }
+
+    /**
+     * The file parts of a multipart POST body, in body order (the parts of one name together, where the name first
+     * appears). Quarkus stores each on disk for the time of the request and deletes it once the request ends. A
+     * multipart body of any other method has none, as PHP fills its uploaded files only for POST. A request the REST
+     * server built answers it from the HTTP request; any other answers an empty list.
+     */
+    default List<UploadedFile> files() {
+        return List.of();
+    }
+
+    /**
+     * The body as sent, which can be read once, for a request whose body is not multipart: a JSON, form or untyped body
+     * (already read whole, within Quarkus's {@code quarkus.http.limits.max-body-size}) as an in-memory stream, a body
+     * of any other content type as the live request stream, never held in memory, which Quarkus ends with a 413 once
+     * more than that limit has been read. Empty for a multipart body, an embedded request, and a request the REST
+     * server did not build.
+     */
+    default Optional<InputStream> rawBody() {
+        return Optional.empty();
     }
 
     /**

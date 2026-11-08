@@ -8,6 +8,7 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.deployment.builditem.RunTimeConfigurationDefaultBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveDeploymentBuildItem;
 import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveResourceMethodEntriesBuildItem;
@@ -29,6 +30,9 @@ import org.quarkpress.restwp.runtime.RestWpConfig;
 import org.quarkpress.restwp.runtime.RestWpRecorder;
 
 class RestWpV2Processor {
+
+    /** The largest form attribute size Quarkus accepts: it reads the setting as an {@code int}. */
+    static final int FORM_ATTRIBUTE_LIMIT = Integer.MAX_VALUE;
 
     static final String FEATURE = "quarkpress-rest-wp-v2";
 
@@ -56,6 +60,18 @@ class RestWpV2Processor {
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
         return QuarkPressConfigKeysBuildItem.of("rest-wp-v2", "quarkpress.rest-wp-v2", RestWpConfig.class);
+    }
+
+    /**
+     * A multipart body's text parts are request parameters, which PHP bounds only by the body's size: Quarkus's limit
+     * on one form attribute ({@code quarkus.http.limits.max-form-attribute-size}, 2048 bytes of its own) defaults to
+     * the largest value Quarkus reads ({@value #FORM_ATTRIBUTE_LIMIT} bytes), so that the body limit
+     * ({@code quarkus.http.limits.max-body-size}) is what bounds them. An application's own setting still wins.
+     */
+    @BuildStep
+    RunTimeConfigurationDefaultBuildItem formAttributeLimit() {
+        return new RunTimeConfigurationDefaultBuildItem(
+                "quarkus.http.limits.max-form-attribute-size", Integer.toString(FORM_ATTRIBUTE_LIMIT));
     }
 
     @BuildStep

@@ -2,10 +2,34 @@ package org.quarkpress.restwp.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 /** Expected values are PHP 8.4's {@code parse_str} answers. */
 class PhpQueryTest {
+
+    @Test
+    void addBuildsArraysAsParseDoes() {
+        ObjectNode form = RestJson.NODES.objectNode();
+        PhpQuery.add(form, "a[b]", "1");
+        PhpQuery.add(form, "a[]", "2");
+        PhpQuery.add(form, "post", "11");
+        assertThat(form).isEqualTo(PhpQuery.parse("a%5Bb%5D=1&a%5B%5D=2&post=11"));
+    }
+
+    @Test
+    void addContinuesTheIndexesAFormAlreadyHas() {
+        ObjectNode form = PhpQuery.parse("a[5]=1&b[x]=2");
+        PhpQuery.add(form, "a[]", "3");
+        PhpQuery.add(form, "b[]", "4");
+        PhpQuery.add(form, "c d", "5");
+        assertThat(form).isEqualTo(PhpQuery.parse("a[5]=1&b[x]=2&a[]=3&b[]=4&c+d=5"));
+        assertThat(form.toString())
+                .isEqualTo("{\"a\":{\"5\":\"1\",\"6\":\"3\"},\"b\":{\"x\":\"2\",\"0\":\"4\"},\"c_d\":\"5\"}");
+        ObjectNode full = PhpQuery.parse("a[9223372036854775807]=1");
+        PhpQuery.add(full, "a[]", "2");
+        assertThat(full).isEqualTo(PhpQuery.parse("a[9223372036854775807]=1&a[]=2"));
+    }
 
     @Test
     void parsesLikePhp() {

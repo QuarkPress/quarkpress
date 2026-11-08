@@ -1,7 +1,9 @@
 package org.quarkpress.restwp.deployment;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.management.ThreadMXBean;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -12,6 +14,15 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.io.IOException;
+import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +48,7 @@ import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
+import org.quarkpress.restwp.UploadedFile;
 import org.quarkpress.restwp.runtime.CollectionItems;
 import org.quarkpress.restwp.runtime.RestJson;
 import org.quarkpress.revisions.RevisionException;
@@ -45,7 +57,8 @@ import org.quarkpress.taxonomy.TermException;
 
 /**
  * Routes of namespace {@code qp-test/v1} for the routing tests: {@code /echo/(?P<id>[\d]+)} (GET and POST) answers
- * {@code {"method", "id", "urlId", "params", "site", "root", "link", "home"}}; {@code /items} (GET) answers
+ * {@code {"method", "id", "urlId", "params", "site", "root", "link", "home"}}; {@code /echo} (POST and PUT) answers
+ * what the handler sees of the request's body, headers and files (see {@link #bodyEcho}); {@code /items} (GET) answers
  * {@code [{"id":1},{"id":2}]} with {@code X-WP-Total: 2} and {@code X-WP-TotalPages: 1}; {@code /headers} (GET)
  * answers {@code []} with {@code Last-Modified} and a lower-case {@code link}; {@code /nan} (GET) answers a body that
  * cannot be encoded;
@@ -122,6 +135,10 @@ public class TestRoutes implements RestRouteProvider {
         routes.route("qp-test/v1", "/echo/(?P<id>[\\d]+)")
                 .endpoint(Endpoint.of("GET").handler(echo).build())
                 .endpoint(Endpoint.of("POST").handler(echo).build())
+                .register();
+        routes.route("qp-test/v1", "/echo")
+                .endpoint(
+                        Endpoint.of("POST", "PUT").handler(TestRoutes::bodyEcho).build())
                 .register();
         routes.route("qp-test/v1", "/items")
                 .endpoint(Endpoint.of("GET").handler(TestRoutes::items).build())
@@ -442,6 +459,57 @@ public class TestRoutes implements RestRouteProvider {
         body.put("root", urls.root());
         body.put("link", urls.route("/qp-test/v1/items", Map.of("a b", "c&d/" + new String(Character.toChars(0xE9)))));
         body.put("home", urls.home());
+        return RestResponse.ok(body);
+    }
+
+    /**
+     * The body as the handler sees it: the bytes {@code rawBody()} gives ({@code length}, {@code md5} in lower-case hex,
+     * {@code stream} its class's simple name or null, {@code allocated} the bytes this thread allocated while reading
+     * them), {@code headers} every {@code Content-Disposition} value, {@code params} the parameter names sorted,
+     * {@code values} each parameter's value, and {@code files} the file parts with their {@code exists} at answer time.
+     */
+    private static RestResponse bodyEcho(RestRequest request) {
+        ObjectNode body = RestJson.NODES.objectNode();
+        ThreadMXBean threads = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+        Optional<InputStream> raw = request.rawBody();
+        body.put("stream", raw.map(stream -> stream.getClass().getSimpleName()).orElse(null));
+        if (raw.isPresent()) {
+            long before = threads.getCurrentThreadAllocatedBytes();
+            long length = 0;
+            MessageDigest md5;
+            try (InputStream in = raw.get()) {
+                md5 = MessageDigest.getInstance("MD5");
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = in.read(buffer)) >= 0) {
+                    md5.update(buffer, 0, read);
+                    length += read;
+                }
+            } catch (IOException | NoSuchAlgorithmException e) {
+                throw new IllegalStateException(e);
+            }
+            body.put("allocated", threads.getCurrentThreadAllocatedBytes() - before);
+            body.put("length", length);
+            body.put("md5", HexFormat.of().formatHex(md5.digest()));
+        }
+        ArrayNode headers = body.putArray("headers");
+        request.headerValues("content-disposition").forEach(headers::add);
+        List<String> names = new ArrayList<>(request.paramNames());
+        Collections.sort(names);
+        ArrayNode params = body.putArray("params");
+        names.forEach(params::add);
+        ObjectNode values = body.putObject("values");
+        names.forEach(name -> values.set(name, request.param(name).orElse(NullNode.getInstance())));
+        ArrayNode files = body.putArray("files");
+        for (UploadedFile file : request.files()) {
+            ObjectNode item = files.addObject();
+            item.put("field", file.field());
+            item.put("fileName", file.fileName());
+            item.put("contentType", file.contentType().orElse(null));
+            item.put("file", file.file().toString());
+            item.put("size", file.size());
+            item.put("exists", Files.exists(file.file()));
+        }
         return RestResponse.ok(body);
     }
 

@@ -15,7 +15,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -39,6 +41,7 @@ import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
+import org.quarkpress.restwp.UploadedFile;
 import org.quarkpress.security.QuarkPressPrincipal;
 
 /**
@@ -410,7 +413,7 @@ public class RestServer {
                 sources,
                 incoming.query(),
                 links,
-                incoming.secure());
+                incoming);
         RestResponse answer = withFields(
                 request,
                 withAllow(match.matchedRoute(), request, answer(jsonFailure(incoming), match, sources, request)));
@@ -420,7 +423,10 @@ public class RestServer {
                 method.equals("HEAD") ? null : Embedder.parse(incoming.query().get("_embed")));
     }
 
-    /** A request of this caller, matched to {@code matched} and {@code endpoint}. */
+    /**
+     * A request of this caller, matched to {@code matched} and {@code endpoint}, with the headers, body and files of
+     * {@code incoming}.
+     */
     private Served served(
             String method,
             RouteTable.MatchedRoute matched,
@@ -429,7 +435,21 @@ public class RestServer {
             ParamSources sources,
             ObjectNode query,
             LinkRenderer links,
-            boolean secure) {
+            IncomingRequest incoming) {
+        return served(method, matched, endpoint, path, sources, query, links, incoming.secure(), Body.of(incoming));
+    }
+
+    /** A request of this caller, matched to {@code matched} and {@code endpoint}, with {@code body}. */
+    private Served served(
+            String method,
+            RouteTable.MatchedRoute matched,
+            Endpoint endpoint,
+            String path,
+            ParamSources sources,
+            ObjectNode query,
+            LinkRenderer links,
+            boolean secure,
+            Body body) {
         return new Served(
                 method,
                 matched,
@@ -441,7 +461,8 @@ public class RestServer {
                 () -> QuarkPressPrincipal.of(identity).map(QuarkPressPrincipal::user),
                 urls,
                 links,
-                secure);
+                secure,
+                body);
     }
 
     /**
@@ -489,8 +510,16 @@ public class RestServer {
         RouteTable.Match match = found.get();
         ParamSources sources = new ParamSources(
                 RestJson.NODES.objectNode(), RestJson.NODES.objectNode(), query, match.urlParams(), defaults(match));
-        Served request =
-                served("GET", match.matchedRoute(), match.endpoint(), target.route(), sources, query, links, secure);
+        Served request = served(
+                "GET",
+                match.matchedRoute(),
+                match.endpoint(),
+                target.route(),
+                sources,
+                query,
+                links,
+                secure,
+                Body.NONE);
         RestResponse answer = withFields(
                 request, withAllow(match.matchedRoute(), request, answer(Optional.empty(), match, sources, request)));
         return toData(answer, request, EmbedChoice.NONE).body();
@@ -554,7 +583,7 @@ public class RestServer {
                 sources,
                 incoming.query(),
                 new LinkRenderer(table(), urls),
-                incoming.secure());
+                incoming);
         ObjectNode data = RouteData.of(matched.route(), "help", urls);
         RestResponse answer = withFields(
                 request, withAllow(matched, request, RestResponse.ok(data == null ? NullNode.getInstance() : data)));
@@ -726,6 +755,7 @@ public class RestServer {
         private final RestUrls urls;
         private final LinkRenderer links;
         private final boolean secure;
+        private final Body body;
         private List<String> fields;
         private final Map<ObjectNode, Fields.Selection> selections = new IdentityHashMap<>();
         private JsonNode context;
@@ -741,7 +771,8 @@ public class RestServer {
                 Supplier<Optional<UserId>> user,
                 RestUrls urls,
                 LinkRenderer links,
-                boolean secure) {
+                boolean secure,
+                Body body) {
             this.method = method;
             this.matched = matched;
             this.endpoint = endpoint;
@@ -753,6 +784,7 @@ public class RestServer {
             this.urls = urls;
             this.links = links;
             this.secure = secure;
+            this.body = body;
         }
 
         @Override
@@ -817,6 +849,21 @@ public class RestServer {
         }
 
         @Override
+        public List<String> headerValues(String name) {
+            return body.headerValues(name);
+        }
+
+        @Override
+        public List<UploadedFile> files() {
+            return body.files();
+        }
+
+        @Override
+        public Optional<InputStream> rawBody() {
+            return body.raw();
+        }
+
+        @Override
         public ObjectNode queryParams() {
             return query;
         }
@@ -878,6 +925,49 @@ public class RestServer {
         @Override
         public String routeUrl() {
             return urls.route(filled(matched.route().pattern().template(), matched.urlParams()));
+        }
+    }
+
+    /**
+     * What a served request gives its handler of the HTTP request: its headers, its file parts, and its body as a
+     * stream, made once (an in-memory one over the bytes already read, the live one, or none for a multipart body).
+     */
+    static final class Body {
+
+        /** An embedded request's: no headers, no files, no body. */
+        static final Body NONE = new Body(Map.of(), List.of(), Optional.empty());
+
+        private final Map<String, List<String>> headers;
+        private final List<UploadedFile> files;
+        private final Optional<InputStream> raw;
+
+        private Body(Map<String, List<String>> headers, List<UploadedFile> files, Optional<InputStream> raw) {
+            this.headers = headers;
+            this.files = files;
+            this.raw = raw;
+        }
+
+        static Body of(IncomingRequest incoming) {
+            Optional<InputStream> raw = incoming.stream().isPresent()
+                    ? incoming.stream()
+                    : IncomingRequest.isMultipart(incoming.contentType())
+                            ? Optional.empty()
+                            : Optional.of(new ByteArrayInputStream(incoming.body()));
+            return new Body(incoming.headers(), incoming.files(), raw);
+        }
+
+        /** Every value of header {@code name}; the headers' names are compared ignoring case. */
+        List<String> headerValues(String name) {
+            List<String> values = headers.get(name);
+            return values == null ? List.of() : values;
+        }
+
+        List<UploadedFile> files() {
+            return files;
+        }
+
+        Optional<InputStream> raw() {
+            return raw;
         }
     }
 
