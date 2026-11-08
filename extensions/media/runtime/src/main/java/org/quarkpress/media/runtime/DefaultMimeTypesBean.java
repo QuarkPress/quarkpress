@@ -14,11 +14,15 @@ import org.quarkpress.media.MimeTypes;
 /**
  * The upload types of every site unless an application bean replaces this one: WordPress's list followed by the
  * types {@code quarkpress.media.allowed-types} adds. A configured pattern WordPress's list already holds changes that
- * pattern's type where it stands. A configured pattern holding a dot fails the start.
+ * pattern's type where it stands. A configured pattern holding a dot, or a type longer than 100 characters, fails the
+ * start.
  */
 @DefaultBean
 @ApplicationScoped
 public class DefaultMimeTypesBean implements MimeTypes {
+
+    /** The longest type the media table's type column holds. */
+    static final int MAX_TYPE_LENGTH = 100;
 
     @Inject
     MediaConfig config;
@@ -65,23 +69,38 @@ public class DefaultMimeTypesBean implements MimeTypes {
 
     /**
      * Why the configured upload types cannot be used, empty when they can: a pattern holding a dot could never match,
-     * since a file's type is looked up by the part of its name after its last dot.
+     * since a file's type is looked up by the part of its name after its last dot, and a type longer than 100
+     * characters could never be stored.
      */
     static String refusal(Map<String, String> configured) {
         StringBuilder refusal = new StringBuilder();
-        for (String pattern : new TreeMap<>(configured).keySet()) {
+        for (Map.Entry<String, String> entry : new TreeMap<>(configured).entrySet()) {
+            String pattern = entry.getKey();
             if (pattern.indexOf('.') >= 0) {
-                if (!refusal.isEmpty()) {
-                    refusal.append("; ");
-                }
-                refusal.append("quarkpress.media.allowed-types.\"")
+                separate(refusal)
+                        .append("quarkpress.media.allowed-types.\"")
                         .append(pattern)
                         .append(
                                 "\" cannot be used: an upload type's pattern holds no dot, as a file's type is looked up"
                                         + " by the part of the file name after its last dot");
             }
+            String type = entry.getValue();
+            if (type != null && type.length() > MAX_TYPE_LENGTH) {
+                separate(refusal)
+                        .append("quarkpress.media.allowed-types.\"")
+                        .append(pattern)
+                        .append("\" cannot be used: its type ")
+                        .append(type)
+                        .append(" is longer than the ")
+                        .append(MAX_TYPE_LENGTH)
+                        .append(" characters an attachment's type holds");
+            }
         }
         return refusal.toString();
+    }
+
+    private static StringBuilder separate(StringBuilder refusal) {
+        return refusal.isEmpty() ? refusal : refusal.append("; ");
     }
 
     private static int indexOf(List<Map.Entry<String, String>> patterns, String key) {

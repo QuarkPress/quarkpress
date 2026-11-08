@@ -34,7 +34,8 @@ public interface MediaConfig {
     /**
      * Upload types added to WordPress's list, as extension pattern (such as {@code svg} or {@code jpg|jpeg}) to MIME
      * type. They come after WordPress's types in lookup order. A pattern holds no dot: a file's type is looked up by
-     * the part of its name after its last dot, so a pattern such as {@code tar.gz} fails the start.
+     * the part of its name after its last dot, so a pattern such as {@code tar.gz} fails the start; so does a type
+     * longer than 100 characters, which an attachment could not store.
      */
     Map<String, String> allowedTypes();
 
@@ -64,8 +65,8 @@ public interface MediaConfig {
     long maxImagePixels();
 
     /**
-     * How many images are decoded at once; further uploads wait for their turn. Unset, half the available processors,
-     * at least one.
+     * How many images are decoded at once; further uploads wait for their turn. Unset, half the available processors
+     * and at most one per 512 MiB of the maximum heap, at least one.
      */
     Optional<Integer> maxConcurrentDecodes();
 

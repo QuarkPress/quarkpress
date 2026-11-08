@@ -7,6 +7,7 @@ import static org.quarkpress.media.runtime.DefaultMimeTypes.PATTERNS;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -168,7 +169,7 @@ class AllowedTypesTest {
 
     @Test
     void configuredTypesFollowTheMapOrReplaceAPatternsTypeInPlace() {
-        Map<String, String> configured = new java.util.LinkedHashMap<>();
+        Map<String, String> configured = new LinkedHashMap<>();
         configured.put("svg", "image/svg+xml");
         configured.put("png", "image/x-png");
         configured.put("md", "text/markdown");
@@ -206,7 +207,7 @@ class AllowedTypesTest {
 
     @Test
     void aConfiguredPatternWithADotIsRefused() {
-        Map<String, String> configured = new java.util.LinkedHashMap<>();
+        Map<String, String> configured = new LinkedHashMap<>();
         configured.put("svg", "image/svg+xml");
         configured.put("tar.gz", "application/gzip");
         configured.put("tgz|tar.bz2", "application/x-tar");
@@ -218,6 +219,23 @@ class AllowedTypesTest {
                 .doesNotContain("\"svg\"");
         assertThat(DefaultMimeTypesBean.refusal(Map.of("svg", "image/svg+xml", "tgz|tbz", "application/x-tar")))
                 .isEmpty();
+    }
+
+    @Test
+    void aConfiguredTypeLongerThanTheColumnIsRefused() {
+        String longest = "application/" + "x".repeat(88);
+        String tooLong = longest + "y";
+        assertThat(longest).hasSize(100);
+        assertThat(DefaultMimeTypesBean.refusal(Map.of("fits", longest))).isEmpty();
+        assertThat(DefaultMimeTypesBean.refusal(Map.of("long", tooLong)))
+                .isEqualTo("quarkpress.media.allowed-types.\"long\" cannot be used: its type " + tooLong
+                        + " is longer than the 100 characters an attachment's type holds");
+        Map<String, String> both = new LinkedHashMap<>();
+        both.put("tar.gz", "application/gzip");
+        both.put("long", tooLong);
+        assertThat(DefaultMimeTypesBean.refusal(both))
+                .startsWith("quarkpress.media.allowed-types.\"long\" cannot be used: its type ")
+                .contains("; quarkpress.media.allowed-types.\"tar.gz\" cannot be used: an upload type's pattern");
     }
 
     @Test
