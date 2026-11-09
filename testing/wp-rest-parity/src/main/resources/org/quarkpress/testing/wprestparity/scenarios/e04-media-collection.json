@@ -1,0 +1,432 @@
+{
+  "id": "e04",
+  "rule": "the media collection: every row of the statuses asked is read and counted (X-WP-Total, X-WP-TotalPages, Link), the rows the caller may not read (or edit, in the edit context) are left out of the body only; a library of images, a PDF, two MP3s, attachments of a published post, a draft, a private post, a trashed post and a qp_hidden post (outside REST), unattached ones and a private one, listed as anonymous, erin, carol and alice; the status rules, the type filters as a union of the allowed types, the search of the stored file path, the parent filters with 0 for the unattached, the other filters and orders, the ordering and paging errors, the edit context refusal, HEAD, one set of audio player numbers per response, and the links and embeds of listed attachments. Revisit req24 (search=2026, the year folder): targets cannot name the run's year, so from 2027 on both sides find nothing there and it only checks an empty answer; a run whose setup crosses New Year's midnight can file the two sides' uploads in different years",
+  "setup": [
+    {
+      "option": "qp_parity_hidden_type",
+      "value": "1"
+    },
+    {
+      "post": "p:published",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e04 published"
+    },
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e04 draft"
+    },
+    {
+      "post": "p:private",
+      "as": "bob",
+      "type": "post",
+      "status": "private",
+      "title": "e04 private"
+    },
+    {
+      "post": "p:binned",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e04 binned"
+    },
+    {
+      "post": "p:hidden",
+      "as": "bob",
+      "type": "qp_hidden",
+      "status": "publish",
+      "title": "e04 hidden"
+    },
+    {
+      "media": "m:sunset",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "IMG_e04.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "title": "Sunset"
+      }
+    },
+    {
+      "media": "m:logo",
+      "as": "bob",
+      "fixture": {
+        "fixture": "png",
+        "args": [
+          8,
+          8
+        ]
+      },
+      "name": "e04-logo.png",
+      "type": "image/png",
+      "fields": {
+        "post": "p:published"
+      }
+    },
+    {
+      "media": "m:report",
+      "as": "carol",
+      "fixture": {
+        "fixture": "pdf",
+        "args": []
+      },
+      "name": "e04-report.pdf",
+      "type": "application/pdf",
+      "fields": {
+        "title": "Report"
+      }
+    },
+    {
+      "media": "m:song",
+      "as": "carol",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {}
+      },
+      "name": "e04-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "media": "m:tune",
+      "as": "bob",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {}
+      },
+      "name": "e04-tune.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "media": "m:ondraft",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e04-on-draft.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:draft"
+      }
+    },
+    {
+      "media": "m:onprivate",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e04-on-private.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:private"
+      }
+    },
+    {
+      "media": "m:onbinned",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e04-on-binned.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:binned"
+      }
+    },
+    {
+      "media": "m:onhidden",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e04-on-hidden.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:hidden"
+      }
+    },
+    {
+      "media": "m:secret",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e04-secret.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "status": "private"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:binned}?_fields=id,status"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?per_page=100&orderby=id&order=asc&_fields=id,post,status,media_type,mime_type"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?per_page=100&orderby=id&order=asc&_fields=id,post,status,media_type,mime_type"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?per_page=100&orderby=id&order=asc&_fields=id,post,status,media_type,mime_type"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?per_page=100&orderby=id&order=asc&_fields=id,post,status,media_type,mime_type"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?status=inherit,private&per_page=100&orderby=id&order=asc&_fields=id,status"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?context=edit&status=inherit&per_page=20&orderby=id&order=asc&_fields=id,author"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?status=private&context=edit&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?status=private"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?status=inherit,private"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?status=any"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?status=publish"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?media_type=image&mime_type=application/pdf&orderby=id&order=asc&_fields=id,mime_type"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?mime_type=foo/bar&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?mime_type=image/jpg&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?mime_type=IMAGE/JPEG&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?mime_type=image/png&orderby=id&order=asc&_fields=id,mime_type"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?media_type=font"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?media_type=audio&orderby=id&order=asc&_fields=id,description,caption"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=IMG_e04&orderby=id&order=asc&_fields=id,title"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=sunset&orderby=id&order=asc&_fields=id,title"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=-IMG_e04&orderby=id&order=asc&_fields=id,title"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=IMG_e04&search_columns=post_title&orderby=id&order=asc&_fields=id,title"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=2026&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=sites&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=e04-on-draft&_fields=id"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?search=e04-on-binned&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?parent=0&orderby=id&order=asc&_fields=id,post"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?parent={p:published}&_fields=id,post"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?parent_exclude=0&orderby=id&order=asc&_fields=id,post"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?parent={p:published}&parent_exclude={p:published}&_fields=id,post"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?post={p:draft}&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?per_page=2&page=2&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?orderby=relevance"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?orderby=include"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?page=99"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/media"
+    },
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/media?per_page=2&page=2&orderby=id&order=asc"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?include={m:report},{m:sunset}&orderby=include&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?author={u:carol}&orderby=id&order=asc&_fields=id,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?author_exclude={u:carol}&orderby=id&order=asc&_fields=id,author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?exclude={m:sunset}&orderby=id&order=asc&_fields=id"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?slug=report,sunset&orderby=include_slugs&_fields=id,slug"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?media_type=image&orderby=id&order=asc"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?media_type=image&orderby=id&order=asc&_fields=id,link,_links"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?parent={p:published}&_embed=wp:attached-to"
+    }
+  ]
+}

@@ -52,3 +52,4 @@ p16-generated-slugs.json
 e01-media-routes.json
 e02-media-item.json
 e03-media-links.json
+e04-media-collection.json
