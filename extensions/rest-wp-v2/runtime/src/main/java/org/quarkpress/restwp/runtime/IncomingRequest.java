@@ -147,9 +147,31 @@ public record IncomingRequest(
         return subtype.equals("json") || (subtype.endsWith("+json") && subtype.length() > "+json".length());
     }
 
-    /** Whether a content type is a multipart form: {@code multipart/form-data}, ignoring case and parameters. */
+    /**
+     * Whether a content type is a multipart form PHP reads: {@code multipart/form-data}, ignoring case, with a
+     * {@code boundary} parameter that is not empty. Without one PHP reads no part, and the body stays the raw body.
+     */
     public static boolean isMultipart(String contentType) {
-        return MULTIPART.equals(mediaType(contentType));
+        return MULTIPART.equals(mediaType(contentType)) && hasBoundary(contentType);
+    }
+
+    /** Whether a parameter named {@code boundary} (ignoring case) has a value, its quotes removed, that is not empty. */
+    private static boolean hasBoundary(String contentType) {
+        int start = contentType.indexOf(';');
+        while (start >= 0) {
+            int end = contentType.indexOf(';', start + 1);
+            String piece = contentType.substring(start + 1, end < 0 ? contentType.length() : end);
+            int equals = piece.indexOf('=');
+            if (equals > 0 && piece.substring(0, equals).strip().equalsIgnoreCase("boundary")) {
+                String value = piece.substring(equals + 1).strip();
+                if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                return !value.isEmpty();
+            }
+            start = end;
+        }
+        return false;
     }
 
     /** Whether a POST body of this content type is read as URL-encoded form fields. */

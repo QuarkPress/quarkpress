@@ -4,12 +4,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.QuarkusExtensionTest;
+import io.restassured.RestAssured;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -22,15 +33,19 @@ class MultipartBodyDbTest {
 
     private static final String BOUNDARY = "qp-boundary-7d1";
 
+    private static final int MIB = 1024 * 1024;
+
     @RegisterExtension
     static final QuarkusExtensionTest app = RestApp.network(
-            MultipartBodyDbTest.class,
-            RawBodyDbTest.class,
-            RawBodyDbTest.Streamed.class,
-            RawBodyDbTest.Streamed.Reply.class,
-            RawBodyDbTest.Generated.class,
-            TestRoutes.class,
-            TestRoutes.PlainResource.class);
+                    MultipartBodyDbTest.class,
+                    RawBodyDbTest.class,
+                    RawBodyDbTest.Streamed.class,
+                    RawBodyDbTest.Streamed.Reply.class,
+                    RawBodyDbTest.Generated.class,
+                    TestRoutes.class,
+                    TestRoutes.PlainResource.class)
+            .overrideConfigKey("quarkus.http.limits.max-body-size", "512M")
+            .overrideConfigKey("quarkus.http.body.uploads-directory", "target/uploads-multipart");
 
     @Test
     void textPartsAreParametersAndFilePartsAreFiles() {
@@ -109,12 +124,22 @@ class MultipartBodyDbTest {
     }
 
     @Test
-    void aPartWithAnEmptyFileNameIsDropped() {
-        // Quarkus treats a part whose file name is empty as no file: it is neither a file nor a parameter
-        JsonNode echo = multipart("POST", filePart("file", "", "application/octet-stream", new byte[0]))
+    void aPartWithAnEmptyFileNameIsAFileThatWasNotUploaded() {
+        // as PHP lists a file field sent empty: a file part without a file, never a parameter
+        JsonNode echo = multipart(
+                        "POST",
+                        filePart("file", "", "application/octet-stream", new byte[0]),
+                        filePart("other", "dir/", "image/png", bytes(5)))
                 .json();
-        assertThat(echo.get("files").toString()).isEqualTo("[]");
         assertThat(echo.get("params").toString()).isEqualTo("[]");
+        assertThat(echo.get("files")).hasSize(2);
+        for (JsonNode file : echo.get("files")) {
+            assertThat(file.get("fileName").asText()).isEmpty();
+            assertThat(file.get("size").asLong()).isZero();
+        }
+        assertThat(echo.get("files").get(0).get("field").asText()).isEqualTo("file");
+        assertThat(echo.get("files").get(0).get("contentType").asText()).isEqualTo("application/octet-stream");
+        assertThat(echo.get("files").get(1).get("field").asText()).isEqualTo("other");
     }
 
     @Test
@@ -125,6 +150,100 @@ class MultipartBodyDbTest {
         JsonNode echo = reply.json();
         assertThat(echo.get("params").toString()).isEqualTo("[\"description\"]");
         assertThat(echo.get("values").get("description").asText()).hasSize(102_400);
+    }
+
+    /**
+     * A file part is written to Quarkus's uploads directory as it arrives, never held in memory: while a 128 MiB part
+     * is still arriving, its file on disk grows past 64 MiB and the heap kept after a collection does not grow by more
+     * than 32 MiB; once complete, the handler gets the whole part.
+     */
+    @Test
+    void aMultipartFilePartIsStreamedNotBuffered() throws Exception {
+        // read from the running application: this class is loaded twice, so a static value would differ
+        Path uploads =
+                Path.of(ConfigProvider.getConfig().getValue("quarkus.http.body.uploads-directory", String.class));
+        String head = "--" + BOUNDARY + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"big.png\"\r\n"
+                + "Content-Type: image/png\r\n\r\n";
+        String tail = "\r\n--" + BOUNDARY + "--\r\n";
+        long part = 128L * MIB;
+        long held = 120L * MIB;
+        AtomicLong written = new AtomicLong();
+        // only files that appear during this test count: a file left by an earlier run is ignored
+        Set<Path> earlier = new HashSet<>();
+        if (Files.isDirectory(uploads)) {
+            try (Stream<Path> files = Files.list(uploads)) {
+                files.forEach(earlier::add);
+            }
+        }
+        try (Socket socket = new Socket("localhost", RestAssured.port)) {
+            socket.setSoTimeout(60_000);
+            OutputStream out = socket.getOutputStream();
+            long heapBefore = heapAfterCollection();
+            Thread writer = new Thread(() -> {
+                try {
+                    out.write(("POST /wp-json/qp-test/v1/echo HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n"
+                                    + "Content-Type: multipart/form-data; boundary=" + BOUNDARY + "\r\nContent-Length: "
+                                    + (head.length() + part + tail.length()) + "\r\n\r\n" + head)
+                            .getBytes(StandardCharsets.ISO_8859_1));
+                    byte[] chunk = new byte[64 * 1024];
+                    Arrays.fill(chunk, (byte) 7);
+                    while (written.get() < held) {
+                        out.write(chunk);
+                        written.addAndGet(chunk.length);
+                    }
+                    out.flush();
+                } catch (IOException closed) {
+                    // the socket closed under the writer: the assertions below report it
+                }
+            });
+            writer.setDaemon(true);
+            writer.start();
+            long[] largest = {0};
+            long deadline = System.nanoTime() + 20_000_000_000L;
+            while (System.nanoTime() < deadline && largest[0] < 64L * MIB) {
+                largest[0] = Math.max(largest[0], largestFile(uploads, earlier));
+                Thread.sleep(20);
+            }
+            long heapGrowth = heapAfterCollection() - heapBefore;
+            System.out.println("multipart receipt: written " + written.get() / MIB + " MiB, part file "
+                    + largest[0] / MIB + " MiB, heap kept " + heapGrowth / MIB + " MiB");
+            assertThat(largest[0])
+                    .as("the part's file grows while the body arrives")
+                    .isGreaterThanOrEqualTo(64L * MIB);
+            assertThat(heapGrowth).as("heap kept while the body arrives").isLessThan(32L * MIB);
+
+            writer.join(20_000);
+            assertThat(written.get()).isEqualTo(held);
+            byte[] rest = new byte[(int) (part - held)];
+            out.write(rest);
+            out.write(tail.getBytes(StandardCharsets.ISO_8859_1));
+            out.flush();
+            String answer = new String(socket.getInputStream().readAllBytes(), StandardCharsets.ISO_8859_1);
+            assertThat(answer).startsWith("HTTP/1.1 200").contains("\"size\":" + part);
+        }
+    }
+
+    private static long heapAfterCollection() {
+        System.gc();
+        return ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
+    }
+
+    /** The size of the largest file in {@code folder} that is not one of {@code earlier}. */
+    private static long largestFile(Path folder, Set<Path> earlier) {
+        try (Stream<Path> files = Files.list(folder)) {
+            return files.filter(file -> !earlier.contains(file))
+                    .mapToLong(file -> {
+                        try {
+                            return Files.size(file);
+                        } catch (IOException gone) {
+                            return 0;
+                        }
+                    })
+                    .max()
+                    .orElse(0);
+        } catch (IOException | UncheckedIOException none) {
+            return 0;
+        }
     }
 
     static RawBodyDbTest.Streamed.Reply multipart(String method, byte[]... parts) {

@@ -3,6 +3,7 @@ package org.quarkpress.restwp.runtime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.smallrye.common.annotation.Blocking;
+import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -19,6 +20,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.jboss.resteasy.reactive.common.headers.HeaderUtil;
+import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 import org.jboss.resteasy.reactive.server.multipart.FileItem;
 import org.jboss.resteasy.reactive.server.multipart.FormValue;
 import org.jboss.resteasy.reactive.server.multipart.MultipartFormDataInput;
@@ -70,7 +73,8 @@ public class RestEntryResource {
      * A re-routed multipart request: for a POST (the method the client sent), the text parts are its form fields, added
      * as PHP adds them, and the file parts its files; any other method gets neither, as PHP reads a multipart body only
      * for POST. Quarkus has parsed the body, storing the file parts on disk until the request ends; it hands the parts
-     * over grouped by name, each name where it first appears and its parts in body order.
+     * over grouped by name, each name where it first appears and its parts in body order. A part sent as a file without
+     * a usable file name is a file part with no file, as PHP lists it.
      */
     @POST
     @Path(MULTIPART_PATH)
@@ -88,8 +92,12 @@ public class RestEntryResource {
                 continue;
             }
             for (FormValue value : field.getValue()) {
-                if (sentAsFile(value) && (value.getFileName() == null || !value.isFileItem())) {
+                if (sentAsFile(value) && value.getFileName() == null) {
                     // a file part without a usable file name (empty, or a directory alone): no file was uploaded
+                    files.add(UploadedFile.notUploaded(name, Optional.ofNullable(header(value, "Content-Type"))));
+                    continue;
+                }
+                if (sentAsFile(value) && !value.isFileItem()) {
                     continue;
                 }
                 if (value.getFileName() != null) {
@@ -111,6 +119,41 @@ public class RestEntryResource {
         return serve(context, new byte[0], Optional.empty(), files, form);
     }
 
+    /**
+     * A multipart body Quarkus could not read to its end although all of it arrived (its boundary never closes it, or
+     * never appears): PHP reads no part of such a body and leaves no raw body either, so the request is served with no
+     * form field, no file and no body. A body that did not arrive whole (the client went away or stalled past the read
+     * timeout) is never served, as PHP never runs for it, nor is any other body that fails to be read: those answer
+     * an empty 500.
+     */
+    @ServerExceptionMapper
+    public Response unreadableBody(IOException failure, RoutingContext context) {
+        if (!context.normalizedPath().endsWith(PATH + MULTIPART_PATH) || !arrivedWhole(context.request())) {
+            // nothing is run for a body that did not arrive: an empty 500, as a failure nothing else maps
+            return Response.serverError().build();
+        }
+        return serve(context, new byte[0], Optional.empty(), List.of(), RestJson.NODES.objectNode());
+    }
+
+    /**
+     * Whether the request's body arrived whole: the request has ended, or as many bytes as its {@code Content-Length}
+     * declares were read (a re-routed request may not report its end).
+     */
+    private static boolean arrivedWhole(HttpServerRequest request) {
+        if (request.isEnded()) {
+            return true;
+        }
+        String length = request.getHeader("Content-Length");
+        if (length == null) {
+            return false;
+        }
+        try {
+            return request.bytesRead() >= Long.parseLong(length.strip());
+        } catch (NumberFormatException unreadable) {
+            return false;
+        }
+    }
+
     /** Whether a part's {@code Content-Disposition} names a file name, even an empty one. */
     private static boolean sentAsFile(FormValue value) {
         String disposition = header(value, "Content-Disposition");
@@ -122,9 +165,15 @@ public class RestEntryResource {
         return value.getHeaders() == null ? null : value.getHeaders().getFirst(name);
     }
 
-    private static byte[] readAll(FileItem item) throws IOException {
+    /**
+     * A stored part's bytes; a failure to read them is unchecked, so that it is answered as an unexpected failure and
+     * never taken for a body that could not be parsed.
+     */
+    private static byte[] readAll(FileItem item) {
         try (InputStream in = item.getInputStream()) {
             return in.readAllBytes();
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
         }
     }
 

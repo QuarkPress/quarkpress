@@ -114,6 +114,15 @@ class RawBodyDbTest {
     }
 
     @Test
+    void aChunkedJsonBodyAboveTheLimitIsRefused() {
+        // a JSON body is read whole into memory: the limit cuts it there too
+        Streamed.Reply reply =
+                Streamed.post("/wp-json/qp-test/v1/echo", "Content-Type: application/json\r\n", 65 * MIB, true);
+        assertThat(reply.status()).as(reply.head()).isEqualTo(413);
+        assertThat(reply.body()).isEmpty();
+    }
+
+    @Test
     void aLargeBodyReachesASubdirectorySite() {
         AgroalDataSource data = Jdbc.dataSource();
         String news = "news" + UUID.randomUUID().toString().substring(0, 8);

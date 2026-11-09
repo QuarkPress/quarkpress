@@ -331,7 +331,7 @@ class MediaRoutesDbTest {
         Http.as("test-" + alice)
                 .contentType("application/json")
                 .body("{}")
-                .post("/wp-json/wp/v2/media")
+                .post("/wp-json/wp/v2/media/" + id)
                 .then()
                 .statusCode(404)
                 .header("Allow", equalTo("GET"))
@@ -342,6 +342,14 @@ class MediaRoutesDbTest {
                 .then()
                 .statusCode(200)
                 .header("Allow", equalTo("GET"));
+        // the upload's checks are served: a JSON body is a raw upload without a disposition
+        Http.as("test-" + alice)
+                .contentType("application/json")
+                .body("{}")
+                .post("/wp-json/wp/v2/media")
+                .then()
+                .statusCode(400)
+                .header("Allow", equalTo("GET, POST"));
         for (String path : List.of("/sideload", "/finalize", "/autosaves")) {
             Http.as("test-" + alice)
                     .post("/wp-json/wp/v2/media/" + id + path)
