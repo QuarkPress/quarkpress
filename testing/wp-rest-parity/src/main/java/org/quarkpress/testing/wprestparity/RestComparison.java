@@ -76,7 +76,8 @@ public final class RestComparison {
     static final Set<String> LINK_KEYS = Set.of("link", "permalink_template", "preview_link");
 
     /** The post types whose links the mapping knows, and the plain query key of each. */
-    private static final Map<String, String> POST_QUERY_KEYS = Map.of("post", "p", "page", "page_id");
+    private static final Map<String, String> POST_QUERY_KEYS =
+            Map.of("post", "p", "page", "page_id", "attachment", "attachment_id");
 
     private final Normalizer normalizer = new Normalizer();
     private final Normalizer.Refs wordpressRefs;
@@ -136,7 +137,8 @@ public final class RestComparison {
     /**
      * The object the {@code rel="alternate"} entry of WordPress's {@code Link} header belongs to: the normalised body
      * when it is an object with an id, else (a HEAD) the id and type the request's route names
-     * ({@code /wp/v2/posts/<id>} is a post, {@code pages} a page, {@code books} a book), else nothing.
+     * ({@code /wp/v2/posts/<id>} is a post, {@code pages} a page, {@code books} a book, {@code media} an
+     * attachment), else nothing.
      */
     private JsonNode alternateObject(Exchange wp) {
         Optional<JsonNode> body = json(wp.body());
@@ -166,6 +168,7 @@ public final class RestComparison {
             case "posts" -> "post";
             case "pages" -> "page";
             case "books" -> "book";
+            case "media" -> "attachment";
             default -> null;
         };
         if (type == null) {
@@ -564,7 +567,8 @@ public final class RestComparison {
      *
      * <p>Posts (an object whose {@code type}, or a search item's {@code subtype}, names a post type):
      * {@code <base>/<slug>/} and the dated {@code <base>/<yyyy>/<mm>/<dd>/<slug>/} of a post are
-     * {@code <base>/?p=<id>}, {@code <base>/<parents>/<slug>/} of a page {@code <base>/?page_id=<id>},
+     * {@code <base>/?p=<id>}, {@code <base>/<parents>/<slug>/} of a page {@code <base>/?page_id=<id>}, an
+     * attachment's {@code <base>/[<parent's path>/][attachment/]<slug>/} {@code <base>/?attachment_id=<id>},
      * {@code <base>/book/<slug>/} of a book {@code <base>/?book=<slug>}; a permalink template's {@code %postname%} and
      * {@code %pagename%} map the same way, a book's template to its plain link ({@code ?book=<slug>} when published,
      * {@code ?post_type=book&p=<id>} otherwise); a preview link's pretty base before its query is mapped and the query
@@ -659,6 +663,7 @@ public final class RestComparison {
             case "posts" -> "post";
             case "pages" -> "page";
             case "books" -> "book";
+            case "media" -> "attachment";
             default -> null;
         };
         if (type == null) {

@@ -38,8 +38,9 @@ import java.util.TreeSet;
  * 1), so an id is looked up among the refs of its kind ({@code u:}, {@code t:}, {@code p:}, {@code r:}):
  * {@code author} and {@code reassign} are users; {@code term_id}, {@code default_category}, {@code cat}, {@code tag},
  * {@code categories} and {@code tags} terms; {@code post}, {@code featured_media}, {@code page_on_front},
- * {@code page_for_posts}, {@code p}, {@code page_id} and {@code preview_id} posts; {@code parent} a term in a term,
- * a post in a post or a revision; an {@code id} (and {@code include}, {@code exclude} in URLs) takes the kind of its
+ * {@code page_for_posts}, {@code p}, {@code page_id}, {@code attachment_id} and {@code preview_id} posts;
+ * {@code parent} a term in a term, a post in a post or a revision; an {@code id} (and {@code include},
+ * {@code exclude} in URLs) takes the kind of its
  * object (a {@code taxonomy} field makes a term, {@code avatar_urls}, {@code username} or {@code roles} a user, a
  * {@code type} naming a post type a post, a taxonomy a term, an {@code href} the kind of its route) or else of the
  * request's route; an id of no known kind is looked up among all refs.
@@ -167,6 +168,7 @@ public final class Normalizer {
             Map.entry("reassign", Kind.USER),
             Map.entry("p", Kind.POST),
             Map.entry("page_id", Kind.POST),
+            Map.entry("attachment_id", Kind.POST),
             Map.entry("preview_id", Kind.POST),
             Map.entry("post", Kind.POST),
             Map.entry("id", Kind.ANY),

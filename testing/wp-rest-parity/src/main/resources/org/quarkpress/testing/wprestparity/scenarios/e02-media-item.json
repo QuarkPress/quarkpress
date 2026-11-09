@@ -1,0 +1,344 @@
+{
+  "id": "e02",
+  "rule": "the attachment item: a JPEG, a PNG with alt text, caption and description, a PDF, an MP3 and a non-ASCII file name in the view, edit and embed contexts as alice (the fields, media_details, the file URLs, the rendered description and caption); attachments of a draft, a private and a published post and a private attachment as anonymous, erin and carol; a query password; four _fields selections; a secure request; a JPEG with alt text only, so the alt inside the markup is compared",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e02 draft"
+    },
+    {
+      "post": "p:private",
+      "as": "bob",
+      "type": "post",
+      "status": "private",
+      "title": "e02 private"
+    },
+    {
+      "post": "p:published",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e02 published"
+    },
+    {
+      "media": "m:jpeg",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          64,
+          48
+        ]
+      },
+      "name": "e02-photo.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:png",
+      "as": "bob",
+      "fixture": {
+        "fixture": "png",
+        "args": [
+          40,
+          30
+        ]
+      },
+      "name": "e02-alt.png",
+      "type": "image/png",
+      "fields": {
+        "alt_text": "e02 alt",
+        "caption": "e02 caption",
+        "description": "e02 description"
+      }
+    },
+    {
+      "media": "m:pdf",
+      "as": "bob",
+      "fixture": {
+        "fixture": "pdf",
+        "args": []
+      },
+      "name": "e02-report.pdf",
+      "type": "application/pdf"
+    },
+    {
+      "media": "m:mp3",
+      "as": "bob",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {}
+      },
+      "name": "e02-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "media": "m:named",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          32,
+          32
+        ]
+      },
+      "name": "e02-\u0424\u043e\u0442\u043e.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:indraft",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e02-in-draft.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:draft"
+      }
+    },
+    {
+      "media": "m:inprivate",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e02-in-private.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:private"
+      }
+    },
+    {
+      "media": "m:inpublished",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e02-in-published.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:published"
+      }
+    },
+    {
+      "media": "m:private",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e02-private.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "status": "private"
+      }
+    },
+    {
+      "media": "m:alt",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          24,
+          18
+        ]
+      },
+      "name": "e02-alt-only.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "alt_text": "e02 \"quoted\" <b>alt</b> & more"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?context=embed"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:png}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:png}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:png}?context=embed"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:pdf}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:pdf}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:pdf}?context=embed"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:mp3}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:mp3}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:mp3}?context=embed"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:named}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:named}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:named}?context=embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:indraft}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:indraft}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:indraft}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:inprivate}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:inprivate}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:inprivate}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:inpublished}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:inpublished}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:inpublished}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:private}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:private}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:private}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?password=x"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?_fields=description.raw&context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?_fields=media_details.sizes"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?_fields=caption.rendered"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}?_fields=title.raw&context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:jpeg}",
+      "https": true
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:alt}"
+    }
+  ]
+}

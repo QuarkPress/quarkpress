@@ -30,6 +30,26 @@ class RestComparisonTest {
     }
 
     @Test
+    void prettyAttachmentLinksMapToTheirPlainForm() {
+        JsonNode photo = json("{\"id\":\"m:a\",\"type\":\"attachment\",\"slug\":\"photo\"}");
+        // unattached, attached to a post, with the marker of a numeric slug, and the permalink template
+        assertThat(RestComparison.plainLink("{host}{site}/photo/", photo)).contains("{host}{site}/?attachment_id=m:a");
+        assertThat(RestComparison.plainLink("{host}{site}/hello-world/photo/", photo))
+                .contains("{host}{site}/?attachment_id=m:a");
+        assertThat(RestComparison.plainLink(
+                        "{host}{site}/hello-world/attachment/2024/",
+                        json("{\"id\":\"m:a\",\"type\":\"attachment\",\"slug\":\"2024\"}")))
+                .contains("{host}{site}/?attachment_id=m:a");
+        assertThat(RestComparison.plainLink("{host}{site}/hello-world/%postname%/", photo))
+                .contains("{host}{site}/?attachment_id=m:a");
+        // another slug is not the attachment's link
+        assertThat(RestComparison.plainLink("{host}{site}/other/", photo)).isEmpty();
+        assertThat(RestComparison.mapAlternate(
+                        "<http://{host}{site}/photo/>; rel=\"alternate\"; type=text/html", photo))
+                .isEqualTo("<http://{host}{site}/?attachment_id=m:a>; rel=\"alternate\"; type=text/html");
+    }
+
+    @Test
     void prettyPostLinksMapToPlainForms() {
         assertThat(RestComparison.plainLink(
                         "{host}{site}/hello-world/",
@@ -168,6 +188,32 @@ class RestComparisonTest {
                         Map.of("p:t", 9L, "t:uncategorized", 3L)))
                 .containsExactly(
                         "req1:body:link-form:/0/url", "req1:body:link-form:/1/url", "req1:body:link-form:/2/url");
+    }
+
+    @Test
+    void anAttachmentsAlternateLinkIsMappedByItsRouteWhenTheBodyHasNoId() {
+        // under _fields the body tells neither id nor slug: the route names the attachment
+        RestCall nested = RestCall.get("anonymous", "/wp-json/wp/v2/media/5?_fields=caption.rendered");
+        List<Exchange> wp = List.of(new Exchange(
+                nested,
+                200,
+                Map.of("Link", List.of("<http://localhost/s1/photo/>; rel=\"alternate\"; type=text/html")),
+                bytes("[]")));
+        List<Exchange> qp = List.of(new Exchange(
+                nested,
+                200,
+                Map.of("Link", List.of("<http://localhost/s1/?attachment_id=9>; rel=\"alternate\"; type=text/html")),
+                bytes("[]")));
+        assertThat(mismatches(List.of(nested), wp, qp, Map.of("m:a", 5L), Map.of("m:a", 9L)))
+                .isEmpty();
+        // another attachment's link still differs
+        List<Exchange> wrong = List.of(new Exchange(
+                nested,
+                200,
+                Map.of("Link", List.of("<http://localhost/s1/?attachment_id=8>; rel=\"alternate\"; type=text/html")),
+                bytes("[]")));
+        assertThat(mismatches(List.of(nested), wp, wrong, Map.of("m:a", 5L), Map.of("m:a", 9L, "m:b", 8L)))
+                .containsExactly("req1:header:link");
     }
 
     @Test

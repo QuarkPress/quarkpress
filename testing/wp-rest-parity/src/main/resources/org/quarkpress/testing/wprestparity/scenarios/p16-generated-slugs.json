@@ -1,0 +1,51 @@
+{
+  "id": "p16",
+  "rule": "generated_slug of non-ASCII and percent-holding titles in the edit context: a draft post titled with Cyrillic letters whose slug is taken by a published post (a numbered suffix), a draft titled with a literal escaped octet that is not UTF-8, and a page with the Cyrillic title",
+  "setup": [
+    {
+      "post": "p:cyr2",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "\u0424\u043e\u0442\u043e"
+    },
+    {
+      "post": "p:cyr",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "\u0424\u043e\u0442\u043e"
+    },
+    {
+      "post": "p:pct",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "50%ab off"
+    },
+    {
+      "post": "p:cyrpage",
+      "as": "bob",
+      "type": "page",
+      "status": "draft",
+      "title": "\u0424\u043e\u0442\u043e"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:cyr}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:pct}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:cyrpage}?context=edit"
+    }
+  ]
+}

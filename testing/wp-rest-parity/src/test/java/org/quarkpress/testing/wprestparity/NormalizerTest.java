@@ -411,6 +411,18 @@ class NormalizerTest {
     }
 
     @Test
+    void anAttachmentsPlainLinkNamesItByRef() {
+        assertThat(normalizer
+                        .body(
+                                json("{\"permalink_template\":\"http://localhost/s/?attachment_id=12\"}"),
+                                Map.of(12L, "m:a"),
+                                "/s/",
+                                Instant.parse("2026-11-03T10:00:00Z"))
+                        .toString())
+                .isEqualTo("{\"permalink_template\":\"http://{host}{site}/?attachment_id=m:a\"}");
+    }
+
+    @Test
     void aNonJsonBodyIsComparedAsNormalisedText() {
         assertThat(RestComparison.json(bytes("/**/cb({})"))).isEqualTo(Optional.empty());
         assertThat(RestComparison.json(bytes("{bad"))).isEqualTo(Optional.empty());
