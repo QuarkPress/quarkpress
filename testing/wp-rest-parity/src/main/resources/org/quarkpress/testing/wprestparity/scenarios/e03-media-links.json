@@ -1,0 +1,326 @@
+{
+  "id": "e03",
+  "rule": "the links of an attachment in WordPress's order (self, collection, about, author, replies, wp:featuredmedia, wp:attached-to with the parent's type and id, the edit context's actions, curies) and the embeds of its author and parent: unattached; attached to a published post, a draft, a page, a type outside REST (the API root as href), a pattern (wp_block, whose route QuarkPress does not serve), a post deleted for good (the attachment handed down, no link) and a trashed post (still linked); carol's attachment of bob's draft embedding the parent's refusal; anonymous, carol and alice; an MP3 whose cover art becomes an attachment on WordPress's side only",
+  "setup": [
+    {
+      "option": "qp_parity_hidden_type",
+      "value": "1"
+    },
+    {
+      "post": "p:published",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e03 published"
+    },
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e03 draft"
+    },
+    {
+      "post": "p:page",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "e03 page"
+    },
+    {
+      "post": "p:hidden",
+      "as": "bob",
+      "type": "qp_hidden",
+      "status": "publish",
+      "title": "e03 hidden"
+    },
+    {
+      "post": "p:block",
+      "as": "bob",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "e03 block"
+    },
+    {
+      "post": "p:doomed",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e03 doomed"
+    },
+    {
+      "post": "p:binned",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e03 binned"
+    },
+    {
+      "media": "m:loose",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-loose.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:carols",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-carols.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:onpublished",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-published.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:published"
+      }
+    },
+    {
+      "media": "m:ondraft",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-draft.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:draft"
+      }
+    },
+    {
+      "media": "m:onpage",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-page.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:page"
+      }
+    },
+    {
+      "media": "m:onhidden",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-hidden.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:hidden"
+      }
+    },
+    {
+      "media": "m:onblock",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-block.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:block"
+      }
+    },
+    {
+      "media": "m:ondoomed",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-doomed.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:doomed"
+      }
+    },
+    {
+      "media": "m:onbinned",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e03-on-binned.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:binned"
+      }
+    },
+    {
+      "media": "m:song",
+      "as": "bob",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {
+          "cover": true
+        }
+      },
+      "name": "e03-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "post": "p:carolsdraft",
+      "as": "carol",
+      "type": "attachment",
+      "status": "inherit",
+      "title": "e03 carols of a draft",
+      "fields": {
+        "parent": "p:draft"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:loose}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:loose}?context=edit"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:carols}?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onpublished}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onpublished}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onpublished}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onpublished}?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:ondraft}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:ondraft}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:ondraft}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onpage}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onhidden}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onhidden}?_embed=author"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onblock}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{p:carolsdraft}?_embed=wp:attached-to&_fields=id,post,_links,_embedded"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:doomed}?force=true&_fields=deleted"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:ondoomed}?_embed=author,wp:attached-to"
+    },
+    {
+      "as": "alice",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/posts/{p:binned}?_fields=id,status"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onbinned}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:onbinned}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:song}?_fields=id,type,slug,featured_media,_links"
+    }
+  ]
+}
