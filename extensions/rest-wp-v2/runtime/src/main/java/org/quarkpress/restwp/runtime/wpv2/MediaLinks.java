@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostTypeDefinition;
-import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.UserId;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.posts.FeaturedImages;
@@ -20,8 +19,6 @@ import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
-import org.quarkpress.posts.runtime.PostEntity;
-import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.restwp.Links;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestUrls;
@@ -35,7 +32,8 @@ import org.quarkpress.security.Capabilities;
  * API root itself when the post's type is not shown in REST, as WordPress links it). In the edit context the actions
  * the caller may take follow, each pointing at the attachment: unfiltered HTML, then changing the author (the
  * attachment type's {@code edit_others_posts}). Attachments are never linked to revisions, a parent in their own type,
- * attachments of their own, publishing or making sticky.
+ * attachments of their own, publishing or making sticky. The parent and the cover image are read once per request,
+ * however many attachments of a response name them.
  */
 @ApplicationScoped
 public class MediaLinks {
@@ -48,13 +46,10 @@ public class MediaLinks {
     RestUrls urls;
 
     @Inject
-    SiteContext site;
-
-    @Inject
     PostTypes types;
 
     @Inject
-    PostRepository rows;
+    MediaReads reads;
 
     @Inject
     PostPermissions permissions;
@@ -86,9 +81,7 @@ public class MediaLinks {
         if (cover.isPresent()) {
             links = links.add(API + "featuredmedia", cover.get(), embeddable());
         }
-        Optional<PostSnapshot> parent = attachment
-                .parent()
-                .flatMap(found -> rows.findPost(site.siteId(), found).map(PostEntity::toSnapshot));
+        Optional<PostSnapshot> parent = attachment.parent().flatMap(reads::post);
         if (parent.isPresent()) {
             Map<String, JsonNode> attributes = new LinkedHashMap<>();
             attributes.put("embeddable", BooleanNode.TRUE);
@@ -118,8 +111,7 @@ public class MediaLinks {
         if (cover <= 0) {
             return Optional.empty();
         }
-        Optional<PostSnapshot> target =
-                rows.findPost(site.siteId(), PostId.of(cover)).map(PostEntity::toSnapshot);
+        Optional<PostSnapshot> target = reads.post(PostId.of(cover));
         if (target.isEmpty()) {
             return Optional.empty();
         }

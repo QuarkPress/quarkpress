@@ -5,10 +5,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.media.ImageSizes;
+import org.quarkpress.media.Media;
 import org.quarkpress.media.MediaFeature;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.MimeTypes;
@@ -42,7 +45,8 @@ import org.quarkpress.taxonomy.Taxonomies;
  * <p>An item is an attachment of the request's site, any other id does not exist. Its checks run in WordPress's
  * order: the edit context needs {@code edit_post}; any {@code password} in the query string is refused (an
  * attachment never has one); then the attachment must be readable (an inherited status reads through its parent).
- * The item carries a {@code Link} to its page in place of the API root's.
+ * The item carries a {@code Link} to its page in place of the API root's. The collection lists the site's library
+ * ({@link MediaCollection}); its edit context needs the attachment type's {@code edit_posts}.
  *
  * <p>An endpoint not served yet answers 404 {@code rest_no_route}, as a request no route matches, so that its
  * method is left out of {@code Allow}.
@@ -93,6 +97,12 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     @Inject
     PostFields postFields;
 
+    @Inject
+    MediaCollection collection;
+
+    @Inject
+    Media library;
+
     @Override
     public int order() {
         return 60;
@@ -126,9 +136,10 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         routes.route(media.namespace(), "/" + media.base())
                 .schema(() -> schema(media))
                 .endpoint(Endpoint.of("GET")
-                        .args(MediaSchema.collectionArgs(media, () -> identity, permissions, mimeTypes.patterns()))
-                        .permission(MediaController::notServedYet)
-                        .handler(MediaController::notServed)
+                        .args(MediaSchema.collectionArgs(
+                                media, () -> identity, permissions, mimeTypes.patterns(), this::allowedTypes))
+                        .permission(this::mayList)
+                        .handler(request -> collection.list(media, request))
                         .allowBatch(false)
                         .build())
                 .endpoint(Endpoint.of("POST")
@@ -182,6 +193,31 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                 : schema;
     }
 
+    /** The caller's upload types on the request's site; none without a site or while its media feature is off. */
+    private Optional<List<Map.Entry<String, String>>> allowedTypes() {
+        if (!site.isResolved() || !site.features().isEnabled(MediaFeature.KEY)) {
+            return Optional.empty();
+        }
+        return Optional.of(library.allowedTypes());
+    }
+
+    /**
+     * WordPress's collection check: the edit context needs the attachment type's {@code edit_posts}. A site whose
+     * media feature is off answers as no route would.
+     */
+    private PermissionResult mayList(RestRequest request) {
+        if (!site.features().isEnabled(MediaFeature.KEY)) {
+            return PermissionResult.denied(noRoute());
+        }
+        if (request.isEditContext() && !permissions.canType(request.identity(), "edit_posts", TYPE)) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_forbidden_context",
+                    "Sorry, you are not allowed to edit posts in this post type.",
+                    request.authCode()));
+        }
+        return PermissionResult.allowed();
+    }
+
     /**
      * WordPress's item read checks, in its order: the attachment must exist on the site; the edit context needs
      * {@code edit_post}; a {@code password} in the query string never matches; the attachment must be readable. A site
@@ -206,7 +242,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
             return PermissionResult.denied(
                     RestError.of("rest_post_incorrect_password", "Incorrect post password.", 403));
         }
-        if (!permissions.restReadable(caller, post)) {
+        if (!permissions.restReadable(caller, post, reads::post)) {
             return PermissionResult.forbidden(request);
         }
         return PermissionResult.allowed();

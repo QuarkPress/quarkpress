@@ -131,7 +131,8 @@ class RestWpV2Processor {
             "org.quarkpress.restwp.runtime.wpv2.MediaController",
             "org.quarkpress.restwp.runtime.wpv2.MediaReads",
             "org.quarkpress.restwp.runtime.wpv2.MediaFields",
-            "org.quarkpress.restwp.runtime.wpv2.MediaLinks");
+            "org.quarkpress.restwp.runtime.wpv2.MediaLinks",
+            "org.quarkpress.restwp.runtime.wpv2.MediaCollection");
 
     /**
      * Without the media module, the beans typed on it are left out of the application: no media route is

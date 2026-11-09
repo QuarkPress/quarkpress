@@ -2,7 +2,6 @@ package org.quarkpress.restwp.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -330,10 +329,12 @@ class MediaRoutesDbTest {
                 .body(equalTo(NO_ROUTE));
         // the registered endpoints answer as no route until their task serves them, so Allow names none of them
         Http.as("test-" + alice)
-                .get("/wp-json/wp/v2/media")
+                .contentType("application/json")
+                .body("{}")
+                .post("/wp-json/wp/v2/media")
                 .then()
                 .statusCode(404)
-                .header("Allow", nullValue())
+                .header("Allow", equalTo("GET"))
                 .body(equalTo(NO_ROUTE));
         // the item is read; its update and delete are not served yet
         Http.as("test-" + alice)

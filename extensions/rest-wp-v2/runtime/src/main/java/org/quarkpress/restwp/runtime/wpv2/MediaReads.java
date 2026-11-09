@@ -23,12 +23,15 @@ import org.quarkpress.restwp.runtime.PhpValues;
 /**
  * The attachment reads of one request, by id: the permission, the {@code Allow} and the handler share them. An
  * attachment post the media module holds no file for (one written through the posts module alone, or past it) reads
- * as WordPress reads an attachment without metadata: no type, no stored file, its guid as its file URL.
+ * as WordPress reads an attachment without metadata: no type, no stored file, its guid as its file URL. The posts an
+ * attachment names (its parent, its cover image) are read once per request too, however many attachments name them.
  */
 @RequestScoped
 public class MediaReads {
 
     final Map<Long, Optional<MediaSnapshot>> found = new HashMap<>();
+
+    final Map<Long, Optional<PostSnapshot>> posts = new HashMap<>();
 
     @Inject
     Media media;
@@ -59,6 +62,15 @@ public class MediaReads {
      */
     Optional<MediaSnapshot> attachment(PostId id) {
         return found.computeIfAbsent(id.value(), key -> media.read(id).or(() -> withoutFile(id)));
+    }
+
+    /**
+     * The post of this site with this id, whatever its type and status, read without a capability check and at most
+     * once per request: the parents and cover images of the attachments a request shows; none for another site's.
+     */
+    Optional<PostSnapshot> post(PostId id) {
+        return posts.computeIfAbsent(
+                id.value(), key -> rows.findPost(site.siteId(), id).map(PostEntity::toSnapshot));
     }
 
     /** The attachment post of this site with this id, when the media module holds no file for it. */
@@ -95,10 +107,12 @@ public class MediaReads {
     /** Replaces the read of an attachment this request wrote, so that its later reads see the write. */
     void remember(MediaSnapshot attachment) {
         found.put(attachment.post().id().value(), Optional.of(attachment));
+        posts.put(attachment.post().id().value(), Optional.of(attachment.post()));
     }
 
     /** Replaces the read of an attachment this request deleted: its later reads find none. */
     void forget(PostId attachment) {
         found.put(attachment.value(), Optional.empty());
+        posts.put(attachment.value(), Optional.empty());
     }
 }

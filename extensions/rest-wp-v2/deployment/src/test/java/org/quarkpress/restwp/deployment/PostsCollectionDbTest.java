@@ -76,7 +76,14 @@ class PostsCollectionDbTest {
         as(null).get("/wp-json/wp/v2/pages").then().statusCode(200);
         as(null).get("/wp-json/wp/v2/books").then().statusCode(200);
         as(null).get("/wp-json/wp/v2/blocks").then().statusCode(404).body("code", equalTo("rest_no_route"));
-        as(null).get("/wp-json/wp/v2/media").then().statusCode(404).body("code", equalTo("rest_no_route"));
+        // attachments are listed by the media collection of their own, with its type filter
+        as(null).get("/wp-json/wp/v2/media").then().statusCode(200);
+        as(null).options("/wp-json/wp/v2/media")
+                .then()
+                .statusCode(200)
+                .body("endpoints[0].args.media_type.type", equalTo("array"))
+                .body("endpoints[0].args.containsKey('menu_order')", equalTo(false))
+                .body("schema.title", equalTo("attachment"));
     }
 
     @Test

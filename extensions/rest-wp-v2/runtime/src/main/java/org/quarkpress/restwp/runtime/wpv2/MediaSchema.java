@@ -13,13 +13,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.restwp.Arg;
+import org.quarkpress.restwp.RestError;
+import org.quarkpress.restwp.RestException;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.restwp.runtime.SchemaValidator;
 import org.quarkpress.restwp.runtime.TextFields;
 
 /**
@@ -166,15 +170,19 @@ final class MediaSchema {
      * {@code sticky}, {@code ignore_sticky}, {@code format} and the term filters, with {@code parent} and
      * {@code parent_exclude} although attachments are flat, {@code status} of the attachment statuses (default
      * {@code inherit}, which needs no capability), then {@code media_type} (the top-level types of {@code allowed})
-     * and {@code mime_type}.
+     * and {@code mime_type}. A {@code media_type} value is checked against the top-level types of the types the
+     * caller may upload on the request's site ({@code current}), which a network's list of upload types narrows, as
+     * WordPress declares the argument for each request; without them (no site, or media off) against {@code allowed}'s.
      *
-     * @param allowed the upload types whose top-level types {@code media_type} may name, as patterns with MIME types
+     * @param allowed the upload types whose top-level types {@code media_type} declares, as patterns with MIME types
+     * @param current the request's caller's upload types on its site, when they can be read
      */
     static List<Arg> collectionArgs(
             PostRoutes routes,
             Supplier<SecurityIdentity> caller,
             PostPermissions permissions,
-            List<Map.Entry<String, String>> allowed) {
+            List<Map.Entry<String, String>> allowed,
+            Supplier<Optional<List<Map.Entry<String, String>>>> current) {
         Set<String> left = new HashSet<>(NOT_MEDIA_ARGS);
         TermFilterArgs.args(routes.taxonomies()).forEach(arg -> left.add(arg.name()));
         List<Arg> args = new ArrayList<>();
@@ -193,6 +201,35 @@ final class MediaSchema {
                         "parent_exclude", "Limit result set to all items except those of a particular parent ID."));
             }
         }
+        ObjectNode mediaType = mediaTypeSchema(allowed);
+        Predicate<JsonNode> check = value -> {
+            ObjectNode schema = current.get().map(MediaSchema::mediaTypeSchema).orElse(mediaType);
+            Optional<RestError> refused = SchemaValidator.validate(value, schema, "media_type");
+            if (refused.isPresent()) {
+                throw new RestException(refused.get());
+            }
+            return true;
+        };
+        Arg declared = PostSchema.query("media_type", mediaType);
+        args.add(new Arg(
+                declared.name(),
+                declared.schema(),
+                declared.required(),
+                declared.defaultValue(),
+                declared.phase(),
+                declared.sanitize(),
+                Optional.of(check)));
+        ObjectNode mimeType = RestJson.NODES.objectNode();
+        mimeType.putNull("default");
+        mimeType.put("description", "Limit result set to attachments of a particular MIME type or MIME types.");
+        mimeType.put("type", "array");
+        mimeType.putObject("items").put("type", "string");
+        args.add(PostSchema.query("mime_type", mimeType));
+        return List.copyOf(args);
+    }
+
+    /** The schema of {@code media_type}: a list of the top-level types of {@code allowed}. */
+    private static ObjectNode mediaTypeSchema(List<Map.Entry<String, String>> allowed) {
         ObjectNode mediaType = RestJson.NODES.objectNode();
         mediaType.putNull("default");
         mediaType.put("description", "Limit result set to attachments of a particular media type or media types.");
@@ -201,14 +238,7 @@ final class MediaSchema {
         type.put("type", "string");
         ArrayNode types = type.putArray("enum");
         mediaTypes(allowed).forEach(types::add);
-        args.add(PostSchema.query("media_type", mediaType));
-        ObjectNode mimeType = RestJson.NODES.objectNode();
-        mimeType.putNull("default");
-        mimeType.put("description", "Limit result set to attachments of a particular MIME type or MIME types.");
-        mimeType.put("type", "array");
-        mimeType.putObject("items").put("type", "string");
-        args.add(PostSchema.query("mime_type", mimeType));
-        return List.copyOf(args);
+        return mediaType;
     }
 
     /**

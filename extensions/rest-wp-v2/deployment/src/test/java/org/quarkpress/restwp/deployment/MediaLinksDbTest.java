@@ -132,7 +132,8 @@ class MediaLinksDbTest {
                         + API + "\"}]");
         // still embeddable: the API root is embedded as any other target, the request answering 200
         JsonNode embedded = get(bob, attached.post().id().value() + "?_embed=wp:attached-to");
-        assertThat(embedded.at("/_embedded/wp:attached-to/0").isObject()).isTrue();
+        assertThat(embedded.at("/_embedded/wp:attached-to/0").has("namespaces")).isTrue();
+        assertThat(embedded.at("/_embedded/wp:attached-to/0").has("code")).isFalse();
     }
 
     @Test
