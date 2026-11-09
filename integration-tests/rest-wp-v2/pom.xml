@@ -11,7 +11,7 @@
   <artifactId>quarkpress-it-rest-wp-v2</artifactId>
 
   <name>QuarkPress :: Integration tests :: REST wp/v2</name>
-  <description>A network application serving WordPress's REST API (wp/v2) with posts, categories and tags, revisions, scheduling, roles and capabilities, tested over HTTP with Keycloak tokens in JVM mode and as a native executable.</description>
+  <description>A network application serving WordPress's REST API (wp/v2) with posts, categories and tags, revisions, scheduling, media (filesystem storage, ImageIO images), roles and capabilities, tested over HTTP with Keycloak tokens in JVM mode and as a native executable.</description>
 
   <properties>
     <automatic.module.name>org.quarkpress.it.restwp</automatic.module.name>
@@ -51,6 +51,21 @@
     <dependency>
       <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-scheduling</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-storage-fs</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-image-imageio</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -201,6 +216,45 @@
     <dependency>
       <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-rest-wp-v2-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-storage-fs-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-image-imageio-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>

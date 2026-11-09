@@ -11,8 +11,10 @@ import java.util.Map;
 import java.util.Optional;
 import org.quarkpress.testing.wporacle.OracleJson;
 import org.quarkpress.testing.wprestparity.Exchange;
+import org.quarkpress.testing.wprestparity.MediaScenarios;
 import org.quarkpress.testing.wprestparity.RestCall;
 import org.quarkpress.testing.wprestparity.RestClient;
+import org.quarkpress.testing.wprestparity.RestScenario;
 import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
 import org.quarkpress.testing.wprestparity.Side;
 import org.quarkpress.testing.wprestparity.WordPressRestSite;
@@ -22,7 +24,10 @@ import org.quarkpress.testing.wprestparity.WordPressRestSite;
  * Keycloak tokens, every request naming {@code localhost} as its host (the network's domain). A scenario's site is
  * created by alice through the setup resource, with the five users given their WordPress roles there; posts (with
  * their fields), revisions, autosaves, locks, own sites, options and a user's leaving the site go through the setup
- * resource on that site, terms through the REST API. The application registers the custom type {@code book} itself.
+ * resource on that site, terms through the REST API, attachments through the setup resource's upload (the media
+ * module's own upload, as the caller). The application registers the custom types {@code book} and {@code qp_hidden}
+ * itself. A call marked for HTTPS ({@link Side#HTTPS_MARKER}) is sent with {@code X-Forwarded-Proto: https} instead,
+ * which the application honours from the loopback proxy.
  */
 final class QuarkPressSide implements Side {
 
@@ -105,7 +110,8 @@ final class QuarkPressSide implements Side {
     }
 
     @Override
-    public Map<String, Long> setUp(String sitePath, List<SetupStep> steps) throws Exception {
+    public Map<String, Long> setUp(String sitePath, RestScenario scenario) throws Exception {
+        List<SetupStep> steps = scenario.setup();
         Map<String, Long> known = refsBySite.computeIfAbsent(sitePath, p -> new HashMap<>());
         Map<String, Long> created = new LinkedHashMap<>();
         for (SetupStep step : steps) {
@@ -223,6 +229,21 @@ final class QuarkPressSide implements Side {
                                             option.value().toString())),
                             200,
                             "option " + option.name());
+                case SetupStep.Media media -> {
+                    Exchange answer = expect(
+                            send(
+                                    sitePath,
+                                    RestCall.multipart(
+                                            media.as(),
+                                            "/it/media",
+                                            media.name(),
+                                            media.type(),
+                                            MediaScenarios.fixture(media.fixture()),
+                                            Side.mediaFields(media, known, scenario.editor()))),
+                            200,
+                            "media " + media);
+                    created.put(media.ref(), answer.json().get("id").longValue());
+                }
             }
             known.putAll(created);
         }
@@ -245,7 +266,14 @@ final class QuarkPressSide implements Side {
     @Override
     public Exchange send(String sitePath, RestCall call) throws Exception {
         RestCall moved = Side.underSite(sitePath, call);
-        Map<String, String> headers = new LinkedHashMap<>(moved.headers());
+        Map<String, String> headers = new LinkedHashMap<>();
+        moved.headers().forEach((name, value) -> {
+            if (name.equalsIgnoreCase(Side.HTTPS_MARKER)) {
+                headers.put("X-Forwarded-Proto", "https");
+            } else {
+                headers.put(name, value);
+            }
+        });
         headers.put("Host", "localhost");
         return client.send(new RestCall(
                 moved.as(),

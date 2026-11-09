@@ -29,11 +29,16 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.SiteInfo;
 import org.quarkpress.core.UserId;
+import org.quarkpress.media.Media;
+import org.quarkpress.media.MediaSnapshot;
+import org.quarkpress.media.Upload;
 import org.quarkpress.multisite.NewSite;
 import org.quarkpress.multisite.Sites;
 import org.quarkpress.persistence.Options;
@@ -58,7 +63,8 @@ import org.quarkpress.taxonomy.Terms;
 
 /**
  * Test scaffolding, not part of any API: sets up what the REST API (wp/v2) does not serve yet (memberships, sites,
- * posts with their terms and meta, revisions, autosaves, edit locks and options) through the modules' Java services,
+ * posts with their terms and meta, revisions, autosaves, edit locks, options and uploaded attachments) through the
+ * modules' Java services,
  * so that the tests can then exercise the REST API on that state. Every call acts on the site the request is bound to
  * (by its Host header and path) and as the caller: {@code /it/...} on the main site, {@code /<site>/it/...}
  * ({@link ItSiteSetupResource}) on a subdirectory site. A post's sticky flag, terms and meta ({@code _thumbnail_id},
@@ -147,6 +153,9 @@ public class ItSetupResource {
 
     @Inject
     PostRepository postRows;
+
+    @Inject
+    Media media;
 
     /** The caller's user id; no {@code user} for an anonymous caller. */
     @GET
@@ -270,6 +279,67 @@ public class ItSetupResource {
             });
         }
         return Map.of("id", created.value());
+    }
+
+    /**
+     * Uploads the {@code file} part with its declared type as the caller, through the media module's upload (outside
+     * any transaction, as it requires), with the text fields given: {@code post} (the parent's id), {@code title},
+     * {@code caption}, {@code description}, {@code alt_text}, {@code status} and {@code generate_sub_sizes}
+     * ({@code true} or {@code false}); answers the attachment's id. A missing file part or a {@code post} that is no
+     * number answers 400.
+     */
+    @POST
+    @Path("/media")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public Map<String, Object> media(
+            @RestForm("file") FileUpload file,
+            @RestForm("post") String post,
+            @RestForm("title") String title,
+            @RestForm("caption") String caption,
+            @RestForm("description") String description,
+            @RestForm("alt_text") String altText,
+            @RestForm("status") String status,
+            @RestForm("generate_sub_sizes") String generateSubSizes) {
+        if (file == null) {
+            throw new WebApplicationException(Response.status(400)
+                    .entity(Map.of("error", "a file part is required"))
+                    .build());
+        }
+        Upload.Builder upload = Upload.builder(file.fileName(), file.uploadedFile());
+        if (file.contentType() != null && !file.contentType().isBlank()) {
+            upload.declaredType(file.contentType());
+        }
+        if (post != null && !post.isBlank()) {
+            long parent;
+            try {
+                parent = Long.parseLong(post.strip());
+            } catch (NumberFormatException notAnId) {
+                throw new WebApplicationException(Response.status(400)
+                        .entity(Map.of("error", "post is not a post id: " + post))
+                        .build());
+            }
+            upload.parent(PostId.of(parent));
+        }
+        if (title != null) {
+            upload.title(title);
+        }
+        if (caption != null) {
+            upload.caption(caption);
+        }
+        if (description != null) {
+            upload.description(description);
+        }
+        if (altText != null) {
+            upload.altText(altText);
+        }
+        if (status != null) {
+            upload.status(status);
+        }
+        if (generateSubSizes != null) {
+            upload.generateSubSizes(Boolean.parseBoolean(generateSubSizes.strip()));
+        }
+        MediaSnapshot stored = media.upload(upload.build());
+        return Map.of("id", stored.post().id().value());
     }
 
     /** Updates the post's title and content as the caller; answers the id of the revision the update made. */
