@@ -5,11 +5,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,6 +50,15 @@ import java.util.TreeSet;
  * {@code date}, {@code date_gmt}, {@code modified} and {@code modified_gmt} that lie within two minutes of the moment
  * the request was sent by {@code {now}} (both sides run within seconds of each other), older dates compared as they
  * are.
+ *
+ * <p>Media: an attachment's ref is an {@code m:} ref of a media step, looked up among the posts. In a local URL's path
+ * after {@code uploads/}, and in a {@code file} value (a path relative to the uploads folder), a network site's
+ * folder {@code sites/<n>/} becomes {@code sites/{site}/} and the upload month folder {@code <yyyy>/<mm>/} of the run
+ * (the clock's month or the one before, see {@link #Normalizer(Clock)}) {@code {ym}/}, any other month kept; the {@code filesize} of each entry of {@code media_details.sizes}, and of the main file when the
+ * server wrote it itself (an {@code original_image} beside it, or a {@code -scaled} or {@code -rotated} name), becomes
+ * {@code {bytes}} (the uploaded original's size is compared); the attachment id in an audio or video player's
+ * {@code id="audio-<id>-<n>"} and in the {@code X-WP-Upload-Attachment-ID} header becomes its ref (the player's
+ * counter {@code <n>} and its {@code ?_=<n>} are compared as they are).
  */
 public final class Normalizer {
 
@@ -105,6 +117,10 @@ public final class Normalizer {
                 if (k != Kind.ANY && ref.length() > 1 && ref.charAt(0) == k.prefix && ref.charAt(1) == ':') {
                     kind = k;
                 }
+            }
+            if (ref.startsWith("m:")) {
+                // a media step's attachment is a post
+                kind = Kind.POST;
             }
             byKind.get(kind).put(id, ref);
         }
@@ -176,6 +192,25 @@ public final class Normalizer {
     /** How far from the moment a request was sent a date still counts as {@code {now}}. */
     static final Duration NOW_WINDOW = Duration.ofMinutes(2);
 
+    /** The upload month folders ({@code yyyy/MM}) that become {@code {ym}}: the run's month and the one before. */
+    private final Set<String> uploadMonths;
+
+    /** A normaliser whose upload months are those of the system clock (UTC), as the sites' clocks. */
+    public Normalizer() {
+        this(Clock.systemUTC());
+    }
+
+    /**
+     * A normaliser whose {@code {ym}} months are {@code clock}'s current month (UTC) and the month before it, so a run
+     * that crosses the turn of a month still compares; any other month folder stays as written.
+     */
+    public Normalizer(Clock clock) {
+        YearMonth now = YearMonth.now(clock.withZone(ZoneOffset.UTC));
+        this.uploadMonths = Set.of(MONTH.format(now), MONTH.format(now.minusMonths(1)));
+    }
+
+    private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("yyyy/MM");
+
     /** The normalised copy of a JSON body; {@code refs} maps ids to refs, each typed by its ref's prefix. */
     public JsonNode body(JsonNode body, Map<Long, String> refs, String sitePath) {
         return body(body, Refs.ofIds(refs), sitePath, Kind.ANY);
@@ -211,13 +246,19 @@ public final class Normalizer {
         }
     }
 
-    /** The normalised value of a header line (URLs inside it, as in {@code Link} and {@code Location}). */
+    /**
+     * The normalised value of a header line (URLs inside it, as in {@code Link} and {@code Location}; the attachment id
+     * of {@code X-WP-Upload-Attachment-ID} as its ref).
+     */
     public String header(String name, String value, Map<Long, String> refs, String sitePath) {
-        return text(value, Refs.ofIds(refs), sitePath);
+        return header(name, value, Refs.ofIds(refs), sitePath);
     }
 
     /** The normalised value of a header line. */
     public String header(String name, String value, Refs refs, String sitePath) {
+        if (name.equalsIgnoreCase("X-WP-Upload-Attachment-ID")) {
+            return knownId(value.strip(), Kind.POST, refs);
+        }
         return text(value, refs, sitePath);
     }
 
@@ -244,7 +285,135 @@ public final class Normalizer {
             out.append(url(text.substring(start, end), refs, sitePath));
             i = end;
         }
-        return nonces(out.toString());
+        return playerIds(nonces(out.toString()), refs);
+    }
+
+    /**
+     * {@code text} with the attachment id of every audio or video player id ({@code "audio-<id>-<n>"},
+     * {@code "video-<id>-<n>"}, in quotes) as its ref; the counter is kept.
+     */
+    static String playerIds(String text, Refs refs) {
+        if (!text.contains("audio-") && !text.contains("video-")) {
+            return text;
+        }
+        StringBuilder out = new StringBuilder(text.length());
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            out.append(c);
+            i++;
+            if ((c != '"' && c != '\'') || !(text.startsWith("audio-", i) || text.startsWith("video-", i))) {
+                continue;
+            }
+            int idStart = i + "audio-".length();
+            int idEnd = digitsEnd(text, idStart);
+            if (idEnd == idStart || idEnd >= text.length() || text.charAt(idEnd) != '-') {
+                continue;
+            }
+            int counterEnd = digitsEnd(text, idEnd + 1);
+            if (counterEnd == idEnd + 1 || counterEnd >= text.length() || text.charAt(counterEnd) != c) {
+                continue;
+            }
+            out.append(text, i, idStart)
+                    .append(knownId(text.substring(idStart, idEnd), Kind.POST, refs))
+                    .append(text, idEnd, counterEnd);
+            i = counterEnd;
+        }
+        return out.toString();
+    }
+
+    private static int digitsEnd(String text, int from) {
+        int end = from;
+        while (end < text.length() && end - from < 18 && text.charAt(end) >= '0' && text.charAt(end) <= '9') {
+            end++;
+        }
+        return end;
+    }
+
+    /**
+     * A path relative to an uploads folder ({@code sites/7/2026/11/photo.jpg}) with the network site's folder as
+     * {@code sites/{site}/} and the month folder as {@code {ym}/}.
+     */
+    String uploadPath(String path) {
+        List<String> segments = segments(path);
+        uploadFolders(segments, 0);
+        return String.join("/", segments);
+    }
+
+    /**
+     * The folders of an upload path starting at {@code start}: {@code sites/<n>} becomes {@code sites/{site}}, then an
+     * upload month folder {@code <yyyy>/<mm>} of this run (its month or the one before) followed by more of the path
+     * becomes the one segment {@code {ym}}; any other month stays as written, so a wrong folder still differs.
+     */
+    private void uploadFolders(List<String> segments, int start) {
+        int at = start;
+        if (at + 1 < segments.size() && segments.get(at).equals("sites") && isDigits(segments.get(at + 1))) {
+            segments.set(at + 1, "{site}");
+            at += 2;
+        }
+        if (at + 2 < segments.size()
+                && isYear(segments.get(at))
+                && isMonth(segments.get(at + 1))
+                && uploadMonths.contains(segments.get(at) + "/" + segments.get(at + 1))) {
+            segments.set(at, "{ym}");
+            segments.remove(at + 1);
+        }
+    }
+
+    private static boolean isYear(String segment) {
+        return segment.length() == 4 && isDigits(segment);
+    }
+
+    private static boolean isMonth(String segment) {
+        if (segment.length() != 2 || !isDigits(segment)) {
+            return false;
+        }
+        int month = Integer.parseInt(segment);
+        return month >= 1 && month <= 12;
+    }
+
+    private static List<String> segments(String path) {
+        List<String> segments = new ArrayList<>();
+        int i = 0;
+        while (true) {
+            int slash = path.indexOf('/', i);
+            segments.add(path.substring(i, slash < 0 ? path.length() : slash));
+            if (slash < 0) {
+                return segments;
+            }
+            i = slash + 1;
+        }
+    }
+
+    /**
+     * An attachment's {@code media_details}: the {@code filesize} of each size entry, and of the main file when the
+     * server wrote it itself, as {@code {bytes}}.
+     */
+    private static void mediaDetails(ObjectNode details) {
+        JsonNode sizes = details.get("sizes");
+        if (sizes != null && sizes.isObject()) {
+            for (JsonNode size : sizes) {
+                if (size.isObject()
+                        && size.has("filesize")
+                        && size.get("filesize").isNumber()) {
+                    ((ObjectNode) size).put("filesize", "{bytes}");
+                }
+            }
+        }
+        JsonNode file = details.get("file");
+        boolean written =
+                details.has("original_image") || (file != null && file.isTextual() && rewritten(file.textValue()));
+        if (written && details.has("filesize") && details.get("filesize").isNumber()) {
+            details.put("filesize", "{bytes}");
+        }
+    }
+
+    /** Whether a file's name is one the server gives a main file it wrote: {@code <name>-scaled.<ext>}, {@code -rotated}. */
+    static boolean rewritten(String file) {
+        String name = file.substring(file.lastIndexOf('/') + 1);
+        int dot = name.lastIndexOf('.');
+        String base = dot < 0 ? name : name.substring(0, dot);
+        return base.endsWith("-scaled") || base.endsWith("-rotated");
     }
 
     /**
@@ -307,7 +476,14 @@ public final class Normalizer {
                 String key = field.getKey();
                 JsonNode value = field.getValue();
                 Kind idKind = ID_FIELDS.get(key);
-                if (idKind != null && value.isIntegralNumber()) {
+                if (key.equals("media_details") && value.isObject()) {
+                    mediaDetails((ObjectNode) value);
+                    field.setValue(walk(value, refs, sitePath, kind, sentAt));
+                } else if (key.equals("file")
+                        && value.isTextual()
+                        && !value.textValue().contains("://")) {
+                    field.setValue(TextNode.valueOf(uploadPath(value.textValue())));
+                } else if (idKind != null && value.isIntegralNumber()) {
                     Kind looked = key.equals("parent") ? parentKind(own) : idKind == Kind.ANY ? own : idKind;
                     field.setValue(TextNode.valueOf(id(value.longValue(), looked, refs)));
                 } else if (own == Kind.REVISION && key.equals("slug") && value.isTextual()) {
@@ -638,7 +814,7 @@ public final class Normalizer {
     }
 
     /** One local URL: {host}, {site}, then the ids in its path and id query parameters. */
-    private static String url(String url, Refs refs, String sitePath) {
+    private String url(String url, Refs refs, String sitePath) {
         int afterScheme = url.indexOf("//") + 2;
         int hostEnd = afterScheme;
         while (hostEnd < url.length() && "/?#".indexOf(url.charAt(hostEnd)) < 0) {
@@ -668,16 +844,11 @@ public final class Normalizer {
         return out.toString();
     }
 
-    private static String path(String path, Refs refs) {
-        List<String> segments = new ArrayList<>();
-        int i = 0;
-        while (true) {
-            int slash = path.indexOf('/', i);
-            segments.add(path.substring(i, slash < 0 ? path.length() : slash));
-            if (slash < 0) {
-                break;
-            }
-            i = slash + 1;
+    private String path(String path, Refs refs) {
+        List<String> segments = segments(path);
+        int uploads = segments.indexOf("uploads");
+        if (uploads >= 0) {
+            uploadFolders(segments, uploads + 1);
         }
         StringBuilder out = new StringBuilder(path.length());
         for (int s = 0; s < segments.size(); s++) {

@@ -218,6 +218,112 @@ class RestScenarioFormatTest {
     }
 
     @Test
+    void mediaSetupUploadAndRawRequestsRoundTrip() {
+        String json = "{\"id\":\"x1\",\"rule\":\"r\",\"editor\":true,\"setup\":["
+                + "{\"post\":\"p:draft\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"d\"},"
+                + "{\"media\":\"m:photo\",\"as\":\"carol\",\"fixture\":{\"fixture\":\"jpeg\",\"args\":[64,48]},"
+                + "\"name\":\"photo.jpg\",\"type\":\"image/jpeg\","
+                + "\"fields\":{\"post\":\"p:draft\",\"title\":\"A photo\",\"alt_text\":\"Alt\"}},"
+                + "{\"post\":\"p:pictured\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\","
+                + "\"title\":\"p\",\"fields\":{\"featured_media\":\"m:photo\"}}],"
+                + "\"requests\":["
+                + "{\"as\":\"carol\",\"method\":\"POST\",\"target\":\"/wp-json/wp/v2/media\","
+                + "\"upload\":{\"fixture\":{\"fixture\":\"png\",\"args\":[8,8]},\"name\":\"dot.png\","
+                + "\"type\":\"image/png\",\"fields\":{\"post\":\"{p:draft}\",\"title\":\"after {m:photo}\"}}},"
+                + "{\"as\":\"carol\",\"method\":\"POST\",\"target\":\"/wp-json/wp/v2/media\","
+                + "\"contentType\":\"image/jpeg\",\"headerLines\":{\"Content-Disposition\":"
+                + "[\"attachment; filename=a.jpg\",\"attachment; filename=b.jpg\"]},"
+                + "\"raw\":{\"fixture\":{\"fixture\":\"jpeg\",\"args\":[16,16]}}},"
+                + "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/wp/v2/media/{m:photo}\",\"https\":true}]}";
+        RestScenario read = RestScenarioJson.read(json);
+        assertThat(read.editor()).isTrue();
+        RestScenario.SetupStep.Media media =
+                (RestScenario.SetupStep.Media) read.setup().get(1);
+        assertThat(media.ref()).isEqualTo("m:photo");
+        assertThat(media.as()).isEqualTo("carol");
+        assertThat(media.fixture().name()).isEqualTo("jpeg");
+        assertThat(media.fixture().args().toString()).isEqualTo("[64,48]");
+        assertThat(media.name()).isEqualTo("photo.jpg");
+        assertThat(media.type()).isEqualTo("image/jpeg");
+        assertThat(media.fields().toString())
+                .isEqualTo("{\"post\":\"p:draft\",\"title\":\"A photo\",\"alt_text\":\"Alt\"}");
+        // the scenario survives being written and read back, with its editor mark and every request form
+        String written = RestScenarioJson.write(read);
+        assertThat(RestScenarioJson.read(written)).usingRecursiveComparison().isEqualTo(read);
+        assertThat(written).contains("\"editor\" : true", "\"https\" : true", "\"upload\" : {", "\"raw\" : {");
+        assertThat(RestScenarioJson.write(RestScenarioJson.read(
+                        scenario("", "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/\"}"))))
+                .doesNotContain("editor", "https", "upload", "raw", "headerLines");
+
+        Map<String, Long> refs = Map.of("p:draft", 4L, "m:photo", 9L);
+        // an upload: a multipart body with the fixture's bytes as its file part and the fields, refs resolved
+        RestCall upload = read.call(0, refs);
+        assertThat(upload.method()).isEqualTo("POST");
+        assertThat(upload.contentType())
+                .hasValueSatisfying(type -> assertThat(type).startsWith("multipart/form-data; boundary="));
+        String body = new String(upload.body().orElseThrow(), java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertThat(body)
+                .contains("name=\"file\"; filename=\"dot.png\"\r\nContent-Type: image/png\r\n\r\n")
+                .contains("name=\"post\"\r\n\r\n4\r\n")
+                .contains("name=\"title\"\r\n\r\nafter 9\r\n");
+        byte[] png = MediaScenarios.fixture(new MediaScenario.Fixture("png", OracleJsonArgs.of(8, 8)));
+        assertThat(new String(png, java.nio.charset.StandardCharsets.ISO_8859_1))
+                .isSubstringOf(body);
+        // a raw body: the fixture's bytes as they are, with the content type and both header lines
+        RestCall raw = read.call(1, refs);
+        assertThat(raw.body())
+                .hasValueSatisfying(bytes -> assertThat(bytes)
+                        .isEqualTo(
+                                MediaScenarios.fixture(new MediaScenario.Fixture("jpeg", OracleJsonArgs.of(16, 16)))));
+        assertThat(raw.contentType()).hasValue("image/jpeg");
+        assertThat(raw.headerLines())
+                .containsExactly(Map.entry(
+                        "Content-Disposition", List.of("attachment; filename=a.jpg", "attachment; filename=b.jpg")));
+        // https: the marker header each side turns into its own form of the scheme; the target's ref resolved
+        RestCall https = read.call(2, refs);
+        assertThat(https.target()).isEqualTo("/wp-json/wp/v2/media/9");
+        assertThat(https.headers()).containsExactly(Map.entry(Side.HTTPS_MARKER, "1"));
+        assertThat(read.call(0, refs).headers()).isEmpty();
+
+        // an unknown key of an upload is refused, naming the scenario and the key, as the other unknown keys are
+        String typo = "{\"as\":\"carol\",\"method\":\"POST\",\"target\":\"/wp-json/wp/v2/media\","
+                + "\"upload\":{\"fixture\":{\"fixture\":\"png\",\"args\":[8,8]},\"name\":\"dot.png\","
+                + "\"type\":\"image/png\",\"feilds\":{}}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("", typo)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1")
+                .hasMessageContaining("unknown key feilds");
+        // an upload or a raw body is a POST without a body of its own; a media step's ref is an m: ref
+        String put = "{\"as\":\"carol\",\"method\":\"PUT\",\"target\":\"/wp-json/wp/v2/media\","
+                + "\"raw\":{\"fixture\":{\"fixture\":\"jpeg\",\"args\":[16,16]}}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("", put)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1");
+        String both = "{\"as\":\"carol\",\"method\":\"POST\",\"target\":\"/wp-json/wp/v2/media\",\"body\":\"x\","
+                + "\"raw\":{\"fixture\":{\"fixture\":\"jpeg\",\"args\":[16,16]}}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario("", both)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1");
+        String wrongRef = "{\"media\":\"p:photo\",\"as\":\"carol\",\"fixture\":{\"fixture\":\"jpeg\",\"args\":[8,8]},"
+                + "\"name\":\"photo.jpg\",\"type\":\"image/jpeg\"}";
+        assertThatThrownBy(() -> RestScenarioJson.read(
+                        scenario(wrongRef, "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/\"}")))
+                .hasMessageContaining("not a m: ref");
+    }
+
+    /** Fixture arguments as a JSON array of numbers. */
+    static final class OracleJsonArgs {
+        static com.fasterxml.jackson.databind.JsonNode of(int... values) {
+            com.fasterxml.jackson.databind.node.ArrayNode array =
+                    org.quarkpress.testing.wporacle.OracleJson.MAPPER.createArrayNode();
+            for (int value : values) {
+                array.add(value);
+            }
+            return array;
+        }
+    }
+
+    @Test
     void generatedScenariosAreReproduciblePerSeedAndValid() {
         List<RestScenario> first = RestScenarios.generated("rest-a", RestScenarios.GENERATED);
         List<RestScenario> again = RestScenarios.generated("rest-a", RestScenarios.GENERATED);

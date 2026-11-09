@@ -96,11 +96,21 @@ public interface Side extends AutoCloseable {
         return body;
     }
 
+    /**
+     * The request header that marks a call to be sent over HTTPS ({@link RestScenario#call}): WordPress's side sends it
+     * as it is (its router then sets PHP's {@code HTTPS} server variable, a harness rule, since {@code php -S} has no
+     * TLS); QuarkPress's side sends {@code X-Forwarded-Proto: https} in its place. Neither header is compared.
+     */
+    String HTTPS_MARKER = "X-QP-Parity-Https";
+
     /** Creates {@code /<id>/} with the five users. */
     ScenarioSite newSite(String scenarioId) throws Exception;
 
-    /** Runs the steps on the site; answers ref to id ("t:news", "p:1", ...) for what they created. */
-    Map<String, Long> setUp(String sitePath, List<SetupStep> steps) throws Exception;
+    /**
+     * Runs the scenario's setup steps on the site; answers ref to id ("t:news", "p:1", "m:photo", ...) for what they
+     * created. A media step uploads without sizes unless the scenario is {@link RestScenario#editor}.
+     */
+    Map<String, Long> setUp(String sitePath, RestScenario scenario) throws Exception;
 
     /** Sends a call whose target is relative to the site. */
     Exchange send(String sitePath, RestCall call) throws Exception;
@@ -168,6 +178,24 @@ public interface Side extends AutoCloseable {
         return fields;
     }
 
+    /**
+     * The text fields of a media step's upload, as both sides send them: its fields in order, the {@code post} ref
+     * replaced by its id, then {@code generate_sub_sizes=false} unless the scenario has an image editor (WordPress
+     * without one refuses a declared image otherwise).
+     */
+    static Map<String, String> mediaFields(SetupStep.Media media, Map<String, Long> refs, boolean editor) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (Iterator<Map.Entry<String, JsonNode>> it = media.fields().fields(); it.hasNext(); ) {
+            Map.Entry<String, JsonNode> field = it.next();
+            String value = field.getValue().textValue();
+            fields.put(field.getKey(), field.getKey().equals("post") ? String.valueOf(refId(refs, value)) : value);
+        }
+        if (!editor) {
+            fields.put("generate_sub_sizes", "false");
+        }
+        return fields;
+    }
+
     /** The JSON body of a term step's REST request, with the parent's id when it has one. */
     static String termBody(SetupStep.Term term, Map<String, Long> refs) {
         ObjectNode body = OracleJson.MAPPER.createObjectNode().put("name", term.name());
@@ -191,6 +219,11 @@ public interface Side extends AutoCloseable {
             this.client = new RestClient(site.root(), RestClient.applicationPasswords(site));
         }
 
+        /** The WordPress site this side runs on, for the operations a run asks of it ({@code extensions}). */
+        public WordPressRestSite site() {
+            return site;
+        }
+
         @Override
         public ScenarioSite newSite(String scenarioId) throws IOException, InterruptedException {
             ObjectNode args = OracleJson.MAPPER.createObjectNode();
@@ -208,9 +241,16 @@ public interface Side extends AutoCloseable {
         }
 
         @Override
-        public Map<String, Long> setUp(String sitePath, List<SetupStep> steps) throws Exception {
+        public Map<String, Long> setUp(String sitePath, RestScenario scenario) throws Exception {
+            List<SetupStep> steps = scenario.setup();
             Map<String, Long> known = refsBySite.computeIfAbsent(sitePath, p -> new HashMap<>());
             Map<String, Long> created = new LinkedHashMap<>();
+            if (scenario.uploads()) {
+                // the shared tree keeps the uploads of earlier runs, whose new sites reuse the same ids: a file left
+                // there would rename this run's upload
+                site.operation(
+                        "clear_uploads", OracleJson.MAPPER.createObjectNode().put("site", sitePath));
+            }
             for (SetupStep step : steps) {
                 switch (step) {
                     case SetupStep.Post post -> {
@@ -299,6 +339,22 @@ public interface Side extends AutoCloseable {
                         ObjectNode args = OracleJson.MAPPER.createObjectNode();
                         args.put("site", sitePath).put("user", leave.user());
                         site.operation("leave", args);
+                    }
+                    case SetupStep.Media media -> {
+                        Exchange answer = send(
+                                sitePath,
+                                RestCall.multipart(
+                                        media.as(),
+                                        "/?rest_route=/wp/v2/media",
+                                        media.name(),
+                                        media.type(),
+                                        MediaScenarios.fixture(media.fixture()),
+                                        mediaFields(media, known, scenario.editor())));
+                        if (answer.status() != 201) {
+                            throw new IllegalStateException(
+                                    "WordPress setup media " + media + ": " + answer.status() + " " + answer.text());
+                        }
+                        created.put(media.ref(), answer.json().get("id").longValue());
                     }
                 }
                 known.putAll(created);

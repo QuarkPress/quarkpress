@@ -60,7 +60,8 @@ public final class RestComparison {
             "expires",
             "vary",
             "access-control-expose-headers",
-            "access-control-allow-headers");
+            "access-control-allow-headers",
+            "x-wp-upload-attachment-id");
 
     /** The headers compared on the answers to requests that sent an {@code Origin}. */
     public static final List<String> ORIGIN_HEADERS =

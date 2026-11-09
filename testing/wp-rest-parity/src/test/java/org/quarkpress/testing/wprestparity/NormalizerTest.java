@@ -521,6 +521,81 @@ class NormalizerTest {
                 .isEqualTo("http://{host}{site}/wp-json/wp/v2/books/p:a?preview_id=p:a&p=p:img");
     }
 
+    @Test
+    void uploadFoldersSitesAndGeneratedSizesAreNormalised() {
+        Normalizer november = new Normalizer(NOVEMBER);
+        JsonNode body = json("{\"id\":31,\"type\":\"attachment\",\"post\":30,"
+                + "\"guid\":{\"rendered\":\"http://localhost/s1/wp-content/uploads/sites/7/2026/11/photo.jpg\"},"
+                + "\"source_url\":\"http://localhost/s1/wp-content/uploads/sites/7/2026/11/photo.jpg\","
+                + "\"media_details\":{\"width\":300,\"height\":200,\"file\":\"2026/11/photo.jpg\",\"filesize\":4711,"
+                + "\"sizes\":{\"thumbnail\":{\"file\":\"photo-150x150.jpg\",\"filesize\":812,"
+                + "\"source_url\":\"http://localhost/s1/wp-content/uploads/sites/7/2026/11/photo-150x150.jpg\"}}},"
+                + "\"description\":{\"rendered\":\"<audio class=\\\"wp-audio-shortcode\\\" id=\\\"audio-31-3\\\"><source src="
+                + "\\\"http://localhost/s1/wp-content/uploads/sites/7/2026/11/a.mp3?_=3\\\" /></audio>\"}}");
+        assertThat(november.body(body, Map.of(31L, "m:photo", 30L, "p:draft"), "/s1/")
+                        .toString())
+                .isEqualTo("{\"id\":\"m:photo\",\"type\":\"attachment\",\"post\":\"p:draft\","
+                        + "\"guid\":{\"rendered\":\"http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/photo.jpg\"},"
+                        + "\"source_url\":\"http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/photo.jpg\","
+                        + "\"media_details\":{\"width\":300,\"height\":200,\"file\":\"{ym}/photo.jpg\",\"filesize\":4711,"
+                        + "\"sizes\":{\"thumbnail\":{\"file\":\"photo-150x150.jpg\",\"filesize\":\"{bytes}\","
+                        + "\"source_url\":\"http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/photo-150x150.jpg\"}}},"
+                        + "\"description\":{\"rendered\":\"<audio class=\\\"wp-audio-shortcode\\\" id=\\\"audio-m:photo-3\\\"><source src="
+                        + "\\\"http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/a.mp3?_=3\\\" /></audio>\"}}");
+        // a main file the server wrote itself (scaled or rotated) has a size of its own; other folders stay visible
+        JsonNode scaled = json("{\"media_details\":{\"file\":\"sites/7/2026/11/big-scaled.jpg\",\"filesize\":9000,"
+                + "\"original_image\":\"big.jpg\"},\"link\":\"http://localhost/s1/wp-content/uploads/2026/13/x.jpg\"}");
+        assertThat(november.body(scaled, Map.of(), "/s1/").toString())
+                .isEqualTo(
+                        "{\"media_details\":{\"file\":\"sites/{site}/{ym}/big-scaled.jpg\",\"filesize\":\"{bytes}\","
+                                + "\"original_image\":\"big.jpg\"},\"link\":\"http://{host}{site}/wp-content/uploads/2026/13/x.jpg\"}");
+        JsonNode rotated = json("{\"media_details\":{\"file\":\"2026/11/r-rotated.jpg\",\"filesize\":9000}}");
+        assertThat(november.body(rotated, Map.of(), "/s1/")
+                        .path("media_details")
+                        .path("filesize")
+                        .asText())
+                .isEqualTo("{bytes}");
+        // the attachment id of a failed upload's header names its ref; Location's folders as in bodies
+        assertThat(november.header("X-WP-Upload-Attachment-ID", "31", Map.of(31L, "m:photo"), "/s1/"))
+                .isEqualTo("m:photo");
+        assertThat(november.header("X-WP-Upload-Attachment-ID", "32", Map.of(31L, "m:photo"), "/s1/"))
+                .isEqualTo("#?32");
+        assertThat(november.header(
+                        "Location", "http://localhost/s1/wp-json/wp/v2/media/31", Map.of(31L, "m:photo"), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-json/wp/v2/media/m:photo");
+        assertThat(RestComparison.HEADERS).contains("x-wp-upload-attachment-id");
+    }
+
+    /** A clock in the run's month of the examples: 8 November 2026, UTC. */
+    static final java.time.Clock NOVEMBER =
+            java.time.Clock.fixed(Instant.parse("2026-11-08T12:00:00Z"), java.time.ZoneOffset.UTC);
+
+    @Test
+    void onlyTheRunsMonthAndTheOneBeforeAreUploadMonths() {
+        Normalizer november = new Normalizer(NOVEMBER);
+        String base = "http://localhost/s1/wp-content/uploads/sites/7/";
+        // a run that crosses the turn of a month: the folder of either month compares as {ym}
+        assertThat(november.text(base + "2026/11/a.jpg", Map.of(), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/a.jpg");
+        assertThat(november.text(base + "2026/10/a.jpg", Map.of(), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/a.jpg");
+        // any other month is a wrong folder and stays visible, in URLs and in file values alike
+        assertThat(november.text(base + "2025/03/a.jpg", Map.of(), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-content/uploads/sites/{site}/2025/03/a.jpg");
+        assertThat(november.text(base + "2026/12/a.jpg", Map.of(), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-content/uploads/sites/{site}/2026/12/a.jpg");
+        assertThat(november.body(json("{\"media_details\":{\"file\":\"2026/09/a.jpg\"}}"), Map.of(), "/s1/")
+                        .toString())
+                .isEqualTo("{\"media_details\":{\"file\":\"2026/09/a.jpg\"}}");
+        // across the turn of a year, December is the month before January
+        Normalizer january =
+                new Normalizer(java.time.Clock.fixed(Instant.parse("2027-01-01T00:00:10Z"), java.time.ZoneOffset.UTC));
+        assertThat(january.text(base + "2026/12/a.jpg", Map.of(), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-content/uploads/sites/{site}/{ym}/a.jpg");
+        assertThat(january.text(base + "2026/11/a.jpg", Map.of(), "/s1/"))
+                .isEqualTo("http://{host}{site}/wp-content/uploads/sites/{site}/2026/11/a.jpg");
+    }
+
     static byte[] bytes(String text) {
         return text.getBytes(StandardCharsets.UTF_8);
     }
