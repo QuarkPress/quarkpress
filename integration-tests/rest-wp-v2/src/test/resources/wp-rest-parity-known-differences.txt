@@ -373,7 +373,50 @@ e01 req12:body:/message D6 the batch route is not served: QuarkPress answers no 
 e01 req12:body:/data D6 the batch route is not served: QuarkPress answers no route
 none * D40 the scenarios run in the default sync mode, where an upload answers with its sizes made
 none * D41 no scenario sends a body above the size limits (64M on both sides)
-none * D42 no media item is answered yet: the media item fields are not served yet
+# D6, D42, D46 (e02): the attachment item. Its links come with the links task; a stored caption or description
+# runs only the registered filters after the markup; audio metadata holds what the media module reads.
+e02 req*:body:/_links D6 attachment links come with the links task
+e02 req4:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
+e02 req5:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
+e02 req4:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+e02 req5:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+e02 req6:body:/caption/rendered D42 the PNG's stored caption "e02 caption" (embed): WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+e02 req10:body:/media_details/dataformat D46 the MP3's getID3 key dataformat, which the media module does not read
+e02 req10:body:/media_details/channels D46 the MP3's getID3 key channels, which the media module does not read
+e02 req10:body:/media_details/sample_rate D46 the MP3's getID3 key sample_rate, which the media module does not read
+e02 req10:body:/media_details/bitrate D46 the MP3's getID3 key bitrate, which the media module does not read
+e02 req10:body:/media_details/channelmode D46 the MP3's getID3 key channelmode, which the media module does not read
+e02 req10:body:/media_details/bitrate_mode D46 the MP3's getID3 key bitrate_mode, which the media module does not read
+e02 req10:body:/media_details/lossless D46 the MP3's getID3 key lossless, which the media module does not read
+e02 req10:body:/media_details/encoder_options D46 the MP3's getID3 key encoder_options, which the media module does not read
+e02 req10:body:/media_details/compression_ratio D46 the MP3's getID3 key compression_ratio, which the media module does not read
+e02 req10:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
+e02 req10:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
+e02 req10:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
+e02 req11:body:/media_details/dataformat D46 the MP3's getID3 key dataformat, which the media module does not read
+e02 req11:body:/media_details/channels D46 the MP3's getID3 key channels, which the media module does not read
+e02 req11:body:/media_details/sample_rate D46 the MP3's getID3 key sample_rate, which the media module does not read
+e02 req11:body:/media_details/bitrate D46 the MP3's getID3 key bitrate, which the media module does not read
+e02 req11:body:/media_details/channelmode D46 the MP3's getID3 key channelmode, which the media module does not read
+e02 req11:body:/media_details/bitrate_mode D46 the MP3's getID3 key bitrate_mode, which the media module does not read
+e02 req11:body:/media_details/lossless D46 the MP3's getID3 key lossless, which the media module does not read
+e02 req11:body:/media_details/encoder_options D46 the MP3's getID3 key encoder_options, which the media module does not read
+e02 req11:body:/media_details/compression_ratio D46 the MP3's getID3 key compression_ratio, which the media module does not read
+e02 req11:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
+e02 req11:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
+e02 req11:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
+e02 req12:body:/media_details/dataformat D46 the MP3's getID3 key dataformat, which the media module does not read
+e02 req12:body:/media_details/channels D46 the MP3's getID3 key channels, which the media module does not read
+e02 req12:body:/media_details/sample_rate D46 the MP3's getID3 key sample_rate, which the media module does not read
+e02 req12:body:/media_details/bitrate D46 the MP3's getID3 key bitrate, which the media module does not read
+e02 req12:body:/media_details/channelmode D46 the MP3's getID3 key channelmode, which the media module does not read
+e02 req12:body:/media_details/bitrate_mode D46 the MP3's getID3 key bitrate_mode, which the media module does not read
+e02 req12:body:/media_details/lossless D46 the MP3's getID3 key lossless, which the media module does not read
+e02 req12:body:/media_details/encoder_options D46 the MP3's getID3 key encoder_options, which the media module does not read
+e02 req12:body:/media_details/compression_ratio D46 the MP3's getID3 key compression_ratio, which the media module does not read
+e02 req12:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
+e02 req12:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
+e02 req12:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
 none * D43 no media item is answered yet: the attached-to link is not served yet
 none * D44 no upload is served yet
 none * D45 no media update is served yet
