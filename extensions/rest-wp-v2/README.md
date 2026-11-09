@@ -436,6 +436,7 @@ The rows below are the differences the parity tests know by label. Some further,
 | D43 | `wp:attached-to` of an attachment whose parent's type has no QuarkPress route yet (blocks, until the editor extras slice) embeds the `rest_no_route` error where WordPress embeds the parent or its permission error. |
 | D44 | An upload that fails unexpectedly after the attachment is stored (an error while making its sizes, a failure of the after-insert writes other than their refusals, or while rendering the answer) answers 500 `internal_server_error` with D12's message and `X-WP-Upload-Attachment-ID`; WordPress answers only a process crash that way, with its fatal-error handler's HTML message. |
 | D45 | An attachment's `post` on update must name a post of the site (the posts module's D2): another id answers 400 `rest_post_invalid_id` "Invalid post parent ID." as the posts routes answer `parent`; WordPress stores any id (and then reads the attachment as unattached). |
+| D46 | An audio or video attachment's `media_details` hold only what the media module reads from the file (its "Differences from WordPress" row D4: `filesize`, `mime_type` and, for some containers, `length`, `length_formatted`, `width` and `height`), followed by `sizes`; WordPress adds getID3's format, codec, rates, channels and tags. |
 
 WordPress behaviour kept on purpose (not differences): `_fields` reduces a keyed collection by its keys
 (`/wp/v2/types?_fields=name` is `[]`), and a field below one already requested whole ends the list there

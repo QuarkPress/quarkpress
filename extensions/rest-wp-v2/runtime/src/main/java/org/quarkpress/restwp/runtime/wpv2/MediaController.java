@@ -1,5 +1,6 @@
 package org.quarkpress.restwp.runtime.wpv2;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -9,11 +10,15 @@ import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.media.ImageSizes;
 import org.quarkpress.media.MediaFeature;
+import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.MimeTypes;
+import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
+import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.restwp.Endpoint;
+import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.Paging;
 import org.quarkpress.restwp.PermissionResult;
 import org.quarkpress.restwp.RestError;
@@ -23,6 +28,7 @@ import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
+import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.taxonomy.Taxonomies;
 
 /**
@@ -31,6 +37,12 @@ import org.quarkpress.taxonomy.Taxonomies;
  * item, its update and its delete) and {@code /wp/v2/media/<id>/post-process} (making a stored image's missing
  * sizes), with their arguments and the attachment schema. No media route can be batched. The image editing route
  * ({@code /edit}) and the client-side upload routes are not served, nor are revisions or autosaves of attachments.
+ * On a site whose media feature is off, every media request answers as no route would.
+ *
+ * <p>An item is an attachment of the request's site, any other id does not exist. Its checks run in WordPress's
+ * order: the edit context needs {@code edit_post}; any {@code password} in the query string is refused (an
+ * attachment never has one); then the attachment must be readable (an inherited status reads through its parent).
+ * The item carries a {@code Link} to its page in place of the API root's.
  *
  * <p>An endpoint not served yet answers 404 {@code rest_no_route}, as a request no route matches, so that its
  * method is left out of {@code Allow}.
@@ -71,6 +83,15 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
 
     @Inject
     SiteContext site;
+
+    @Inject
+    MediaReads reads;
+
+    @Inject
+    MediaFields fields;
+
+    @Inject
+    PostFields postFields;
 
     @Override
     public int order() {
@@ -122,8 +143,8 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                 .schema(() -> schema(media))
                 .endpoint(Endpoint.of("GET")
                         .arg(Paging.contextArg(media.schema()))
-                        .permission(MediaController::notServedYet)
-                        .handler(MediaController::notServed)
+                        .permission(this::mayRead)
+                        .handler(request -> item(media, request))
                         .allowBatch(false)
                         .build())
                 .endpoint(Endpoint.of("POST", "PUT", "PATCH")
@@ -159,6 +180,59 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         return site.isResolved()
                 ? MediaSchema.withSizes(schema, sizes.registered().keySet())
                 : schema;
+    }
+
+    /**
+     * WordPress's item read checks, in its order: the attachment must exist on the site; the edit context needs
+     * {@code edit_post}; a {@code password} in the query string never matches; the attachment must be readable. A site
+     * whose media feature is off answers as no route would.
+     */
+    private PermissionResult mayRead(RestRequest request) {
+        if (!site.features().isEnabled(MediaFeature.KEY)) {
+            return PermissionResult.denied(noRoute());
+        }
+        Optional<MediaSnapshot> found = reads.attachment(request);
+        if (found.isEmpty()) {
+            return PermissionResult.denied(invalidId());
+        }
+        PostSnapshot post = found.get().post();
+        SecurityIdentity caller = request.identity();
+        if (request.isEditContext() && !permissions.can(caller, "edit_post", post)) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_forbidden_context", "Sorry, you are not allowed to edit this post.", request.authCode()));
+        }
+        Optional<String> given = queryPassword(request);
+        if (given.isPresent() && !PostPasswords.matches(post, given.get())) {
+            return PermissionResult.denied(
+                    RestError.of("rest_post_incorrect_password", "Incorrect post password.", 403));
+        }
+        if (!permissions.restReadable(caller, post)) {
+            return PermissionResult.forbidden(request);
+        }
+        return PermissionResult.allowed();
+    }
+
+    /** The attachment in the request's context, with the {@code Link} to its page. */
+    private RestResponse item(PostRoutes media, RestRequest request) {
+        MediaSnapshot attachment = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        Fields.Selection selection = Fields.forResponse(request, media.schema());
+        RestResponse response = fields.prepare(
+                media, attachment, selection, request.context(), request, new AttachmentMarkup.Counters());
+        return response.withHeader(
+                "Link",
+                "<" + postFields.link(media.type(), attachment.post()) + ">; rel=\"alternate\"; type=text/html");
+    }
+
+    /** The {@code password} of the query string alone, when it is a text that is not empty in PHP's sense. */
+    private static Optional<String> queryPassword(RestRequest request) {
+        JsonNode value = request.queryParams().get("password");
+        return value != null && value.isTextual() && !PhpValues.isEmpty(value)
+                ? Optional.of(value.textValue())
+                : Optional.empty();
+    }
+
+    private static RestError invalidId() {
+        return RestError.of("rest_post_invalid_id", "Invalid post ID.", 404);
     }
 
     /** The answer of an endpoint not served yet: the one a request no route matches. */

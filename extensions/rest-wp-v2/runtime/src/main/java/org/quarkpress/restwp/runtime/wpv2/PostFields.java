@@ -8,6 +8,11 @@ import io.quarkus.arc.InstanceHandle;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -149,6 +154,28 @@ class PostFields {
      *     class list still say the password is there
      */
     RestResponse prepare(
+            PostRoutes routes,
+            PostSnapshot post,
+            Fields.Selection fields,
+            String context,
+            RestRequest request,
+            boolean lifted) {
+        ObjectNode data = fields(routes, post, fields, context, request, lifted);
+        RestResponse response = RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+        if (fields.includes("_links") || fields.includes("_embedded")) {
+            response = response.withLinks(links.of(routes, post, request));
+        }
+        return response;
+    }
+
+    /**
+     * The post's selected fields of the posts controller in WordPress's order, before the context filter and without
+     * links: what {@link #prepare} answers, and what a controller that adds fields of its own builds on. The derived
+     * fields are skipped in the contexts whose filter would drop them.
+     *
+     * @param lifted as for {@link #prepare(PostRoutes, PostSnapshot, Fields.Selection, String, RestRequest, boolean)}
+     */
+    ObjectNode fields(
             PostRoutes routes,
             PostSnapshot post,
             Fields.Selection fields,
@@ -307,11 +334,19 @@ class PostFields {
                             publicTerms(post))
                     .forEach(classes::add);
         }
-        RestResponse response = RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
-        if (fields.includes("_links") || fields.includes("_embedded")) {
-            response = response.withLinks(links.of(routes, post, request));
-        }
-        return response;
+        return data;
+    }
+
+    /** {@code text} through the registered content filters, rendered for {@code post}'s site. */
+    String renderContent(PostSnapshot post, String text) {
+        Rendering rendering = new Rendering(post.site());
+        return Filters.apply(contentFilters, text, (filter, value) -> filter.apply(value, rendering));
+    }
+
+    /** {@code text} through the registered excerpt filters, rendered for {@code post}'s site. */
+    String renderExcerpt(PostSnapshot post, String text) {
+        Rendering rendering = new Rendering(post.site());
+        return Filters.apply(excerptFilters, text, (filter, value) -> filter.apply(value, rendering));
     }
 
     /**
@@ -327,7 +362,8 @@ class PostFields {
 
     /**
      * The slug the post's title would generate: the title sanitized (the post id when that gives nothing), made
-     * unique as for a published post of the type under the post's parent, the post itself never colliding.
+     * unique as for a published post of the type under the post's parent, the post itself never colliding, shown
+     * with its percent-encoded bytes decoded (a non-ASCII title's slug reads as its characters, as WordPress shows it).
      */
     private String generatedSlug(PostSnapshot post) {
         String candidate = slugSanitizer.sanitize(
@@ -337,7 +373,59 @@ class PostFields {
         if (candidate.isEmpty()) {
             candidate = Long.toString(post.id().value());
         }
-        return posts.uniqueSlug(post.type(), candidate, Optional.of(post.id()), post.parent(), "publish");
+        return percentDecoded(
+                posts.uniqueSlug(post.type(), candidate, Optional.of(post.id()), post.parent(), "publish"));
+    }
+
+    /**
+     * {@code text} with each {@code %} followed by two hexadecimal digits replaced by that byte, the bytes read as
+     * UTF-8; any other character is kept. Empty when the bytes are not UTF-8 text.
+     */
+    static String percentDecoded(String text) {
+        if (text.indexOf('%') < 0) {
+            return text;
+        }
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream(text.length());
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            int high = i + 2 < text.length() && c == '%' ? hexDigit(text.charAt(i + 1)) : -1;
+            int low = high >= 0 ? hexDigit(text.charAt(i + 2)) : -1;
+            if (low >= 0) {
+                bytes.write(high * 16 + low);
+                i += 3;
+                continue;
+            }
+            int end = i + Character.charCount(text.codePointAt(i));
+            byte[] encoded = text.substring(i, end).getBytes(StandardCharsets.UTF_8);
+            bytes.write(encoded, 0, encoded.length);
+            i = end;
+        }
+        try {
+            return StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes.toByteArray()))
+                    .toString();
+        } catch (CharacterCodingException notText) {
+            // WordPress answers an empty slug when the decoded bytes are not UTF-8 text
+            return "";
+        }
+    }
+
+    /** The value of an ASCII hexadecimal digit, -1 for any other character. */
+    private static int hexDigit(char c) {
+        if (c >= '0' && c <= '9') {
+            return c - '0';
+        }
+        if (c >= 'a' && c <= 'f') {
+            return c - 'a' + 10;
+        }
+        if (c >= 'A' && c <= 'F') {
+            return c - 'A' + 10;
+        }
+        return -1;
     }
 
     /** The post's terms of every public taxonomy of its type, in the taxonomies' registration order. */
@@ -444,7 +532,8 @@ class PostFields {
     }
 
     /**
-     * The plain permalink: {@code ?p=<id>} for posts, {@code ?page_id=<id>} for pages, and for another type
+     * The plain permalink: {@code ?p=<id>} for posts, {@code ?page_id=<id>} for pages, {@code ?attachment_id=<id>}
+     * for attachments, and for another type
      * {@code ?<type>=<slug>} when the type is public and the post is neither a draft, pending, scheduled nor an
      * auto-draft and has a slug, else {@code ?post_type=<type>&p=<id>}.
      */
@@ -453,6 +542,7 @@ class PostFields {
         return switch (type.key()) {
             case "post" -> home + "?p=" + post.id().value();
             case "page" -> home + "?page_id=" + post.id().value();
+            case "attachment" -> home + "?attachment_id=" + post.id().value();
             default ->
                 type.publicly()
                                 && !DRAFT_LIKE.contains(post.status())

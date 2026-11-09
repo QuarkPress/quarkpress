@@ -70,6 +70,7 @@ final class AttachmentMarkup {
      * @param width the stored width, empty when the metadata has none
      * @param height the stored height, empty when the metadata has none
      * @param sizes the stored sizes in stored order; their files live in the main file's folder
+     * @param poster the file URL of a video's cover image, empty when it has none
      */
     record Attachment(
             long id,
@@ -80,7 +81,8 @@ final class AttachmentMarkup {
             String alt,
             OptionalInt width,
             OptionalInt height,
-            List<Size> sizes) {
+            List<Size> sizes,
+            String poster) {
 
         Attachment {
             Objects.requireNonNull(mimeType, "mimeType");
@@ -89,7 +91,22 @@ final class AttachmentMarkup {
             Objects.requireNonNull(alt, "alt");
             Objects.requireNonNull(width, "width");
             Objects.requireNonNull(height, "height");
+            Objects.requireNonNull(poster, "poster");
             sizes = List.copyOf(sizes);
+        }
+
+        /** An attachment without a cover image. */
+        Attachment(
+                long id,
+                String mimeType,
+                String fileUrl,
+                String title,
+                String fileName,
+                String alt,
+                OptionalInt width,
+                OptionalInt height,
+                List<Size> sizes) {
+            this(id, mimeType, fileUrl, title, fileName, alt, width, height, sizes, "");
         }
 
         boolean hasUrl() {
@@ -266,8 +283,9 @@ final class AttachmentMarkup {
         String escaped = escUrl(url);
         return "<div style=\"width: " + width
                 + "px;\" class=\"wp-video\"><video class=\"wp-video-shortcode\" id=\"video-"
-                + a.id() + "-" + n + "\" width=\"" + width + "\" height=\"" + height
-                + "\" preload=\"metadata\" controls=\"controls\"><source type=\"" + type + "\" src=\""
+                + a.id() + "-" + n + "\" width=\"" + width + "\" height=\"" + height + "\""
+                + (a.poster().isEmpty() ? "" : " poster=\"" + escUrl(a.poster()) + "\"")
+                + " preload=\"metadata\" controls=\"controls\"><source type=\"" + type + "\" src=\""
                 + escUrl(url + "?_=" + n) + "\" /><a href=\"" + escaped + "\">" + escaped + "</a></video></div>";
     }
 

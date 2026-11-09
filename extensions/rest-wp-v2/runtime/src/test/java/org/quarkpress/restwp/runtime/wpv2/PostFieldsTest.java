@@ -159,6 +159,17 @@ class PostFieldsTest {
     }
 
     @Test
+    void generatedSlugsAreShownDecodedAndEmptyWhenTheBytesAreNoText() {
+        String foto = new String(new int[] {0x444, 0x43e, 0x442, 0x43e}, 0, 4);
+        assertThat(PostFields.percentDecoded("%d1%84%d0%be%d1%82%d0%be-2")).isEqualTo(foto + "-2");
+        assertThat(PostFields.percentDecoded("plain-slug")).isEqualTo("plain-slug");
+        // a stray percent or a non-hexadecimal pair is kept as written
+        assertThat(PostFields.percentDecoded("100%-x%zz")).isEqualTo("100%-x%zz");
+        // an escaped octet that is not UTF-8 text: WordPress answers an empty slug
+        assertThat(PostFields.percentDecoded("50%ab-off")).isEmpty();
+    }
+
+    @Test
     void duplicateClassesAreListedOnce() {
         // a taxonomy named like a term prefix could repeat a class: each is kept once, at its first place
         Map<String, List<TermSnapshot>> terms = new LinkedHashMap<>();

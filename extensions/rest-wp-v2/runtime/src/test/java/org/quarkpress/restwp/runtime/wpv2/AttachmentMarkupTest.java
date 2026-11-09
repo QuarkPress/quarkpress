@@ -255,6 +255,27 @@ class AttachmentMarkupTest {
     }
 
     @Test
+    void aVideoWithACoverShowsItsPosterBeforePreload() {
+        String mp4 = UPLOADS + "clip.mp4";
+        Attachment video = new Attachment(
+                5,
+                "video/mp4",
+                mp4,
+                "clip",
+                "clip.mp4",
+                "",
+                OptionalInt.of(64),
+                OptionalInt.of(48),
+                List.of(),
+                UPLOADS + "cover a&b.jpg");
+        assertThat(prepended(video))
+                .isEqualTo("<div style=\"width: 64px;\" class=\"wp-video\"><video class=\"wp-video-shortcode\""
+                        + " id=\"video-5-1\" width=\"64\" height=\"48\" poster=\"" + UPLOADS + "cover%20a&#038;b.jpg\""
+                        + " preload=\"metadata\" controls=\"controls\"><source type=\"video/mp4\" src=\"" + mp4
+                        + "?_=1\" /><a href=\"" + mp4 + "\">" + mp4 + "</a></video></div>\n");
+    }
+
+    @Test
     void theCountersGrowAcrossDescriptionsAndGeneratedCaptions() {
         Counters counters = new Counters();
         for (long id = 5; id >= 3; id--) {

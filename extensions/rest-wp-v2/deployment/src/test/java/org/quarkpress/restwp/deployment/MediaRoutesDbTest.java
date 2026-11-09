@@ -329,14 +329,18 @@ class MediaRoutesDbTest {
                 .statusCode(404)
                 .body(equalTo(NO_ROUTE));
         // the registered endpoints answer as no route until their task serves them, so Allow names none of them
-        for (String target : List.of("/wp-json/wp/v2/media", "/wp-json/wp/v2/media/" + id)) {
-            Http.as("test-" + alice)
-                    .get(target)
-                    .then()
-                    .statusCode(404)
-                    .header("Allow", nullValue())
-                    .body(equalTo(NO_ROUTE));
-        }
+        Http.as("test-" + alice)
+                .get("/wp-json/wp/v2/media")
+                .then()
+                .statusCode(404)
+                .header("Allow", nullValue())
+                .body(equalTo(NO_ROUTE));
+        // the item is read; its update and delete are not served yet
+        Http.as("test-" + alice)
+                .get("/wp-json/wp/v2/media/" + id)
+                .then()
+                .statusCode(200)
+                .header("Allow", equalTo("GET"));
         for (String path : List.of("/sideload", "/finalize", "/autosaves")) {
             Http.as("test-" + alice)
                     .post("/wp-json/wp/v2/media/" + id + path)

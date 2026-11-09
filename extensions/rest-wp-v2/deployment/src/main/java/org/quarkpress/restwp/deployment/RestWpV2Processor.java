@@ -124,11 +124,13 @@ class RestWpV2Processor {
     static final String MEDIA = "org.quarkpress.media";
 
     /**
-     * The beans typed on the media module (the media routes and their attachment reads), named here as texts so
-     * that this processor loads without that module.
+     * The beans typed on the media module (the media routes, their attachment reads and the attachment's fields),
+     * named here as texts so that this processor loads without that module.
      */
     static final List<String> MEDIA_BEANS = List.of(
-            "org.quarkpress.restwp.runtime.wpv2.MediaController", "org.quarkpress.restwp.runtime.wpv2.MediaReads");
+            "org.quarkpress.restwp.runtime.wpv2.MediaController",
+            "org.quarkpress.restwp.runtime.wpv2.MediaReads",
+            "org.quarkpress.restwp.runtime.wpv2.MediaFields");
 
     /**
      * Without the media module, the beans typed on it are left out of the application: no media route is
