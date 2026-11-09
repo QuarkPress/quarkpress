@@ -130,7 +130,8 @@ class RestWpV2Processor {
     static final List<String> MEDIA_BEANS = List.of(
             "org.quarkpress.restwp.runtime.wpv2.MediaController",
             "org.quarkpress.restwp.runtime.wpv2.MediaReads",
-            "org.quarkpress.restwp.runtime.wpv2.MediaFields");
+            "org.quarkpress.restwp.runtime.wpv2.MediaFields",
+            "org.quarkpress.restwp.runtime.wpv2.MediaLinks");
 
     /**
      * Without the media module, the beans typed on it are left out of the application: no media route is

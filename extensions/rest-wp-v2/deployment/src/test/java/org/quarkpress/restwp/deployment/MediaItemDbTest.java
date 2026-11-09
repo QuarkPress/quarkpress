@@ -104,7 +104,7 @@ class MediaItemDbTest {
                 "filename",
                 "filesize");
         JsonNode viewed = get(null, Long.toString(id));
-        assertThat(fieldNames(viewed)).containsExactlyElementsOf(view);
+        assertThat(fieldNames(viewed)).containsExactlyElementsOf(withLinks(view));
         assertThat(fieldNames(viewed.get("guid"))).containsExactly("rendered");
         assertThat(fieldNames(viewed.get("title"))).containsExactly("rendered");
         assertThat(fieldNames(viewed.get("description"))).containsExactly("rendered");
@@ -131,7 +131,7 @@ class MediaItemDbTest {
         List<String> image = new ArrayList<>(edit);
         image.addAll(List.of("exif_orientation", "image_output_format", "image_save_progressive", "image_quality"));
         JsonNode edited = get(bob, id + "?context=edit");
-        assertThat(fieldNames(edited)).containsExactlyElementsOf(image);
+        assertThat(fieldNames(edited)).containsExactlyElementsOf(withLinks(image));
         assertThat(fieldNames(edited.get("guid"))).containsExactly("rendered", "raw");
         assertThat(fieldNames(edited.get("description"))).containsExactly("raw", "rendered");
         assertThat(fieldNames(edited.get("caption"))).containsExactly("raw", "rendered");
@@ -142,7 +142,7 @@ class MediaItemDbTest {
         assertThat(edited.get("image_save_progressive").toString()).isEqualTo("false");
         assertThat(edited.get("image_quality").toString()).isEqualTo("{\"default\":82,\"sizes\":[]}");
         JsonNode editedPdf = get(bob, pdf.post().id().value() + "?context=edit");
-        assertThat(fieldNames(editedPdf)).containsExactlyElementsOf(edit);
+        assertThat(fieldNames(editedPdf)).containsExactlyElementsOf(withLinks(edit));
 
         assertThat(fieldNames(get(null, id + "?context=embed")))
                 .containsExactly(
@@ -159,7 +159,15 @@ class MediaItemDbTest {
                         "media_type",
                         "mime_type",
                         "media_details",
-                        "source_url");
+                        "source_url",
+                        "_links");
+    }
+
+    /** {@code fields} followed by the links, which every answer that does not narrow its fields ends with. */
+    private static List<String> withLinks(List<String> fields) {
+        List<String> all = new ArrayList<>(fields);
+        all.add("_links");
+        return all;
     }
 
     @Test

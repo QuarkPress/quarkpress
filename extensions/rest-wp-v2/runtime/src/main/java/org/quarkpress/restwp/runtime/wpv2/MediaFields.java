@@ -37,7 +37,8 @@ import org.quarkpress.restwp.runtime.ContextFilter;
  * filters; the rendered caption is the stored caption through the registered excerpt filters or, when it is empty,
  * the text generated from that markup and the description. An attachment whose metadata is still being made or could
  * not be made shows as one without metadata: no dimensions, no sizes. An attachment post without a stored file (one
- * written past the media module) answers with its guid as its file URL and no file details.
+ * written past the media module) answers with its guid as its file URL and no file details. The attachment's links
+ * come with the fields when the links or the embeds are selected.
  */
 @ApplicationScoped
 public class MediaFields {
@@ -63,10 +64,14 @@ public class MediaFields {
     @Inject
     MediaReads reads;
 
+    @Inject
+    MediaLinks links;
+
     /**
      * The attachment's selected fields in WordPress's order, filtered by {@code context}. The audio and video players
      * of the rendered description and of a generated caption take their numbers from {@code counters}, the
-     * description's first, so one instance serves every attachment of a response.
+     * description's first, so one instance serves every attachment of a response. The links come with them when
+     * {@code _links} or {@code _embedded} is selected.
      */
     RestResponse prepare(
             PostRoutes routes,
@@ -161,7 +166,11 @@ public class MediaFields {
                 quality.putArray("sizes");
             }
         }
-        return RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+        RestResponse response = RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+        if (selection.includes("_links") || selection.includes("_embedded")) {
+            response = response.withLinks(links.of(routes, attachment, request));
+        }
+        return response;
     }
 
     /**
