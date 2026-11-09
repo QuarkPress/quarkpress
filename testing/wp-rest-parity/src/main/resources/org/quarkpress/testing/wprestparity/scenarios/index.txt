@@ -53,3 +53,4 @@ e01-media-routes.json
 e02-media-item.json
 e03-media-links.json
 e04-media-collection.json
+e05-upload-refusals.json

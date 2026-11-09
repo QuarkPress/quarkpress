@@ -1,0 +1,743 @@
+{
+  "id": "e05",
+  "rule": "media upload refusals before anything is stored: the create permission chain in WordPress's order (id, author, sticky, upload_files, the parent, the declared image type), the parent's type (an attachment; a revision has no post id in QuarkPress, D31), multipart bodies without a usable file part (another name, file[] and file[a], an empty file name), Content-MD5 forms, the raw body's header checks and file name, JSON bodies (url included, D39) and unreadable multipart bodies; the collection's Allow following the create check (r21); refusals only, nothing is stored on either side (the accepted raw uploads are compared from the stored-upload task on)",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e05 draft"
+    },
+    {
+      "post": "p:published",
+      "as": "bob",
+      "type": "post",
+      "status": "publish",
+      "title": "e05 published"
+    },
+    {
+      "media": "m:photo",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          64,
+          48
+        ]
+      },
+      "name": "e05-photo.jpg",
+      "type": "image/jpeg"
+    }
+  ],
+  "requests": [
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false"
+        }
+      }
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false"
+        }
+      }
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "post": "{p:draft}"
+        }
+      }
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "post": "999999"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "sticky": "1"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "author": "{u:bob}"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "id": "5"
+        }
+      }
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "id": "5",
+          "sticky": "1"
+        }
+      }
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "sticky": "1"
+        }
+      }
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "author": "{u:bob}",
+          "post": "{p:draft}"
+        }
+      }
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            64,
+            48
+          ]
+        },
+        "name": "e05.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "post": "{m:photo}"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05.psd",
+        "type": "image/vnd.adobe.photoshop",
+        "fields": {
+          "generate_sub_sizes": "true"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05.psd",
+        "type": "image/vnd.adobe.photoshop",
+        "fields": {
+          "generate_sub_sizes": "true",
+          "post": "999999"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"post\"\r\n\r\n{p:published}\r\n--e05-boundary--\r\n"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"e05.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--e05-boundary--\r\n"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"file[]\"; filename=\"e05.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--e05-boundary\r\nContent-Disposition: form-data; name=\"generate_sub_sizes\"\r\n\r\nfalse\r\n--e05-boundary--\r\n"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"file[a]\"; filename=\"e05.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--e05-boundary\r\nContent-Disposition: form-data; name=\"generate_sub_sizes\"\r\n\r\nfalse\r\n--e05-boundary--\r\n"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\"\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--e05-boundary--\r\n"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"e05.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--e05-boundary--\r\n",
+      "headers": {
+        "Content-MD5": "5D41402ABC4B2A76B9719D911017C592"
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"e05.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--e05-boundary--\r\n",
+      "headers": {
+        "Content-MD5": "XUFAKrxLKna5cZ2REBfFkg=="
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=e05-boundary",
+      "body": "--e05-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"e05.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--e05-boundary--\r\n",
+      "headers": {
+        "Content-MD5": ""
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "body": ""
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; FILENAME=\"e05.png\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename*=UTF-8''%C3%A9t%C3%A9.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=\"\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment",
+          "inline"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05.png"
+        ]
+      },
+      "headers": {
+        "Content-MD5": "0123456789abcdef0123456789abcdef"
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"title\":\"x\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\":\"http://127.0.0.1/e05.jpg\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\":\"https://example.com/notes/e05.txt\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data",
+      "body": "abc"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "multipart/form-data; boundary=never-there",
+      "body": "abc"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          ""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?post={p:draft}&_fields=id"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?_fields=id"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?sticky=1&_fields=id"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-a.png; filename="
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-b.png",
+          "attachment; filename=\"\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=0"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-zero.png"
+        ]
+      },
+      "body": "0"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-c.png",
+          "attachment; filename="
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-d.png",
+          "attachment; filename=0"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    }
+  ]
+}
