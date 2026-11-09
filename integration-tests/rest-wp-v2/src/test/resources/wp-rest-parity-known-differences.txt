@@ -82,7 +82,11 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp-site-health~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp-block-editor~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1media* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1edit D38 the media edit route is not served
+* req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1sideload D38 the sideload route WordPress registers in client-side mode (a localhost site) is not served
+* req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1finalize D38 the finalize route WordPress registers in client-side mode (a localhost site) is not served
+* req*:body:/routes/~1wp~1v2~1media/endpoints/1/args/url D39 the url create parameter is not declared
+* req*:body:/body/routes/~1wp~1v2~1media/endpoints/1/args/url D39 the url create parameter is not declared (an enveloped index)
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1blocks* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
@@ -352,3 +356,24 @@ p09 req11:body:/previous/guid/rendered D1 the guid of a post published with pret
 p09 req11:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p09 req15:body:/previous/guid/rendered D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p09 req15:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+
+# D38, D39, D6 (e01) and D40-D45: the media routes. The image editing route and the url create parameter are not
+# served; a media endpoint answers as no route until its task serves it, so the Allow headers of every media scenario
+# differ until create, update and delete are served; the batch route is not served (D6).
+e0* req*:header:allow D6 media endpoints not served until their task
+e01 req1:body:/endpoints/1/args/url D39 the url create parameter is not declared
+e01 req2:body:/endpoints/1/args/url D39 the url create parameter is not declared
+e01 req3:body:/endpoints/1/args/url D39 the url create parameter is not declared
+e01 req11:body:/code D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
+e01 req11:body:/message D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
+e01 req12:status D6 the batch route is not served: WordPress answers 207 with the media route's batch refusal
+e01 req12:body:/responses D6 the batch route is not served: WordPress answers 207 with the media route's batch refusal
+e01 req12:body:/code D6 the batch route is not served: QuarkPress answers no route
+e01 req12:body:/message D6 the batch route is not served: QuarkPress answers no route
+e01 req12:body:/data D6 the batch route is not served: QuarkPress answers no route
+none * D40 the scenarios run in the default sync mode, where an upload answers with its sizes made
+none * D41 no scenario sends a body above the size limits (64M on both sides)
+none * D42 no media item is answered yet: the media item fields are not served yet
+none * D43 no media item is answered yet: the attached-to link is not served yet
+none * D44 no upload is served yet
+none * D45 no media update is served yet
