@@ -529,5 +529,11 @@ e03 req14:body:/_embedded/wp:attached-to/0/data/status D43 the pattern (wp_block
 e03 req21:body:/featured_media D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress names no cover
 e03 req21:body:/_links/wp:featuredmedia D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress links no cover
 e03 req21:body:/_links/curies D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4): without the cover link QuarkPress's links have no wp: relation, hence no curies
+e05 req34:body:/code D39 the url create parameter is not declared: a JSON {"url"} with a loopback address is a raw-body upload without a Content-Disposition; WordPress refuses the address
+e05 req34:body:/message D39 the url create parameter is not declared: a JSON {"url"} with a loopback address is a raw-body upload without a Content-Disposition; WordPress refuses the address
+e05 req34:body:/data/params D39 the url create parameter is not declared: WordPress's invalid-parameter answer names url
+e05 req34:body:/data/details D39 the url create parameter is not declared: WordPress's invalid-parameter answer details url's rest_invalid_url
+e05 req35:body:/code D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
+e05 req35:body:/message D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
 none * D44 no upload is served yet
 none * D45 no media update is served yet
