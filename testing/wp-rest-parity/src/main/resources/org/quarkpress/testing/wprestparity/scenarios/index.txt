@@ -48,3 +48,4 @@ p09-delete.json
 p10-meta.json
 p11-revisions.json
 p12-autosaves.json
+e01-media-routes.json

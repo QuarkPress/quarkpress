@@ -1,0 +1,88 @@
+{
+  "id": "e01",
+  "rule": "the media routes' registration: OPTIONS of the collection, the item and the post-process route as alice, carol and anonymous (arguments, the attachment schema and its links; no url argument), the revisions of an attachment that has none, the image editing route QuarkPress does not serve, and an attachment update through the batch route",
+  "setup": [
+    {
+      "media": "m:photo",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          64,
+          48
+        ]
+      },
+      "name": "e01-photo.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "title": "e01 photo"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media"
+    },
+    {
+      "as": "carol",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:photo}"
+    },
+    {
+      "as": "carol",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:photo}"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:photo}"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:photo}/post-process"
+    },
+    {
+      "as": "carol",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:photo}/post-process"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:photo}/post-process"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:photo}/revisions"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:photo}/edit",
+      "contentType": "application/json",
+      "body": "{\"src\":\"http://localhost/wp-content/uploads/e01-photo.jpg\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/batch/v1",
+      "contentType": "application/json",
+      "body": "{\"requests\":[{\"method\":\"POST\",\"path\":\"/wp/v2/media/{m:photo}\",\"body\":{\"alt_text\":\"batched\"}}]}"
+    }
+  ]
+}
