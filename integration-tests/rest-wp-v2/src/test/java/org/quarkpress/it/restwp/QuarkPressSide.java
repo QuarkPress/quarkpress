@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.quarkpress.testing.wporacle.OracleJson;
 import org.quarkpress.testing.wprestparity.Exchange;
 import org.quarkpress.testing.wprestparity.MediaScenarios;
@@ -39,6 +40,15 @@ final class QuarkPressSide implements Side {
     static final String INVALID_TOKEN = "Bearer not-a-valid-token";
 
     private static final long TOKEN_SECONDS = 60;
+
+    /** The prefix of the switches of WordPress's must-use plugin, which a scenario sets through option steps. */
+    private static final String WORDPRESS_SWITCH = "qp_parity_";
+
+    /**
+     * The switches of WordPress's must-use plugin whose QuarkPress counterpart is part of the test application, so that
+     * their option step has nothing to set here: {@code qp_parity_hidden_type} registers what {@link ItHiddenType} is.
+     */
+    private static final Set<String> BUILT_IN_SWITCHES = Set.of("qp_parity_hidden_type");
 
     private record Token(String value, long fetchedAt) {}
 
@@ -218,17 +228,27 @@ final class QuarkPressSide implements Side {
                                             Optional.empty())),
                             200,
                             leave.user() + " leaves " + sitePath);
-                case SetupStep.Option option ->
-                    expect(
-                            send(
-                                    sitePath,
-                                    RestCall.json(
-                                            "alice",
-                                            "PUT",
-                                            "/it/options/" + option.name(),
-                                            option.value().toString())),
-                            200,
-                            "option " + option.name());
+                case SetupStep.Option option -> {
+                    if (option.name().startsWith(WORDPRESS_SWITCH)) {
+                        // a switch of WordPress's must-use plugin; option names starting with qp_ are QuarkPress's own
+                        if (!BUILT_IN_SWITCHES.contains(option.name())) {
+                            throw new IllegalArgumentException("the switch " + option.name()
+                                    + " of WordPress's must-use plugin has no QuarkPress counterpart in the test"
+                                    + " application");
+                        }
+                    } else {
+                        expect(
+                                send(
+                                        sitePath,
+                                        RestCall.json(
+                                                "alice",
+                                                "PUT",
+                                                "/it/options/" + option.name(),
+                                                option.value().toString())),
+                                200,
+                                "option " + option.name());
+                    }
+                }
                 case SetupStep.Media media -> {
                     Exchange answer = expect(
                             send(

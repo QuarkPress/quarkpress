@@ -373,9 +373,77 @@ e01 req12:body:/message D6 the batch route is not served: QuarkPress answers no 
 e01 req12:body:/data D6 the batch route is not served: QuarkPress answers no route
 none * D40 the scenarios run in the default sync mode, where an upload answers with its sizes made
 none * D41 no scenario sends a body above the size limits (64M on both sides)
-# D6, D42, D46 (e02): the attachment item. Its links come with the links task; a stored caption or description
-# runs only the registered filters after the markup; audio metadata holds what the media module reads.
-e02 req*:body:/_links D6 attachment links come with the links task
+# D6, D42, D46 (e02): the attachment item. Its self link's target hints list the methods served so far; a stored
+# caption or description runs only the registered filters after the markup; audio metadata holds what the media module
+# reads.
+e02 req1:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req1:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req1:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req1:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req2:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req2:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req2:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req2:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req3:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req3:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req3:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req3:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req4:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req4:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req4:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req4:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req5:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req5:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req5:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req5:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req6:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req6:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req6:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req6:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req7:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req7:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req7:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req7:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req8:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req8:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req8:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req8:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req9:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req9:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req9:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req9:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req10:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req10:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req10:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req10:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req11:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req11:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req11:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req11:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req12:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req12:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req12:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req12:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req13:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req13:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req13:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req13:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req14:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req14:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req14:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req14:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req15:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req15:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req15:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req15:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req33:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req33:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req33:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req33:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e02 req34:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e02 req34:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e02 req34:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e02 req34:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
 e02 req4:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
 e02 req5:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
 e02 req4:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
@@ -417,6 +485,49 @@ e02 req12:body:/media_details/compression_ratio D46 the MP3's getID3 key compres
 e02 req12:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
 e02 req12:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
 e02 req12:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
-none * D43 no media item is answered yet: the attached-to link is not served yet
+# D6, D43, D46 (e03): the attachment's links. The self link's target hints (D6); a pattern parent, whose route is not
+# served yet (D43); an MP3's cover art, which becomes an attachment on WordPress's side only (D46, media D4).
+e03 req2:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req2:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req2:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req2:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req3:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req3:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req3:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req3:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req6:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req6:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req6:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req6:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req7:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req7:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req7:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req7:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req9:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req9:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req9:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req9:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req11:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req11:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req11:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req11:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req13:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req13:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req13:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req13:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req15:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req15:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req15:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req15:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req20:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e03 req20:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e03 req20:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e03 req20:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e03 req14:body:/_embedded/wp:attached-to/0/code D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
+e03 req14:body:/_embedded/wp:attached-to/0/message D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
+e03 req14:body:/_embedded/wp:attached-to/0/data/status D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
+e03 req21:body:/featured_media D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress names no cover
+e03 req21:body:/_links/wp:featuredmedia D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress links no cover
+e03 req21:body:/_links/curies D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4): without the cover link QuarkPress's links have no wp: relation, hence no curies
 none * D44 no upload is served yet
 none * D45 no media update is served yet
