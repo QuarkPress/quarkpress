@@ -213,6 +213,32 @@ class RestQueryDbTest {
     }
 
     @Test
+    void aCountOnlyQueryCountsWithoutReadingTheAttachments() throws Exception {
+        MediaPage counted = page(
+                Identities.anonymous(),
+                query().statuses(List.of("inherit")).unfiltered(true).countOnly(true));
+        assertThat(counted.items()).isEmpty();
+        assertThat(counted.found()).isEqualTo(3);
+        MediaPage paged = page(
+                Identities.anonymous(),
+                query().statuses(List.of("inherit", "private"))
+                        .unfiltered(true)
+                        .perPage(2)
+                        .countOnly(true));
+        assertThat(paged.items()).isEmpty();
+        assertThat(paged.found()).isEqualTo(4);
+        assertThat(paged.maxPages()).isEqualTo(2);
+        // the same query without the flag reads its page
+        assertThat(page(
+                                Identities.anonymous(),
+                                query().statuses(List.of("inherit", "private"))
+                                        .unfiltered(true)
+                                        .perPage(2))
+                        .items())
+                .hasSize(2);
+    }
+
+    @Test
     void exactTypesAreCaseSensitive() throws Exception {
         assertThat(ids(query().exactMimeTypes(List.of("IMAGE/JPEG")))).isEmpty();
         assertThat(ids(query().exactMimeTypes(List.of("image/jpeg")))).containsExactly(sunset);

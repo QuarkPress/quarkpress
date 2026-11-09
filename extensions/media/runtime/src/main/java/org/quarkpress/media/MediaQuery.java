@@ -31,6 +31,7 @@ import org.quarkpress.posts.SearchColumn;
  * others' private attachments; statuses given are read as the posts module reads them, so a caller sees only the
  * attachments it may read. An {@code unfiltered} query reads the rows of its statuses whoever asks, whatever their
  * author and parent, without any capability, and counts them all: for a caller that decides per row what it shows.
+ * A {@code countOnly} query answers the count alone: its page holds no attachment and no media row is read.
  */
 public record MediaQuery(
         List<String> mimeTypes,
@@ -53,7 +54,8 @@ public record MediaQuery(
         List<Long> parentNotIn,
         List<PostId> include,
         List<PostId> exclude,
-        List<String> slugs) {
+        List<String> slugs,
+        boolean countOnly) {
 
     public MediaQuery {
         mimeTypes = List.copyOf(mimeTypes);
@@ -112,6 +114,7 @@ public record MediaQuery(
         private final List<PostId> include = new ArrayList<>();
         private final List<PostId> exclude = new ArrayList<>();
         private final List<String> slugs = new ArrayList<>();
+        private boolean countOnly;
 
         private Builder() {}
 
@@ -253,6 +256,15 @@ public record MediaQuery(
             return this;
         }
 
+        /**
+         * Counts the matching attachments without reading them: the page holds none, its count and number of pages
+         * are those of the query (for an answer that shows no attachment, such as WordPress's {@code HEAD}).
+         */
+        public Builder countOnly(boolean value) {
+            this.countOnly = value;
+            return this;
+        }
+
         public MediaQuery build() {
             return new MediaQuery(
                     mimeTypes,
@@ -275,7 +287,8 @@ public record MediaQuery(
                     parentNotIn,
                     include,
                     exclude,
-                    slugs);
+                    slugs,
+                    countOnly);
         }
     }
 }

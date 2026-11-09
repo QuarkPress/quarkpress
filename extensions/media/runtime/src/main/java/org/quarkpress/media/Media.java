@@ -150,8 +150,9 @@ public interface Media {
     /**
      * The attachments of the current site matching {@code query}, read as {@code Posts.query} reads a post query of
      * type {@code attachment} (its capability and read rules included, unless the query is {@linkplain
-     * MediaQuery#unfiltered() unfiltered}), each with its media row. An attachment without a media row is not media:
-     * it is neither listed nor counted.
+     * MediaQuery#unfiltered() unfiltered}), each with its media row (none at all for a {@linkplain
+     * MediaQuery#countOnly() count-only} query). An attachment without a media row is not media: it is neither listed
+     * nor counted.
      */
     MediaPage query(MediaQuery query);
 }

@@ -421,6 +421,9 @@ public class JpaMedia implements Media {
         PostQuery postQuery = postQuery(siteId, query);
         // no capability of the caller is asked: an unfiltered query is for a caller that decides per row
         PostPage page = query.unfiltered() ? asSystem.call(() -> posts.query(postQuery)) : posts.query(postQuery);
+        if (query.countOnly()) {
+            return new MediaPage(List.of(), page.found(), page.maxPages());
+        }
         List<Long> ids = page.posts().stream().map(post -> post.id().value()).toList();
         Map<Long, MediaEntity> rows = new LinkedHashMap<>();
         for (List<Long> chunk : chunks(ids, ROW_CHUNK)) {
