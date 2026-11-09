@@ -1,10 +1,12 @@
 package org.quarkpress.restwp.deployment;
 
 import io.quarkus.test.QuarkusExtensionTest;
+import java.util.UUID;
 
 /**
- * Test applications with the REST module (and so posts, taxonomy and security) on QuarkPress's datasource; Dev
- * Services starts the database. No Keycloak: HTTP identities come from {@link TestBearer}.
+ * Test applications with the REST module (and so posts, taxonomy and security) and the media module (uploads on the
+ * filesystem, image sizes with ImageIO) on QuarkPress's datasource; Dev Services starts the database. No Keycloak:
+ * HTTP identities come from {@link TestBearer}.
  */
 public final class RestApp {
 
@@ -50,13 +52,17 @@ public final class RestApp {
                                 Races.class,
                                 Jdbc.class,
                                 Failures.class,
-                                TestData.class))
+                                TestData.class,
+                                MediaFixturesForRest.class,
+                                MediaFixturesForRest.Beans.class))
                 .overrideConfigKey("quarkus.datasource.\"quarkpress\".db-kind", TestDb.kind())
                 .overrideConfigKey("quarkus.datasource.devservices.enabled", "false")
                 .overrideConfigKey("quarkus.keycloak.devservices.enabled", "false")
                 .overrideConfigKey("quarkus.oidc.tenant-enabled", "false")
                 .overrideConfigKey("quarkus.http.test-port", "0")
-                .overrideConfigKey("quarkus.http.test-ssl-port", "0");
+                .overrideConfigKey("quarkus.http.test-ssl-port", "0")
+                // each application keeps its uploads in a folder of its own
+                .overrideConfigKey("quarkpress.media.fs.directory", "target/media-" + UUID.randomUUID());
         if (multisite) {
             test.overrideConfigKey("quarkpress.multisite.enabled", "true");
         }

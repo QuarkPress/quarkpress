@@ -65,6 +65,10 @@ final class PostSchema {
             "page-attributes",
             "custom-fields");
 
+    /** The attachments route's own features. */
+    private static final List<String> ATTACHMENT_SUPPORTS =
+            List.of("title", "author", "comments", "revisions", "custom-fields", "thumbnail");
+
     private static final List<String> ALL = List.of("view", "edit", "embed");
     private static final List<String> VIEW_EDIT = List.of("view", "edit");
     private static final List<String> EDIT = List.of("edit");
@@ -76,11 +80,15 @@ final class PostSchema {
 
     private PostSchema() {}
 
-    /** The features whose fields the type's routes carry: fixed lists for posts and pages, else the type's own. */
+    /**
+     * The features whose fields the type's routes carry: fixed lists for posts, pages and attachments, else the type's
+     * own.
+     */
     static List<String> supports(PostTypeDefinition type) {
         return switch (type.key()) {
             case "post" -> POST_SUPPORTS;
             case "page" -> PAGE_SUPPORTS;
+            case "attachment" -> ATTACHMENT_SUPPORTS;
             default -> type.supports();
         };
     }
@@ -425,32 +433,51 @@ final class PostSchema {
      */
     static Arg statusArg(
             String type, List<String> allStatuses, Supplier<SecurityIdentity> caller, PostPermissions permissions) {
+        List<String> values = new ArrayList<>(allStatuses);
+        values.add("any");
+        return statusArg(type, "publish", values, caller, permissions);
+    }
+
+    /**
+     * The {@code status} argument of {@link #statusArg(String, List, Supplier, PostPermissions)} with another route
+     * default, which needs no capability, and another list of the values it may name.
+     */
+    static Arg statusArg(
+            String type,
+            String routeDefault,
+            List<String> values,
+            Supplier<SecurityIdentity> caller,
+            PostPermissions permissions) {
         ObjectNode status = RestJson.NODES.objectNode();
-        status.put("default", "publish");
+        status.put("default", routeDefault);
         status.put("description", "Limit result set to posts assigned one or more statuses.");
         status.put("type", "array");
         ObjectNode item = status.putObject("items");
-        ArrayNode values = item.putArray("enum");
-        allStatuses.forEach(values::add);
-        values.add("any");
+        ArrayNode allowed = item.putArray("enum");
+        values.forEach(allowed::add);
         item.put("type", "string");
         return new Arg(
                 "status",
                 status,
                 false,
-                Optional.of(TextNode.valueOf("publish")),
+                Optional.of(TextNode.valueOf(routeDefault)),
                 Arg.Phase.SANITIZE,
-                Optional.of(value -> sanitizeStatus(value, item, type, caller.get(), permissions)));
+                Optional.of(value -> sanitizeStatus(value, item, type, routeDefault, caller.get(), permissions)));
     }
 
     private static JsonNode sanitizeStatus(
-            JsonNode value, ObjectNode itemSchema, String type, SecurityIdentity caller, PostPermissions permissions) {
+            JsonNode value,
+            ObjectNode itemSchema,
+            String type,
+            String routeDefault,
+            SecurityIdentity caller,
+            PostPermissions permissions) {
         requireBounded("status", value);
         List<String> statuses = ListArgs.slugList(value, Slugs::sanitizeTitle);
         ArrayNode sanitized = RestJson.NODES.arrayNode();
         for (int i = 0; i < statuses.size(); i++) {
             String status = statuses.get(i);
-            if (!status.equals("publish")) {
+            if (!status.equals(routeDefault)) {
                 if (!permissions.canType(caller, "edit_posts", type)) {
                     throw new RestException(RestError.of(
                             "rest_forbidden_status", "Status is forbidden.", caller.isAnonymous() ? 401 : 403));
@@ -683,7 +710,7 @@ final class PostSchema {
         return query(name, date);
     }
 
-    private static Arg idList(String name, String description) {
+    static Arg idList(String name, String description) {
         ObjectNode list = RestJson.NODES.objectNode();
         list.put("description", description);
         list.put("type", "array");
@@ -692,7 +719,7 @@ final class PostSchema {
         return query(name, list);
     }
 
-    private static Arg query(String name, ObjectNode schema) {
+    static Arg query(String name, ObjectNode schema) {
         return new Arg(
                 name,
                 schema,

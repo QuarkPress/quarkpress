@@ -120,6 +120,27 @@ class RestWpV2Processor {
         }
     }
 
+    /** The capability the media module provides. */
+    static final String MEDIA = "org.quarkpress.media";
+
+    /**
+     * The beans typed on the media module (the media routes and their attachment reads), named here as texts so
+     * that this processor loads without that module.
+     */
+    static final List<String> MEDIA_BEANS = List.of(
+            "org.quarkpress.restwp.runtime.wpv2.MediaController", "org.quarkpress.restwp.runtime.wpv2.MediaReads");
+
+    /**
+     * Without the media module, the beans typed on it are left out of the application: no media route is
+     * registered, and no class naming a type of the absent module is loaded.
+     */
+    @BuildStep
+    void withoutMedia(Capabilities capabilities, BuildProducer<ExcludedTypeBuildItem> excluded) {
+        if (!capabilities.isPresent(MEDIA)) {
+            MEDIA_BEANS.forEach(type -> excluded.produce(new ExcludedTypeBuildItem(type)));
+        }
+    }
+
     /** The REST request filter never treats a path under the non-application root as a REST path. */
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)

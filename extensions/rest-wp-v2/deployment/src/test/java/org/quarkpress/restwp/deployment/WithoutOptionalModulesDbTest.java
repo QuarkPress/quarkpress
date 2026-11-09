@@ -34,11 +34,12 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 
 /**
- * An application with the REST module and its required modules only: the optional revisions, scheduling and
- * multisite modules (runtime and deployment artifacts) are left out of the build (the installed features name none
- * of them). It boots; the index lists no revisions or autosaves route; a post links no version history and no
- * predecessor, since no revisions route exists to link to; the posts write routes work; and the preview page shows a draft to a session holder and a published post as stored, with no autosave
- * overlay. Members of the main site: the editor bob and the author carol.
+ * An application with the REST module and its required modules only: the optional revisions, scheduling, multisite
+ * and media modules (runtime and deployment artifacts, the media storage and image processor included) are left out
+ * of the build (the installed features name none of them). It boots; the index lists no revisions, autosaves or media
+ * route; a post links no version history and no predecessor, since no revisions route exists to link to; the posts
+ * write routes work; and the preview page shows a draft to a session holder and a published post as stored, with no
+ * autosave overlay. Members of the main site: the editor bob and the author carol.
  */
 class WithoutOptionalModulesDbTest {
 
@@ -48,7 +49,13 @@ class WithoutOptionalModulesDbTest {
             ArtifactKey.of("org.quarkpress", "quarkpress-scheduling", "", "jar"),
             ArtifactKey.of("org.quarkpress", "quarkpress-scheduling-deployment", "", "jar"),
             ArtifactKey.of("org.quarkpress", "quarkpress-multisite", "", "jar"),
-            ArtifactKey.of("org.quarkpress", "quarkpress-multisite-deployment", "", "jar"));
+            ArtifactKey.of("org.quarkpress", "quarkpress-multisite-deployment", "", "jar"),
+            ArtifactKey.of("org.quarkpress", "quarkpress-media", "", "jar"),
+            ArtifactKey.of("org.quarkpress", "quarkpress-media-deployment", "", "jar"),
+            ArtifactKey.of("org.quarkpress", "quarkpress-media-storage-fs", "", "jar"),
+            ArtifactKey.of("org.quarkpress", "quarkpress-media-storage-fs-deployment", "", "jar"),
+            ArtifactKey.of("org.quarkpress", "quarkpress-media-image-imageio", "", "jar"),
+            ArtifactKey.of("org.quarkpress", "quarkpress-media-image-imageio-deployment", "", "jar"));
 
     @RegisterExtension
     static final QuarkusExtensionTest app = new QuarkusExtensionTest()
@@ -98,7 +105,7 @@ class WithoutOptionalModulesDbTest {
     }
 
     @Test
-    void theIndexListsNoRevisionsOrAutosavesRoute() {
+    void theIndexListsNoRevisionsAutosavesOrMediaRoute() {
         JsonNode routes = json(Http.as(null)
                         .get("/wp-json/")
                         .then()
@@ -110,7 +117,9 @@ class WithoutOptionalModulesDbTest {
         routes.fieldNames().forEachRemaining(paths::add);
         assertThat(paths).contains("/wp/v2/posts", "/wp/v2/posts/(?P<id>[\\d]+)", "/wp/v2/pages");
         assertThat(paths).noneMatch(path -> path.contains("revisions") || path.contains("autosaves"));
+        assertThat(paths).noneMatch(path -> path.startsWith("/wp/v2/media"));
         Http.as(null).get("/wp-json/wp/v2/posts/1/revisions").then().statusCode(404);
+        Http.as(null).get("/wp-json/wp/v2/media").then().statusCode(404);
     }
 
     @Test

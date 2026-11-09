@@ -242,16 +242,24 @@ class MetaFields {
         return key.single() ? schema : (ObjectNode) schema.get("items");
     }
 
-    /** The {@code meta} property: an object, in the view and edit contexts, with the type's REST keys. */
+    /**
+     * The {@code meta} property: an object, in the view and edit contexts, with the type's REST keys; a type without
+     * any has an empty list of properties, as WordPress's empty PHP array prints.
+     */
     ObjectNode schema(String type) {
         ObjectNode meta = RestJson.NODES.objectNode();
         meta.put("description", "Meta fields.");
         meta.put("type", "object");
         ArrayNode contexts = meta.putArray("context");
         VIEW_EDIT.forEach(contexts::add);
-        ObjectNode properties = meta.putObject("properties");
+        ObjectNode properties = RestJson.NODES.objectNode();
         for (MetaKeyDefinition key : registeredMeta.restKeys(type)) {
             properties.set(key.restKey(), keySchema(key));
+        }
+        if (properties.isEmpty()) {
+            meta.putArray("properties");
+        } else {
+            meta.set("properties", properties);
         }
         return meta;
     }

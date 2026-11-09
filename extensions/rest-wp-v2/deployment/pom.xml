@@ -66,6 +66,12 @@
       <optional>true</optional>
     </dependency>
     <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-deployment</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-jackson-deployment</artifactId>
     </dependency>
@@ -99,6 +105,32 @@
       <artifactId>quarkpress-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
+    </dependency>
+    <!-- the test applications store uploads on the filesystem and make image sizes with ImageIO -->
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-storage-fs-deployment</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-image-imageio-deployment</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- the media fixtures only (JDK-only code): the module's scenario dependencies would add extensions to the test apps -->
+    <dependency>
+      <groupId>org.quarkpress.testing</groupId>
+      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
   </dependencies>
 

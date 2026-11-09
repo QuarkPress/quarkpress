@@ -224,6 +224,17 @@ class RegistriesDbTest {
                         + "\"custom-fields\":true,\"autosave\":true}");
         assertThat(block.get("rest_base")).isEqualTo(TextNode.valueOf("blocks"));
         assertThat(block.at("/_links/wp:items/0/href").asText()).isEqualTo("http://localhost/wp-json/wp/v2/blocks");
+        // the attachment type names its REST base and the collection route the media routes serve
+        JsonNode attachment =
+                json(Http.as(null).get("/wp-json/wp/v2/types/attachment").asString());
+        assertThat(attachment.get("rest_base")).isEqualTo(TextNode.valueOf("media"));
+        assertThat(attachment.at("/_links/wp:items/0/href").asText()).isEqualTo("http://localhost/wp-json/wp/v2/media");
+        Http.as(null)
+                .options("/wp-json/wp/v2/media")
+                .then()
+                .statusCode(200)
+                .body("namespace", equalTo("wp/v2"))
+                .body("schema.title", equalTo("attachment"));
         // embed context keeps name, slug, icon, rest_base, rest_namespace, template, template_lock
         assertThat(fieldNames(json(Http.as(null)
                         .get("/wp-json/wp/v2/types/page?context=embed")

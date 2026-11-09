@@ -95,6 +95,9 @@ class IndexDbTest {
                         "/wp/v2/pages/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)",
                         "/wp/v2/pages/(?P<id>[\\d]+)/autosaves",
                         "/wp/v2/pages/(?P<parent>[\\d]+)/autosaves/(?P<id>[\\d]+)",
+                        "/wp/v2/media",
+                        "/wp/v2/media/(?P<id>[\\d]+)",
+                        "/wp/v2/media/(?P<id>[\\d]+)/post-process",
                         "/wp/v2/types",
                         "/wp/v2/types/(?P<type>[\\w-]+)");
         assertThat(routes.get(routes.indexOf("/qp-test/v1") + 1)).startsWith("/qp-test/v1/");
@@ -228,6 +231,9 @@ class IndexDbTest {
                         "/wp/v2/pages/(?P<parent>[\\d]+)/revisions/(?P<id>[\\d]+)",
                         "/wp/v2/pages/(?P<id>[\\d]+)/autosaves",
                         "/wp/v2/pages/(?P<parent>[\\d]+)/autosaves/(?P<id>[\\d]+)",
+                        "/wp/v2/media",
+                        "/wp/v2/media/(?P<id>[\\d]+)",
+                        "/wp/v2/media/(?P<id>[\\d]+)/post-process",
                         "/wp/v2/types",
                         "/wp/v2/types/(?P<type>[\\w-]+)",
                         "/wp/v2/statuses",

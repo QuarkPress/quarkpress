@@ -490,11 +490,9 @@ class PostCreateDbTest {
                 .then()
                 .statusCode(201)
                 .body("featured_media", equalTo(0));
-        PostId attachment = PostFixtures.builder(site)
-                .type("attachment")
-                .status("inherit")
-                .title("image " + u)
-                .insert(data);
+        PostId attachment = MediaFixturesForRest.upload(site, UserId.of(carol), "image-" + u + ".jpg", false)
+                .post()
+                .id();
         create(carol, "posts", "{\"title\":\"media\",\"featured_media\":" + attachment.value() + "}")
                 .then()
                 .statusCode(201)
@@ -568,11 +566,9 @@ class PostCreateDbTest {
                 .statusCode(400)
                 .body("code", equalTo("rest_post_invalid_id"))
                 .body("message", equalTo("Invalid post parent ID."));
-        PostId image = PostFixtures.builder(other)
-                .type("attachment")
-                .status("inherit")
-                .title("other image " + u)
-                .insert(data);
+        PostId image = MediaFixturesForRest.upload(other, UserId.of(alice), "other-image-" + u + ".jpg", false)
+                .post()
+                .id();
         create(alice, "posts", "{\"title\":\"x\",\"featured_media\":" + image.value() + "}")
                 .then()
                 .statusCode(201)
