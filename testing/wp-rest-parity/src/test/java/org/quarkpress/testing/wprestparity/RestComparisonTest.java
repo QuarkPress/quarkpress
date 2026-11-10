@@ -217,6 +217,33 @@ class RestComparisonTest {
     }
 
     @Test
+    void anAttachmentsAlternateLinkIsMappedByItsRouteWhenTheBodyHasAnIdButNoType() {
+        // e08e's shape: _fields keeps the id but leaves out the type (and the slug and link)
+        RestCall fields = RestCall.get(
+                "carol", "/wp-json/wp/v2/media/5?context=edit&_fields=id,media_details,missing_image_sizes");
+        List<Exchange> wp = List.of(new Exchange(
+                fields,
+                200,
+                Map.of("Link", List.of("<http://localhost/s1/e08e-big/>; rel=\"alternate\"; type=text/html")),
+                bytes("{\"id\":5,\"media_details\":{},\"missing_image_sizes\":[]}")));
+        List<Exchange> qp = List.of(new Exchange(
+                fields,
+                200,
+                Map.of("Link", List.of("<http://localhost/s1/?attachment_id=9>; rel=\"alternate\"; type=text/html")),
+                bytes("{\"id\":9,\"media_details\":{},\"missing_image_sizes\":[]}")));
+        assertThat(mismatches(List.of(fields), wp, qp, Map.of("m:big", 5L), Map.of("m:big", 9L)))
+                .isEmpty();
+        // another attachment's link still differs
+        List<Exchange> wrong = List.of(new Exchange(
+                fields,
+                200,
+                Map.of("Link", List.of("<http://localhost/s1/?attachment_id=8>; rel=\"alternate\"; type=text/html")),
+                bytes("{\"id\":9,\"media_details\":{},\"missing_image_sizes\":[]}")));
+        assertThat(mismatches(List.of(fields), wp, wrong, Map.of("m:big", 5L), Map.of("m:big", 9L, "m:b", 8L)))
+                .containsExactly("req1:header:link");
+    }
+
+    @Test
     void theAlternateLinkHeaderIsMapped() {
         RestCall item = RestCall.get("anonymous", "/wp-json/wp/v2/posts/5");
         RestCall head = new RestCall(

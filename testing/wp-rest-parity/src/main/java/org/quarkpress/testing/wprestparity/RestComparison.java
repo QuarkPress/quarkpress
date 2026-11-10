@@ -136,33 +136,43 @@ public final class RestComparison {
 
     /**
      * The object the {@code rel="alternate"} entry of WordPress's {@code Link} header belongs to: the normalised body
-     * when it is an object with an id, else (a HEAD) the id and type the request's route names
+     * when it is an object with an id (with the type the request's route names when {@code _fields} left its
+     * {@code type} out), else (a HEAD, or a body without its id) the id and type the request's route names
      * ({@code /wp/v2/posts/<id>} is a post, {@code pages} a page, {@code books} a book, {@code media} an
      * attachment), else nothing.
      */
     private JsonNode alternateObject(Exchange wp) {
         Optional<JsonNode> body = json(wp.body());
+        Optional<ObjectNode> routed = routeObject(wp.call().target());
         if (body.isPresent() && body.get().isObject() && body.get().has("id")) {
-            return normalizer.body(
+            JsonNode normalised = normalizer.body(
                     body.get(),
                     wordpressRefs,
                     sitePath,
                     Normalizer.Kind.ofTarget(wp.call().target()),
                     Optional.of(wp.sentAt()));
+            if (normalised.isObject() && !normalised.has("type") && routed.isPresent()) {
+                ((ObjectNode) normalised).put("type", routed.get().get("type").asText());
+            }
+            return normalised;
         }
-        String target = wp.call().target();
+        return routed.map(JsonNode.class::cast).orElse(MissingNode.getInstance());
+    }
+
+    /** The id and post type an item route ({@code /wp/v2/<posts|pages|books|media>/<id>}) names; none otherwise. */
+    private Optional<ObjectNode> routeObject(String target) {
         int query = target.indexOf('?');
         // the target is a path: as a URL of the local host its ids are normalised
         String path = normalizer.text(
                 "http://localhost" + (query < 0 ? target : target.substring(0, query)), wordpressRefs, sitePath);
         int base = path.indexOf("/wp/v2/");
         if (base < 0) {
-            return MissingNode.getInstance();
+            return Optional.empty();
         }
         String rest = path.substring(base + "/wp/v2/".length());
         int slash = rest.indexOf('/');
         if (slash < 0 || rest.indexOf('/', slash + 1) >= 0) {
-            return MissingNode.getInstance();
+            return Optional.empty();
         }
         String type = switch (rest.substring(0, slash)) {
             case "posts" -> "post";
@@ -172,12 +182,12 @@ public final class RestComparison {
             default -> null;
         };
         if (type == null) {
-            return MissingNode.getInstance();
+            return Optional.empty();
         }
-        return OracleJson.MAPPER
+        return Optional.of(OracleJson.MAPPER
                 .createObjectNode()
                 .put("id", rest.substring(slash + 1))
-                .put("type", type);
+                .put("type", type));
     }
 
     /**
