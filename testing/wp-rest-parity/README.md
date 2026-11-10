@@ -67,8 +67,10 @@ as `uploader`), `trash_post`, `delete_post` and `batch` (which only builds the b
 sends it). Its must-use plugin switches, site options set to `"1"` by the item and switched off in its `finally`, are
 `qp_parity_fatal_on_second_size` (a real PHP fatal error, memory exhausted, while the second sub-size is made, so
 WordPress's fatal-error handler answers), `qp_parity_media_trashable` (`rest_attachment_trashable` answers true,
-standing in for `MEDIA_TRASH`) and `qp_parity_hidden_type` (a public custom type `qp_hidden` outside REST). A request carrying
-`X-QP-Parity-Https: 1` is presented to WordPress as one over HTTPS (`php -S` has no TLS). Images are uploaded with
+standing in for `MEDIA_TRASH`) and `qp_parity_hidden_type` (a public custom type `qp_hidden` outside REST). A request
+carrying `X-QP-Parity-Https: 1` is presented to WordPress as one over HTTPS (`php -S` has no TLS). The setup operations
+`attachment`, `query_attachments`, `remove_upload`, `clear_uploads`, `set_meta` and `delete_meta` of the media facts
+run serve it too, and `extensions` tells which image editors the server's PHP has. Images are uploaded with
 `generate_sub_sizes=false` except in the items that need GD, which are skipped with a message without it (or fail
 under `-Dwp.media.require-editor=true`); the Imagick items, the editor's recovery loop (a browser) and the outbound
 URL uploads never run here.
@@ -151,18 +153,45 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   names a ref (`t:` terms, `p:` posts, `r:` revisions and autosaves) that later steps and requests use in braces; each
   side puts its own id there. Every site starts with the refs `t:uncategorized` (its default category) and `u:<user>`
   for the five users.
+- `media` setup steps upload an attachment (`{"media": "m:photo", "as": "carol", "fixture": {"fixture": "jpeg",
+  "args": [64, 48]}, "name": "photo.jpg", "type": "image/jpeg", "fields": {"post": "p:draft", "alt_text": "…"}}`):
+  `fixture` names a `MediaFixtures` file and its arguments; `fields` are text fields (`post`, a `p:` or `m:` ref,
+  `title`, `caption`, `description`, `alt_text`, `status`, and `generate_sub_sizes`, `"false"` only). WordPress's side
+  uploads it through its REST media route, QuarkPress's through the test application's `POST /it/media`
+  (`Media.upload` as the caller); both make no sizes unless the scenario is an `editor` one. Setup uploads are not
+  compared; their `m:` refs are used in braces like the others. A post step's `thumbnail_meta` (a `p:` or `m:` ref)
+  writes the raw `_thumbnail_id` meta past WordPress's image check (harness rule), for a featured id no write would
+  store.
 - Requests name their caller (`as`), method, target relative to the site, headers, content type and body. Unknown keys
-  are refused, so a typo never drops a step.
+  are refused, so a typo never drops a step. An upload request has `"upload": {"fixture": …, "name": …, "type": …,
+  "fields": {…}}` (a multipart body: the fixture as the `file` part, declared as `type`, and the text fields, refs
+  resolved) or `"raw": {"fixture": …}` (the fixture's bytes as the body, with the request's `contentType` and its
+  `headerLines`, such as `{"Content-Disposition": ["attachment; filename=a.jpg"]}`, one header line per value).
+  `"https": true` sends the request as one over HTTPS: `X-QP-Parity-Https: 1` to WordPress and `X-Forwarded-Proto:
+  https` to QuarkPress (whose test application trusts forwarded headers from the loopback address); neither header is
+  compared.
+- A scenario with `"editor": true` needs an image editor on WordPress's side: the run asks WordPress once
+  (`extensions`) and, without GD, skips it with `SKIPPED (needs an image editor): php8.4-gd is not installed on this
+  host; the CI parity cell installs it`, unless `-Dwp.media.require-editor=true` (as in CI), which fails the run
+  instead.
+- A setup `option` step may name a switch of the must-use plugin only when the test application has its counterpart
+  built in; QuarkPress's side then sets nothing, and any other `qp_parity_*` switch fails the scenario there. The one
+  such pair is `qp_parity_hidden_type` on WordPress's side and the test application's `ItHiddenType` on QuarkPress's:
+  the same public type `qp_hidden`, outside REST, so a scenario can name a parent or a featured image of a type REST
+  does not show.
 - The hand-written scenarios come first: one per item of the REST verification list (`d01` to `d28`), then `x01` to
   `x06` for rules found later (among them who writes terms, `x04`, and a member of another site only, `x05`: a
   `{"leave": "<user>"}` setup step takes the user's role on the scenario's site away). The content scenarios follow:
-  `p01` the read permission matrix of the posts collection, `p02` its parameters, `p03` a single post and its
-  password, `p04` the derived fields, `p05` links and embeds, `p06` the term and format filters, `p07` creating,
-  `p08` updating, `p09` deleting, `p10` post meta on writes, `p11` the revisions routes, `p12` the autosaves routes,
-  `p13` the auto-draft of a new post, `p14` the front-end preview answers to an anonymous visitor, `p15` search. Then
-  60 generated scenarios for each of the seeds `rest-a` and `rest-b`, the same on
-  every run: random callers, routes, methods and query parameters drawn from each route's declared arguments, keeping
-  clear of requests whose answers differ as a whole (see `RestScenarios`).
+  `p01` the read permission matrix of the posts collection, `p02` its parameters, `p03` a single post and its password,
+  `p04` the derived fields, `p05` links and embeds, `p06` the term and format filters, `p07` creating, `p08` updating,
+  `p09` deleting, `p10` post meta on writes, `p11` the revisions routes, `p12` the autosaves routes, `p13` the
+  auto-draft of a new post, `p14` the front-end preview answers to an anonymous visitor, `p15` search, `p16` generated
+  slugs. The media scenarios follow: `e01` the media routes and their OPTIONS, `e02` an attachment item, `e03` its
+  links, `e04` the media collection, `e05` upload refusals, `e06` uploads, `e07` updates, `e08` deletes and
+  post-processes, `e09` posts' featured media; `e07e` and `e08e` are their `editor` halves. Then 60 generated scenarios
+  for each of the seeds `rest-a` and `rest-b`, the same on every run: random callers, routes, methods and query
+  parameters drawn from each route's declared arguments, keeping clear of requests whose answers differ as a whole (see
+  `RestScenarios`).
 
 ## Normalisation and comparison
 
@@ -210,12 +239,11 @@ request, so the rest of a request is still compared. Every entry is asserted: an
 that covers no comparison, fails the run. A scenario of `none` documents a difference no scenario can show. Entries
 naming generated scenarios by id are fragile: a change to the generator renumbers them.
 
-The run also needs at least `MIN_COMPARISONS` comparisons (9650, 90% of the 10765 of the green run that set it,
-rounded down to a multiple of 50; the last green run, 169 scenarios, made 18578), every scenario of the corpus, and at least one comparison per scenario, so a harness that
-silently stops comparing fails; with the `wp-parity` profile on, a missing container runtime fails the run instead of
-skipping it. `-Drest.parity.only=d01,x0` narrows the run to
-scenarios whose ids start so, for local debugging; such a run never passes, since the other scenarios' known
-differences then match nothing.
+The run also needs at least `MIN_COMPARISONS` comparisons (22000, 90 % of the 24483 comparisons of the last green
+run, 181 scenarios), every scenario of the corpus, and at least one comparison per scenario, so a
+harness that silently stops comparing fails; with the `wp-parity` profile on, a missing container runtime fails the run
+instead of skipping it. `-Drest.parity.only=d01,x0` narrows the run to scenarios whose ids start so, for local
+debugging; such a run never passes, since the other scenarios' known differences then match nothing.
 
 ## Capturing the block editor's traffic
 
