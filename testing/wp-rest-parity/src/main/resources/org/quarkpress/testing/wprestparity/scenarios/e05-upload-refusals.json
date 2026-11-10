@@ -1,6 +1,6 @@
 {
   "id": "e05",
-  "rule": "media upload refusals before anything is stored: the create permission chain in WordPress's order (id, author, sticky, upload_files, the parent, the declared image type), the parent's type (an attachment; a revision has no post id in QuarkPress, D31), multipart bodies without a usable file part (another name, file[] and file[a], an empty file name), Content-MD5 forms, the raw body's header checks and file name, JSON bodies (url included, D39) and unreadable multipart bodies; the collection's Allow following the create check (r21); refusals only, nothing is stored on either side (the accepted raw uploads are compared from the stored-upload task on)",
+  "rule": "media upload refusals before anything is stored: the create permission chain in WordPress's order (id, author, sticky, upload_files, the parent, the declared image type), the parent's type (an attachment; a revision has no post id in QuarkPress, D31), multipart bodies without a usable file part (another name, file[] and file[a], an empty file name), Content-MD5 forms, the raw body's header checks and file name, JSON bodies (url included, D39) and unreadable multipart bodies; the collection's Allow following the create check (r21); then uploads both sides store (req48 on): fields a failed preparation drops but the caption (r01), featured media after the row (r03, r04, S13), statuses (r16), a whole 201 (r26), the raw bodies the header table accepts (r06; an empty Content-Type line, the last Content-Disposition line, a name cut at its semicolon, a path dropped, a name taken twice), fields in the query string, the post fields of a multipart upload, a PDF, a video and a template; images without sizes (generate_sub_sizes=false), so a WordPress without an image editor compares",
   "setup": [
     {
       "post": "p:draft",
@@ -736,6 +736,555 @@
             8,
             8
           ]
+        }
+      }
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r01.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "author": "999999",
+          "title": "Kept?",
+          "caption": "c",
+          "description": "e05 d",
+          "post": "{p:draft}"
+        }
+      }
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r01-id.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "id": "0",
+          "title": "Kept?",
+          "caption": "c"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r03.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "featured_media": "0"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,featured_media,mime_type,media_type,title.raw",
+      "upload": {
+        "fixture": {
+          "fixture": "mp3",
+          "args": {}
+        },
+        "name": "e05-r04.mp3",
+        "type": "audio/mpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "featured_media": "{m:photo}"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,featured_media",
+      "upload": {
+        "fixture": {
+          "fixture": "mp3",
+          "args": {}
+        },
+        "name": "e05-r04-bad.mp3",
+        "type": "audio/mpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "featured_media": "999999"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r16-inherit.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "status": "inherit"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r16-draft.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "status": "draft"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r16-private.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "status": "private",
+          "title": "e05 private"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r16-trash.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "status": "trash"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r16-future.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "date": "2099-01-01T10:00:00"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-r26.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=\"e05-quoted.png\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-bare.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "inline; filename=\"e05-inline.png\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=\"e05-a;b.png\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-first.png",
+          "attachment; filename=e05-last.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "headerLines": {
+        "Content-Type": [
+          ""
+        ],
+        "Content-Disposition": [
+          "attachment; filename=e05-notype.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?title=Logo&caption=e05%20cap&alt_text=e05%20alt&generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=\"e05-logo.png\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-twice.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-twice.png"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/png",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=\"../../e05-up.png\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?generate_sub_sizes=false&_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "contentType": "image/jpeg",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=e05-raw.jpg"
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-twice.png",
+        "type": "image/png",
+        "fields": {
+          "generate_sub_sizes": "false"
+        }
+      }
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-fields.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "post": "{p:draft}",
+          "title": "e05 fields",
+          "caption": "e05 caption",
+          "description": "e05 description",
+          "alt_text": "e05 alt",
+          "slug": "e05-slug",
+          "comment_status": "closed",
+          "ping_status": "open",
+          "status": "pending"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date,media_details",
+      "upload": {
+        "fixture": {
+          "fixture": "pdf",
+          "args": []
+        },
+        "name": "e05-report.pdf",
+        "type": "application/pdf",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "description": "e05 report",
+          "alt_text": ""
+        }
+      }
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,post,mime_type,media_type,title.raw,missing_image_sizes",
+      "upload": {
+        "fixture": {
+          "fixture": "mp4",
+          "args": [
+            64,
+            48,
+            1
+          ]
+        },
+        "name": "e05-clip.mp4",
+        "type": "video/mp4",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "post": "{p:published}"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,template",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-template.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "template": ""
         }
       }
     }

@@ -1,0 +1,135 @@
+{
+  "id": "e06",
+  "rule": "media uploads that make sizes (an image editor on WordPress's side): a JPEG attached to a draft with its title, caption and alternative text answered 201 in the edit context with its sizes (r26); a big JPEG scaled down and kept as its original; a PNG; a raw JPEG body; a JPEG without sizes (generate_sub_sizes=false: every possible size missing); featured media on a JPEG refused after the row, which stays without metadata (r03, S13). The uploads that need no editor (fields, statuses, featured media on audio, raw header rows) are e05's",
+  "editor": true,
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e06 draft"
+    }
+  ],
+  "requests": [
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,date,date_gmt,guid,modified,modified_gmt,slug,status,type,link,title,author,featured_media,comment_status,ping_status,template,meta,alt_text,caption,media_type,mime_type,media_details,post,source_url,missing_image_sizes,filename,exif_orientation,image_quality,image_output_format,image_save_progressive",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            1200,
+            800
+          ]
+        },
+        "name": "e06-photo.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "post": "{p:draft}",
+          "title": "e06 photo",
+          "caption": "e06 caption",
+          "alt_text": "e06 alt"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,title,media_details,missing_image_sizes,source_url,filename",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            4000,
+            3000
+          ]
+        },
+        "name": "e06-big.jpg",
+        "type": "image/jpeg",
+        "fields": {}
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,mime_type,media_details,missing_image_sizes,source_url",
+      "upload": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            800,
+            600
+          ]
+        },
+        "name": "e06-shot.png",
+        "type": "image/png",
+        "fields": {}
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,title,media_details,missing_image_sizes,source_url",
+      "contentType": "image/jpeg",
+      "headerLines": {
+        "Content-Disposition": [
+          "attachment; filename=\"e06-raw.jpg\""
+        ]
+      },
+      "raw": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            1200,
+            800
+          ]
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,media_details,missing_image_sizes",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            1200,
+            800
+          ]
+        },
+        "name": "e06-nosizes.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "generate_sub_sizes": "false"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            1200,
+            800
+          ]
+        },
+        "name": "e06-fm.jpg",
+        "type": "image/jpeg",
+        "fields": {
+          "featured_media": "0"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media?context=edit&search=e06-fm&_fields=media_details,missing_image_sizes"
+    }
+  ]
+}
