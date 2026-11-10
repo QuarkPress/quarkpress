@@ -535,5 +535,10 @@ e05 req34:body:/data/params D39 the url create parameter is not declared: WordPr
 e05 req34:body:/data/details D39 the url create parameter is not declared: WordPress's invalid-parameter answer details url's rest_invalid_url
 e05 req35:body:/code D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
 e05 req35:body:/message D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
-none * D44 no upload is served yet
+e05 req58:body:/_links/self/0/targetHints/allow/1 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows POST
+e05 req58:body:/_links/self/0/targetHints/allow/2 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PUT
+e05 req58:body:/_links/self/0/targetHints/allow/3 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows PATCH
+e05 req58:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET until update and delete are served): WordPress also allows DELETE
+e06 req1:body:/caption/rendered D42 the JPEG's stored caption "e06 caption" (an upload): WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+none * D44 a crash after the attachment is stored cannot be provoked on QuarkPress's side of the parity run (its WordPress switch has no QuarkPress counterpart); MediaCreateDbTest shows the 500 with the header
 none * D45 no media update is served yet
