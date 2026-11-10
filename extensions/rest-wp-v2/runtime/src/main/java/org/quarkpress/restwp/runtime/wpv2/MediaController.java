@@ -21,6 +21,7 @@ import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
+import org.quarkpress.posts.runtime.PostCapabilityFacts;
 import org.quarkpress.restwp.Endpoint;
 import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.Paging;
@@ -33,7 +34,9 @@ import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.UploadedFile;
+import org.quarkpress.restwp.runtime.ArgChecks;
 import org.quarkpress.restwp.runtime.PhpValues;
+import org.quarkpress.security.Capabilities;
 import org.quarkpress.taxonomy.Taxonomies;
 
 /**
@@ -52,6 +55,8 @@ import org.quarkpress.taxonomy.Taxonomies;
  *
  * <p>An upload is checked in WordPress's order: the create permission (which the collection's {@code Allow} follows),
  * the parent's type, then the body ({@link MediaUploadRequest}); it is then stored and answered by {@link MediaWriter}.
+ * An update is checked as the posts routes check one (no upload capability is needed), then its parent's type; it is
+ * written and answered by {@link MediaWriter} too, and never reads a file.
  *
  * <p>An endpoint not served yet answers 404 {@code rest_no_route}, as a request no route matches, so that its
  * method is left out of {@code Allow}.
@@ -111,6 +116,12 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     @Inject
     MediaWriter writer;
 
+    @Inject
+    PostUpdateChecks updateChecks;
+
+    @Inject
+    Capabilities capabilities;
+
     @Override
     public int order() {
         return 60;
@@ -167,9 +178,9 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                         .allowBatch(false)
                         .build())
                 .endpoint(Endpoint.of("POST", "PUT", "PATCH")
-                        .args(MediaSchema.updateArgs(media, Optional::empty))
-                        .permission(MediaController::notServedYet)
-                        .handler(MediaController::notServed)
+                        .args(MediaSchema.updateArgs(media, this::storedWhileChecking))
+                        .permission(request -> mayUpdate(media, request))
+                        .handler(request -> update(media, request))
                         .allowBatch(false)
                         .build())
                 .endpoint(Endpoint.of("DELETE")
@@ -298,15 +309,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
      * MediaWriter#create}), which deletes a spooled body whatever the outcome.
      */
     private RestResponse create(PostRoutes media, RestRequest request) {
-        Optional<JsonNode> post = nonEmpty(request, "post");
-        if (post.isPresent()) {
-            Optional<PostSnapshot> parent = reads.post(PostId.of(PhpValues.toLong(post.get())));
-            if (parent.isPresent()
-                    && (parent.get().type().equals("revision")
-                            || parent.get().type().equals(TYPE))) {
-                throw new RestException(RestError.of("rest_invalid_param", "Invalid parent type.", 400));
-            }
-        }
+        refuseParentType(request);
         MediaUploadRequest.Body body;
         try {
             body = MediaUploadRequest.receive(request, library);
@@ -314,6 +317,68 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
             return nested.answer();
         }
         return writer.create(media, request, body);
+    }
+
+    /**
+     * WordPress's update checks, the posts routes' own ({@link PostUpdateChecks}): the attachment must exist on the
+     * site, the caller needs {@code edit_post} on it, then another author, stickiness and the named terms. Neither the
+     * upload capability nor the new parent is checked. The attachment and the posts it inherits its status from are
+     * read through this request's reads, so a listed attachment's links cost no further read. A site whose media
+     * feature is off answers as no route would.
+     */
+    private PermissionResult mayUpdate(PostRoutes media, RestRequest request) {
+        if (!site.features().isEnabled(MediaFeature.KEY)) {
+            return PermissionResult.denied(noRoute());
+        }
+        return updateChecks.update(
+                media,
+                request,
+                reads.attachment(request).map(MediaSnapshot::post),
+                post -> capabilities.can(
+                        request.identity(),
+                        "edit_post",
+                        Optional.of(PostCapabilityFacts.facts(post, types, statuses, reads::post))));
+    }
+
+    /**
+     * The stored attachment of the request whose update arguments are being checked, read through this request's
+     * reads, for the status and template checks, which accept the stored value; none when there is no such attachment
+     * or it cannot be read (the permission check then answers for it).
+     */
+    private Optional<PostSnapshot> storedWhileChecking() {
+        Optional<RestRequest> request = ArgChecks.checking();
+        if (request.isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            return reads.attachment(request.get()).map(MediaSnapshot::post);
+        } catch (RuntimeException unreadable) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * WordPress's update: a {@code post} that is a revision or an attachment (the attachment itself included) is
+     * refused before anything else, then the attachment is written and answered ({@link MediaWriter#update}). A file
+     * or a raw body sent along is never read.
+     */
+    private RestResponse update(PostRoutes media, RestRequest request) {
+        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        refuseParentType(request);
+        return writer.update(media, stored, request);
+    }
+
+    /** The refusal of a {@code post} that names a revision or an attachment of the site. */
+    private void refuseParentType(RestRequest request) {
+        long id = request.param("post").map(PhpValues::toLong).orElse(0L);
+        if (id > 0) {
+            Optional<PostSnapshot> parent = reads.post(PostId.of(id));
+            if (parent.isPresent()
+                    && (parent.get().type().equals("revision")
+                            || parent.get().type().equals(TYPE))) {
+                throw new RestException(RestError.of("rest_invalid_param", "Invalid parent type.", 400));
+            }
+        }
     }
 
     /** Whether to make sizes: the request's {@code generate_sub_sizes}, true by default. */

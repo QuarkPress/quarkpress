@@ -2,28 +2,36 @@ package org.quarkpress.restwp.runtime.wpv2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.narayana.jta.QuarkusTransaction;
+import io.quarkus.security.identity.CurrentIdentityAssociation;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.quarkpress.core.PostId;
+import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.core.UserId;
 import org.quarkpress.media.Media;
+import org.quarkpress.media.MediaChanges;
 import org.quarkpress.media.MediaException;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.Upload;
 import org.quarkpress.posts.FeaturedImages;
+import org.quarkpress.posts.PageTemplates;
 import org.quarkpress.posts.PostChanges;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.Posts;
+import org.quarkpress.posts.runtime.PostDates;
 import org.quarkpress.posts.runtime.PostRepository;
 import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.Links;
@@ -34,6 +42,7 @@ import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.UploadedFile;
 import org.quarkpress.restwp.runtime.PhpValues;
+import org.quarkpress.security.SystemIdentity;
 import org.quarkpress.security.UserProfiles;
 
 /**
@@ -52,6 +61,12 @@ import org.quarkpress.security.UserProfiles;
  * stored and unprocessed. Any other failure once the row is stored (making the sizes, writing those fields, rendering
  * the answer) is logged and answered 500 with the header, so that the client can finish the attachment through its
  * post-process route. A raw body's spooled file is deleted whatever the outcome.
+ *
+ * <p>An update prepares the same fields against the stored attachment, and answers the preparation's errors before
+ * anything is written. A parent must be a post of the site (0 detaches). The status is kept or changed as on a create:
+ * {@code private} as asked, any other accepted status {@code inherit}. The attachment, its featured image (audio and
+ * video only, never refused), its template and its meta are written in one transaction, which any refusal rolls back
+ * whole; the answer is 200 with the attachment in the edit context. The file never changes.
  */
 @ApplicationScoped
 class MediaWriter {
@@ -95,6 +110,18 @@ class MediaWriter {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    PageTemplates templates;
+
+    @Inject
+    QuarkPressClock clock;
+
+    @Inject
+    SystemIdentity system;
+
+    @Inject
+    CurrentIdentityAssociation association;
 
     /**
      * Stores the upload {@code body} with the request's fields and answers it; see the class description. Must be
@@ -163,6 +190,114 @@ class MediaWriter {
                 .withHeader(ATTACHMENT_ID_HEADER, Long.toString(id.value()));
     }
 
+    // ---- an update
+
+    /**
+     * Updates the attachment {@code stored} with the request's fields and answers it in the edit context; see the
+     * class description. The parent's type has been checked; a file or a raw body sent along is never read.
+     */
+    RestResponse update(PostRoutes routes, MediaSnapshot stored, RestRequest request) {
+        PostRequest prepared = PostRequest.prepare(routes, request, Optional.of(stored.post()), services());
+        MediaChanges changes = changes(prepared, request);
+        PostId id = stored.post().id();
+        QuarkusTransaction.joiningExisting().call(() -> {
+            write(routes, stored, changes, prepared, request);
+            return null;
+        });
+        MediaSnapshot updated = media.read(id).orElseThrow(() -> new RestException(invalidId()));
+        reads.remember(updated);
+        request.useContext("edit");
+        Fields.Selection selection =
+                Fields.forResponse(Fields.of(request), routes.schema(), "edit", request.hasParam("_embed"));
+        return fields.prepare(routes, updated, selection, "edit", request, new AttachmentMarkup.Counters());
+    }
+
+    /**
+     * The attachment fields of a prepared update: the post fields, the caption, the description, the parent (0
+     * detaches; any other id must be a post of the site), only {@code private} as a status (any other status the
+     * preparation accepted leaves the attachment {@code inherit}), the cleared dates as now, and the alternative text
+     * when the request has it ({@code ""} clears it).
+     */
+    private MediaChanges changes(PostRequest prepared, RestRequest request) {
+        PostChanges post = prepared.changes();
+        MediaChanges.Builder changes = MediaChanges.builder();
+        post.title().ifPresent(changes::title);
+        text(request, "caption").ifPresent(changes::caption);
+        text(request, "description").ifPresent(changes::description);
+        Optional<Long> parent = request.param("post").map(PhpValues::toLong);
+        if (parent.isPresent()) {
+            long value = parent.get();
+            if (value < 0 || (value > 0 && reads.post(PostId.of(value)).isEmpty())) {
+                throw new RestException(RestError.of("rest_post_invalid_id", "Invalid post parent ID.", 400));
+            }
+            changes.parent(value);
+        }
+        if (post.author().isPresent() && post.author().getAsLong() > 0) {
+            changes.author(UserId.of(post.author().getAsLong()));
+        }
+        post.status().ifPresent(status -> changes.status(status.equals("private") ? "private" : "inherit"));
+        if (prepared.datesCleared()) {
+            // an attachment's date never floats: a cleared date is now
+            Instant now = PostDates.now(clock);
+            changes.date(LocalDateTime.ofInstant(now, site.zone())).dateGmt(now);
+        } else {
+            post.date().ifPresent(changes::date);
+            post.dateGmt().ifPresent(changes::dateGmt);
+        }
+        post.slug().ifPresent(changes::slug);
+        post.commentStatus().ifPresent(changes::commentStatus);
+        post.pingStatus().ifPresent(changes::pingStatus);
+        request.param("alt_text").map(PhpValues::toPhpString).ifPresent(changes::altText);
+        return changes.build();
+    }
+
+    /**
+     * Writes an update in WordPress's order, in the caller's transaction: the attachment, then its featured image
+     * (audio and video only; an image ignores the value, and an id that names no attachment is ignored), its template
+     * and its meta. Any refusal is thrown, which rolls everything back.
+     */
+    private void write(
+            PostRoutes routes, MediaSnapshot stored, MediaChanges changes, PostRequest prepared, RestRequest request) {
+        PostId id = stored.post().id();
+        MediaSnapshot saved;
+        try {
+            saved = media.update(id, changes);
+        } catch (PostException refused) {
+            throw new RestException(PostWriter.insertError(refused));
+        } catch (MediaException refused) {
+            throw new RestException(RestError.of(refused.code(), refused.getMessage(), 400));
+        }
+        SecurityIdentity caller = association.getIdentity();
+        association.setIdentity(system.identity());
+        try {
+            String type = saved.mimeType();
+            if (prepared.featuredMedia().isPresent() && (type.startsWith("audio/") || type.startsWith("video/"))) {
+                // whether the value changed is not used: WordPress ignores the answer on an update
+                featuredImages.set(id, prepared.featuredMedia().getAsLong());
+            }
+            if (prepared.template().isPresent()) {
+                templates.set(id, prepared.template().get());
+            }
+        } catch (PostException refused) {
+            throw new RestException(PostWriter.insertError(refused));
+        } finally {
+            association.setIdentity(caller);
+        }
+        if (prepared.meta().isPresent()) {
+            metaFields.write(routes, id, prepared.meta().get(), request).ifPresent(error -> {
+                throw new RestException(error);
+            });
+        }
+    }
+
+    private PostRequest.Services services() {
+        return new PostRequest.Services(permissions, statuses, posts, rows, profiles, site);
+    }
+
+    private static RestError invalidId() {
+        return RestError.of("rest_post_invalid_id", "Invalid post ID.", 404);
+    }
+
     // ---- the upload and its fields
 
     /** The upload of {@code body} with the request's fields. */
@@ -217,11 +352,7 @@ class MediaWriter {
      */
     private Optional<PostRequest> prepared(PostRoutes routes, RestRequest request) {
         try {
-            return Optional.of(PostRequest.prepare(
-                    routes,
-                    request,
-                    Optional.empty(),
-                    new PostRequest.Services(permissions, statuses, posts, rows, profiles, site)));
+            return Optional.of(PostRequest.prepare(routes, request, Optional.empty(), services()));
         } catch (RestException ignored) {
             LOG.debugf(
                     "the post fields of an upload were dropped: %s",

@@ -5,6 +5,7 @@ import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.Optional;
+import java.util.function.Predicate;
 import org.quarkpress.core.TaxonomyDefinition;
 import org.quarkpress.core.TermId;
 import org.quarkpress.posts.PostPermissions;
@@ -46,13 +47,26 @@ class PostUpdateChecks {
      * assignable.
      */
     PermissionResult update(PostRoutes routes, RestRequest request) {
-        Optional<PostSnapshot> found = reads.post(routes, request, "id");
+        return update(
+                routes,
+                request,
+                reads.post(routes, request, "id"),
+                post -> permissions.can(request.identity(), "edit_post", post));
+    }
+
+    /**
+     * The update checks of {@link #update(PostRoutes, RestRequest)}, with the post of the request's {@code id} already
+     * looked up ({@code found}, empty when there is none) and {@code edit_post} decided by {@code mayEdit}: for routes
+     * that read their posts through reads of their own.
+     */
+    PermissionResult update(
+            PostRoutes routes, RestRequest request, Optional<PostSnapshot> found, Predicate<PostSnapshot> mayEdit) {
         if (found.isEmpty()) {
             return PermissionResult.denied(RestError.of("rest_post_invalid_id", "Invalid post ID.", 404));
         }
         PostSnapshot post = found.get();
         SecurityIdentity caller = request.identity();
-        if (!permissions.can(caller, "edit_post", post)) {
+        if (!mayEdit.test(post)) {
             return PermissionResult.denied(RestError.of(
                     "rest_cannot_edit", "Sorry, you are not allowed to edit this post.", request.authCode()));
         }

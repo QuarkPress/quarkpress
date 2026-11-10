@@ -329,19 +329,17 @@ class MediaRoutesDbTest {
                 .body(equalTo(NO_ROUTE));
         // the registered endpoints answer as no route until their task serves them, so Allow names none of them
         Http.as("test-" + alice)
-                .contentType("application/json")
-                .body("{}")
-                .post("/wp-json/wp/v2/media/" + id)
+                .delete("/wp-json/wp/v2/media/" + id)
                 .then()
                 .statusCode(404)
-                .header("Allow", equalTo("GET"))
+                .header("Allow", equalTo("GET, POST, PUT, PATCH"))
                 .body(equalTo(NO_ROUTE));
-        // the item is read; its update and delete are not served yet
+        // the item is read and updated; its delete is not served yet
         Http.as("test-" + alice)
                 .get("/wp-json/wp/v2/media/" + id)
                 .then()
                 .statusCode(200)
-                .header("Allow", equalTo("GET"));
+                .header("Allow", equalTo("GET, POST, PUT, PATCH"));
         // the upload's checks are served: a JSON body is a raw upload without a disposition
         Http.as("test-" + alice)
                 .contentType("application/json")
