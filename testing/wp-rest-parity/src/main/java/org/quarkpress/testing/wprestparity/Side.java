@@ -157,10 +157,15 @@ public interface Side extends AutoCloseable {
 
     /**
      * A post step's fields with every ref replaced by its id on this side ({@code parent}, {@code featured_media},
-     * the term lists).
+     * the term lists); {@code thumbnail_meta} becomes the {@code _thumbnail_id} meta value, the id as text, as
+     * WordPress stores it.
      */
     static ObjectNode resolvedFields(SetupStep.Post post, Map<String, Long> refs) {
         ObjectNode fields = post.fields().deepCopy();
+        if (fields.has("thumbnail_meta")) {
+            long thumbnail = refId(refs, fields.remove("thumbnail_meta").textValue());
+            fields.withObject("meta").put("_thumbnail_id", Long.toString(thumbnail));
+        }
         for (String key : List.of("parent", "featured_media")) {
             if (fields.has(key)) {
                 fields.put(key, refId(refs, fields.get(key).textValue()));

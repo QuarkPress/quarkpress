@@ -89,6 +89,7 @@ public record RestScenario(
             "tags",
             "format",
             "featured_media",
+            "thumbnail_meta",
             "template",
             "meta");
 
@@ -117,7 +118,9 @@ public record RestScenario(
          * defaults): {@code content}, {@code excerpt}, {@code password}, {@code parent} (a {@code p:} ref),
          * {@code date_gmt} ({@code yyyy-MM-ddTHH:mm:ss}), {@code slug}, {@code menu_order}, {@code comment_status},
          * {@code sticky}, {@code categories} and {@code tags} ({@code t:} refs), {@code format}, {@code featured_media}
-         * (a {@code p:} ref), {@code template}, {@code meta} ({key: value}).
+         * (a {@code p:} ref), {@code thumbnail_meta} (a {@code p:} or {@code m:} ref written as the raw
+         * {@code _thumbnail_id} meta, past WordPress's image check: harness rule, for a featured id no write would
+         * store), {@code template}, {@code meta} ({key: value}).
          */
         record Post(String ref, String as, String type, String status, String title, ObjectNode fields)
                 implements SetupStep {
@@ -455,6 +458,11 @@ public record RestScenario(
 
     /** The fields of a post step: known keys, values of the right shape, refs of the right kind already defined. */
     private static void postFields(String id, Set<String> defined, ObjectNode fields) {
+        if (fields.has("thumbnail_meta")
+                && (fields.has("featured_media") || fields.path("meta").has("_thumbnail_id"))) {
+            throw new IllegalArgumentException(
+                    id + ": thumbnail_meta writes _thumbnail_id; featured_media and meta must not name it too");
+        }
         for (Iterator<Map.Entry<String, JsonNode>> it = fields.fields(); it.hasNext(); ) {
             Map.Entry<String, JsonNode> field = it.next();
             String key = field.getKey();
@@ -473,7 +481,7 @@ public record RestScenario(
                 throw new IllegalArgumentException(id + ": the post field " + key + " has the wrong shape: " + value);
             }
             switch (key) {
-                case "parent", "featured_media" -> {
+                case "parent", "featured_media", "thumbnail_meta" -> {
                     used(id, defined, value.textValue());
                     postOrMedia(id, value.textValue());
                 }

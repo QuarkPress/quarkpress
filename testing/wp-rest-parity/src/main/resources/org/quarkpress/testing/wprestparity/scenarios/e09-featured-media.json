@@ -1,7 +1,11 @@
 {
   "id": "e09",
-  "rule": "featured media on posts: the wp:featuredmedia link (embeddable, after up and before wp:attachment) to the featured attachment when it is published in effect or readable by the caller, and its _embed in the embed context (s12): an unattached image linked and embedded for anonymous and alice; an image attached to bob's draft and a private image: featured_media kept for anonymous, carol and erin, with no link or embed, alice linked and embedded; a page; a collection; the edit context's whole embed. Non-images refused silently (s11): after a JPEG, an MP3 and a PDF answer 200 with featured_media 0; a HEIC is kept and linked. The SVG and TIFF cases of s11 need WordPress switches without a QuarkPress counterpart and are not played",
+  "rule": "featured media on posts: the wp:featuredmedia link (embeddable, after up and before wp:attachment) to the featured attachment when it is published in effect or readable by the caller, and its _embed in the embed context (s12): an unattached image linked and embedded for anonymous and alice; an image attached to bob's draft and a private image: featured_media kept for anonymous, carol and erin, with no link or embed, alice linked and embedded; a page; a collection; the edit context's whole embed. Non-images refused silently (s11): after a JPEG, an MP3 and a PDF answer 200 with featured_media 0; a HEIC is kept and linked. The SVG and TIFF cases of s11 need WordPress switches without a QuarkPress counterpart and are not played. Featured ids written as raw meta past WordPress's image check (harness rule): one naming a post of a public type not shown in REST (qp_parity_hidden_type; its link only, since the API root it names embeds the index, which other scenarios compare), one naming a page with its embed; anonymous and alice",
   "setup": [
+    {
+      "option": "qp_parity_hidden_type",
+      "value": "1"
+    },
     {
       "post": "p:draft",
       "as": "bob",
@@ -145,6 +149,33 @@
       "type": "post",
       "status": "publish",
       "title": "e09 target"
+    },
+    {
+      "post": "p:hiddentype",
+      "as": "bob",
+      "type": "qp_hidden",
+      "status": "publish",
+      "title": "e09 hidden type"
+    },
+    {
+      "post": "p:outside",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "e09 outside",
+      "fields": {
+        "thumbnail_meta": "p:hiddentype"
+      }
+    },
+    {
+      "post": "p:onpage",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "e09 on page",
+      "fields": {
+        "thumbnail_meta": "p:page"
+      }
     }
   ],
   "requests": [
@@ -247,6 +278,26 @@
       "as": "anonymous",
       "method": "GET",
       "target": "/wp-json/wp/v2/posts/{p:target}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:outside}?_fields=id,featured_media,_links"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:outside}?_fields=id,featured_media,_links"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:onpage}?_fields=id,featured_media,_links,_embedded&_embed=wp:featuredmedia"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:onpage}?_fields=id,featured_media,_links,_embedded&_embed=wp:featuredmedia"
     }
   ]
 }

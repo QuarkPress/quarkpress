@@ -3,6 +3,7 @@ package org.quarkpress.testing.wprestparity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -215,6 +216,30 @@ class RestScenarioFormatTest {
                                 + "\"fields\":{\"sticky\":\"yes\"}}",
                         GET_ROOT)))
                 .hasMessageContaining("sticky");
+    }
+
+    @Test
+    void aThumbnailMetaFieldIsWrittenAsTheRawFeaturedId() {
+        String json = "{\"id\":\"x1\",\"rule\":\"r\",\"setup\":["
+                + "{\"post\":\"p:target\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"t\"},"
+                + "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"a\","
+                + "\"fields\":{\"thumbnail_meta\":\"p:target\",\"meta\":{\"k\":\"v\"}}}],"
+                + "\"requests\":[{\"as\":\"anonymous\",\"method\":\"GET\",\"target\":\"/wp-json/\"}]}";
+        RestScenario.SetupStep.Post post = (RestScenario.SetupStep.Post)
+                RestScenarioJson.read(json).setup().get(1);
+        ObjectNode resolved = Side.resolvedFields(post, Map.of("p:target", 42L));
+        assertThat(resolved.toString()).isEqualTo("{\"meta\":{\"k\":\"v\",\"_thumbnail_id\":\"42\"}}");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"t\","
+                                + "\"fields\":{\"thumbnail_meta\":\"p:zz\"}}",
+                        GET_ROOT)))
+                .hasMessageContaining("p:zz is used before it is defined");
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(
+                        "{\"post\":\"p:a\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"t\"},"
+                                + "{\"post\":\"p:b\",\"as\":\"carol\",\"type\":\"post\",\"status\":\"draft\",\"title\":\"t\","
+                                + "\"fields\":{\"thumbnail_meta\":\"p:a\",\"featured_media\":\"p:a\"}}",
+                        GET_ROOT)))
+                .hasMessageContaining("featured_media and meta must not name it too");
     }
 
     @Test
