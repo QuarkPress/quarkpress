@@ -366,11 +366,14 @@ class PostLinksDbTest {
 
     @Test
     void aStaleFeaturedIdHasNoLink() {
+        // an id that named a row once: inserted, then deleted past the services
+        PostId gone = published("post", carol);
+        Jdbc.update(data, "delete from qp_post where id = ?", gone.value());
         PostId post = published("post", carol);
         Jdbc.update(
                 data,
                 "update qp_post set meta = " + TestDb.json() + " where id = ?",
-                "{\"_thumbnail_id\":[\"123\"]}",
+                "{\"_thumbnail_id\":[\"" + gone.value() + "\"]}",
                 post.value());
         JsonNode body = json(as(alice)
                 .get("/wp-json/wp/v2/posts/" + post.value() + "?_embed")
@@ -378,7 +381,7 @@ class PostLinksDbTest {
                 .statusCode(200)
                 .extract()
                 .asString());
-        assertThat(body.get("featured_media").asLong()).isEqualTo(123);
+        assertThat(body.get("featured_media").asLong()).isEqualTo(gone.value());
         assertThat(fieldNames(body.get("_links"))).doesNotContain("wp:featuredmedia");
         assertThat(fieldNames(body.get("_embedded"))).doesNotContain("wp:featuredmedia");
     }

@@ -34,8 +34,8 @@ import org.quarkpress.taxonomy.TermPermissions;
  * the revisions module is present; the count is read as the system, so it is the count of every revision, autosaves
  * included, and 0 when revisions are off for the post), its parent (embeddable, hierarchical types with a parent
  * whose type is shown in REST), its featured image (embeddable, while the media routes answer on the site, when the
- * post names one that exists, whose type is shown in REST, and that is published in effect or readable by the
- * caller), its attachments, and one embeddable term link per taxonomy of the type shown in REST (none when the type
+ * post names one that exists and that is published in effect or readable by the caller; the API root when its type
+ * is not shown in REST), its attachments, and one embeddable term link per taxonomy of the type shown in REST (none when the type
  * has no such taxonomy). In the edit context the actions the caller may take follow, each pointing at the post
  * itself: publishing, unfiltered HTML, making a post sticky (needs the type's {@code edit_others_posts} and
  * {@code publish_posts}), changing the author ({@code edit_others_posts} on a type with authors), then per REST
@@ -112,10 +112,13 @@ class PostLinks {
                 links = links.add("up", urls.route(parent.get()), embeddable());
             }
         }
-        if (media.isResolvable() && media.get().served()) {
-            Optional<String> featured = media.get().featuredMedia(post, request.identity());
-            if (featured.isPresent()) {
-                links = links.add(API + "featuredmedia", featured.get(), embeddable());
+        if (media.isResolvable()) {
+            MediaRoutesPresent present = media.get();
+            if (present.served()) {
+                Optional<String> featured = present.featuredMedia(post, request.identity());
+                if (featured.isPresent()) {
+                    links = links.add(API + "featuredmedia", featured.get(), embeddable());
+                }
             }
         }
         links = links.add(API + "attachment", urls.route("/" + NAMESPACE + "/media", Map.of("parent", id(post))));

@@ -18,7 +18,8 @@ public interface MediaRoutesPresent {
 
     /**
      * The URL of the featured image {@code post} names, as the media routes link it: when the image exists on this
-     * site, its type is shown in REST, and it is published in effect or {@code caller} may read it; none otherwise.
+     * site and is published in effect or {@code caller} may read it (the API root when its type is not shown in
+     * REST); none otherwise.
      * The image is read once per request, however many posts name it.
      */
     Optional<String> featuredMedia(PostSnapshot post, SecurityIdentity caller);

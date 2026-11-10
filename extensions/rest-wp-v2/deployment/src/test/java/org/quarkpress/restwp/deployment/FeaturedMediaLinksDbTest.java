@@ -27,12 +27,12 @@ import org.quarkpress.posts.PostType;
 
 /**
  * The featured image of a post as WordPress links and embeds it: {@code wp:featuredmedia} (embeddable, after
- * {@code up} and before {@code wp:attachment}) to the target's own route when the post names one that exists, whose
- * type is shown in REST, and that is published in effect or readable by the caller, while the media routes answer on
- * the site; {@code _embed} then embeds the attachment in the embed context. {@code featured_media} keeps the stored id
- * whether linked or not. Posts and pages link alike; a featured image is read once per request however many listed
- * posts name it. Non-images are refused silently by the write. Members of the main site: alice (administrator and super
- * admin), bob (editor), carol (author) and erin (subscriber).
+ * {@code up} and before {@code wp:attachment}) to the target's own route (the API root for a type not shown in
+ * REST) when the post names one that exists and that is published in effect or readable by the caller, while the
+ * media routes answer on the site; {@code _embed} then embeds the attachment in the embed context.
+ * {@code featured_media} keeps the stored id whether linked or not. Posts and pages link alike; another site's image is never linked; a featured image is read
+ * once per request however many listed posts name it. Non-images are refused silently by the write. Members of the
+ * main site: alice (administrator and super admin), bob (editor), carol (author) and erin (subscriber).
  */
 class FeaturedMediaLinksDbTest {
 
@@ -227,7 +227,7 @@ class FeaturedMediaLinksDbTest {
     }
 
     @Test
-    void postsAndPagesLinkTheTargetsOwnRouteAndATypeOutsideRestHasNone() {
+    void postsAndPagesLinkTheTargetsOwnRouteAndATypeOutsideRestTheApiRoot() {
         long image = upload(TestData.MAIN, bob, "shared.jpg", null);
         PostId post = post(TestData.MAIN, "post", "publish", carol, null);
         PostId page = post(TestData.MAIN, "page", "publish", bob, null);
@@ -254,12 +254,49 @@ class FeaturedMediaLinksDbTest {
                         .at("/_links/wp:featuredmedia")
                         .toString())
                 .isEqualTo("[{\"embeddable\":true,\"href\":\"" + ROOT + "pages/" + page.value() + "\"}]");
-        // one naming a post of a type not shown in REST has no route to link
+        // one naming a post of a type not shown in REST links the API root, as WordPress does, still embeddable
         PostId hidden = post(TestData.MAIN, "hidden", "publish", bob, null);
         feature(pictured, hidden.value());
-        JsonNode outside = get(alice, "posts/" + pictured.value());
+        JsonNode outside = get(null, "posts/" + pictured.value() + "?_embed=wp:featuredmedia");
         assertThat(outside.get("featured_media").asLong()).isEqualTo(hidden.value());
-        assertThat(fieldNames(outside.get("_links"))).doesNotContain("wp:featuredmedia");
+        assertThat(outside.at("/_links/wp:featuredmedia").toString())
+                .isEqualTo("[{\"embeddable\":true,\"href\":\"http://localhost/wp-json/\"}]");
+        assertThat(outside.at("/_embedded/wp:featuredmedia/0").has("namespaces"))
+                .isTrue();
+        // a hidden post of that type is still not linked for a caller who may not read it
+        PostId draft = post(TestData.MAIN, "hidden", "draft", bob, null);
+        feature(pictured, draft.value());
+        assertThat(fieldNames(get(null, "posts/" + pictured.value()).get("_links")))
+                .doesNotContain("wp:featuredmedia");
+    }
+
+    @Test
+    void anotherSitesImageIsNotLinked() {
+        SiteId other = TestData.site(data);
+        TestData.member(data, other, bob, "[\"editor\"]");
+        long elsewhere = upload(other, bob, "elsewhere.jpg", null);
+        PostId post = post(TestData.MAIN, "post", "publish", carol, null);
+        // past the services: the id of an image of a sub-site, which this site cannot see
+        feature(post, elsewhere);
+        for (UserId caller : new UserId[] {null, alice}) {
+            JsonNode body = get(caller, "posts/" + post.value() + "?_embed");
+            assertThat(body.get("featured_media").asLong()).isEqualTo(elsewhere);
+            assertThat(fieldNames(body.get("_links"))).doesNotContain("wp:featuredmedia");
+            assertThat(fieldNames(body.get("_embedded"))).doesNotContain("wp:featuredmedia");
+        }
+        // the same image is linked on its own site
+        PostId there = post(other, "post", "publish", bob, null);
+        feature(there, elsewhere);
+        String host = Jdbc.strings(data, "select domain from qp_site where id = ?", other.value())
+                .get(0);
+        JsonNode own = json(Http.at(host, null)
+                .get("/wp-json/wp/v2/posts/" + there.value())
+                .then()
+                .statusCode(200)
+                .extract()
+                .asString());
+        assertThat(own.at("/_links/wp:featuredmedia/0/href").asText())
+                .isEqualTo("http://" + host + "/wp-json/wp/v2/media/" + elsewhere);
     }
 
     @Test

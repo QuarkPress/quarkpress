@@ -29,11 +29,11 @@ import org.quarkpress.security.PostFacts;
 /**
  * The links of an attachment as WordPress's attachments controller adds them, in its order: the attachment itself,
  * its collection, its type, its author (embeddable, when it has one), its comments (embeddable, always), its cover
- * image (embeddable, when it names one that exists and is published in effect or readable by the caller), and the
- * post it is attached to (embeddable, with that post's type and id, whatever its status, when the post exists; the
- * API root itself when the post's type is not shown in REST, as WordPress links it). In the edit context the actions
- * the caller may take follow, each pointing at the attachment: unfiltered HTML, then changing the author (the
- * attachment type's {@code edit_others_posts}). Attachments are never linked to revisions, a parent in their own type,
+ * image (embeddable, when it names one that exists and is published in effect or readable by the caller; the API
+ * root when its type is not shown in REST), and the post it is attached to (embeddable, with that post's type and
+ * id, whatever its status, when the post exists; the API root itself when the post's type is not shown in REST, as
+ * WordPress links it). In the edit context the actions the caller may take follow, each pointing at the attachment:
+ * unfiltered HTML, then changing the author (the attachment type's {@code edit_others_posts}). Attachments are never linked to revisions, a parent in their own type,
  * attachments of their own, publishing or making sticky. The parent and the cover image are read once per request,
  * however many attachments of a response name them.
  */
@@ -106,7 +106,8 @@ public class MediaLinks {
 
     /**
      * The URL of the featured image (an attachment's cover image) that {@code post} names, when it names one that
-     * exists on this site, whose type is shown in REST, and that is published in effect or that the caller may read.
+     * exists on this site and that is published in effect or that the caller may read: its route in its own type, or
+     * the API root itself when its type is not shown in REST, as WordPress links it.
      * The image, and the post it inherits its status from, are read once per request, however many posts name them.
      */
     Optional<String> featuredMedia(PostSnapshot post, SecurityIdentity caller) {
@@ -124,7 +125,7 @@ public class MediaLinks {
         if (!visible) {
             return Optional.empty();
         }
-        return route(target.get()).map(urls::route);
+        return Optional.of(urls.route(route(target.get()).orElse("")));
     }
 
     /** The REST route of {@code post} in its own type; none when its type is not registered or not shown in REST. */
