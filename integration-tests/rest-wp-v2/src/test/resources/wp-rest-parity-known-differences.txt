@@ -358,41 +358,23 @@ p09 req15:body:/previous/guid/rendered D1 the guid of a post published with pret
 p09 req15:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 
 # D38, D39, D6 (e01) and D40-D45: the media routes. The image editing route and the url create parameter are not
-# served; a media endpoint answers as no route until its task serves it, so the Allow headers of every media scenario
-# differ until create, update and delete are served; the batch route is not served (D6).
-e0* req*:header:allow D6 media endpoints not served until their task
+# served; the batch route is not served (D6). Neither of the two has an Allow header on QuarkPress's side.
 e01 req1:body:/endpoints/1/args/url D39 the url create parameter is not declared
 e01 req2:body:/endpoints/1/args/url D39 the url create parameter is not declared
 e01 req3:body:/endpoints/1/args/url D39 the url create parameter is not declared
 e01 req11:body:/code D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
 e01 req11:body:/message D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
+e01 req11:header:allow D38 the media edit route is not served: QuarkPress's no-route answer has no Allow, WordPress's lists POST
 e01 req12:status D6 the batch route is not served: WordPress answers 207 with the media route's batch refusal
 e01 req12:body:/responses D6 the batch route is not served: WordPress answers 207 with the media route's batch refusal
 e01 req12:body:/code D6 the batch route is not served: QuarkPress answers no route
 e01 req12:body:/message D6 the batch route is not served: QuarkPress answers no route
 e01 req12:body:/data D6 the batch route is not served: QuarkPress answers no route
+e01 req12:header:allow D6 the batch route is not served: QuarkPress's no-route answer has no Allow, WordPress's lists POST
 none * D40 the scenarios run in the default sync mode, where an upload answers with its sizes made
 none * D41 no scenario sends a body above the size limits (64M on both sides)
-# D6, D42, D46 (e02): the attachment item. Its self link's target hints list the methods served so far; a stored
-# caption or description runs only the registered filters after the markup; audio metadata holds what the media module
-# reads.
-e02 req1:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req2:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req3:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req4:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req5:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req6:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req7:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req8:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req9:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req10:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req11:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req12:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req13:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req14:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req15:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req33:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e02 req34:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
+# D42, D46 (e02): the attachment item. A stored caption or description runs only the registered filters after the
+# markup; audio metadata holds what the media module reads.
 e02 req4:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
 e02 req5:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
 e02 req4:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
@@ -434,17 +416,8 @@ e02 req12:body:/media_details/compression_ratio D46 the MP3's getID3 key compres
 e02 req12:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
 e02 req12:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
 e02 req12:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
-# D6, D43, D46 (e03): the attachment's links. The self link's target hints (D6); a pattern parent, whose route is not
-# served yet (D43); an MP3's cover art, which becomes an attachment on WordPress's side only (D46, media D4).
-e03 req2:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req3:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req6:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req7:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req9:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req11:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req13:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req15:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e03 req20:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
+# D43, D46 (e03): the attachment's links. A pattern parent, whose route is not served yet (D43); an MP3's cover art,
+# which becomes an attachment on WordPress's side only (D46, media D4).
 e03 req14:body:/_embedded/wp:attached-to/0/code D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
 e03 req14:body:/_embedded/wp:attached-to/0/message D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
 e03 req14:body:/_embedded/wp:attached-to/0/data/status D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
@@ -457,16 +430,12 @@ e05 req34:body:/data/params D39 the url create parameter is not declared: WordPr
 e05 req34:body:/data/details D39 the url create parameter is not declared: WordPress's invalid-parameter answer details url's rest_invalid_url
 e05 req35:body:/code D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
 e05 req35:body:/message D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
-e05 req58:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
 e06 req1:body:/caption/rendered D42 the JPEG's stored caption "e06 caption" (an upload): WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
 none * D44 a crash after the attachment is stored cannot be provoked on QuarkPress's side of the parity run (its WordPress switch has no QuarkPress counterpart); MediaCreateDbTest shows the 500 with the header
-# D6, D31, D42, D45 (e07, e07e): attachment updates. The self link's target hints lack DELETE until it is served; a
-# stored caption or description runs only the registered filters after the markup; a parent the site does not have is
-# refused (r14's recorded WordPress answer, 200 with post 999999, stays a fact). r14's revision parent is not sent: a
-# revision cannot be named as a post on QuarkPress's side (D31: revisions have their own ids), so MediaUpdateDbTest
-# shows its "Invalid parent type." with a revision row instead.
-e07 req4:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e07 req25:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
+# D31, D42, D45 (e07, e07e): attachment updates. A stored caption or description runs only the registered filters
+# after the markup; a parent the site does not have is refused (r14's recorded WordPress answer, 200 with post 999999,
+# stays a fact). r14's revision parent is not sent: a revision cannot be named as a post on QuarkPress's side (D31:
+# revisions have their own ids), so MediaUpdateDbTest shows its "Invalid parent type." with a revision row instead.
 e07 req10:status D45 an attachment's post must name a post of the site: WordPress stores 999999 and answers 200, QuarkPress answers 400 rest_post_invalid_id
 e07 req10:body:/id D45 an attachment's post must name a post of the site: WordPress answers the updated attachment, QuarkPress its refusal
 e07 req10:body:/post D45 an attachment's post must name a post of the site: WordPress answers the stored post 999999, QuarkPress its refusal
@@ -475,6 +444,19 @@ e07 req10:body:/message D45 an attachment's post must name a post of the site: Q
 e07 req10:body:/data D45 an attachment's post must name a post of the site: QuarkPress answers status 400
 e07 req25:body:/description/rendered D42 the JPEG's stored description "Hello world" (S3): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
 e07 req30:body:/caption/rendered D42 the JPEG's stored caption "e07 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-e07e req1:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
-e07e req3:body:/_links/self/0/targetHints/allow/4 D6 the self link's target hints list the media item's methods served so far (GET, POST, PUT and PATCH until delete is served): WordPress also allows DELETE
 e07e req3:body:/description/rendered D42 the sized JPEG's stored description "Hello world" (S3's sized half): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
+# D46 (e08): deletes and post-process. An MP3's post-process answer holds what the media module reads from the file.
+# WordPress's trash answers (r18 with qp_parity_media_trashable) are not played: that switch has no QuarkPress
+# counterpart, as QuarkPress never trashes media (media D9) and WordPress's default (media trash off) answers 501 alike.
+e08 req18:body:/media_details/dataformat D46 the MP3's getID3 key dataformat, which the media module does not read
+e08 req18:body:/media_details/channels D46 the MP3's getID3 key channels, which the media module does not read
+e08 req18:body:/media_details/sample_rate D46 the MP3's getID3 key sample_rate, which the media module does not read
+e08 req18:body:/media_details/bitrate D46 the MP3's getID3 key bitrate, which the media module does not read
+e08 req18:body:/media_details/channelmode D46 the MP3's getID3 key channelmode, which the media module does not read
+e08 req18:body:/media_details/bitrate_mode D46 the MP3's getID3 key bitrate_mode, which the media module does not read
+e08 req18:body:/media_details/lossless D46 the MP3's getID3 key lossless, which the media module does not read
+e08 req18:body:/media_details/encoder_options D46 the MP3's getID3 key encoder_options, which the media module does not read
+e08 req18:body:/media_details/compression_ratio D46 the MP3's getID3 key compression_ratio, which the media module does not read
+e08 req18:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
+e08 req18:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
+e08 req18:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
