@@ -5,13 +5,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.jboss.logging.Logger;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
@@ -55,15 +51,13 @@ import org.quarkpress.taxonomy.Taxonomies;
  * ({@link MediaCollection}); its edit context needs the attachment type's {@code edit_posts}.
  *
  * <p>An upload is checked in WordPress's order: the create permission (which the collection's {@code Allow} follows),
- * the parent's type, then the body ({@link MediaUploadRequest}); storing it is not served yet.
+ * the parent's type, then the body ({@link MediaUploadRequest}); it is then stored and answered by {@link MediaWriter}.
  *
  * <p>An endpoint not served yet answers 404 {@code rest_no_route}, as a request no route matches, so that its
  * method is left out of {@code Allow}.
  */
 @ApplicationScoped
 public class MediaController implements RestRouteProvider, MediaRoutesPresent {
-
-    private static final Logger LOG = Logger.getLogger(MediaController.class);
 
     private static final String TYPE = "attachment";
 
@@ -114,6 +108,9 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     @Inject
     Media library;
 
+    @Inject
+    MediaWriter writer;
+
     @Override
     public int order() {
         return 60;
@@ -156,7 +153,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                 .endpoint(Endpoint.of("POST")
                         .args(MediaSchema.createArgs(media))
                         .permission(this::mayCreate)
-                        .handler(this::create)
+                        .handler(request -> create(media, request))
                         .allowBatch(false)
                         .build())
                 .register();
@@ -296,11 +293,11 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     }
 
     /**
-     * WordPress's create, up to the stored row: a {@code post} that is a revision or an attachment is refused, then
-     * the file is received ({@link MediaUploadRequest#receive}), its refusals in WordPress's order. Storing it is not
-     * served yet: a request that passes every check answers as no route would, its spooled body deleted.
+     * WordPress's create: a {@code post} that is a revision or an attachment is refused, then the file is received
+     * ({@link MediaUploadRequest#receive}), its refusals in WordPress's order, then stored and answered ({@link
+     * MediaWriter#create}), which deletes a spooled body whatever the outcome.
      */
-    private RestResponse create(RestRequest request) {
+    private RestResponse create(PostRoutes media, RestRequest request) {
         Optional<JsonNode> post = nonEmpty(request, "post");
         if (post.isPresent()) {
             Optional<PostSnapshot> parent = reads.post(PostId.of(PhpValues.toLong(post.get())));
@@ -316,25 +313,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         } catch (MediaUploadRequest.NestedUploadError nested) {
             return nested.answer();
         }
-        try {
-            throw new RestException(noRoute());
-        } finally {
-            if (body instanceof MediaUploadRequest.Raw raw) {
-                deleteSpool(raw.spooled());
-            }
-        }
-    }
-
-    /**
-     * Deletes a spooled body; a failure is logged and never replaces the answer (the storage's start-up sweep removes
-     * the file later).
-     */
-    private static void deleteSpool(Path spooled) {
-        try {
-            Files.deleteIfExists(spooled);
-        } catch (IOException | RuntimeException failure) {
-            LOG.warnf(failure, "could not delete the spooled upload %s", spooled);
-        }
+        return writer.create(media, request, body);
     }
 
     /** Whether to make sizes: the request's {@code generate_sub_sizes}, true by default. */

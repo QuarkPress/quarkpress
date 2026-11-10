@@ -26,12 +26,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.PostId;
@@ -43,8 +43,9 @@ import org.quarkpress.testing.wprestparity.MediaFixtures;
 /**
  * The refusals of {@code POST /wp/v2/media} before anything is stored, as WordPress answers them: the create
  * permission in WordPress's order (and the collection's {@code Allow}, which follows from it), the parent's type, the
- * multipart body's {@code file} part and the raw body's headers; no temporary file outlives a refusal, a stalled body
- * or an aborted multipart upload, and a connection whose body was left unread serves the next request. Each test
+ * multipart body's {@code file} part and the raw body's headers, then the network's size limits; a request that
+ * passes them is stored (201). No temporary file outlives a refusal, a stalled body or an aborted multipart upload, and
+ * a connection whose body was left unread serves the next request. Each test
  * uploads to a site of its own, where bob is an editor, carol an author, dave a contributor and erin a subscriber;
  * alice is a super admin.
  */
@@ -179,7 +180,6 @@ class MediaUploadRefusalsDbTest {
     }
 
     @Test
-    @Disabled("Task 13")
     void anUnsupportedDeclaredImageIsStoredWithoutSizes() {
         Site site = site();
         Reply stored = site.multipart(
@@ -424,7 +424,6 @@ class MediaUploadRefusalsDbTest {
     }
 
     @Test
-    @Disabled("Task 13")
     void aMultipartUploadWithAUrlFieldStoresItsFile() {
         Site site = site();
         Reply stored = site.jpeg(carol, "url", "https://example.org/x.jpg");
@@ -433,7 +432,6 @@ class MediaUploadRefusalsDbTest {
     }
 
     @Test
-    @Disabled("Task 13")
     void pathsInTheNameNeverLeaveTheFolder() throws IOException {
         Site site = site();
         Path root = Path.of(fsDirectory());
@@ -510,8 +508,8 @@ class MediaUploadRefusalsDbTest {
                 "rest_upload_no_content_disposition",
                 "No Content-Disposition supplied.");
         site.refused(site.raw(dave, "", "image/png", List.of(), png), 403, "rest_cannot_create", CANNOT_CREATE);
-        // a body that passes every check (stored from Task 13 on) leaves no spool either
-        site.raw(carol, "", "image/png", List.of("attachment; filename=a.png"), png);
+        // a body that is stored leaves no spool either
+        site.passes(site.raw(carol, "", "image/png", List.of("attachment; filename=a.png"), png));
         assertThat(files(temporary)).isEqualTo(before);
     }
 
@@ -640,11 +638,18 @@ class MediaUploadRefusalsDbTest {
     }
 
     @Test
-    @Disabled("Task 13")
     void networkLimitsAnswer400() {
         Site site = site();
         byte[] body = new byte[2 * 1024 * 1024];
         Arrays.fill(body, (byte) 'x');
+        List<String> names = List.of("upload_space_check_disabled", "fileupload_maxk", "blog_upload_space");
+        Map<String, Optional<JsonNode>> stored = new LinkedHashMap<>();
+        names.forEach(name -> stored.put(name, network.find(name)));
+        // an attachment of the site, named as a parent below
+        Reply attachment =
+                site.raw(carol, "", "image/png", List.of("attachment; filename=p.png"), MediaFixtures.png(8, 8));
+        site.passes(attachment);
+        String attachmentId = json(attachment).get("id").asText();
         network.set("upload_space_check_disabled", MAPPER.getNodeFactory().textNode("0"));
         try {
             network.set("fileupload_maxk", MAPPER.getNodeFactory().textNode("1"));
@@ -653,16 +658,67 @@ class MediaUploadRefusalsDbTest {
                     400,
                     "rest_upload_file_too_big",
                     "This file is too big. Files must be less than 1 KB in size.");
-            network.set("fileupload_maxk", MAPPER.getNodeFactory().textNode("4000"));
+            // in WordPress's order: the permission, the parent's type and Content-MD5 come before the size check
+            site.refused(
+                    site.raw(dave, "", "image/png", List.of("attachment; filename=a.png"), body),
+                    403,
+                    "rest_cannot_create",
+                    CANNOT_CREATE);
+            site.refused(
+                    site.raw(carol, "", "image/png", List.of("attachment; filename=a.png"), body, "Content-MD5: 0"),
+                    412,
+                    "rest_upload_hash_mismatch",
+                    "Content hash did not match expected.");
+            site.refused(
+                    site.multipart(carol, part("file", "a.png", "image/png", body), text("post", attachmentId)),
+                    400,
+                    "rest_invalid_param",
+                    "Invalid parent type.");
+            site.refused(
+                    site.multipart(carol, part("file", "a.webp", "image/webp", body)),
+                    400,
+                    "rest_upload_image_type_not_supported",
+                    UNSUPPORTED_IMAGE);
+            site.refused(
+                    site.multipart(carol, part("file", "a.png", "image/png", body), text("featured_media", "0")),
+                    400,
+                    "rest_upload_file_too_big",
+                    "This file is too big. Files must be less than 1 KB in size.");
+            // and the size check before the type check of the pipeline
+            site.refused(
+                    site.multipart(carol, part("file", "a.exe", "application/x-msdownload", body)),
+                    400,
+                    "rest_upload_file_too_big",
+                    "This file is too big. Files must be less than 1 KB in size.");
+            network.set("fileupload_maxk", MAPPER.getNodeFactory().numberNode(4000));
             network.set("blog_upload_space", MAPPER.getNodeFactory().textNode("1"));
             Reply full = site.raw(carol, "", "image/png", List.of("attachment; filename=a.png"), body);
             assertThat(full.status()).as(full.text()).isEqualTo(400);
             assertThat(json(full).get("code").asText()).isEqualTo("rest_upload_limited_space");
+            assertThat(full.header("x-wp-upload-attachment-id")).isNull();
         } finally {
-            network.set("upload_space_check_disabled", MAPPER.getNodeFactory().textNode("1"));
-            network.set("fileupload_maxk", MAPPER.getNodeFactory().textNode("1500"));
-            network.set("blog_upload_space", MAPPER.getNodeFactory().textNode("100"));
+            // every option as it was, so later tests see the network unchanged: each one tried, failures thrown after
+            RuntimeException failed = null;
+            for (Map.Entry<String, Optional<JsonNode>> option : stored.entrySet()) {
+                try {
+                    if (option.getValue().isPresent()) {
+                        network.set(option.getKey(), option.getValue().get());
+                    } else {
+                        network.delete(option.getKey());
+                    }
+                } catch (RuntimeException failure) {
+                    if (failed == null) {
+                        failed = failure;
+                    } else {
+                        failed.addSuppressed(failure);
+                    }
+                }
+            }
+            if (failed != null) {
+                throw failed;
+            }
         }
+        names.forEach(name -> assertThat(network.find(name)).isEqualTo(stored.get(name)));
     }
 
     // ---- helpers
@@ -767,11 +823,14 @@ class MediaUploadRefusalsDbTest {
         }
 
         /**
-         * A request that passed every check before the attachment would be stored: until uploads are stored, it
-         * answers as no route would, with POST allowed.
+         * A request that passed every check before the attachment is stored: it is stored and answered 201 with the
+         * attachment, its id in {@code X-WP-Upload-Attachment-ID}, and POST allowed.
          */
         void passes(Reply reply) {
-            assertError(reply, 404, "rest_no_route", NO_ROUTE);
+            assertThat(reply.status()).as(reply.text()).isEqualTo(201);
+            assertThat(reply.header("x-wp-upload-attachment-id"))
+                    .as(reply.text())
+                    .isEqualTo(MediaUploadRefusalsDbTest.json(reply).get("id").asText());
             assertThat(reply.header("allow")).isEqualTo("GET, POST");
         }
     }
