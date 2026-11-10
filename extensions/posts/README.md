@@ -79,8 +79,10 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   found as another.
 - `FeaturedImages` (`_thumbnail_id`) and `PageTemplates` (`_wp_page_template`) read and write the two internal meta
   keys the REST `featured_media` and `template` fields map to: `of(snapshot)` reads (0 and `""` when absent); `set`
-  follows WordPress's write (featured image: 0 removes, an attachment of the site is set by its absolute id, another
-  post of the site removes it, an unknown id changes nothing; template: stored as given, `""` included).
+  follows WordPress's write (featured image: 0 removes, an attachment of the site that can be a thumbnail is set by
+  its absolute id, any other post of the site, an attachment that cannot be one included, removes it, an unknown id
+  changes nothing; template: stored as given, `""` included). `FeaturedImages.set` answers whether the stored value
+  changed: setting the value already stored, removing an absent one or naming an unknown id answers false.
 - `PostChanges` holds the fields of a write; a field not given takes WordPress's default on `create` and keeps the
   stored value on `update`. `author` and `parent` use 0 for none. `date` is the local date in the site's zone,
   `dateGmt` the GMT date; `editDate` lets an update date a draft whose date floats (WordPress's `edit_date`);
@@ -119,6 +121,7 @@ Checks follow WordPress's REST API (wp-admin's for restoring from the trash):
 | `find`, `ancestors`, `uri`, meta reads | nothing for a post whose effective status is public; `read_post` otherwise |
 | meta writes | `edit_post`; a key whose first printable-ASCII character is `_` is protected: `PostMeta` writes it only for the system identity, `RegisteredMeta` for a caller the key's auth allows |
 | `stick`, `unstick` | `edit_post` on the post, then the `post` type's `edit_others_posts` and `publish_posts` |
+| `PostPermissions.restReadable` (both forms) | nothing: it answers the REST read decision for the caller it is given |
 | `PostLocks.take`, `refresh`, `takeOver`, `release`; `FeaturedImages.set`; `PageTemplates.set` | `edit_post`; `PostLocks.holder` and `current` check nothing (the REST layer checks `edit_post` before it shows lock state) |
 | `RegisteredMeta.stored`, `RegisteredMeta.sanitize` | nothing: the caller has read the post first (the REST layer's read checks come before its meta field) |
 | `query` | statuses other than `publish` need every queried type's `edit_posts`; what each caller then sees is described on `PostQuery` |
@@ -139,8 +142,14 @@ explicit `SecurityIdentity`:
   `canCreate`, `canPublish`, `canEditOthers`; `canEditSomeRestType()` (`edit_posts` of at least one type shown in
   REST) and `canEditSomeRestTypeSupporting(feature)`; `statusVisible(status)`, WordPress's REST status visibility (a
   public status always, a status that is not internal, or `trash`, for a caller who may edit some REST type, any
-  other never); and `restStatuses()`, the registered statuses that are not internal, in registration order, then
-  `trash`. `PostPermissions.typeViewable` and `statusViewable` are WordPress's viewable type and status.
+  other never); `restStatuses()`, the registered statuses that are not internal, in registration order, then
+  `trash`; and `restReadable(caller, post)`, WordPress's REST read decision: a published post, one the caller has
+  `read_post` on (an attachment checked with the status it inherits), one of a public status, or one in `inherit`
+  whose parent is readable by the same rule (no parent, or one not found, reads; a parent of a type not shown in REST
+  does not; parents are followed until one repeats, and a chain deeper than 100 does not read); a post of another
+  site never reads. `restReadable(caller, post, parents)` decides the same reading each parent through `parents`, so a
+  caller deciding for many posts reads each parent once. `PostPermissions.typeViewable` and `statusViewable` are
+  WordPress's viewable type and status.
 - `PostAuthors.hasPostsVisibleToCaller(author, types)`: whether the author has a post of those types the caller may
   count, as WordPress's `count_user_posts` counts them for the REST user read rule: a published post, or a private one
   the caller may read (its own, or of a type whose `read_private_posts` it holds); unregistered types are left out.
@@ -212,10 +221,12 @@ site's `posts_per_page` option as default, and sticky posts first (`stickyFirst`
 It also takes a slug list (`nameIn`, ordered by `OrderKey.NAME_IN`), the columns a search looks in (`searchColumns`),
 an exact search (`exactSearch`, whole columns) and term filters (`taxQuery`, whose conditions come from the taxonomy
 module's `TermConditionProvider`; a positive clause makes the query an archive without sticky posts first).
-`condition(key, argument)` adds another module's condition, answered by the `PostConditionProvider` bean of that key
-(the media module's MIME-type filter is one): conditions hold next to every other one, in the order given, one that
-matches nothing empties the query, a key no bean provides is refused with `IllegalArgumentException` when the query
-runs, and two beans providing one key stop the application at start.
+`searchAlso(key)` adds another module's searchable column to the search, answered by the `PostSearchProvider` bean of
+that key (the media module's attached file path is one): a post matches a term found in a searched post column or in
+that column, and an excluded term in neither. `condition(key, argument)` adds another module's condition, answered by
+the `PostConditionProvider` bean of that key (the media module's MIME-type filter is one): conditions hold next to every
+other one, in the order given, one that matches nothing empties the query, a key no bean provides is refused with
+`IllegalArgumentException` when the query runs, and two beans providing one key stop the application at start.
 Without statuses a query shows published posts and, to a logged-in user, the private posts it may read; the system
 identity counts as logged out. A query by id or slug is never paged and checks each post it finds as WordPress checks a
 single post. `PostPage` holds the posts, the number of matching posts and the number of pages. The Javadoc of
@@ -276,6 +287,13 @@ not), never null; one that throws stops the call.
   `edit_post`, whether a caller may write the key.
 - `SlugSanitizer` (WordPress's `sanitize_title` in its save context, with the `en_US` accent rules) and
   `ContentSanitizer` (the title, content and excerpt save filters with lib-wp-kses) are replaceable beans.
+- `AttachmentThumbnails` answers whether an attachment can be a featured image (an image of size `thumbnail` can be
+  made for it), which `FeaturedImages.set` asks. The default bean answers true for every attachment; the media module
+  replaces it with one that answers from the file it stores.
+- `PostSearchProvider` adds a searchable column of another module to post searches (see [Queries](#queries)): its
+  `key()` names it and `term(...)` answers, as a term condition, the posts whose column holds a search term (a part of
+  it, or the whole of it for an exact search). Each key is provided by one bean only; two beans providing one key stop
+  the application at start.
 
 ### Configuration
 
@@ -406,7 +424,7 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D32 | `PostQueryFilter`s (`pre_get_posts`) do not run on the fetch of the sticky posts that `stickyFirst` adds; WordPress runs them on that inner query. |
 | D33 | `stickyFirst` stays on for a query with only paging arguments while the site shows a static front page; WordPress answers that query with the static front page itself (and so with no sticky posts). `types` has no one-element list form: one type with an archive always counts as that type's archive (no sticky posts first), as WordPress's `post_type => 'book'` does, where `post_type => ['book']` keeps them. |
 | D34 | The system identity holds every capability but `unfiltered_html`, the type's publish capability included, so a pending post it saves keeps its typed slug; WordPress's user 0 can publish nothing, so its pending posts lose the typed slug. |
-| D35 | Until the media module (M2e) knows attachment types, `FeaturedImages.set` treats any attachment of the site as an image; WordPress sets the featured image only for an attachment that is an image or has an image representation and removes it for any other attachment (a PDF). `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkPress's window. |
+| D35 | With the media module, only attachments of an image type can be featured images; any other attachment removes the featured image, as WordPress does. Without it, any attachment counts as an image. `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkPress's window. |
 | D36 | Preview links carry a computed token: HMAC-SHA256 over the site, the post, the user and a tick of half `quarkpress.posts.preview-lifetime` with a per-site secret (`quarkpress_preview_secret`), valid for the current and the previous tick and only for the user it was issued to, who must hold `edit_post` now. WordPress's `preview_nonce` (10 hexadecimal characters) is derived from the action `post_preview_{id}`, the user id, the user's login session token and a tick of half the nonce life (one day by default), and is likewise valid for the current and the previous tick, 12 to 24 hours; QuarkPress's token has no session token in its message, so logging out does not revoke a token by itself (the preview session's user still has to be the token's user and hold `edit_post` now), while deleting the option revokes every link of the site at once, which WordPress has no counterpart for. |
 | D37 | The preview page's viewer comes from a QuarkPress preview session (`PreviewSessions`, a random token stored as a hash and bound to the site) rather than WordPress's login cookie, and the editor's unlock nonce is a one-time `LockReleaseTokens` token bound to the post, the user and the lock value, consumed on first use whatever the outcome; WordPress's unlock nonce (`update-post_{id}`) is an ordinary nonce, reusable any number of times within its 12 to 24 hours and not bound to a lock value (the release itself compares the stored lock with the value sent). |
 
