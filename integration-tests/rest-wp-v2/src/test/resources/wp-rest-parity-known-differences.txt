@@ -276,7 +276,7 @@ p04 req17:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> wh
 p04 req7:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 p04 req8:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 
-# p05 (links and embeds): target hints and Allow of callers who may edit (D6), the guid of posts and pages published with pretty permalinks (D1), no featured media link or embed (D28).
+# p05 (links and embeds): target hints and Allow of callers who may edit (D6), the guid of posts and pages published with pretty permalinks (D1), the embedded replies of a route not served yet (D28).
 p05 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p05 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
@@ -300,9 +300,6 @@ p05 req11:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> wh
 p05 req11:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 p05 req14:header:link D1 the alternate Link of a post with pretty permalinks when _fields leaves out link (the comparison maps the pretty link to the plain one through the body's link): WordPress names the pretty permalink, QuarkPress the plain one
 p05 req16:header:link D1 the alternate Link of a post with pretty permalinks when _fields leaves out link (the comparison maps the pretty link to the plain one through the body's link): WordPress names the pretty permalink, QuarkPress the plain one
-p05 req12:body:/_links/wp:featuredmedia D28 WordPress links the featured image under wp:featuredmedia; QuarkPress has no media routes yet
-p05 req13:body:/_links/wp:featuredmedia D28 WordPress links the featured image under wp:featuredmedia; QuarkPress has no media routes yet
-p05 req13:body:/_embedded/wp:featuredmedia D28 WordPress embeds the featured image under wp:featuredmedia; QuarkPress has no media routes yet
 p05 req2:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
 p05 req13:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
 p05 req15:body:/0/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
@@ -460,3 +457,37 @@ e08 req18:body:/media_details/compression_ratio D46 the MP3's getID3 key compres
 e08 req18:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
 e08 req18:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
 e08 req18:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
+# e09 (featured media on posts): the guid of posts and pages published with pretty permalinks (D1), the embedded
+# replies of a route not served yet (D28), the revisions the updates saved (D31). The featured image's links and
+# embeds themselves match WordPress.
+e09 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req6:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req7:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req8:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req18:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req10:body:/0/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req10:body:/1/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req10:body:/2/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req12:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+e09 req1:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
+e09 req3:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
+e09 req5:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
+e09 req12:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
+e09 req13:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req13:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req14:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req14:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req15:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req15:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req16:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req16:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req17:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req17:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req18:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req18:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
