@@ -298,8 +298,6 @@ p05 req13:body:/guid/raw D1 the guid of a post or page published with pretty per
 p05 req10:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 p05 req11:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
 p05 req11:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p05 req14:header:link D1 the alternate Link of a post with pretty permalinks when _fields leaves out link (the comparison maps the pretty link to the plain one through the body's link): WordPress names the pretty permalink, QuarkPress the plain one
-p05 req16:header:link D1 the alternate Link of a post with pretty permalinks when _fields leaves out link (the comparison maps the pretty link to the plain one through the body's link): WordPress names the pretty permalink, QuarkPress the plain one
 p05 req2:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
 p05 req13:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
 p05 req15:body:/0/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
