@@ -4,6 +4,7 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -26,14 +27,16 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.quarkpress.testing.wprestparity.MediaFixtures;
 
 /**
  * The REST API (wp/v2) end to end, with real Keycloak tokens: JVM mode here, the packaged application in
  * {@code RestWpV2IT}, and a native executable in CI. Every test runs on a network (the multisite install): the main
- * site is {@code localhost} at {@code /}, alice is a network administrator; one test adds a site in a subdirectory.
+ * site is {@code localhost} at {@code /}, alice is a network administrator; two tests add a site in a subdirectory.
  * The content tests run the editor's flow (a new draft, its edit lock, autosaves, the preview session and the minimal
- * front-end page) and the posts, pages and books routes (writes, meta, term filters, links and embeds, revisions,
- * search), so that the native run in CI proves their runtime paths too.
+ * front-end page), the posts, pages and books routes (writes, meta, term filters, links and embeds, revisions, search)
+ * and the media routes (uploads read, served, processed and deleted, the collection's filters, a featured image
+ * embedded), so that the native run in CI proves their runtime paths too.
  */
 @QuarkusTest
 class RestWpV2DbTest {
@@ -1095,5 +1098,159 @@ class RestWpV2DbTest {
                 .statusCode(400)
                 .body("code", equalTo("rest_invalid_param"))
                 .body("message", equalTo("Invalid parameter(s): type"));
+    }
+
+    private static final String MEDIA = "/wp-json/wp/v2/media";
+
+    /** Uploads {@code bytes} as {@code name} in a multipart form to the site at {@code sitePath}, as {@code user}. */
+    private Response upload(String user, String sitePath, String name, String type, byte[] bytes, String... fields) {
+        RequestSpecification request = as(user).multiPart("file", name, bytes, type);
+        for (int i = 0; i < fields.length; i += 2) {
+            request.multiPart(fields[i], fields[i + 1]);
+        }
+        return request.post(sitePath + MEDIA.substring(1));
+    }
+
+    /** The id of a 201 upload answer, checked against its {@code X-WP-Upload-Attachment-ID} header. */
+    private static int created(Response answer) {
+        answer.then().statusCode(201);
+        int id = answer.path("id");
+        assertThat(answer.header("X-WP-Upload-Attachment-ID")).isEqualTo(Integer.toString(id));
+        return id;
+    }
+
+    @Test
+    void anUploadIsReadProcessedAndDeleted() {
+        // main site of the network: carol (author) uploads a 1200x800 JPEG, its sizes made while uploading
+        Response jpeg = upload("carol", "/", "IMG_1234.jpg", "image/jpeg", MediaFixtures.jpeg(1200, 800));
+        int id = created(jpeg);
+        assertThat(jpeg.header("Location")).isEqualTo("http://localhost/wp-json/wp/v2/media/" + id);
+        JsonPath read = as(null).get(MEDIA + "/" + id)
+                .then()
+                .statusCode(200)
+                .body("media_type", equalTo("image"))
+                .body("mime_type", equalTo("image/jpeg"))
+                .body("media_details.width", equalTo(1200))
+                .body("media_details.height", equalTo(800))
+                .body("media_details.sizes.medium.width", equalTo(300))
+                .body("media_details.sizes.medium.height", equalTo(200))
+                .extract()
+                .jsonPath();
+        String source = read.getString("source_url");
+        String medium = read.getString("media_details.sizes.medium.source_url");
+        assertThat(source).contains("/wp-content/uploads/").contains("IMG_1234").endsWith(".jpg");
+        assertThat(medium).contains("/wp-content/uploads/").endsWith("-300x200.jpg");
+        // the uploads route serves the files
+        page(null).get(local(medium)).then().statusCode(200).contentType("image/jpeg");
+        page(null).get(local(source)).then().statusCode(200).contentType("image/jpeg");
+        // a raw PNG body named by its Content-Disposition, its sizes left for the post-process
+        Response png = as("carol")
+                .contentType("image/png")
+                .header("Content-Disposition", "attachment; filename=\"raw-" + token() + ".png\"")
+                .body(MediaFixtures.png(400, 300))
+                .post(MEDIA + "?generate_sub_sizes=false");
+        int pngId = created(png);
+        assertThat(png.<Map<String, Object>>path("media_details.sizes")).doesNotContainKey("thumbnail");
+        as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of("action", "create-image-subsizes"))
+                .post(MEDIA + "/" + pngId + "/post-process")
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(pngId))
+                .body("media_details.sizes.thumbnail.width", equalTo(150))
+                .body("media_details.sizes.medium.width", equalTo(300))
+                .body("missing_image_sizes", empty());
+        // the JPEG deleted for good: the item and its files are gone
+        as("carol")
+                .delete(MEDIA + "/" + id + "?force=true")
+                .then()
+                .statusCode(200)
+                .body("deleted", equalTo(true))
+                .body("previous.id", equalTo(id))
+                .body("previous.source_url", equalTo(source));
+        as("carol")
+                .get(MEDIA + "/" + id)
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("rest_post_invalid_id"))
+                .body("message", equalTo("Invalid post ID."));
+        page(null).get(local(source)).then().statusCode(404);
+        page(null).get(local(medium)).then().statusCode(404);
+    }
+
+    @Test
+    void theCollectionFiltersByTypeAndSearchesPaths() {
+        // main site of the network: a JPEG and a PDF under the same file name, their titles naming neither
+        String stem = "IMG_12" + token();
+        int jpeg = created(
+                upload("carol", "/", stem + ".jpg", "image/jpeg", MediaFixtures.jpeg(64, 48), "title", "Holiday"));
+        int pdf =
+                created(upload("carol", "/", stem + ".pdf", "application/pdf", MediaFixtures.pdf(), "title", "Notes"));
+        // the search reaches the stored path, not only the title
+        as(null).get(MEDIA + "?search=" + stem)
+                .then()
+                .statusCode(200)
+                .header("X-WP-Total", "2")
+                .body("id", containsInAnyOrder(jpeg, pdf));
+        as(null).get(MEDIA + "?media_type=image&search=" + stem)
+                .then()
+                .statusCode(200)
+                .header("X-WP-Total", "1")
+                .body("id", contains(jpeg))
+                .body("[0].title.rendered", equalTo("Holiday"));
+        as(null).get(MEDIA + "?media_type=application&search=" + stem)
+                .then()
+                .statusCode(200)
+                .body("id", contains(pdf));
+    }
+
+    @Test
+    void aPostsFeaturedImageIsEmbedded() {
+        // main site of the network: bob (editor) publishes a post whose featured image is carol's JPEG
+        int image = created(upload("carol", "/", "f" + token() + ".jpg", "image/jpeg", MediaFixtures.jpeg(64, 48)));
+        int post = as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Featured " + token(), "status", "publish", "featured_media", image))
+                .post("/wp-json/wp/v2/posts")
+                .then()
+                .statusCode(201)
+                .body("featured_media", equalTo(image))
+                .extract()
+                .path("id");
+        as(null).get("/wp-json/wp/v2/posts/" + post + "?_embed")
+                .then()
+                .statusCode(200)
+                .body("_links.'wp:featuredmedia'[0].href", equalTo("http://localhost/wp-json/wp/v2/media/" + image))
+                .body("_links.'wp:featuredmedia'[0].embeddable", equalTo(true))
+                .body("_embedded.'wp:featuredmedia'[0].id", equalTo(image))
+                .body("_embedded.'wp:featuredmedia'[0].media_type", equalTo("image"));
+    }
+
+    @Test
+    void aSubdirectorySiteUploadsUnderItsPrefix() {
+        // a network site in a subdirectory of localhost, created by alice (network administrator), who uploads to it
+        String path = "/m-" + token() + "/";
+        int site = as("alice")
+                .contentType(ContentType.JSON)
+                .body(Map.of("path", path, "title", "Media " + token()))
+                .post("/it/sites")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("id");
+        Response answer = upload("alice", path, "sub.jpg", "image/jpeg", MediaFixtures.jpeg(64, 48));
+        int id = created(answer);
+        assertThat(answer.header("Location")).isEqualTo("http://localhost" + path + "wp-json/wp/v2/media/" + id);
+        String source = answer.path("source_url");
+        assertThat(source).startsWith("http://localhost" + path + "wp-content/uploads/sites/" + site + "/");
+        page(null).get(local(source)).then().statusCode(200).contentType("image/jpeg");
+        // the site's own collection holds it, the main site's does not
+        as("alice")
+                .get(path + MEDIA.substring(1) + "?per_page=100")
+                .then()
+                .statusCode(200)
+                .body("id", contains(id));
+        as("alice").get(MEDIA + "/" + id).then().statusCode(404);
     }
 }
