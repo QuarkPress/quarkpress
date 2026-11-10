@@ -62,8 +62,8 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
 class RestParityDbTest {
 
-    /** 90% of the comparisons of the last green run (18578), rounded down to a multiple of 50. */
-    static final int MIN_COMPARISONS = 17000;
+    /** 90% of the comparisons of the last green run (24483), rounded down to a multiple of 50. */
+    static final int MIN_COMPARISONS = 22000;
 
     static final String EDITOR_SKIP =
             "SKIPPED (needs an image editor): php8.4-gd is not installed on this host; the CI parity cell installs it";
