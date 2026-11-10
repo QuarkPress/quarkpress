@@ -55,3 +55,5 @@ e03-media-links.json
 e04-media-collection.json
 e05-upload-refusals.json
 e06-upload-create.json
+e07-media-update.json
+e07-media-update-editor.json

@@ -1,0 +1,44 @@
+{
+  "id": "e07e",
+  "rule": "attachment updates of an image with sizes (an image editor on WordPress's side): the whole edit answer after an alternative text update (media_details sizes, missing sizes, the description's medium image and srcset); the same over HTTPS (the https rule of the file URLs and srcset); S3's sized half (PUT description and an empty caption). The updates that need no editor are e07's",
+  "editor": true,
+  "setup": [
+    {
+      "media": "m:big",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          1200,
+          800
+        ]
+      },
+      "name": "e07e-big.jpg",
+      "type": "image/jpeg"
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:big}",
+      "contentType": "application/json",
+      "body": "{\"alt_text\":\"e07e alt\",\"caption\":\"\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:big}?_fields=id,source_url,media_details,description,missing_image_sizes",
+      "contentType": "application/json",
+      "body": "{\"title\":\"e07e https\"}",
+      "https": true
+    },
+    {
+      "as": "carol",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/media/{m:big}",
+      "contentType": "application/json",
+      "body": "{\"description\":\"Hello world\",\"caption\":\"\"}"
+    }
+  ]
+}

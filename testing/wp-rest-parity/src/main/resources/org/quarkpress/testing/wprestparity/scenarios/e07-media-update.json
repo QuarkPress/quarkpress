@@ -1,0 +1,351 @@
+{
+  "id": "e07",
+  "rule": "attachment updates (POST/PUT/PATCH /wp/v2/media/<id>): the update permission (another author's attachment, anonymous, another author named, stickiness, a missing id, a post that is no attachment); the parent (r14: another author's draft needs no permission, 0 detaches, another attachment or the attachment itself is no parent; a post the site does not have is QuarkPress's 400, D45; a revision cannot be named, D31); a multipart file sent to an update is ignored (r15); statuses (r16: a private attachment refuses inherit and trash, keeps private, becomes inherit for publish; an inherit one accepts inherit and draft); featured media (r05, S13: an image ignores the value, an MP3 takes it, keeps it for an id that names nothing, and 0 clears it); S3 (PUT description and an empty caption); the alternative text cleared; the post fields; a future date that never schedules; a cleared date; an author that is no user",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e07 draft"
+    },
+    {
+      "media": "m:bobs",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e07-bobs.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:carols",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e07-carols.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:dangling",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e07-dangling.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:private",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e07-private.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "status": "private"
+      }
+    },
+    {
+      "media": "m:cover",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e07-cover.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:song",
+      "as": "carol",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {}
+      },
+      "name": "e07-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "media": "m:s3",
+      "as": "alice",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          64,
+          48
+        ]
+      },
+      "name": "e07-s3.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:alt",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          24,
+          18
+        ]
+      },
+      "name": "e07-alt.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "alt_text": "e07 alt"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:bobs}",
+      "contentType": "application/json",
+      "body": "{\"alt_text\":\"x\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:bobs}",
+      "contentType": "application/json",
+      "body": "{\"alt_text\":\"x\"}"
+    },
+    {
+      "as": "dave",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:bobs}",
+      "contentType": "application/json",
+      "body": "{\"alt_text\":\"x\"}"
+    },
+    {
+      "as": "bob",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:bobs}",
+      "contentType": "application/json",
+      "body": "{\"alt_text\":\"e07 bob\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}",
+      "contentType": "application/json",
+      "body": "{\"author\":{u:bob}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}",
+      "contentType": "application/json",
+      "body": "{\"sticky\":true}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/999999999",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{p:draft}",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}?_fields=id,post,link",
+      "contentType": "application/json",
+      "body": "{\"post\":{p:draft}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:dangling}?_fields=id,post",
+      "contentType": "application/json",
+      "body": "{\"post\":999999}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}",
+      "contentType": "application/json",
+      "body": "{\"post\":{m:bobs}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}",
+      "contentType": "application/json",
+      "body": "{\"post\":{m:carols}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}?_fields=id,post,link",
+      "contentType": "application/json",
+      "body": "{\"post\":0}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:carols}?_fields=id,title,source_url,mime_type,media_details,missing_image_sizes,filename",
+      "upload": {
+        "fixture": {
+          "fixture": "png",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e07-other.png",
+        "type": "image/png",
+        "fields": {
+          "title": "e07 replaced"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:private}?_fields=id,status",
+      "contentType": "application/json",
+      "body": "{\"status\":\"inherit\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:private}?_fields=id,status",
+      "contentType": "application/json",
+      "body": "{\"status\":\"trash\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:private}?_fields=id,status",
+      "contentType": "application/json",
+      "body": "{\"status\":\"private\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:private}?_fields=id,status",
+      "contentType": "application/json",
+      "body": "{\"status\":\"publish\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}?_fields=id,status",
+      "contentType": "application/json",
+      "body": "{\"status\":\"inherit\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:carols}?_fields=id,status",
+      "contentType": "application/json",
+      "body": "{\"status\":\"draft\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:cover}?_fields=id,featured_media,class_list",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:carols}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:song}?_fields=id,featured_media,class_list",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:cover}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:song}?_fields=id,featured_media,class_list",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":999999}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:song}?_fields=id,featured_media,class_list",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":0}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/media/{m:s3}",
+      "contentType": "application/json",
+      "body": "{\"description\":\"Hello world\",\"caption\":\"\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:alt}?_fields=id,alt_text,description",
+      "contentType": "application/json",
+      "body": "{\"alt_text\":\"\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:alt}?_fields=id,title,slug,comment_status,ping_status,date,date_gmt,status",
+      "contentType": "application/json",
+      "body": "{\"title\":\"e07 title\",\"slug\":\"e07 Slug\",\"comment_status\":\"closed\",\"ping_status\":\"open\",\"date\":\"2026-03-04T05:06:07\"}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:alt}?_fields=id,status,date",
+      "contentType": "application/json",
+      "body": "{\"date\":\"2099-01-01T00:00:00\"}"
+    },
+    {
+      "as": "alice",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:alt}?_fields=id,author",
+      "contentType": "application/json",
+      "body": "{\"author\":999999}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:alt}?_fields=id,title,caption",
+      "contentType": "application/json",
+      "body": "{\"title\":{\"raw\":\"e07 raw\"},\"caption\":{\"raw\":\"e07 caption\"}}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/media/{m:alt}?_fields=id,date,date_gmt,modified,status",
+      "contentType": "application/json",
+      "body": "{\"date\":null}"
+    }
+  ]
+}
