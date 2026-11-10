@@ -37,9 +37,10 @@ import org.quarkpress.core.UserId;
  * An application with the REST module and its required modules only: the optional revisions, scheduling, multisite
  * and media modules (runtime and deployment artifacts, the media storage and image processor included) are left out
  * of the build (the installed features name none of them). It boots; the index lists no revisions, autosaves or media
- * route; a post links no version history and no predecessor, since no revisions route exists to link to; the posts
- * write routes work; and the preview page shows a draft to a session holder and a published post as stored, with no
- * autosave overlay. Members of the main site: the editor bob and the author carol.
+ * route; a post links no version history and no predecessor, since no revisions route exists to link to, and no
+ * featured image, since no media route exists; the posts write routes work; and the preview page shows a draft to a
+ * session holder and a published post as stored, with no autosave overlay. Members of the main site: the editor bob and
+ * the author carol.
  */
 class WithoutOptionalModulesDbTest {
 
@@ -140,6 +141,39 @@ class WithoutOptionalModulesDbTest {
         assertThat(relations)
                 .containsExactly(
                         "self", "collection", "about", "author", "replies", "wp:attachment", "wp:term", "curies");
+    }
+
+    @Test
+    void aFeaturedImageIsNotLinked() {
+        PostId image = PostFixtures.builder(site)
+                .type("attachment")
+                .status("inherit")
+                .author(carol)
+                .title("Image " + UUID.randomUUID())
+                .insert(data);
+        PostId post = PostFixtures.builder(site)
+                .author(carol)
+                .title("Pictured " + UUID.randomUUID())
+                .insert(data);
+        Jdbc.update(
+                data,
+                "update qp_post set meta = " + TestDb.json() + " where id = ?",
+                "{\"_thumbnail_id\":[\"" + image.value() + "\"]}",
+                post.value());
+        JsonNode body = json(Http.as(null)
+                .get("/wp-json/wp/v2/posts/" + post.value() + "?_embed")
+                .then()
+                .statusCode(200)
+                .extract()
+                .asString());
+        // the value is the stored one; without the media routes there is nothing to link it to
+        assertThat(body.get("featured_media").asLong()).isEqualTo(image.value());
+        List<String> relations = new ArrayList<>();
+        body.get("_links").fieldNames().forEachRemaining(relations::add);
+        assertThat(relations).doesNotContain("wp:featuredmedia");
+        List<String> embedded = new ArrayList<>();
+        body.get("_embedded").fieldNames().forEachRemaining(embedded::add);
+        assertThat(embedded).doesNotContain("wp:featuredmedia");
     }
 
     @Test

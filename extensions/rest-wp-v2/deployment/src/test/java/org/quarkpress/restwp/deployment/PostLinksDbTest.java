@@ -24,9 +24,9 @@ import org.quarkpress.posts.PostType;
  * The links of a post on a network's main site: WordPress's relations in its order, the revision count and the newest
  * revision, the parent of a child page, the term relations (absent for a type without REST taxonomies), the action
  * links of the edit context by the caller's capabilities (unfiltered HTML only for a super admin on a network), the
- * embeds of the author, the terms and the parent, and no featured media link until the media routes exist. Members of
- * the main site: alice (administrator and super admin), bob (administrator), carol (author), dave (contributor) and
- * erin (subscriber).
+ * embeds of the author, the terms and the parent, and no featured media link for a featured id naming no post.
+ * Members of the main site: alice (administrator and super admin), bob (administrator), carol (author), dave
+ * (contributor) and erin (subscriber).
  */
 class PostLinksDbTest {
 
@@ -365,7 +365,7 @@ class PostLinksDbTest {
     }
 
     @Test
-    void noFeaturedMediaLinkUntilMediaExists() {
+    void aStaleFeaturedIdHasNoLink() {
         PostId post = published("post", carol);
         Jdbc.update(
                 data,

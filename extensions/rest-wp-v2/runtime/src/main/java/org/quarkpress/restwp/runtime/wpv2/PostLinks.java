@@ -33,11 +33,13 @@ import org.quarkpress.taxonomy.TermPermissions;
  * has comments), its revisions with their count and, when there are any, the newest one (types with revisions, when
  * the revisions module is present; the count is read as the system, so it is the count of every revision, autosaves
  * included, and 0 when revisions are off for the post), its parent (embeddable, hierarchical types with a parent
- * whose type is shown in REST), its attachments, and one embeddable term link per taxonomy of the type shown in REST
- * (none when the type has no such taxonomy). In the edit context the actions the caller may take follow, each pointing at the post itself:
- * publishing, unfiltered HTML, making a post sticky (needs the type's {@code edit_others_posts} and
+ * whose type is shown in REST), its featured image (embeddable, while the media routes answer on the site, when the
+ * post names one that exists, whose type is shown in REST, and that is published in effect or readable by the
+ * caller), its attachments, and one embeddable term link per taxonomy of the type shown in REST (none when the type
+ * has no such taxonomy). In the edit context the actions the caller may take follow, each pointing at the post
+ * itself: publishing, unfiltered HTML, making a post sticky (needs the type's {@code edit_others_posts} and
  * {@code publish_posts}), changing the author ({@code edit_others_posts} on a type with authors), then per REST
- * taxonomy creating and assigning terms. The featured image is not linked until the media routes exist.
+ * taxonomy creating and assigning terms. Without the media module no featured image is linked.
  */
 @ApplicationScoped
 class PostLinks {
@@ -70,6 +72,10 @@ class PostLinks {
     /** The revision history; a bean only while the revisions module is present. */
     @Inject
     Instance<RevisionHistory> revisions;
+
+    /** The media routes; a bean only while the media module is present. */
+    @Inject
+    Instance<MediaRoutesPresent> media;
 
     /** The post's links for {@code request}: the action links only in the edit context. */
     Links of(PostRoutes routes, PostSnapshot post, RestRequest request) {
@@ -104,6 +110,12 @@ class PostLinks {
             Optional<String> parent = parentRoute(routes, post.parent().get());
             if (parent.isPresent()) {
                 links = links.add("up", urls.route(parent.get()), embeddable());
+            }
+        }
+        if (media.isResolvable() && media.get().served()) {
+            Optional<String> featured = media.get().featuredMedia(post, request.identity());
+            if (featured.isPresent()) {
+                links = links.add(API + "featuredmedia", featured.get(), embeddable());
             }
         }
         links = links.add(API + "attachment", urls.route("/" + NAMESPACE + "/media", Map.of("parent", id(post))));

@@ -17,12 +17,14 @@ import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.posts.FeaturedImages;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
+import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.runtime.PostCapabilityFacts;
 import org.quarkpress.restwp.Links;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.security.Capabilities;
+import org.quarkpress.security.PostFacts;
 
 /**
  * The links of an attachment as WordPress's attachments controller adds them, in its order: the attachment itself,
@@ -55,7 +57,7 @@ public class MediaLinks {
     PostPermissions permissions;
 
     @Inject
-    PostCapabilityFacts facts;
+    PostStatuses statuses;
 
     @Inject
     Capabilities capabilities;
@@ -77,7 +79,7 @@ public class MediaLinks {
                     embeddable());
         }
         links = links.add("replies", urls.route("/" + NAMESPACE + "/comments", Map.of("post", id)), embeddable());
-        Optional<String> cover = cover(attachment, request.identity());
+        Optional<String> cover = featuredMedia(attachment, request.identity());
         if (cover.isPresent()) {
             links = links.add(API + "featuredmedia", cover.get(), embeddable());
         }
@@ -103,20 +105,22 @@ public class MediaLinks {
     }
 
     /**
-     * The cover image's route, when the attachment names one that exists on this site, whose type is shown in REST,
-     * and that is published in effect or that the caller may read.
+     * The URL of the featured image (an attachment's cover image) that {@code post} names, when it names one that
+     * exists on this site, whose type is shown in REST, and that is published in effect or that the caller may read.
+     * The image, and the post it inherits its status from, are read once per request, however many posts name them.
      */
-    private Optional<String> cover(PostSnapshot attachment, SecurityIdentity caller) {
-        long cover = FeaturedImages.of(attachment);
-        if (cover <= 0) {
+    Optional<String> featuredMedia(PostSnapshot post, SecurityIdentity caller) {
+        long featured = FeaturedImages.of(post);
+        if (featured <= 0) {
             return Optional.empty();
         }
-        Optional<PostSnapshot> target = reads.post(PostId.of(cover));
+        Optional<PostSnapshot> target = reads.post(PostId.of(featured));
         if (target.isEmpty()) {
             return Optional.empty();
         }
-        boolean visible = facts.of(target.get()).effectiveStatus().equals("publish")
-                || permissions.can(caller, "read_post", target.get());
+        PostFacts targetFacts = PostCapabilityFacts.facts(target.get(), types, statuses, reads::post);
+        boolean visible = targetFacts.effectiveStatus().equals("publish")
+                || capabilities.can(caller, "read_post", Optional.of(targetFacts));
         if (!visible) {
             return Optional.empty();
         }

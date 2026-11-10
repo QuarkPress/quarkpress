@@ -130,6 +130,9 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     @Inject
     Capabilities capabilities;
 
+    @Inject
+    MediaLinks links;
+
     @Override
     public int order() {
         return 60;
@@ -146,6 +149,11 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     @Override
     public boolean served() {
         return built != null && site.features().isEnabled(MediaFeature.KEY);
+    }
+
+    @Override
+    public Optional<String> featuredMedia(PostSnapshot post, SecurityIdentity caller) {
+        return links.featuredMedia(post, caller);
     }
 
     @Override
