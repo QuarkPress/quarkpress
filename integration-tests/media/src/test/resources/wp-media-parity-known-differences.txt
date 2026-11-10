@@ -81,7 +81,6 @@ none * D8 the scenario files are typed alike by Tika and by WordPress's libmagic
 none * D9 deletions are compared once committed; a storage failure or a trashed attachment is not provoked
 none * D10 the scenarios upload through the REST routes only, never through the admin upload path
 none * D11 quarkpress.media.max-upload-size is not set in the test application
-none * D12 no scenario searches the library by a file's path
 none * D13 no scenario uses WordPress's quality or output format filters
 none * D14 no scenario image exceeds quarkpress.media.max-image-pixels
 none * D19 no scenario image reaches these bounds (DOCTYPE, depth, sizes, other date forms, further segments, ICO)

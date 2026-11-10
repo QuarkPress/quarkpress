@@ -77,7 +77,11 @@ folder:
   the old one, so a reader sees the old file or the new one, never a part.
 - Stored files are readable by all and writable by their owner (0644), new folders 0755, whatever the process's umask
   (on a POSIX file system).
-- At start-up, temporary files older than an hour (left by an interrupted write) are removed.
+- The temporary files the media module asks for a request body on its way into the storage (`temporaryFile()`, a
+  raw upload's spooled body) are created in `<directory>/.tmp/` too, so the upload is read from the file system it is
+  stored on; the caller deletes each one when the request is answered.
+- At start-up, temporary files older than an hour (left by an interrupted write, or by a request that stopped before
+  deleting its body) are removed. Nothing sweeps the folder while the application runs.
 - No key reaches outside the directory, neither through its segments nor through a symbolic link inside it, and the
   last segment of a key is never followed when it is a symbolic link: a link is no stored file.
 - A folder that cannot be read refuses an upload with WordPress's "Unable to create directory …" message (see the
