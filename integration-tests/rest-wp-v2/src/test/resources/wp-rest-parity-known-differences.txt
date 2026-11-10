@@ -440,6 +440,10 @@ e07 req10:body:/data D45 an attachment's post must name a post of the site: Quar
 e07 req25:body:/description/rendered D42 the JPEG's stored description "Hello world" (S3): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
 e07 req30:body:/caption/rendered D42 the JPEG's stored caption "e07 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
 e07e req3:body:/description/rendered D42 the sized JPEG's stored description "Hello world" (S3's sized half): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
+# D47-D49: no scenario can show them.
+none * D47 the parity network's upload types are WordPress's default list on both sides, so the enum declared at start-up and the one WordPress declares per request agree
+none * D48 the scenarios' only attachment post written past the media module (e03 p:carolsdraft, fileless on QuarkPress's side) is read by id, never listed, updated or deleted; every other attachment is an upload
+none * D49 WordPress's trash answers need its qp_parity_media_trashable switch, which has no QuarkPress counterpart; without it both sides answer 501 alike (e08)
 # D46 (e08): deletes and post-process. An MP3's post-process answer holds what the media module reads from the file.
 # WordPress's trash answers (r18 with qp_parity_media_trashable) are not played: that switch has no QuarkPress
 # counterpart, as QuarkPress never trashes media (media D9) and WordPress's default (media trash off) answers 501 alike.
