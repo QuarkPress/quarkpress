@@ -59,3 +59,4 @@ e07-media-update.json
 e07-media-update-editor.json
 e08-delete-and-post-process.json
 e08-delete-and-post-process-editor.json
+e09-featured-media.json

@@ -1,0 +1,252 @@
+{
+  "id": "e09",
+  "rule": "featured media on posts: the wp:featuredmedia link (embeddable, after up and before wp:attachment) to the featured attachment when it is published in effect or readable by the caller, and its _embed in the embed context (s12): an unattached image linked and embedded for anonymous and alice; an image attached to bob's draft and a private image: featured_media kept for anonymous, carol and erin, with no link or embed, alice linked and embedded; a page; a collection; the edit context's whole embed. Non-images refused silently (s11): after a JPEG, an MP3 and a PDF answer 200 with featured_media 0; a HEIC is kept and linked. The SVG and TIFF cases of s11 need WordPress switches without a QuarkPress counterpart and are not played",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "e09 bobs draft"
+    },
+    {
+      "media": "m:loose",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e09-loose.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:ondraft",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e09-on-draft.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "post": "p:draft"
+      }
+    },
+    {
+      "media": "m:private",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e09-private.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "status": "private"
+      }
+    },
+    {
+      "media": "m:other",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e09-other.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:song",
+      "as": "bob",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {}
+      },
+      "name": "e09-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "media": "m:pdf",
+      "as": "bob",
+      "fixture": {
+        "fixture": "pdf",
+        "args": []
+      },
+      "name": "e09.pdf",
+      "type": "application/pdf"
+    },
+    {
+      "media": "m:heic",
+      "as": "bob",
+      "fixture": {
+        "fixture": "heif",
+        "args": [
+          "heic"
+        ]
+      },
+      "name": "e09.heic",
+      "type": "image/heic"
+    },
+    {
+      "post": "p:loose",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "e09 loose",
+      "fields": {
+        "featured_media": "m:loose"
+      }
+    },
+    {
+      "post": "p:hidden",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "e09 hidden",
+      "fields": {
+        "featured_media": "m:ondraft"
+      }
+    },
+    {
+      "post": "p:private",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "e09 private",
+      "fields": {
+        "featured_media": "m:private"
+      }
+    },
+    {
+      "post": "p:page",
+      "as": "bob",
+      "type": "page",
+      "status": "publish",
+      "title": "e09 page",
+      "fields": {
+        "featured_media": "m:loose"
+      }
+    },
+    {
+      "post": "p:target",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "e09 target"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:loose}?_embed"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:loose}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hidden}?_embed"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hidden}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:hidden}?_embed"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:private}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:private}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:private}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/pages/{p:page}?_embed=wp:featuredmedia"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/?include={p:loose},{p:hidden},{p:private}&_embed=wp:featuredmedia"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/?include={p:loose},{p:hidden},{p:private}&_fields=id,featured_media,_links"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:loose}?context=edit&_embed"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:target}?_fields=id,featured_media,class_list,_links",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:other}}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:target}?_fields=id,featured_media,class_list,_links",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:song}}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:target}?_fields=id,featured_media,class_list,_links",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:other}}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:target}?_fields=id,featured_media,class_list,_links",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:pdf}}"
+    },
+    {
+      "as": "alice",
+      "method": "PUT",
+      "target": "/wp-json/wp/v2/posts/{p:target}?_fields=id,featured_media,class_list,_links",
+      "contentType": "application/json",
+      "body": "{\"featured_media\":{m:heic}}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/posts/{p:target}?_embed=wp:featuredmedia"
+    }
+  ]
+}

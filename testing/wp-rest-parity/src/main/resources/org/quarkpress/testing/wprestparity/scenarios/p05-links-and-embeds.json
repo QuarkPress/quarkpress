@@ -75,11 +75,20 @@
       "title": "p05 book"
     },
     {
-      "post": "p:image",
+      "media": "m:image",
       "as": "carol",
-      "type": "attachment",
-      "status": "inherit",
-      "title": "p05 image"
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "p05-image.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "title": "p05 image"
+      }
     },
     {
       "post": "p:pictured",
@@ -88,7 +97,7 @@
       "status": "publish",
       "title": "p05 pictured",
       "fields": {
-        "featured_media": "p:image"
+        "featured_media": "m:image"
       }
     },
     {
