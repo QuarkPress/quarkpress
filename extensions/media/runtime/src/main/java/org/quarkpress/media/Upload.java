@@ -37,6 +37,9 @@ import org.quarkpress.core.UserId;
  * @param pingStatus the ping status; when absent, {@code closed}
  * @param imageTypeCheck whether an image declared in a type the image processor cannot make sizes for is refused
  *     before its file is read; false lets it through, stored without sizes
+ * @param clientNameTitle whether the client name gives the title when neither the request nor the file gives one;
+ *     false for a name sent in a header with the file (a sideload), whose title then comes from the stored file name,
+ *     made clean and unique
  */
 public record Upload(
         String clientName,
@@ -57,7 +60,8 @@ public record Upload(
         Optional<String> slug,
         Optional<String> commentStatus,
         Optional<String> pingStatus,
-        boolean imageTypeCheck) {
+        boolean imageTypeCheck,
+        boolean clientNameTitle) {
 
     public Upload {
         Objects.requireNonNull(clientName, "clientName");
@@ -110,6 +114,7 @@ public record Upload(
         private String commentStatus;
         private String pingStatus;
         private boolean imageTypeCheck = true;
+        private boolean clientNameTitle = true;
 
         private Builder(String clientName, Path file) {
             this.clientName = Objects.requireNonNull(clientName, "clientName");
@@ -204,6 +209,12 @@ public record Upload(
             return this;
         }
 
+        /** Whether the client name gives the title before the stored file name does (true by default). */
+        public Builder clientNameTitle(boolean value) {
+            this.clientNameTitle = value;
+            return this;
+        }
+
         public Upload build() {
             return new Upload(
                     clientName,
@@ -224,7 +235,8 @@ public record Upload(
                     Optional.ofNullable(slug),
                     Optional.ofNullable(commentStatus),
                     Optional.ofNullable(pingStatus),
-                    imageTypeCheck);
+                    imageTypeCheck,
+                    clientNameTitle);
         }
     }
 }

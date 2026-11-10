@@ -465,7 +465,9 @@ public class UploadPipeline {
         Optional<ImageInfo> header = file.header();
         Optional<ObjectNode> imageMeta = file.imageMeta();
         EmbeddedText embedded = imageMeta.map(EmbeddedText::of).orElse(new EmbeddedText("", "", ""));
-        String title = AttachmentFields.title(upload.title(), embedded, upload.clientName(), placed.name());
+        // a name without a dot gives no title, so a sideload's title comes from the stored name
+        String title = AttachmentFields.title(
+                upload.title(), embedded, upload.clientNameTitle() ? upload.clientName() : "", placed.name());
         String excerpt = AttachmentFields.caption(upload.caption(), embedded);
         PostChanges.Builder changes = PostChanges.builder()
                 .type("attachment")

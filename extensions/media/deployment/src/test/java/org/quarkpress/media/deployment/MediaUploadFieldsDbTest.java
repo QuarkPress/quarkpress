@@ -119,6 +119,23 @@ class MediaUploadFieldsDbTest {
     }
 
     @Test
+    void aSideloadsTitleComesFromTheStoredName() throws Exception {
+        // a client name gives the title as sent
+        assertThat(stored(jpeg("twice.jpg")).post().title()).isEqualTo("twice");
+        // a name sent in a header gives none: the stored name, made clean and unique, gives the title and so the slug
+        PostSnapshot second = stored(jpeg("twice.jpg").clientNameTitle(false)).post();
+        assertThat(second.title()).isEqualTo("twice-1");
+        assertThat(second.slug()).isEqualTo("twice-1");
+        assertThat(stored(jpeg("../../up a.jpg").clientNameTitle(false)).post().title())
+                .isEqualTo("up-a");
+        // a requested title still wins
+        assertThat(stored(jpeg("twice.jpg").clientNameTitle(false).title("Given"))
+                        .post()
+                        .title())
+                .isEqualTo("Given");
+    }
+
+    @Test
     void absentFieldsTakeTheDefaults() throws Exception {
         PostSnapshot post = stored(jpeg("photo.jpg")).post();
         assertThat(post.commentStatus()).isEqualTo("open");
