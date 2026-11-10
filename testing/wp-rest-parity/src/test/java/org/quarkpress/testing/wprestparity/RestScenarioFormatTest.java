@@ -311,6 +311,28 @@ class RestScenarioFormatTest {
                 .hasMessageContaining("not a m: ref");
     }
 
+    @Test
+    void aMediaStepOfAnEditorScenarioMayAskForNoSizes() {
+        String step = "{\"media\":\"m:big\",\"as\":\"carol\",\"fixture\":{\"fixture\":\"jpeg\",\"args\":[64,48]},"
+                + "\"name\":\"big.jpg\",\"type\":\"image/jpeg\",\"fields\":{\"generate_sub_sizes\":\"false\"}}";
+        RestScenario read =
+                RestScenarioJson.read(scenario(step, "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/\"}"));
+        RestScenario.SetupStep.Media media =
+                (RestScenario.SetupStep.Media) read.setup().get(0);
+        // sent as it is in an editor scenario; without an editor every setup upload makes no sizes anyway
+        assertThat(Side.mediaFields(media, Map.of(), true)).containsExactly(Map.entry("generate_sub_sizes", "false"));
+        assertThat(Side.mediaFields(media, Map.of(), false)).containsExactly(Map.entry("generate_sub_sizes", "false"));
+        // "false" is its only value: a step without an editor would silently lose any other
+        for (String other : List.of("true", "0", "")) {
+            String asked = step.replace("\"generate_sub_sizes\":\"false\"", "\"generate_sub_sizes\":\"" + other + "\"");
+            assertThatThrownBy(() -> RestScenarioJson.read(
+                            scenario(asked, "{\"as\":\"alice\",\"method\":\"GET\",\"target\":\"/wp-json/\"}")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("x1")
+                    .hasMessageContaining("generate_sub_sizes is \"false\" or absent");
+        }
+    }
+
     /** Fixture arguments as a JSON array of numbers. */
     static final class OracleJsonArgs {
         static com.fasterxml.jackson.databind.JsonNode of(int... values) {

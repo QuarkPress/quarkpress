@@ -1,0 +1,56 @@
+{
+  "id": "e08e",
+  "rule": "post-process and delete of an image with sizes (an image editor on WordPress's side): a 1200x800 JPEG stored without its sizes (generate_sub_sizes=false) gets them through post-process (the whole edit answer), a second post-process changes nothing, the stored sizes read back, and a forced delete answers them in its previous attachment. The requests that need no editor are e08's",
+  "editor": true,
+  "setup": [
+    {
+      "media": "m:big",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          1200,
+          800
+        ]
+      },
+      "name": "e08e-big.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "generate_sub_sizes": "false"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:big}?context=edit&_fields=id,media_details,missing_image_sizes"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:big}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:big}/post-process?_fields=id,media_details,missing_image_sizes",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:big}?context=edit&_fields=id,media_details,missing_image_sizes,description"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:big}?force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    }
+  ]
+}

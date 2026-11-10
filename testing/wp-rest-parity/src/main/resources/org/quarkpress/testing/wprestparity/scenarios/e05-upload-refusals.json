@@ -1,6 +1,6 @@
 {
   "id": "e05",
-  "rule": "media upload refusals before anything is stored: the create permission chain in WordPress's order (id, author, sticky, upload_files, the parent, the declared image type), the parent's type (an attachment; a revision has no post id in QuarkPress, D31), multipart bodies without a usable file part (another name, file[] and file[a], an empty file name), Content-MD5 forms, the raw body's header checks and file name, JSON bodies (url included, D39) and unreadable multipart bodies; the collection's Allow following the create check (r21); then uploads both sides store (req48 on): fields a failed preparation drops but the caption (r01), featured media after the row (r03, r04, S13), statuses (r16), a whole 201 (r26), the raw bodies the header table accepts (r06; an empty Content-Type line, the last Content-Disposition line, a name cut at its semicolon, a path dropped, a name taken twice), fields in the query string, the post fields of a multipart upload, a PDF, a video and a template; images without sizes (generate_sub_sizes=false), so a WordPress without an image editor compares",
+  "rule": "media upload refusals before anything is stored: the create permission chain in WordPress's order (id, author, sticky, upload_files, the parent, the declared image type), the parent's type (an attachment; a revision has no post id in QuarkPress, D31), multipart bodies without a usable file part (another name, file[] and file[a], an empty file name), Content-MD5 forms, the raw body's header checks and file name, JSON bodies (url included, D39) and unreadable multipart bodies; the collection's Allow following the create check (r21); then uploads both sides store (req48 on): fields a failed preparation drops but the caption (r01), featured media after the row (r03, r04, S13), statuses (r16); how the create permission reads a refused upload's generate_sub_sizes in its image check (a TIFF no editor sizes, refused by its status: \"false\", \"0\", absent), a whole 201 (r26), the raw bodies the header table accepts (r06; an empty Content-Type line, the last Content-Disposition line, a name cut at its semicolon, a path dropped, a name taken twice), fields in the query string, the post fields of a multipart upload, a PDF, a video and a template; images without sizes (generate_sub_sizes=false), so a WordPress without an image editor compares",
   "setup": [
     {
       "post": "p:draft",
@@ -845,14 +845,11 @@
       "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
       "upload": {
         "fixture": {
-          "fixture": "jpeg",
-          "args": [
-            8,
-            8
-          ]
+          "fixture": "pdf",
+          "args": []
         },
-        "name": "e05-r16-inherit.jpg",
-        "type": "image/jpeg",
+        "name": "e05-r16-inherit.pdf",
+        "type": "application/pdf",
         "fields": {
           "generate_sub_sizes": "false",
           "status": "inherit"
@@ -906,16 +903,72 @@
       "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
       "upload": {
         "fixture": {
+          "fixture": "pdf",
+          "args": []
+        },
+        "name": "e05-r16-trash.pdf",
+        "type": "application/pdf",
+        "fields": {
+          "generate_sub_sizes": "false",
+          "status": "trash"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
           "fixture": "jpeg",
           "args": [
             8,
             8
           ]
         },
-        "name": "e05-r16-trash.jpg",
-        "type": "image/jpeg",
+        "name": "e05-tiff-false.tif",
+        "type": "image/tiff",
         "fields": {
           "generate_sub_sizes": "false",
+          "status": "trash"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-tiff-zero.tif",
+        "type": "image/tiff",
+        "fields": {
+          "generate_sub_sizes": "0",
+          "status": "trash"
+        }
+      }
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?_fields=id,author,title.raw,caption.raw,description.raw,status,post,alt_text,featured_media,mime_type,media_type,missing_image_sizes,slug,comment_status,ping_status,date",
+      "upload": {
+        "fixture": {
+          "fixture": "jpeg",
+          "args": [
+            8,
+            8
+          ]
+        },
+        "name": "e05-tiff-default.tif",
+        "type": "image/tiff",
+        "fields": {
           "status": "trash"
         }
       }

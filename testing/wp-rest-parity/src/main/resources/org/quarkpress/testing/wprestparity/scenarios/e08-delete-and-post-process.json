@@ -1,0 +1,256 @@
+{
+  "id": "e08",
+  "rule": "attachment deletes and post-process (DELETE /wp/v2/media/<id>, POST /wp/v2/media/<id>/post-process): r18 (no force or force=false answers 501 after the delete permission, as media trash is off; another author's attachment, anonymous, a post that is no attachment, a missing id; force deletes and answers the previous attachment, which is then gone); r10 (post-process: the missing action before the permission, no GET, an action outside the enum, a post that is no attachment, another author's attachment, anonymous, OPTIONS; a PDF, an MP3, a HEIC without readable dimensions and an image too small for any size answer 200 unchanged; a form body; _fields). WordPress's trash answers (qp_parity_media_trashable) are not played: QuarkPress never trashes media. The sized half is e08e's",
+  "setup": [
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "e08 draft"
+    },
+    {
+      "media": "m:carols",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e08-carols.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:bobs",
+      "as": "bob",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e08-bobs.jpg",
+      "type": "image/jpeg"
+    },
+    {
+      "media": "m:forced",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e08-forced.jpg",
+      "type": "image/jpeg",
+      "fields": {
+        "title": "e08 forced",
+        "alt_text": "e08 alt"
+      }
+    },
+    {
+      "media": "m:pdf",
+      "as": "carol",
+      "fixture": {
+        "fixture": "pdf",
+        "args": []
+      },
+      "name": "e08.pdf",
+      "type": "application/pdf"
+    },
+    {
+      "media": "m:song",
+      "as": "carol",
+      "fixture": {
+        "fixture": "mp3",
+        "args": {}
+      },
+      "name": "e08-song.mp3",
+      "type": "audio/mpeg"
+    },
+    {
+      "media": "m:heic",
+      "as": "carol",
+      "fixture": {
+        "fixture": "heif",
+        "args": [
+          "heic"
+        ]
+      },
+      "name": "e08.heic",
+      "type": "image/heic"
+    },
+    {
+      "media": "m:small",
+      "as": "carol",
+      "fixture": {
+        "fixture": "jpeg",
+        "args": [
+          16,
+          16
+        ]
+      },
+      "name": "e08-small.jpg",
+      "type": "image/jpeg"
+    }
+  ],
+  "requests": [
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:carols}",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:carols}?force=false",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:bobs}",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "anonymous",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:bobs}?force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{p:draft}?force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/999999999?force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:forced}?force=true",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:forced}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/media/{m:forced}",
+      "contentType": "application/json",
+      "body": "{\"force\":true}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:bobs}/post-process",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:bobs}/post-process"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:bobs}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"foo\"}"
+    },
+    {
+      "as": "alice",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{p:draft}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:bobs}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:bobs}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media/{m:bobs}/post-process"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:pdf}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:song}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:heic}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:small}/post-process",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:small}/post-process?context=view",
+      "contentType": "application/x-www-form-urlencoded",
+      "body": "action=create-image-subsizes"
+    },
+    {
+      "as": "carol",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media/{m:small}/post-process?_fields=id,media_details,missing_image_sizes",
+      "contentType": "application/json",
+      "body": "{\"action\":\"create-image-subsizes\"}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/media/{m:bobs}?context=edit&_fields=id,type,slug,link,media_details,missing_image_sizes"
+    }
+  ]
+}

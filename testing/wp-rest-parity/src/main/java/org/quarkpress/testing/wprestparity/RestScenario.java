@@ -35,9 +35,13 @@ public record RestScenario(
     /** The kinds of refs: terms, users, posts, created items ({@code c:}), revisions or autosaves, and media. */
     static final String REF_KINDS = "tupcrm";
 
-    /** The keys a media step's {@code fields} may hold: the text fields of the setup upload. */
+    /**
+     * The keys a media step's {@code fields} may hold: the text fields of the setup upload, and
+     * {@code generate_sub_sizes} ({@code "false"} only), with which an editor scenario stores an image without its
+     * sizes.
+     */
     public static final Set<String> MEDIA_FIELDS =
-            Set.of("post", "title", "caption", "description", "alt_text", "status");
+            Set.of("post", "title", "caption", "description", "alt_text", "status", "generate_sub_sizes");
 
     /**
      * A multipart upload: {@code fixture}'s bytes as the {@code file} part named {@code name} with the declared
@@ -93,9 +97,10 @@ public record RestScenario(
         /**
          * An attachment uploaded by {@code as}: {@code fixture}'s bytes as the file {@code name} declared as
          * {@code type}, with the text {@code fields} ({@code post}, a {@code p:} or {@code m:} ref; {@code title},
-         * {@code caption}, {@code description}, {@code alt_text}, {@code status}). WordPress's side uploads it through
-         * its REST media route, QuarkPress's through the setup resource; without {@code editor} on the scenario both
-         * make no sizes ({@code generate_sub_sizes=false}). Setup uploads are not compared.
+         * {@code caption}, {@code description}, {@code alt_text}, {@code status}; {@code generate_sub_sizes}
+         * {@code "false"}). WordPress's side uploads it through its REST media route, QuarkPress's through the setup
+         * resource; without {@code editor} on the scenario both make no sizes ({@code generate_sub_sizes=false}). Setup
+         * uploads are not compared.
          */
         record Media(String ref, String as, MediaScenario.Fixture fixture, String name, String type, ObjectNode fields)
                 implements SetupStep {
@@ -500,6 +505,12 @@ public record RestScenario(
             if (field.getKey().equals("post")) {
                 used(id, defined, field.getValue().textValue());
                 postOrMedia(id, field.getValue().textValue());
+            }
+            // the only use: an editor scenario's image stored without its sizes
+            if (field.getKey().equals("generate_sub_sizes")
+                    && !field.getValue().textValue().equals("false")) {
+                throw new IllegalArgumentException(
+                        id + ": the media field generate_sub_sizes is \"false\" or absent: " + field.getValue());
             }
         }
     }
