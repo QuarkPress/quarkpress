@@ -180,6 +180,31 @@ class MediaUploadRefusalsDbTest {
     }
 
     @Test
+    void anUploadRefusedByItsArgumentsKeepsTheImageCheckInItsAllow() {
+        Site site = site();
+        // a refused argument leaves the request unsanitized: any generate_sub_sizes sent, "false" and "0" too, is not
+        // the boolean false, so the image check of the Allow computation still refuses the WebP
+        for (String sent : List.of("false", "0")) {
+            Reply refused = site.multipart(
+                    carol,
+                    part("file", "a.webp", "image/webp", MediaFixtures.png(8, 8)),
+                    text("generate_sub_sizes", sent),
+                    text("status", "trash"));
+            assertThat(refused.status()).as(refused.text()).isEqualTo(400);
+            assertThat(refused.text()).contains("\"code\":\"rest_invalid_param\"");
+            assertThat(refused.header("allow")).as(sent).isEqualTo("GET");
+        }
+        // a PNG the server sizes passes the check
+        Reply png = site.multipart(
+                carol,
+                part("file", "a.png", "image/png", MediaFixtures.png(8, 8)),
+                text("generate_sub_sizes", "false"),
+                text("status", "trash"));
+        assertThat(png.status()).as(png.text()).isEqualTo(400);
+        assertThat(png.header("allow")).isEqualTo("GET, POST");
+    }
+
+    @Test
     void anUnsupportedDeclaredImageIsStoredWithoutSizes() {
         Site site = site();
         Reply stored = site.multipart(

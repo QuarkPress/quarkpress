@@ -165,8 +165,8 @@ class MediaUpdateDbTest {
         JsonNode body = ok(answer);
         assertThat(body.get("title").get("raw").asText()).isEqualTo("edited");
         assertThat(fieldNames(body)).containsExactly("id", "title", "alt_text");
-        // the update is served; delete is not yet
-        assertThat(answer.header("Allow")).isEqualTo("GET, POST, PUT, PATCH");
+        // every method of the item is offered to its author
+        assertThat(answer.header("Allow")).isEqualTo("GET, POST, PUT, PATCH, DELETE");
         assertThat(ok(Http.as(bearer(carol))
                                 .contentType("application/json")
                                 .body("{\"title\":\"posted\"}")
@@ -183,7 +183,7 @@ class MediaUpdateDbTest {
                 .containsExactly("GET");
         assertThat(texts(
                         json(Http.as(bearer(bob)).get(MEDIA + bobs).asString()).at("/_links/self/0/targetHints/allow")))
-                .containsExactly("GET", "POST", "PUT", "PATCH");
+                .containsExactly("GET", "POST", "PUT", "PATCH", "DELETE");
     }
 
     @Test

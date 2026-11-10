@@ -20,7 +20,7 @@ import org.quarkpress.core.UserId;
 /**
  * The media routes' registration: the collection, the item and the post-process route (no image editing, client-side
  * upload, revisions or autosaves route), none batchable, with WordPress's arguments and attachment schema as their
- * OPTIONS describe them. Until each endpoint is served, it answers as no route would.
+ * OPTIONS describe them; a route or method they do not have answers as no route would.
  */
 class MediaRoutesDbTest {
 
@@ -327,19 +327,12 @@ class MediaRoutesDbTest {
                 .then()
                 .statusCode(404)
                 .body(equalTo(NO_ROUTE));
-        // the registered endpoints answer as no route until their task serves them, so Allow names none of them
-        Http.as("test-" + alice)
-                .delete("/wp-json/wp/v2/media/" + id)
-                .then()
-                .statusCode(404)
-                .header("Allow", equalTo("GET, POST, PUT, PATCH"))
-                .body(equalTo(NO_ROUTE));
-        // the item is read and updated; its delete is not served yet
+        // every registered endpoint of the item is served: read, updated and deleted
         Http.as("test-" + alice)
                 .get("/wp-json/wp/v2/media/" + id)
                 .then()
                 .statusCode(200)
-                .header("Allow", equalTo("GET, POST, PUT, PATCH"));
+                .header("Allow", equalTo("GET, POST, PUT, PATCH, DELETE"));
         // the upload's checks are served: a JSON body is a raw upload without a disposition
         Http.as("test-" + alice)
                 .contentType("application/json")

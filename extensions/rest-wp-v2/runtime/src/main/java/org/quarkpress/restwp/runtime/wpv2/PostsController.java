@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostStatusDefinition;
 import org.quarkpress.core.PostTypeDefinition;
@@ -276,11 +277,21 @@ public class PostsController implements RestRouteProvider {
 
     /** WordPress's delete check: the post of the routes' type must exist; the caller needs {@code delete_post}. */
     private PermissionResult mayDelete(PostRoutes routes, RestRequest request) {
-        Optional<PostSnapshot> found = existing(routes, request);
+        return deleteChecks(
+                request, existing(routes, request), post -> permissions.can(request.identity(), "delete_post", post));
+    }
+
+    /**
+     * WordPress's delete checks, shared by the routes that delete a post of theirs: {@code found} (the post of the
+     * request's {@code id}, empty when there is none) must exist; the caller needs {@code delete_post} on it, decided
+     * by {@code mayDelete}.
+     */
+    static PermissionResult deleteChecks(
+            RestRequest request, Optional<PostSnapshot> found, Predicate<PostSnapshot> mayDelete) {
         if (found.isEmpty()) {
             return PermissionResult.denied(invalidId());
         }
-        if (!permissions.can(request.identity(), "delete_post", found.get())) {
+        if (!mayDelete.test(found.get())) {
             return PermissionResult.denied(RestError.of(
                     "rest_cannot_delete", "Sorry, you are not allowed to delete this post.", request.authCode()));
         }

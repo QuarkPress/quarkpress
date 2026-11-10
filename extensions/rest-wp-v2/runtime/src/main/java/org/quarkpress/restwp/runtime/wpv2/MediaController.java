@@ -8,14 +8,18 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
+import org.jboss.logging.Logger;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.SiteFeatureDisabledException;
 import org.quarkpress.media.ImageSizes;
 import org.quarkpress.media.Media;
 import org.quarkpress.media.MediaFeature;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.MimeTypes;
+import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
@@ -36,6 +40,7 @@ import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.UploadedFile;
 import org.quarkpress.restwp.runtime.ArgChecks;
 import org.quarkpress.restwp.runtime.PhpValues;
+import org.quarkpress.restwp.runtime.RestJson;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.taxonomy.Taxonomies;
 
@@ -58,11 +63,14 @@ import org.quarkpress.taxonomy.Taxonomies;
  * An update is checked as the posts routes check one (no upload capability is needed), then its parent's type; it is
  * written and answered by {@link MediaWriter} too, and never reads a file.
  *
- * <p>An endpoint not served yet answers 404 {@code rest_no_route}, as a request no route matches, so that its
- * method is left out of {@code Allow}.
+ * <p>A delete is checked as the posts routes check one; there is no media trash, so only a forced delete is served,
+ * which removes the attachment and its files. A post-process is checked as an update; it makes the attachment's missing
+ * sizes and answers the attachment, whatever its state, as the editor's recovery of an upload that did not finish.
  */
 @ApplicationScoped
 public class MediaController implements RestRouteProvider, MediaRoutesPresent {
+
+    private static final Logger LOG = Logger.getLogger(MediaController.class);
 
     private static final String TYPE = "attachment";
 
@@ -185,8 +193,8 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                         .build())
                 .endpoint(Endpoint.of("DELETE")
                         .arg(PostSchema.forceArg())
-                        .permission(MediaController::notServedYet)
-                        .handler(MediaController::notServed)
+                        .permission(this::mayDelete)
+                        .handler(request -> delete(media, request))
                         .allowBatch(false)
                         .build())
                 .register();
@@ -194,8 +202,8 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                 .endpoint(Endpoint.of("POST")
                         .arg(MediaSchema.postProcessIdArg())
                         .arg(MediaSchema.actionArg())
-                        .permission(MediaController::notServedYet)
-                        .handler(MediaController::notServed)
+                        .permission(request -> mayUpdate(media, request))
+                        .handler(request -> postProcess(media, request))
                         .allowBatch(false)
                         .build())
                 .register();
@@ -331,13 +339,30 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
             return PermissionResult.denied(noRoute());
         }
         return updateChecks.update(
-                media,
-                request,
-                reads.attachment(request).map(MediaSnapshot::post),
-                post -> capabilities.can(
-                        request.identity(),
-                        "edit_post",
-                        Optional.of(PostCapabilityFacts.facts(post, types, statuses, reads::post))));
+                media, request, reads.attachment(request).map(MediaSnapshot::post), may(request, "edit_post"));
+    }
+
+    /**
+     * WordPress's delete checks, the posts routes' own: the attachment must exist on the site and the caller needs
+     * {@code delete_post} on it. A site whose media feature is off answers as no route would.
+     */
+    private PermissionResult mayDelete(RestRequest request) {
+        if (!site.features().isEnabled(MediaFeature.KEY)) {
+            return PermissionResult.denied(noRoute());
+        }
+        return PostsController.deleteChecks(
+                request, reads.attachment(request).map(MediaSnapshot::post), may(request, "delete_post"));
+    }
+
+    /**
+     * Whether the caller has the post capability {@code capability} on an attachment, decided with the posts it
+     * inherits its status from read through this request's reads, so a listed attachment's links cost no further read.
+     */
+    private Predicate<PostSnapshot> may(RestRequest request, String capability) {
+        return post -> capabilities.can(
+                request.identity(),
+                capability,
+                Optional.of(PostCapabilityFacts.facts(post, types, statuses, reads::post)));
     }
 
     /**
@@ -368,6 +393,69 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         return writer.update(media, stored, request);
     }
 
+    /**
+     * WordPress's delete with media trash off (its default): without {@code force} the attachment cannot be trashed
+     * (501); with it, the attachment is rendered in the edit context, whatever context was asked for, then deleted for
+     * good with every file of it, and the answer is {@code {"deleted": true, "previous": <that rendering without
+     * links>}}. The request's later reads (its {@code Allow}) no longer find it.
+     */
+    private RestResponse delete(PostRoutes media, RestRequest request) {
+        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        if (!request.param("force").map(PhpValues::toBoolean).orElse(false)) {
+            throw new RestException(RestError.of(
+                    "rest_trash_not_supported",
+                    "The post does not support trashing. Set 'force=true' to delete.",
+                    501));
+        }
+        request.useContext("edit");
+        Fields.Selection selection =
+                Fields.forResponse(Fields.of(request), media.schema(), "edit", request.hasParam("_embed"));
+        JsonNode previous = fields.prepare(media, stored, selection, "edit", request, new AttachmentMarkup.Counters())
+                .body();
+        PostId id = stored.post().id();
+        if (library.delete(id).isEmpty()) {
+            throw new RestException(RestError.of("rest_cannot_delete", "The post cannot be deleted.", 500));
+        }
+        reads.forget(id);
+        ObjectNode body = RestJson.NODES.objectNode();
+        body.put("deleted", true);
+        body.set("previous", previous);
+        return RestResponse.ok(body);
+    }
+
+    /**
+     * WordPress's post-process: the attachment's missing sizes are made (one without metadata yet, or whose processing
+     * failed, from scratch), outside any transaction. A failure while making them is logged and ignored, as the
+     * client calls again; the answer is the attachment read again, 200 in the edit context, in every state. An
+     * attachment deleted meanwhile is answered as one that does not exist.
+     */
+    private RestResponse postProcess(PostRoutes media, RestRequest request) {
+        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        PostId id = stored.post().id();
+        try {
+            library.process(id);
+        } catch (SiteFeatureDisabledException off) {
+            throw off;
+        } catch (PostException refused) {
+            // no media row (an attachment of the posts module alone), or deleted since the permission passed
+            LOG.infof("the post-process of attachment %d was refused: %s", id.value(), refused.getMessage());
+        } catch (RuntimeException | Error failure) {
+            LOG.errorf(failure, "the post-process of attachment %d failed", id.value());
+        }
+        Optional<MediaSnapshot> reread = library.read(id);
+        if (reread.isEmpty() && !stored.storageKey().isEmpty()) {
+            reads.forget(id);
+            throw new RestException(invalidId());
+        }
+        // an attachment without a stored file has nothing to process: it is answered as it was read
+        MediaSnapshot processed = reread.orElse(stored);
+        reads.remember(processed);
+        request.useContext("edit");
+        Fields.Selection selection =
+                Fields.forResponse(Fields.of(request), media.schema(), "edit", request.hasParam("_embed"));
+        return fields.prepare(media, processed, selection, "edit", request, new AttachmentMarkup.Counters());
+    }
+
     /** The refusal of a {@code post} that names a revision or an attachment of the site. */
     private void refuseParentType(RestRequest request) {
         long id = request.param("post").map(PhpValues::toLong).orElse(0L);
@@ -381,9 +469,16 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         }
     }
 
-    /** Whether to make sizes: the request's {@code generate_sub_sizes}, true by default. */
+    /**
+     * Whether the image check counts on sizes being made, as WordPress reads the request's {@code generate_sub_sizes}
+     * there: absent, sizes are made; sent, only the boolean false (a sanitized value) asks for none. The check also
+     * runs for the {@code Allow} of a request its arguments refused, which was never sanitized: the text
+     * {@code "false"} or {@code "0"} then still counts as sizes to make.
+     */
     private static boolean generateSubSizes(RestRequest request) {
-        return request.param("generate_sub_sizes").map(PhpValues::toBoolean).orElse(true);
+        return request.param("generate_sub_sizes")
+                .map(value -> !(value.isBoolean() && !value.booleanValue()))
+                .orElse(true);
     }
 
     /** The parameter {@code name} from any source, when it is not empty in PHP's sense. */
@@ -442,15 +537,6 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
 
     private static RestError invalidId() {
         return RestError.of("rest_post_invalid_id", "Invalid post ID.", 404);
-    }
-
-    /** The answer of an endpoint not served yet: the one a request no route matches. */
-    private static PermissionResult notServedYet(RestRequest request) {
-        return PermissionResult.denied(noRoute());
-    }
-
-    private static RestResponse notServed(RestRequest request) {
-        throw new RestException(noRoute());
     }
 
     private static RestError noRoute() {
