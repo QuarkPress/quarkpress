@@ -320,17 +320,20 @@ class MediaCollectionDbTest {
     void eachParentIsReadOncePerRequest() {
         // the same library unattached and without cover images: the reads every listed attachment costs anyway
         Library plain = library();
+        long unattached = 0;
         for (int i = 0; i < 11; i++) {
-            plain.upload(bob, "plain" + i + ".jpg", 1 + i, upload -> upload);
+            unattached = plain.upload(bob, "plain" + i + ".jpg", 1 + i, upload -> upload);
         }
         Library site = library();
         PostId first = site.post("publish", "first");
         PostId second = site.post("publish", "second");
         long cover = site.upload(bob, "cover.jpg", 1, upload -> upload);
+        long child = 0;
         for (int i = 0; i < 10; i++) {
             PostId parent = i % 2 == 0 ? first : second;
             long attachment = site.upload(bob, "child" + i + ".jpg", 2 + i, upload -> upload.parent(parent));
             site.cover(attachment, cover);
+            child = attachment;
         }
         Statistics statistics = statistics();
         long before = postReads(statistics);
@@ -356,6 +359,14 @@ class MediaCollectionDbTest {
         assertThat(ids(site.get(alice, "?per_page=20&context=edit&_fields=id,_links")))
                 .hasSize(11);
         assertThat(postReads(statistics) - before - editBaseline).isEqualTo(3);
+
+        // so does one item in the edit context: its edit_post, read check and links share one read of the parent
+        before = postReads(statistics);
+        plain.get(bob, "/" + unattached + "?context=edit&_fields=id,_links");
+        long itemBaseline = postReads(statistics) - before;
+        before = postReads(statistics);
+        site.get(bob, "/" + child + "?context=edit&_fields=id,_links");
+        assertThat(postReads(statistics) - before - itemBaseline).isEqualTo(2);
     }
 
     @Test

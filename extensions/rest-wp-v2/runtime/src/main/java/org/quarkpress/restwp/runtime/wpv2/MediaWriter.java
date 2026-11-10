@@ -204,7 +204,7 @@ class MediaWriter {
             write(routes, stored, changes, prepared, request);
             return null;
         });
-        MediaSnapshot updated = media.read(id).orElseThrow(() -> new RestException(invalidId()));
+        MediaSnapshot updated = media.read(id).orElseThrow(() -> new RestException(MediaReads.invalidId()));
         reads.remember(updated);
         request.useContext("edit");
         Fields.Selection selection =
@@ -292,10 +292,6 @@ class MediaWriter {
 
     private PostRequest.Services services() {
         return new PostRequest.Services(permissions, statuses, posts, rows, profiles, site);
-    }
-
-    private static RestError invalidId() {
-        return RestError.of("rest_post_invalid_id", "Invalid post ID.", 404);
     }
 
     // ---- the upload and its fields
@@ -431,9 +427,16 @@ class MediaWriter {
                             400));
                 }
                 long thumbnail = PhpValues.toLong(featured.get());
-                if (thumbnail == 0) {
-                    featuredImages.set(id, 0);
-                } else if (!featuredImages.set(id, thumbnail)) {
+                // written as the system, as an update writes it: the upload's permission check has run
+                SecurityIdentity caller = association.getIdentity();
+                association.setIdentity(system.identity());
+                boolean set;
+                try {
+                    set = featuredImages.set(id, thumbnail);
+                } finally {
+                    association.setIdentity(caller);
+                }
+                if (thumbnail != 0 && !set) {
                     return Optional.of(RestError.of("rest_invalid_featured_media", "Invalid featured media ID.", 400));
                 }
             }
@@ -446,8 +449,8 @@ class MediaWriter {
     }
 
     /**
-     * Deletes a spooled body; a failure is logged and never replaces the answer (the storage's start-up sweep removes
-     * the file later).
+     * Deletes a spooled body; a failure is logged and never replaces the answer (a file-system storage's start-up
+     * sweep removes the file later; the default temporary folder has no sweep).
      */
     private static void deleteSpool(Path spooled) {
         try {

@@ -28,6 +28,7 @@ import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
 import org.quarkpress.restwp.UploadedFile;
 import org.quarkpress.restwp.runtime.PhpQuery;
+import org.quarkpress.restwp.runtime.PhpValues;
 
 /**
  * The file of a media upload, received as WordPress receives it, and the answers to its refusals.
@@ -273,7 +274,7 @@ final class MediaUploadRequest {
     /** The first {@code Content-MD5} value, trimmed as PHP trims; empty when the header is absent. */
     private static Optional<String> expectedMd5(RestRequest request) {
         List<String> values = request.headerValues("Content-MD5");
-        return values.isEmpty() ? Optional.empty() : Optional.of(phpTrim(values.get(0)));
+        return values.isEmpty() ? Optional.empty() : Optional.of(PhpValues.trim(values.get(0)));
     }
 
     private static RestError hashMismatch() {
@@ -297,22 +298,6 @@ final class MediaUploadRequest {
         } catch (NoSuchAlgorithmException missing) {
             throw new IllegalStateException(missing);
         }
-    }
-
-    private static String phpTrim(String value) {
-        int from = 0;
-        int to = value.length();
-        while (from < to && phpBlank(value.charAt(from))) {
-            from++;
-        }
-        while (to > from && phpBlank(value.charAt(to - 1))) {
-            to--;
-        }
-        return value.substring(from, to);
-    }
-
-    private static boolean phpBlank(char c) {
-        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u0000' || c == '\u000B';
     }
 
     // ---- bracketed file parts

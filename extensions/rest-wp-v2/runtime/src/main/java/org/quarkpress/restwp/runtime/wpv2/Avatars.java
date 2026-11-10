@@ -7,6 +7,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Optional;
 import org.quarkpress.core.SiteOptions;
+import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
 import org.quarkpress.security.UserProfile;
 
@@ -78,7 +79,7 @@ public final class Avatars {
 
     /** The hash of the address: none for an empty address or "0" (PHP's truth). */
     private static String hash(String address) {
-        return address.isEmpty() || address.equals("0") ? "" : sha256(asciiLower(phpTrim(address)));
+        return address.isEmpty() || address.equals("0") ? "" : sha256(asciiLower(PhpValues.trim(address)));
     }
 
     /** The parameters after the size: the default image, the rating and, with the initials image, the initials. */
@@ -148,23 +149,6 @@ public final class Avatars {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is not available", e);
         }
-    }
-
-    /** PHP's {@code trim}: spaces, tabs, line feeds, carriage returns, NUL and vertical tabs off both ends. */
-    private static String phpTrim(String text) {
-        int start = 0;
-        int end = text.length();
-        while (start < end && trimmed(text.charAt(start))) {
-            start++;
-        }
-        while (end > start && trimmed(text.charAt(end - 1))) {
-            end--;
-        }
-        return text.substring(start, end);
-    }
-
-    private static boolean trimmed(char c) {
-        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u0000' || c == '\u000B';
     }
 
     /** PHP 8's {@code strtolower}: ASCII letters only. */

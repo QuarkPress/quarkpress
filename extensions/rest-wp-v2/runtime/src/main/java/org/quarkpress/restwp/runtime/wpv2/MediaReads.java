@@ -17,6 +17,7 @@ import org.quarkpress.media.Processing;
 import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostRepository;
+import org.quarkpress.restwp.RestError;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.runtime.PhpValues;
 
@@ -102,6 +103,11 @@ public class MediaReads {
                 alt.isEmpty() || !alt.get(0).isTextual() ? "" : alt.get(0).textValue(),
                 Processing.NONE,
                 post.guid());
+    }
+
+    /** The answer to a request whose attachment is not found: WordPress's invalid post id, 404. */
+    static RestError invalidId() {
+        return RestError.of("rest_post_invalid_id", "Invalid post ID.", 404);
     }
 
     /** Replaces the read of an attachment this request wrote, so that its later reads see the write. */

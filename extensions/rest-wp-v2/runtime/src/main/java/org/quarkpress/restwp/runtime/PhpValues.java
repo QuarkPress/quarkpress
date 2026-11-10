@@ -276,6 +276,38 @@ public final class PhpValues {
         return parseList(text, new long[1]);
     }
 
+    /** PHP's {@code trim}: spaces, tabs, line feeds, carriage returns, NUL and vertical tabs off both ends. */
+    public static String trim(String text) {
+        return trim(text, 0, text.length());
+    }
+
+    /** {@code text[start, end)} as PHP's {@code trim} leaves it. */
+    public static String trim(String text, int start, int end) {
+        int from = start;
+        int to = end;
+        while (from < to && trimmed(text.charAt(from))) {
+            from++;
+        }
+        while (to > from && trimmed(text.charAt(to - 1))) {
+            to--;
+        }
+        return text.substring(from, to);
+    }
+
+    /** PHP's {@code ltrim}: the characters {@link #trim(String)} removes, off the start only. */
+    public static String ltrim(String text) {
+        int from = 0;
+        while (from < text.length() && trimmed(text.charAt(from))) {
+            from++;
+        }
+        return text.substring(from);
+    }
+
+    /** A character PHP's {@code trim} removes by default. */
+    private static boolean trimmed(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u0000' || c == '\u000B';
+    }
+
     /** PHP's whitespace for numeric strings and WordPress's list splitting. */
     static boolean whitespace(char c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == 0x0B || c == '\f';

@@ -2,6 +2,7 @@ package org.quarkpress.restwp.runtime.wpv2;
 
 import java.util.List;
 import java.util.Optional;
+import org.quarkpress.restwp.runtime.PhpValues;
 
 /**
  * The file name of a raw-body upload, read from its {@code Content-Disposition} header as WordPress reads it. Each
@@ -50,31 +51,13 @@ final class ContentDisposition {
                 break;
             }
         }
-        if (equals < 0 || !trimmed(value, start, equals).equals("filename")) {
+        if (equals < 0 || !PhpValues.trim(value, start, equals).equals("filename")) {
             return null;
         }
-        String name = trimmed(value, equals + 1, end);
+        String name = PhpValues.trim(value, equals + 1, end);
         if (name.length() >= 2 && name.charAt(0) == '"' && name.charAt(name.length() - 1) == '"') {
             name = name.substring(1, name.length() - 1);
         }
         return name;
-    }
-
-    /** {@code value[start, end)} without the characters PHP's {@code trim} removes at either end. */
-    private static String trimmed(String value, int start, int end) {
-        int from = start;
-        int to = end;
-        while (from < to && phpBlank(value.charAt(from))) {
-            from++;
-        }
-        while (to > from && phpBlank(value.charAt(to - 1))) {
-            to--;
-        }
-        return value.substring(from, to);
-    }
-
-    /** A space, tab, line feed, carriage return, NUL or vertical tab. */
-    private static boolean phpBlank(char c) {
-        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u0000' || c == '\u000B';
     }
 }

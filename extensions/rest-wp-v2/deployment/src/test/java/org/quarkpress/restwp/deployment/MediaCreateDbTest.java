@@ -57,7 +57,8 @@ import org.quarkpress.testing.wprestparity.MediaFixtures;
  * statuses an attachment takes; the post fields a failed preparation drops (the caption kept); the featured image and
  * the meta written after the row, whose refusals answer without the header and leave the attachment unprocessed; a
  * crash after the row, answered 500 with the header; and no temporary file left behind. Members of the main site: the
- * editor bob, the author carol, a contributor who may upload (the uploader); alice is a super admin.
+ * editor bob, the author carol, a contributor who may upload (the uploader), a subscriber who may upload (the
+ * librarian); alice is a super admin.
  */
 class MediaCreateDbTest {
 
@@ -84,6 +85,7 @@ class MediaCreateDbTest {
     static UserId bob;
     static UserId carol;
     static UserId uploader;
+    static UserId librarian;
 
     @Inject
     CrashingProcessor processor;
@@ -103,6 +105,15 @@ class MediaCreateDbTest {
                         + ", " + TestDb.json() + ")",
                 uploader.value(),
                 "[\"contributor\"]",
+                "{\"upload_files\": true}");
+        // a role with upload_files but not edit_posts: a subscriber who may upload, and edit nothing
+        librarian = TestData.profile(data, "librarian");
+        Jdbc.update(
+                data,
+                "insert into qp_site_membership (site_id, user_id, roles, capabilities) values (1, ?, " + TestDb.json()
+                        + ", " + TestDb.json() + ")",
+                librarian.value(),
+                "[\"subscriber\"]",
                 "{\"upload_files\": true}");
     }
 
@@ -430,6 +441,18 @@ class MediaCreateDbTest {
         error(refused, 400, "rest_invalid_featured_media", "Invalid featured media ID.");
         assertThat(refused.header("X-WP-Upload-Attachment-ID")).isNull();
         assertThat(processing(attachmentTitled(name))).isEqualTo("pending");
+    }
+
+    @Test
+    void theFeaturedImageOfAnUploadIsSetWhateverTheCallerMayEdit() {
+        // the uploader may not edit the new attachment, yet its cover is set, as an update sets it
+        MediaSnapshot image = MediaFixturesForRest.upload(TestData.MAIN, carol, "cover" + suffix() + ".jpg", false);
+        long imageId = image.post().id().value();
+        JsonNode audio = created(multipart(librarian, "song" + suffix() + ".mp3", "audio/mpeg", mp3())
+                .multiPart("featured_media", Long.toString(imageId))
+                .post(MEDIA));
+        assertThat(audio.get("featured_media").longValue()).isEqualTo(imageId);
+        assertThat(audio.get("author").longValue()).isEqualTo(librarian.value());
     }
 
     @Test

@@ -396,7 +396,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
      * or a raw body sent along is never read.
      */
     private RestResponse update(PostRoutes media, RestRequest request) {
-        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(MediaReads.invalidId()));
         refuseParentType(request);
         return writer.update(media, stored, request);
     }
@@ -408,7 +408,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
      * links>}}. The request's later reads (its {@code Allow}) no longer find it.
      */
     private RestResponse delete(PostRoutes media, RestRequest request) {
-        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(MediaReads.invalidId()));
         if (!request.param("force").map(PhpValues::toBoolean).orElse(false)) {
             throw new RestException(RestError.of(
                     "rest_trash_not_supported",
@@ -438,7 +438,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
      * attachment deleted meanwhile is answered as one that does not exist.
      */
     private RestResponse postProcess(PostRoutes media, RestRequest request) {
-        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        MediaSnapshot stored = reads.attachment(request).orElseThrow(() -> new RestException(MediaReads.invalidId()));
         PostId id = stored.post().id();
         try {
             library.process(id);
@@ -453,7 +453,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         Optional<MediaSnapshot> reread = library.read(id);
         if (reread.isEmpty() && !stored.storageKey().isEmpty()) {
             reads.forget(id);
-            throw new RestException(invalidId());
+            throw new RestException(MediaReads.invalidId());
         }
         // an attachment without a stored file has nothing to process: it is answered as it was read
         MediaSnapshot processed = reread.orElse(stored);
@@ -505,11 +505,11 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         }
         Optional<MediaSnapshot> found = reads.attachment(request);
         if (found.isEmpty()) {
-            return PermissionResult.denied(invalidId());
+            return PermissionResult.denied(MediaReads.invalidId());
         }
         PostSnapshot post = found.get().post();
         SecurityIdentity caller = request.identity();
-        if (request.isEditContext() && !permissions.can(caller, "edit_post", post)) {
+        if (request.isEditContext() && !may(request, "edit_post").test(post)) {
             return PermissionResult.denied(RestError.of(
                     "rest_forbidden_context", "Sorry, you are not allowed to edit this post.", request.authCode()));
         }
@@ -526,7 +526,8 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
 
     /** The attachment in the request's context, with the {@code Link} to its page. */
     private RestResponse item(PostRoutes media, RestRequest request) {
-        MediaSnapshot attachment = reads.attachment(request).orElseThrow(() -> new RestException(invalidId()));
+        MediaSnapshot attachment =
+                reads.attachment(request).orElseThrow(() -> new RestException(MediaReads.invalidId()));
         Fields.Selection selection = Fields.forResponse(request, media.schema());
         RestResponse response = fields.prepare(
                 media, attachment, selection, request.context(), request, new AttachmentMarkup.Counters());
@@ -541,10 +542,6 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         return value != null && value.isTextual() && !PhpValues.isEmpty(value)
                 ? Optional.of(value.textValue())
                 : Optional.empty();
-    }
-
-    private static RestError invalidId() {
-        return RestError.of("rest_post_invalid_id", "Invalid post ID.", 404);
     }
 
     private static RestError noRoute() {

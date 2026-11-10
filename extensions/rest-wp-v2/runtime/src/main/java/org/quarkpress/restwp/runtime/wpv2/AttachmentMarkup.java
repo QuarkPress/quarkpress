@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import org.quarkpress.lib.wpkses.Kses;
+import org.quarkpress.restwp.runtime.PhpValues;
 
 /**
  * The markup WordPress puts in front of an attachment's rendered description, and the caption it generates from
@@ -187,7 +188,7 @@ final class AttachmentMarkup {
             width = fitted[0];
             height = fitted[1];
         }
-        String alt = phpTrim(Kses.stripTags(a.alt()));
+        String alt = PhpValues.trim(Kses.stripTags(a.alt()));
         String srcset = srcset(a, folder, displayed, width, height);
         String sizes = srcset.isEmpty() ? "" : "auto, (max-width: " + width + "px) 100vw, " + width + "px";
         return Optional.of(new Image(url, width, height, alt, srcset, sizes));
@@ -400,7 +401,7 @@ final class AttachmentMarkup {
      * {@code &#039;}. Matches WordPress for absolute file URLs; unusual relative or scheme-less texts may differ.
      */
     static String escUrl(String url) {
-        String text = phpLtrim(url);
+        String text = PhpValues.ltrim(url);
         if (text.isEmpty()) {
             return "";
         }
@@ -546,25 +547,5 @@ final class AttachmentMarkup {
 
     private static boolean startsWithIgnoreCase(String text, String prefix) {
         return text.regionMatches(true, 0, prefix, 0, prefix.length());
-    }
-
-    private static boolean phpWhitespace(char c) {
-        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\0' || c == '\u000B';
-    }
-
-    private static String phpLtrim(String text) {
-        int start = 0;
-        while (start < text.length() && phpWhitespace(text.charAt(start))) {
-            start++;
-        }
-        return text.substring(start);
-    }
-
-    private static String phpTrim(String text) {
-        int end = text.length();
-        while (end > 0 && phpWhitespace(text.charAt(end - 1))) {
-            end--;
-        }
-        return phpLtrim(text.substring(0, end));
     }
 }
