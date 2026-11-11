@@ -1,0 +1,90 @@
+{
+  "id": "f05",
+  "rule": "block patterns and pattern categories (/wp/v2/block-patterns/patterns and /categories, Part G b08, b09, b11, b14): the harness's patterns (qp/inner with categories under old and new names, qp/outer referring to qp/inner, an unknown pattern and itself, qp/plain with every other key), on WordPress with the theme quarkpress and its core patterns turned off, compared whole and byte for byte: registration order, only the keys a pattern sets, the categories migrated in place, nested references resolved (an unknown one kept, the self reference expanded once and removed inside the copy, a single inserted block given its pattern's metadata); a contributor admitted, a subscriber refused (403) and anonymous (401) on both routes; any context accepted, an unknown one answering one empty record per item; _fields; HEAD; OPTIONS (no arguments); the core categories in WordPress's order with its labels and QuarkPress's descriptions (D53)",
+  "setup": [
+    {
+      "option": "qp_parity_quarkpress_theme",
+      "value": "1"
+    },
+    {
+      "option": "qp_parity_no_core_patterns",
+      "value": "1"
+    },
+    {
+      "option": "qp_parity_patterns",
+      "value": "1"
+    }
+  ],
+  "requests": [
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/patterns"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/patterns"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/patterns"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/patterns?context=foo"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/patterns?_fields=name"
+    },
+    {
+      "as": "dave",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/block-patterns/patterns"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/block-patterns/patterns"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/categories"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/categories"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/categories"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/categories?context=foo"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-patterns/categories?_fields=name,label"
+    },
+    {
+      "as": "dave",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/block-patterns/categories"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/block-patterns/categories"
+    }
+  ]
+}
