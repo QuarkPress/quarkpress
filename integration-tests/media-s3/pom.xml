@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkpress</groupId>
+    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkpress-it-media-s3</artifactId>
+
+  <name>QuarkPress :: Integration tests :: Media on S3</name>
+  <description>An application that stores media in S3 (moto through Dev Services): the AWS SDK calls the S3 storage needs, with the URL connection client, in JVM mode and as a native executable.</description>
+
+  <properties>
+    <automatic.module.name>org.quarkpress.it.medias3</automatic.module.name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.quarkiverse.amazonservices</groupId>
+      <artifactId>quarkus-amazon-s3</artifactId>
+    </dependency>
+    <!-- The synchronous HTTP client (quarkus.s3.sync-client.type=url); quarkus-amazon-s3 ships without one. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>url-connection-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-jackson</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- The AWS SDK reads the shared profile files (~/.aws/config, ~/.aws/credentials) even when Dev Services
+               hand it static credentials, and fails on a file it cannot parse. The tests and the application they
+               start (it inherits the environment) use files that do not exist, so the host's AWS setup never
+               matters. -->
+          <environmentVariables>
+            <AWS_CONFIG_FILE>${project.build.directory}/no-aws-config</AWS_CONFIG_FILE>
+            <AWS_SHARED_CREDENTIALS_FILE>${project.build.directory}/no-aws-credentials</AWS_SHARED_CREDENTIALS_FILE>
+          </environmentVariables>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <!-- As for surefire. -->
+          <environmentVariables>
+            <AWS_CONFIG_FILE>${project.build.directory}/no-aws-config</AWS_CONFIG_FILE>
+            <AWS_SHARED_CREDENTIALS_FILE>${project.build.directory}/no-aws-credentials</AWS_SHARED_CREDENTIALS_FILE>
+          </environmentVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
