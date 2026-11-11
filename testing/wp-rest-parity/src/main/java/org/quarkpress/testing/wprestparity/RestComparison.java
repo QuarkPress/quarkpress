@@ -68,7 +68,7 @@ public final class RestComparison {
             List.of("access-control-allow-origin", "access-control-allow-credentials", "access-control-allow-methods");
 
     /** The scenarios whose bodies are also compared as bytes: PHP's JSON escapes, and the order of keys. */
-    public static final Set<String> RAW_SCENARIOS = Set.of("d14", "d21");
+    public static final Set<String> RAW_SCENARIOS = Set.of("d14", "d21", "f03");
 
     static final String ABSENT = "<absent>";
 
@@ -357,7 +357,6 @@ public final class RestComparison {
             "/wp/v2/comments",
             "/wp/v2/search",
             "/wp/v2/block-renderer",
-            "/wp/v2/block-types",
             "/wp/v2/block-directory",
             "/wp/v2/block-patterns",
             "/wp/v2/pattern-directory",

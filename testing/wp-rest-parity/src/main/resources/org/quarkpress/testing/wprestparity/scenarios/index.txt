@@ -62,3 +62,4 @@ e08-delete-and-post-process-editor.json
 e09-featured-media.json
 f01-blocks.json
 f02-pattern-categories.json
+f03-block-types.json

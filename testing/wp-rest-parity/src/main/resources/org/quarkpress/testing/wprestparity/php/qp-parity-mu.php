@@ -38,9 +38,10 @@
  *     theme, php/qp-theme/) for the options stylesheet and template; qp_parity_no_core_patterns removes the theme
  *     support core-block-patterns at after_setup_theme (priority 100, after the theme's own setup);
  *     qp_parity_patterns registers the patterns qp/inner, qp/outer and qp/plain at init; qp_parity_block_types
- *     registers the block types acme/notice and acme/supports at init (default priority) and acme/late at init
- *     priority 30; qp_parity_notice_block registers qp-it/notice, a dynamic block whose render callback prints the
- *     escaped message in <p class="qp-notice">; qp_parity_rest_name_meta registers the post meta qp_secret on post
+ *     registers the block types acme/notice, acme/supports and the qp-probe/* types (one support or two each, titled
+ *     "Probe <name>") at init (default priority) and acme/late at init priority 30; qp_parity_notice_block
+ *     registers qp-it/notice, a dynamic block whose render callback prints the escaped message in
+ *     <p class="qp-notice">; qp_parity_rest_name_meta registers the post meta qp_secret on post
  *     (single string, in REST under the name qp_public, an auth callback that refuses everyone).
  *   - loopback: when the environment variable QP_PARITY_LOOPBACK holds php -S's port (WordPressRestSite sets it for a
  *     server with two workers or more), a request WordPress makes to its own host (http://localhost/...) is sent to
@@ -267,6 +268,22 @@ add_action('init', static function (): void {
             'filter' => ['duotone' => true],
         ],
     ]);
+    // probes of the attributes block supports add and where style goes (one support or two each)
+    $probes = [
+        'anchor' => ['anchor' => true],
+        'border' => ['__experimentalBorder' => true],
+        'layout' => ['__experimentalLayout' => true],
+        'spacing' => ['customCSS' => false, 'spacing' => ['padding' => true]],
+        'query' => ['align' => ['wide', 'full'], 'layout' => true, 'anchor' => true],
+        'line-height' => ['typography' => ['lineHeight' => true], 'anchor' => true],
+        'fit-text' => ['typography' => ['fitText' => true], 'anchor' => true],
+        'text-indent' => ['typography' => ['textIndent' => true], 'anchor' => true],
+        'color-true' => ['color' => true, 'anchor' => true],
+        'link-only' => ['color' => ['text' => false, 'background' => false, 'link' => true]],
+    ];
+    foreach ($probes as $name => $supports) {
+        register_block_type('qp-probe/' . $name, ['title' => 'Probe ' . $name, 'supports' => $supports]);
+    }
 });
 
 add_action('init', static function (): void {

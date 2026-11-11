@@ -1,0 +1,96 @@
+{
+  "id": "f03",
+  "rule": "block types (/wp/v2/block-types, Part G b12, b14): the test block type qp-it/notice (a title, the category text, one declared attribute and a renderer) with the attributes its default supports add, is_dynamic and the renderer link, for a contributor, refused for a subscriber (403) and anonymous (401); an unknown type refused by the permission check (404 without Allow); a namespace's collection; the query's namespace beating the URL's; names compared exactly while routes match ignoring case; the context checked against its enum; OPTIONS of a type and of a namespace's collection; the attributes block supports add and where style goes, on the probe types of the qp_parity_block_types switch (qp-probe/*: one support or two each) and acme/supports; WordPress's core types, which QuarkPress does not register (D50)",
+  "setup": [
+    {
+      "option": "qp_parity_notice_block",
+      "value": "1"
+    },
+    {
+      "option": "qp_parity_block_types",
+      "value": "1"
+    }
+  ],
+  "requests": [
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it/notice"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it/notice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it/notice"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it/nope"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it/notice?context=foo"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/core/paragraph"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/core?namespace=qp-it"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/Qp-It/Notice"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-it/notice?_fields=name,attributes,_links"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/block-types/qp-it/notice"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/block-types/qp-it"
+    },
+    {
+      "as": "alice",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/block-types/qp-it"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/qp-probe"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-types/acme/supports"
+    }
+  ]
+}
