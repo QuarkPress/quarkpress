@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +44,31 @@ class BlockApiTest {
         assertThat(changed.innerHtml()).isEmpty();
         assertThat(WpBlocks.serialize(changed))
                 .isEqualTo("<!-- wp:g {\"k\" : 1} --><!-- wp:b /--><!-- wp:c /--><!-- /wp:g -->");
+    }
+
+    @Test
+    void withInnerContentKeepsText() {
+        Block parsed = WpBlocks.parse("<!-- wp:g {\"k\" : 1} --><div><!-- wp:a /--><p>x</p></div><!-- /wp:g -->")
+                .get(0);
+        // the block a is replaced by two blocks, the text around it kept
+        Block changed = parsed.withInnerContent(
+                List.of(Block.of("b"), Block.of("c")), Arrays.asList("<div>", null, null, "<p>x</p></div>"));
+        assertThat(changed.rawAttributes()).contains("{\"k\" : 1}");
+        assertThat(changed.innerHtml()).isEqualTo("<div><p>x</p></div>");
+        assertThat(WpBlocks.serializeCanonical(List.of(changed)))
+                .isEqualTo("<!-- wp:g {\"k\":1} --><div><!-- wp:b /--><!-- wp:c /--><p>x</p></div><!-- /wp:g -->");
+        assertThat(WpBlocks.serialize(changed))
+                .isEqualTo("<!-- wp:g {\"k\" : 1} --><div><!-- wp:b /--><!-- wp:c /--><p>x</p></div><!-- /wp:g -->");
+    }
+
+    @Test
+    void withInnerContentNeedsOnePositionPerBlock() {
+        Block parsed = WpBlocks.parse("<!-- wp:g --><div><!-- wp:a /--></div><!-- /wp:g -->")
+                .get(0);
+        assertThatThrownBy(() -> parsed.withInnerContent(List.of(Block.of("b")), List.of("<div></div>")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Block.freeform("x").withInnerContent(List.of(), List.of("y")))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

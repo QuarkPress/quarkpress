@@ -341,6 +341,20 @@ public final class Block {
         return new Block(name, attributes, attributesValid, rawAttributes, null, null, false, innerBlocks, content);
     }
 
+    /**
+     * A copy with new inner blocks and new inner content, so the text between the blocks can be kept when blocks are
+     * replaced: {@code innerContent} must hold one {@code null} per inner block, in their order, else
+     * {@link IllegalArgumentException}. Attributes and raw attribute text are kept; raw delimiter text is dropped
+     * because the closing form may change. Not allowed on freeform blocks.
+     */
+    public Block withInnerContent(List<Block> innerBlocks, List<String> innerContent) {
+        if (isFreeform()) {
+            throw new IllegalArgumentException("freeform blocks have no inner blocks");
+        }
+        return new Block(
+                name, attributes, attributesValid, rawAttributes, null, null, false, innerBlocks, innerContent);
+    }
+
     /** Opener or void delimiter text exactly as parsed; null for API-built or modified blocks. */
     String rawOpener() {
         return rawOpener;
