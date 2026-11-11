@@ -115,6 +115,117 @@ class RoutePatternTest {
         }
     }
 
+    /** WordPress's route key of {@code /wp/v2/themes/{stylesheet}}, as its index prints it. */
+    static final String STYLESHEET = "/themes/(?P<stylesheet>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)";
+
+    @Test
+    void blockTypeNamespaces() {
+        RoutePattern namespace = RoutePattern.parse("wp/v2", "/block-types/(?P<namespace>[a-zA-Z0-9_-]+)");
+        assertThat(namespace.key()).isEqualTo("/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)");
+        assertThat(namespace.template()).isEqualTo("/wp/v2/block-types/{namespace}");
+        assertThat(namespace.match("/wp/v2/block-types/core")).contains(Map.of("namespace", "core"));
+        assertThat(namespace.match("/wp/v2/block-types/My_ns-2")).contains(Map.of("namespace", "My_ns-2"));
+        assertThat(namespace.match("/wp/v2/block-types/a/b")).isEmpty();
+        assertThat(namespace.match("/wp/v2/block-types/a.b")).isEmpty();
+        assertThat(namespace.match("/wp/v2/block-types/")).isEmpty();
+        RoutePattern item =
+                RoutePattern.parse("wp/v2", "/block-types/(?P<namespace>[a-zA-Z0-9_-]+)/(?P<name>[a-zA-Z0-9_-]+)");
+        assertThat(item.match("/wp/v2/block-types/core/paragraph"))
+                .contains(Map.of("namespace", "core", "name", "paragraph"));
+        assertThat(item.match("/wp/v2/block-types/core/paragraph").orElseThrow().keySet())
+                .containsExactly("namespace", "name");
+    }
+
+    @Test
+    void twoSegmentNames() {
+        RoutePattern renderer = RoutePattern.parse("wp/v2", "/block-renderer/(?P<name>[a-z0-9-]+/[a-z0-9-]+)");
+        assertThat(renderer.key()).isEqualTo("/wp/v2/block-renderer/(?P<name>[a-z0-9-]+/[a-z0-9-]+)");
+        assertThat(renderer.template()).isEqualTo("/wp/v2/block-renderer/{name}");
+        assertThat(renderer.match("/wp/v2/block-renderer/core/archives")).contains(Map.of("name", "core/archives"));
+        // the route expressions are case-insensitive, their classes included
+        assertThat(renderer.match("/wp/v2/block-renderer/Core/Archives")).contains(Map.of("name", "Core/Archives"));
+        assertThat(renderer.match("/wp/v2/block-renderer/qp-it/notice-2")).contains(Map.of("name", "qp-it/notice-2"));
+        assertThat(renderer.match("/wp/v2/block-renderer/core/archives\n")).contains(Map.of("name", "core/archives"));
+        for (String name : new String[] {"core", "core/a/b", "core/a_b", "/core/", "core/", "/core", "core//a"}) {
+            assertThat(renderer.match("/wp/v2/block-renderer/" + name)).as(name).isEmpty();
+        }
+        RoutePattern below = RoutePattern.parse("x", "/(?P<name>[a-z0-9-]+/[a-z0-9-]+)/end");
+        assertThat(below.template()).isEqualTo("/x/{name}/end");
+        assertThat(below.match("/x/a/b/end")).contains(Map.of("name", "a/b"));
+        assertThat(below.match("/x/a/end")).isEmpty();
+        assertThat(below.match("/x/a/b/c/end")).isEmpty();
+    }
+
+    @Test
+    void stylesheets() {
+        RoutePattern theme = RoutePattern.parse("wp/v2", STYLESHEET);
+        assertThat(theme.key()).isEqualTo("/wp/v2" + STYLESHEET);
+        assertThat(theme.template()).isEqualTo("/wp/v2/themes/{stylesheet}");
+        assertThat(theme.match("/wp/v2/themes/quarkpress")).contains(Map.of("stylesheet", "quarkpress"));
+        assertThat(theme.match("/wp/v2/themes/parent/child")).contains(Map.of("stylesheet", "parent/child"));
+        String other = "a b.%20_" + new String(Character.toChars(0xE9)) + "\\";
+        assertThat(theme.match("/wp/v2/themes/" + other)).contains(Map.of("stylesheet", other));
+        // a final line feed is a character of the group, which the greedy class takes before the end matches
+        assertThat(theme.match("/wp/v2/themes/quarkpress\n")).contains(Map.of("stylesheet", "quarkpress\n"));
+        for (String stylesheet :
+                new String[] {"a/b/c", "a:b", "a*b", "a<b", "a>b", "a?b", "a\"b", "a|b", "", "a/", "/a", "a//b", "a/b:c"
+                }) {
+            assertThat(theme.match("/wp/v2/themes/" + stylesheet))
+                    .as(stylesheet)
+                    .isEmpty();
+        }
+        RoutePattern below =
+                RoutePattern.parse("x", "/s/(?P<stylesheet>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)/v");
+        assertThat(below.match("/x/s/a/v")).contains(Map.of("stylesheet", "a"));
+        assertThat(below.match("/x/s/a/b/v")).contains(Map.of("stylesheet", "a/b"));
+        assertThat(below.match("/x/s/a/b/c/v")).isEmpty();
+        assertThat(below.match("/x/s/v")).isEmpty();
+    }
+
+    @Test
+    void groupsOverSeveralSegmentsFillTheirSegments() {
+        for (String pattern : new String[] {
+            "/x/a(?P<name>[a-z0-9-]+/[a-z0-9-]+)",
+            "/x/(?P<name>[a-z0-9-]+/[a-z0-9-]+)b",
+            "/x/(?P<s>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)-v",
+            "/x/(?P<s>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)/(?P<t>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)"
+        }) {
+            assertThatThrownBy(() -> RoutePattern.parse("wp/v2", pattern))
+                    .as(pattern)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("unsupported route pattern: " + pattern);
+        }
+    }
+
+    @Test
+    void longSegmentsStayLinear() {
+        String run = "a".repeat(2000);
+        RoutePattern renderer = RoutePattern.parse("wp/v2", "/block-renderer/(?P<name>[a-z0-9-]+/[a-z0-9-]+)");
+        RoutePattern theme = RoutePattern.parse("wp/v2", STYLESHEET);
+        RoutePattern namespace = RoutePattern.parse("wp/v2", "/block-types/(?P<namespace>[a-zA-Z0-9_-]+)");
+        String[][] cases = {
+            {"/wp/v2/block-renderer/" + run + "/" + run, "renderer"},
+            {"/wp/v2/block-renderer/" + run + "/" + run + "/" + run, "renderer"},
+            {"/wp/v2/block-renderer/" + run + "_", "renderer"},
+            {"/wp/v2/themes/" + run + "/" + run, "theme"},
+            {"/wp/v2/themes/" + run + "/" + run + "/" + run, "theme"},
+            {"/wp/v2/themes/" + run + ":", "theme"},
+            {"/wp/v2/block-types/" + run, "namespace"},
+            {"/wp/v2/block-types/" + run + ".", "namespace"}
+        };
+        for (String[] path : cases) {
+            RoutePattern pattern = switch (path[1]) {
+                case "renderer" -> renderer;
+                case "theme" -> theme;
+                default -> namespace;
+            };
+            long[] examined = new long[1];
+            pattern.match(path[0], examined);
+            // a bound on the characters looked at, not on wall time (which this host's load makes unreliable)
+            assertThat(examined[0]).as(path[0]).isLessThanOrEqualTo(3L * path[0].length());
+        }
+    }
+
     @Test
     void matchingIsLinearInThePath() {
         int n = 1_000_000;

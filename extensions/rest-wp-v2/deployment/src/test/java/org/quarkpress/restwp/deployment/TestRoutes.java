@@ -1,5 +1,6 @@
 package org.quarkpress.restwp.deployment;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -7,6 +8,7 @@ import com.sun.management.ThreadMXBean;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.ws.rs.GET;
@@ -50,7 +52,9 @@ import org.quarkpress.restwp.RestUrls;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.UploadedFile;
 import org.quarkpress.restwp.runtime.CollectionItems;
+import org.quarkpress.restwp.runtime.InternalAnswer;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.restwp.runtime.RestServer;
 import org.quarkpress.revisions.RevisionException;
 import org.quarkpress.security.Capabilities;
 import org.quarkpress.taxonomy.TermException;
@@ -79,7 +83,12 @@ import org.quarkpress.taxonomy.TermException;
  * {@code /nodes} (GET, WordPress's collection args) lists nodes 3 and 4 as a WordPress collection does (each item's
  * links inlined); {@code /sizes} (GET, WordPress's collection args) answers {@code [{"per_page", "context"}]};
  * {@code /linker} (GET) answers {@code {"id":0}} with one embeddable link per query parameter not starting with
- * {@code _}: the parameter's name is the relation, its value the href.
+ * {@code _}: the parameter's name is the relation, its value the href; {@code /kinds/(?P<namespace>[a-zA-Z0-9_-]+)},
+ * {@code /rendered/(?P<name>[a-z0-9-]+/[a-z0-9-]+)} and {@code /styles/(?P<stylesheet>...)} (WordPress's stylesheet
+ * class) (GET) answer their groups; {@code /secure} (GET) answers {@code {"secure"}}, whether
+ * the request counts as over HTTPS; {@code /internal} (GET) answers the internal dispatch of its {@code method} and
+ * {@code target} parameters, as over HTTPS when this request is or its {@code secure} parameter is {@code 1} (see
+ * {@link #internal}).
  */
 @ApplicationScoped
 public class TestRoutes implements RestRouteProvider {
@@ -128,6 +137,9 @@ public class TestRoutes implements RestRouteProvider {
 
     @Inject
     Capabilities capabilities;
+
+    @Inject
+    Instance<RestServer> server;
 
     @Override
     public void register(RouteRegistry routes) {
@@ -307,6 +319,50 @@ public class TestRoutes implements RestRouteProvider {
                         })
                         .build())
                 .register();
+        Handler groups = request -> {
+            ObjectNode body = RestJson.NODES.objectNode();
+            request.urlParams().forEach(body::put);
+            return RestResponse.ok(body);
+        };
+        routes.route("qp-test/v1", "/kinds/(?P<namespace>[a-zA-Z0-9_-]+)")
+                .endpoint(Endpoint.of("GET").handler(groups).build())
+                .register();
+        routes.route("qp-test/v1", "/rendered/(?P<name>[a-z0-9-]+/[a-z0-9-]+)")
+                .endpoint(Endpoint.of("GET").handler(groups).build())
+                .register();
+        routes.route("qp-test/v1", "/styles/(?P<stylesheet>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)")
+                .endpoint(Endpoint.of("GET").handler(groups).build())
+                .register();
+        routes.route("qp-test/v1", "/secure")
+                .endpoint(Endpoint.of("GET")
+                        .handler(request ->
+                                RestResponse.ok(RestJson.NODES.objectNode().put("secure", request.secure())))
+                        .build())
+                .register();
+        routes.route("qp-test/v1", "/internal")
+                .endpoint(Endpoint.of("GET").handler(this::internal).build())
+                .register();
+    }
+
+    /**
+     * The internal dispatch of the query's {@code target} with its {@code method}, for the caller of this request:
+     * {@code {"status", "data", "headers"}}, the headers as lists of values by name.
+     */
+    private RestResponse internal(RestRequest request) {
+        String method = request.param("method").map(JsonNode::asText).orElse("GET");
+        String target = request.param("target").map(JsonNode::asText).orElseThrow();
+        boolean secure = request.secure()
+                || request.param("secure").map(JsonNode::asText).orElse("").equals("1");
+        InternalAnswer answer = server.get().dispatchInternal(method, target, secure);
+        ObjectNode body = RestJson.NODES.objectNode();
+        body.put("status", answer.status());
+        body.set("data", answer.data());
+        ObjectNode headers = body.putObject("headers");
+        answer.headers().forEach((name, values) -> {
+            ArrayNode list = headers.putArray(name);
+            values.forEach(list::add);
+        });
+        return RestResponse.ok(body);
     }
 
     /**

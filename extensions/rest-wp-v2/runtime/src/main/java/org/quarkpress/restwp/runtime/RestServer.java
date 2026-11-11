@@ -211,6 +211,39 @@ public class RestServer {
     }
 
     /**
+     * Answers a request made inside the current one, as WordPress answers the requests it preloads for the block
+     * editor: {@code method} {@code GET} or {@code OPTIONS} (ASCII case ignored; any other is {@code GET}) of
+     * {@code target}, a route path with an optional query such as {@code /wp/v2/types?context=view}. The path is taken
+     * as written (not percent-decoded), its trailing slashes and backslashes trimmed ({@code /} when nothing is left)
+     * and a leading slash added when it has none;
+     * the query is parsed as PHP parses one. The request has no headers and no body, and is served for the current
+     * request's caller and site through the same steps as an HTTP request (validation, permission, handler,
+     * {@code Allow}, {@code _fields}, links rendered into {@code _links} and {@code _embed}), except that a
+     * {@code _method} override is ignored and none of the response stages run: the answer carries only its own
+     * headers, never the fixed, no-cache or cross-origin ones, and no envelope. An exception becomes the error
+     * WordPress would answer.
+     *
+     * @param secure whether links are rendered as for a request over HTTPS (the current request's)
+     */
+    public InternalAnswer dispatchInternal(String method, String target, boolean secure) {
+        String verb = upper(method).equals("OPTIONS") ? "OPTIONS" : "GET";
+        int question = target.indexOf('?');
+        String path = RestPaths.trimRoute(question < 0 ? target : target.substring(0, question));
+        // as WordPress's preloading, a path without a leading slash gets one
+        String route = path.startsWith("/") ? path : "/" + path;
+        ObjectNode query = question < 0 ? RestJson.NODES.objectNode() : PhpQuery.parse(target.substring(question + 1));
+        IncomingRequest incoming = new IncomingRequest(
+                verb, route, query, Map.of(), new byte[0], RestJson.NODES.objectNode(), target, secure);
+        RestResponse answer;
+        try {
+            answer = dispatch(incoming, verb);
+        } catch (RuntimeException | StackOverflowError failure) {
+            answer = error(ErrorMapping.toError(failure, verb, target));
+        }
+        return new InternalAnswer(answer.status(), answer.body(), answer.headers());
+    }
+
+    /**
      * The stages every REST answer goes through: the site gate (whose refusal of a site that may not be served is sent
      * as it is, and whose redirect gets the fixed headers only); then a {@code _jsonp} request's refusal; then the
      * answer, with the fixed headers, its own headers or the envelope, no-cache, cross-origin headers, pretty printing,
@@ -389,7 +422,11 @@ public class RestServer {
     }
 
     private RestResponse dispatch(IncomingRequest incoming) {
-        String method = method(incoming);
+        return dispatch(incoming, method(incoming));
+    }
+
+    /** Answers {@code incoming} as a request of {@code method}, the method after any override. */
+    private RestResponse dispatch(IncomingRequest incoming, String method) {
         if (method.equals("OPTIONS")) {
             return options(incoming);
         }
