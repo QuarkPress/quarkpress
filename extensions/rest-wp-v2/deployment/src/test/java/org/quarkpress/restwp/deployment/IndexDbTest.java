@@ -266,7 +266,9 @@ class IndexDbTest {
                         "/wp/v2/block-types",
                         "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)",
                         "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)/(?P<name>[a-zA-Z0-9_-]+)",
-                        "/wp/v2/settings");
+                        "/wp/v2/settings",
+                        "/wp/v2/block-patterns/patterns",
+                        "/wp/v2/block-patterns/categories");
         // REST verification list item 19
         Http.as(null)
                 .get("/wp-json/wp/v2?namespace=nope")
@@ -344,6 +346,28 @@ class IndexDbTest {
                 .statusCode(404)
                 .header("Allow", "GET, POST")
                 .body(equalTo("{\"code\":\"block_invalid\",\"message\":\"Invalid block.\",\"data\":{\"status\":404}}"));
+    }
+
+    @Test
+    void withoutPatternsTheCoreCategoriesRemain() {
+        // no application bean registers a pattern or a category here: no pattern, the core categories only
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-patterns/patterns")
+                .then()
+                .statusCode(200)
+                .header("Allow", "GET")
+                .body(equalTo("[]"));
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-patterns/categories?_fields=name")
+                .then()
+                .statusCode(200)
+                .body(equalTo("[{\"name\":\"banner\"},{\"name\":\"buttons\"},{\"name\":\"columns\"},"
+                        + "{\"name\":\"text\"},{\"name\":\"query\"},{\"name\":\"featured\"},"
+                        + "{\"name\":\"call-to-action\"},{\"name\":\"team\"},{\"name\":\"testimonials\"},"
+                        + "{\"name\":\"services\"},{\"name\":\"contact\"},{\"name\":\"about\"},"
+                        + "{\"name\":\"portfolio\"},{\"name\":\"gallery\"},{\"name\":\"media\"},"
+                        + "{\"name\":\"videos\"},{\"name\":\"audio\"},{\"name\":\"posts\"},"
+                        + "{\"name\":\"footer\"},{\"name\":\"header\"},{\"name\":\"navigation\"}]"));
     }
 
     @Test
