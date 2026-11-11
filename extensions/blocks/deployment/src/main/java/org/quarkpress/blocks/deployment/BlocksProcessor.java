@@ -3,6 +3,7 @@ package org.quarkpress.blocks.deployment;
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import org.quarkpress.blocks.BlockPatternCategoryProvider;
 import org.quarkpress.blocks.BlockPatternProvider;
 import org.quarkpress.blocks.BlockRenderer;
@@ -25,5 +26,11 @@ class BlocksProcessor {
                 BlockRenderer.class,
                 BlockPatternProvider.class,
                 BlockPatternCategoryProvider.class);
+    }
+
+    /** The attributes block supports add, read by {@code BlockSupports} at run time. */
+    @BuildStep
+    NativeImageResourceBuildItem supportAttributes() {
+        return new NativeImageResourceBuildItem("org/quarkpress/blocks/block-support-attributes.json");
     }
 }

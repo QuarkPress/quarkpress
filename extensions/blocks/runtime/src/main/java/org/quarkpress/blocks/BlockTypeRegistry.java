@@ -1,5 +1,6 @@
 package org.quarkpress.blocks;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.runtime.Startup;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -32,6 +33,7 @@ public class BlockTypeRegistry {
 
     private Map<String, BlockType> types;
     private Map<String, BlockRenderer> renderersByName;
+    private Map<String, ObjectNode> attributesByName;
 
     @PostConstruct
     void register() {
@@ -56,8 +58,14 @@ public class BlockTypeRegistry {
                         "QuarkPress: the block renderer for " + name + " names no registered block type");
             }
         }
+        // every type is registered at start-up, so every type gets the attributes of its supports
+        Map<String, ObjectNode> attributes = new HashMap<>();
+        for (BlockType type : registered.values()) {
+            attributes.put(type.name(), BlockSupports.attributes(type));
+        }
         this.types = registered;
         this.renderersByName = byName;
+        this.attributesByName = attributes;
     }
 
     /** Every registered type, providers by order then class name, each provider's types in its order. */
@@ -73,6 +81,15 @@ public class BlockTypeRegistry {
     /** The renderer of the registered type of this name. */
     public Optional<BlockRenderer> renderer(String name) {
         return Optional.ofNullable(renderersByName.get(name));
+    }
+
+    /**
+     * The attributes of {@code type} as WordPress answers them: its declared ones, {@code lock}, {@code metadata} and
+     * those its supports add ({@link BlockSupports}). A new object on each call.
+     */
+    public ObjectNode attributes(BlockType type) {
+        ObjectNode known = types.get(type.name()) == type ? attributesByName.get(type.name()) : null;
+        return known != null ? known.deepCopy() : BlockSupports.attributes(type);
     }
 
     /** Whether the registered type of this name is rendered on the server. */

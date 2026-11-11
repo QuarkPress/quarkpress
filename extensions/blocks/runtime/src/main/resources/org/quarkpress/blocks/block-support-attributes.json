@@ -1,0 +1,138 @@
+{
+  "description": "The attributes block supports add to a block type, in the order WordPress 7.1.3 adds them. An entry adds its attribute when any of its conditions holds and the attribute is not there yet (declared, lock, metadata, or added by an earlier entry: style is added by the first support that wants it). A condition names a path into the type's supports: the last key is on when it is true, an object or a list; when it is missing (its earlier keys being objects) it is on only with onWhenMissing; each earlier key must be an object, or true, which turns the condition on only with onWhenParentTrue.",
+  "attributes": [
+    {
+      "name": "align",
+      "anyOf": [
+        {"path": ["align"]}
+      ],
+      "schema": {"type": "string", "enum": ["left", "center", "right", "wide", "full", ""]}
+    },
+    {
+      "name": "className",
+      "anyOf": [
+        {"path": ["customClassName"], "onWhenMissing": true}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "style",
+      "anyOf": [
+        {"path": ["color", "text"], "onWhenMissing": true, "onWhenParentTrue": true},
+        {"path": ["color", "background"], "onWhenMissing": true, "onWhenParentTrue": true},
+        {"path": ["color", "gradients"]},
+        {"path": ["color", "link"]},
+        {"path": ["color", "button"]},
+        {"path": ["color", "heading"]}
+      ],
+      "schema": {"type": "object"}
+    },
+    {
+      "name": "backgroundColor",
+      "anyOf": [
+        {"path": ["color", "background"], "onWhenMissing": true, "onWhenParentTrue": true}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "textColor",
+      "anyOf": [
+        {"path": ["color", "text"], "onWhenMissing": true, "onWhenParentTrue": true}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "gradient",
+      "anyOf": [
+        {"path": ["color", "gradients"]}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "style",
+      "anyOf": [
+        {"path": ["typography", "fontSize"]},
+        {"path": ["typography", "lineHeight"]},
+        {"path": ["typography", "textAlign"]},
+        {"path": ["typography", "textColumns"]},
+        {"path": ["typography", "textIndent"]},
+        {"path": ["typography", "__experimentalFontFamily"]},
+        {"path": ["typography", "__experimentalFontStyle"]},
+        {"path": ["typography", "__experimentalFontWeight"]},
+        {"path": ["typography", "__experimentalLetterSpacing"]},
+        {"path": ["typography", "__experimentalTextDecoration"]},
+        {"path": ["typography", "__experimentalTextTransform"]},
+        {"path": ["typography", "__experimentalWritingMode"]}
+      ],
+      "schema": {"type": "object"}
+    },
+    {
+      "name": "fontSize",
+      "anyOf": [
+        {"path": ["typography", "fontSize"]}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "fontFamily",
+      "anyOf": [
+        {"path": ["typography", "__experimentalFontFamily"]}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "style",
+      "anyOf": [
+        {"path": ["__experimentalBorder"]}
+      ],
+      "schema": {"type": "object"}
+    },
+    {
+      "name": "borderColor",
+      "anyOf": [
+        {"path": ["__experimentalBorder", "color"], "onWhenParentTrue": true}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "layout",
+      "anyOf": [
+        {"path": ["layout"]},
+        {"path": ["__experimentalLayout"]}
+      ],
+      "schema": {"type": "object"}
+    },
+    {
+      "name": "style",
+      "anyOf": [
+        {"path": ["position"]},
+        {"path": ["spacing"]},
+        {"path": ["dimensions"]},
+        {"path": ["filter", "duotone"]},
+        {"path": ["background"]}
+      ],
+      "schema": {"type": "object"}
+    },
+    {
+      "name": "ariaLabel",
+      "anyOf": [
+        {"path": ["ariaLabel"]}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "anchor",
+      "anyOf": [
+        {"path": ["anchor"]}
+      ],
+      "schema": {"type": "string"}
+    },
+    {
+      "name": "style",
+      "anyOf": [
+        {"path": ["customCSS"], "onWhenMissing": true}
+      ],
+      "schema": {"type": "object"}
+    }
+  ]
+}
