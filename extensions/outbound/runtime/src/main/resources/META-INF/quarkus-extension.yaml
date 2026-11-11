@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Outbound"
+description: "Safe outbound HTTP GET for QuarkPress"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "http"
+    - "ssrf"
+  categories:
+    - "web"
+  status: "experimental"

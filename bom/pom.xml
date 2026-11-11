@@ -142,6 +142,16 @@
       </dependency>
       <dependency>
         <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-outbound</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-outbound-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
         <artifactId>quarkpress-revisions</artifactId>
         <version>${project.version}</version>
       </dependency>
