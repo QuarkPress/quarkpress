@@ -75,7 +75,8 @@ class PostsCollectionDbTest {
         as(null).get("/wp-json/wp/v2/posts").then().statusCode(200).header("Allow", "GET");
         as(null).get("/wp-json/wp/v2/pages").then().statusCode(200);
         as(null).get("/wp-json/wp/v2/books").then().statusCode(200);
-        as(null).get("/wp-json/wp/v2/blocks").then().statusCode(404).body("code", equalTo("rest_no_route"));
+        // synced patterns are served by the posts routes; the anonymous caller lists none of them
+        as(null).get("/wp-json/wp/v2/blocks").then().statusCode(200).header("Allow", "GET");
         // attachments are listed by the media collection of their own, with its type filter
         as(null).get("/wp-json/wp/v2/media").then().statusCode(200);
         as(null).options("/wp-json/wp/v2/media")

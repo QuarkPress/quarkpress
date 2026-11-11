@@ -36,6 +36,20 @@ record PostRoutes(
         return collection() + "/" + id.value();
     }
 
+    /**
+     * Whether these are the routes of synced patterns ({@code wp_block}), which WordPress serves with a subclass of
+     * the posts controller: raw title and content in the view context, no rendered title or content, the sync status
+     * lifted out of {@code meta}, and the type's read capability checked before the posts' read rule.
+     */
+    boolean blocks() {
+        return blocks(type);
+    }
+
+    /** Whether {@code type} is the synced patterns' type, served with the differences {@link #blocks()} lists. */
+    static boolean blocks(PostTypeDefinition type) {
+        return type.key().equals("wp_block");
+    }
+
     /** Whether the type's fields include the feature's (WordPress's fixed lists for posts and pages). */
     boolean supports(String feature) {
         return PostSchema.supports(type).contains(feature);

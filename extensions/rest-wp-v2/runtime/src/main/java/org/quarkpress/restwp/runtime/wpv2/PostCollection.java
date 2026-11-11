@@ -50,8 +50,9 @@ import org.quarkpress.taxonomy.TermException;
  * off puts them first unless a term filter asks for terms; the term and format filters are one term query), the
  * callback errors of the orderings, the page past the end, the offset's window with the
  * page parameter moving only the links, the items the caller may read (the totals count those only), and in the edit
- * context only the items the caller may edit. A {@code password} parameter renders the protected posts it matches
- * and refuses nothing. HEAD answers the headers alone.
+ * context only the items the caller may edit; synced patterns outside the edit context only for a caller with
+ * {@code read_post} on them (the totals still count them). A {@code password} parameter renders the protected posts
+ * it matches and refuses nothing. HEAD answers the headers alone.
  */
 @ApplicationScoped
 class PostCollection {
@@ -116,6 +117,10 @@ class PostCollection {
         ArrayNode items = RestJson.NODES.arrayNode();
         for (PostSnapshot post : page.posts()) {
             if (edit && !permissions.can(identity, "edit_post", post)) {
+                continue;
+            }
+            // a synced pattern is listed, outside the edit context, only for a caller with read_post on it
+            if (!edit && routes.blocks() && !permissions.can(identity, "read_post", post)) {
                 continue;
             }
             // the edit context lists only posts the caller may edit, which lifts their protection; so does the

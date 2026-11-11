@@ -35,7 +35,8 @@ import org.quarkpress.taxonomy.PostFormats;
 /**
  * The item schema and the arguments of a post type's routes, as WordPress's posts controller declares them: the
  * properties a type has follow its features ({@link #supports}), its hierarchy, its public visibility and the
- * taxonomies shown in REST for it; the collection's arguments follow the same features.
+ * taxonomies shown in REST for it; the collection's arguments follow the same features. Synced patterns
+ * ({@code wp_block}) have the raw title and content in the view context too, and no rendered title or content.
  */
 final class PostSchema {
 
@@ -159,24 +160,45 @@ final class PostSchema {
         if (type.hierarchical()) {
             property(properties, "parent", "The ID for the parent of the post.", "integer", VIEW_EDIT);
         }
+        // synced patterns: the raw title and content in the view context too, and neither rendered
+        boolean blocks = PostRoutes.blocks(type);
         if (supports.contains("title")) {
             ObjectNode title = property(properties, "title", "The title for the post.", "object", ALL);
             ObjectNode titleProperties = title.putObject("properties");
-            property(titleProperties, "raw", "Title for the post, as it exists in the database.", "string", EDIT);
-            property(titleProperties, "rendered", "HTML title for the post, transformed for display.", "string", ALL)
-                    .put("readonly", true);
+            property(
+                    titleProperties,
+                    "raw",
+                    "Title for the post, as it exists in the database.",
+                    "string",
+                    blocks ? VIEW_EDIT : EDIT);
+            if (!blocks) {
+                property(
+                                titleProperties,
+                                "rendered",
+                                "HTML title for the post, transformed for display.",
+                                "string",
+                                ALL)
+                        .put("readonly", true);
+            }
         }
         if (supports.contains("editor")) {
             ObjectNode content = property(properties, "content", "The content for the post.", "object", VIEW_EDIT);
             ObjectNode contentProperties = content.putObject("properties");
-            property(contentProperties, "raw", "Content for the post, as it exists in the database.", "string", EDIT);
             property(
-                            contentProperties,
-                            "rendered",
-                            "HTML content for the post, transformed for display.",
-                            "string",
-                            VIEW_EDIT)
-                    .put("readonly", true);
+                    contentProperties,
+                    "raw",
+                    "Content for the post, as it exists in the database.",
+                    "string",
+                    blocks ? VIEW_EDIT : EDIT);
+            if (!blocks) {
+                property(
+                                contentProperties,
+                                "rendered",
+                                "HTML content for the post, transformed for display.",
+                                "string",
+                                VIEW_EDIT)
+                        .put("readonly", true);
+            }
             property(
                             contentProperties,
                             "block_version",

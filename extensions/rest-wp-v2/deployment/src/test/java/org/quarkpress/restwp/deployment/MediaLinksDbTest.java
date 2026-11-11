@@ -25,8 +25,9 @@ import org.quarkpress.posts.PostType;
  * collection, its type, its author, its comments, its cover image when the caller may see it, the post it is attached
  * to, then the action links of the edit context), never the revision, parent, attachment, publish or sticky links of
  * posts, the API root as the target of a parent whose type is not shown in REST (still embeddable), and the embeds of
- * the author and the parent with the parent route's own permission check. Members of the main site: alice
- * (administrator and super admin), bob (editor), carol (author) and erin (subscriber).
+ * the author and the parent with the parent route's own permission check (a synced pattern parent's included).
+ * Members of the main site: alice (administrator and super admin), bob (editor), carol (author) and erin
+ * (subscriber).
  */
 class MediaLinksDbTest {
 
@@ -230,6 +231,22 @@ class MediaLinksDbTest {
         assertThat(embedded.at("/wp:attached-to/0").has("status")).isFalse();
         assertThat(embedded.at("/wp:attached-to/0").has("content")).isFalse();
         assertThat(embedded.at("/wp:attached-to/0/title/rendered").asText()).isEqualTo("embedded " + u);
+
+        // a synced pattern parent embeds as WordPress embeds it: refused to the anonymous caller (the type's read
+        // capability), in the embed context for bob
+        PostId pattern = post("wp_block", "publish", bob, "pattern " + u);
+        long onPattern = upload(bob, "b", pattern).post().id().value();
+        assertThat(get(null, onPattern + "?_embed=wp:attached-to")
+                        .at("/_embedded/wp:attached-to")
+                        .toString())
+                .isEqualTo("[{\"code\":\"rest_forbidden\",\"message\":\"Sorry, you are not allowed to do that.\","
+                        + "\"data\":{\"status\":401}}]");
+        JsonNode embeddedPattern =
+                get(bob, onPattern + "?_embed=wp:attached-to").at("/_embedded/wp:attached-to/0");
+        assertThat(fieldNames(embeddedPattern))
+                .containsExactly(
+                        "id", "date", "slug", "type", "link", "title", "excerpt", "wp_pattern_sync_status", "_links");
+        assertThat(embeddedPattern.get("title").toString()).isEqualTo("[]");
 
         // carol's attachment of bob's draft: carol reads her attachment, not its parent
         PostId draft = post("post", "draft", bob, "draft " + u);

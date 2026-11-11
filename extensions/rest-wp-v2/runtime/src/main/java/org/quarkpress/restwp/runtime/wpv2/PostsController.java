@@ -46,28 +46,32 @@ import org.quarkpress.security.UserProfiles;
 import org.quarkpress.taxonomy.Taxonomies;
 
 /**
- * WordPress's content routes for every post type shown in REST but attachments and blocks (which have controllers
- * of their own), in registration order: {@code /<namespace>/<base>} (the collection) and
+ * WordPress's content routes for every post type shown in REST but attachments (which have a controller of their
+ * own), in registration order: {@code /<namespace>/<base>} (the collection) and
  * {@code /<namespace>/<base>/<id>} (the item), where the base is the type's REST base or its key. Posts are read
  * through the posts module for the request's site, which shows each caller only what it may read, so the totals count
  * readable posts.
  *
- * <p>An item is looked up on the request's site and must be of the route's type, else it does not exist. Its checks
- * run in WordPress's order: the edit context needs {@code edit_post}; a {@code password} in the query string that
- * differs from the stored one is refused, even on a post without password; then the post must be readable (its
- * status public, {@code read_post}, or an inherited status whose parent is readable and of a type shown in REST). The
- * edit context of a caller who may edit the post, or a matching {@code password} from any source, lifts the
- * protection of a post with a password. A viewable type's item carries a {@code Link} to its permalink in place of
- * the API root's. POST, PUT and PATCH on an item update it alike, with WordPress's update checks. DELETE moves the
- * post to the trash, or with {@code force} deletes it for good, for a caller with {@code delete_post}; both answers
- * are in the edit context. A type that keeps revisions gets WordPress's revisions routes right after its own, while
- * the revisions module is present.
+ * <p>The list in the edit context needs the type's {@code edit_posts}. An item is looked up on the request's site and
+ * must be of the route's type, else it does not exist. Its checks run in WordPress's order: the edit context needs
+ * {@code edit_post}; a {@code password} in the query string that differs from the stored one is refused, even on a post
+ * without password; then the post must be readable (its status public, {@code read_post}, or an inherited status whose
+ * parent is readable and of a type shown in REST). The edit context of a caller who may edit the post, or a matching
+ * {@code password} from any source, lifts the protection of a post with a password. A viewable type's item carries a
+ * {@code Link} to its permalink in place of the API root's. Synced patterns ({@code wp_block}) are served here with
+ * WordPress's blocks controller differences (see {@link PostRoutes#blocks()}): reading one needs {@code read_post} on
+ * it before the posts' read rule, for an item as for each row of a collection outside the edit context. POST, PUT and
+ * PATCH on an item update it alike, with WordPress's update checks. DELETE moves the post to the trash, or with
+ * {@code force} deletes it for good, for a caller with {@code delete_post}; both answers are in the edit context. A
+ * type that keeps revisions gets WordPress's revisions routes right after its own, while the revisions module is
+ * present. The types registered after attachments get their routes after the media routes ({@link AfterMedia}), where
+ * WordPress lists them.
  */
 @ApplicationScoped
 public class PostsController implements RestRouteProvider {
 
     /** The types whose routes other controllers serve. */
-    private static final List<String> OWN_CONTROLLERS = List.of("attachment", "wp_block");
+    private static final List<String> OWN_CONTROLLERS = List.of("attachment");
 
     private volatile Map<String, PostRoutes> served = Map.of();
 
@@ -153,24 +157,75 @@ public class PostsController implements RestRouteProvider {
         }
         List<String> creatable = PostRoutes.creatable(statuses.all());
         Map<String, PostRoutes> built = new LinkedHashMap<>();
+        List<PostRoutes> now = new ArrayList<>();
+        List<PostRoutes> afterMedia = new ArrayList<>();
+        boolean pastAttachments = false;
         for (PostTypeDefinition type : types.all()) {
+            if (type.key().equals("attachment")) {
+                pastAttachments = true;
+            }
             if (!type.showInRest() || OWN_CONTROLLERS.contains(type.key())) {
                 continue;
             }
-            built.put(type.key(), PostRoutes.of(type, taxonomies.all(), meta, creatable));
+            PostRoutes post = PostRoutes.of(type, taxonomies.all(), meta, creatable);
+            built.put(type.key(), post);
+            (pastAttachments ? afterMedia : now).add(post);
         }
         served = Collections.unmodifiableMap(built);
-        for (PostRoutes post : built.values()) {
-            PostTypeDefinition type = post.type();
-            register(routes, post, allStatuses);
-            // the revisions routes follow the type's own, for a type that keeps revisions, while the module is here
-            if (revisionRoutes.isResolvable() && post.supports("revisions")) {
-                revisionRoutes.get().register(routes, post);
-            }
-            // then the autosaves routes, for a type that is autosaved
-            if (autosaveRoutes.isResolvable() && types.supports(type.key(), "autosave")) {
-                autosaveRoutes.get().register(routes, post);
-            }
+        later = new Later(List.copyOf(afterMedia), List.copyOf(allStatuses));
+        for (PostRoutes post : now) {
+            registerType(routes, post, allStatuses);
+        }
+    }
+
+    /**
+     * The routes of the types registered after attachments, which WordPress lists after the media routes:
+     * {@link AfterMedia} registers them right after the media controller, from the same route table build.
+     */
+    private record Later(List<PostRoutes> types, List<String> allStatuses) {}
+
+    private volatile Later later = new Later(List.of(), List.of());
+
+    /** Registers the routes of the types {@link #register} left for after the media routes. */
+    void registerAfterMedia(RouteRegistry routes) {
+        Later pending = later;
+        for (PostRoutes post : pending.types()) {
+            registerType(routes, post, pending.allStatuses());
+        }
+    }
+
+    /** A type's routes, then its revisions and autosaves routes. */
+    private void registerType(RouteRegistry routes, PostRoutes post, List<String> allStatuses) {
+        PostTypeDefinition type = post.type();
+        register(routes, post, allStatuses);
+        // the revisions routes follow the type's own, for a type that keeps revisions, while the module is here
+        if (revisionRoutes.isResolvable() && post.supports("revisions")) {
+            revisionRoutes.get().register(routes, post);
+        }
+        // then the autosaves routes, for a type that is autosaved
+        if (autosaveRoutes.isResolvable() && types.supports(type.key(), "autosave")) {
+            autosaveRoutes.get().register(routes, post);
+        }
+    }
+
+    /**
+     * The routes of the post types registered after attachments (synced patterns, then the applications' types), in
+     * registration order right after the media routes, as WordPress lists them.
+     */
+    @ApplicationScoped
+    public static class AfterMedia implements RestRouteProvider {
+
+        @Inject
+        PostsController posts;
+
+        @Override
+        public int order() {
+            return 70;
+        }
+
+        @Override
+        public void register(RouteRegistry routes) {
+            posts.registerAfterMedia(routes);
         }
     }
 
@@ -179,6 +234,7 @@ public class PostsController implements RestRouteProvider {
                 .schema(() -> PostSchema.withLinks(post, urls))
                 .endpoint(Endpoint.of("GET")
                         .args(PostSchema.collectionArgs(post, allStatuses, () -> identity, permissions))
+                        .permission(request -> mayList(post, request))
                         .handler(request -> collection.list(post, request))
                         .allowBatch(true)
                         .build())
@@ -214,6 +270,17 @@ public class PostsController implements RestRouteProvider {
     }
 
     // ---- permissions
+
+    /** WordPress's collection check: the edit context needs the type's {@code edit_posts}. */
+    private PermissionResult mayList(PostRoutes routes, RestRequest request) {
+        if (request.isEditContext() && !permissions.canType(request.identity(), "edit_posts", routes.key())) {
+            return PermissionResult.denied(RestError.of(
+                    "rest_forbidden_context",
+                    "Sorry, you are not allowed to edit posts in this post type.",
+                    request.authCode()));
+        }
+        return PermissionResult.allowed();
+    }
 
     /**
      * WordPress's create checks, in its order: no {@code id}; an author other than the caller needs the type's
@@ -269,10 +336,19 @@ public class PostsController implements RestRouteProvider {
             return PermissionResult.denied(
                     RestError.of("rest_post_incorrect_password", "Incorrect post password.", 403));
         }
-        if (!permissions.restReadable(caller, post)) {
+        if (!readable(routes, caller, post)) {
             return PermissionResult.forbidden(request);
         }
         return PermissionResult.allowed();
+    }
+
+    /**
+     * The posts' read rule; for synced patterns {@code read_post} on the post first (for a published one the type's
+     * read capability, {@code edit_posts}).
+     */
+    private boolean readable(PostRoutes routes, SecurityIdentity caller, PostSnapshot post) {
+        return (!routes.blocks() || permissions.can(caller, "read_post", post))
+                && permissions.restReadable(caller, post);
     }
 
     /** WordPress's delete check: the post of the routes' type must exist; the caller needs {@code delete_post}. */

@@ -223,6 +223,7 @@ class RegistriesDbTest {
                 .isEqualTo("{\"title\":true,\"excerpt\":true,\"editor\":true,\"revisions\":true,"
                         + "\"custom-fields\":true,\"autosave\":true}");
         assertThat(block.get("rest_base")).isEqualTo(TextNode.valueOf("blocks"));
+        assertThat(block.get("taxonomies").toString()).isEqualTo("[\"wp_pattern_category\"]");
         assertThat(block.at("/_links/wp:items/0/href").asText()).isEqualTo("http://localhost/wp-json/wp/v2/blocks");
         // the attachment type names its REST base and the collection route the media routes serve
         JsonNode attachment =
@@ -327,9 +328,14 @@ class RegistriesDbTest {
 
     @Test
     void taxonomies() {
+        // WordPress's pattern categories are listed to anyone, as every taxonomy shown in REST
         assertThat(fieldNames(
                         json(Http.as(null).get("/wp-json/wp/v2/taxonomies").asString())))
-                .containsExactly("category", "post_tag");
+                .containsExactly("category", "post_tag", "wp_pattern_category");
+        assertThat(fieldNames(json(Http.as(null)
+                        .get("/wp-json/wp/v2/taxonomies?type=wp_block")
+                        .asString())))
+                .containsExactly("wp_pattern_category");
         assertThat(fieldNames(json(
                         Http.as(null).get("/wp-json/wp/v2/taxonomies?type=post").asString())))
                 .containsExactly("category", "post_tag");

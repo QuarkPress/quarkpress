@@ -1,6 +1,7 @@
 package org.quarkpress.restwp.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -147,7 +148,6 @@ class PostPermissionMatrixDbTest {
             rows.add(new Row(caller, "context=view", "publish", POSTS.get("publish"), 2, 0));
         }
         // the edit context lists only what the caller may edit, after the totals are counted
-        rows.add(new Row("erin", "context=edit", "publish", List.of(), 2, 0));
         rows.add(new Row("carol", "context=edit", "publish", own("publish", carol), 2, 0));
         rows.add(new Row("bob", "context=edit", "publish", POSTS.get("publish"), 2, 0));
         for (Row row : rows) {
@@ -178,6 +178,20 @@ class PostPermissionMatrixDbTest {
                 assertThat(item.get("status").asText()).as(what).isEqualTo(row.status());
             }
         }
+        // the edit context itself needs the type's edit_posts, which erin lacks (what WordPress answers her for the
+        // synced patterns, whose collection check is the posts')
+        as(CALLERS.get("erin"))
+                .get("/wp-json/wp/v2/posts?context=edit&search=" + u + "&_fields=id")
+                .then()
+                .statusCode(403)
+                .body(equalTo("{\"code\":\"rest_forbidden_context\",\"message\":\"Sorry, you are not allowed to edit"
+                        + " posts in this post type.\",\"data\":{\"status\":403}}"));
+        as(CALLERS.get("anonymous"))
+                .get("/wp-json/wp/v2/posts?context=edit&search=" + u + "&_fields=id")
+                .then()
+                .statusCode(401)
+                .body(equalTo("{\"code\":\"rest_forbidden_context\",\"message\":\"Sorry, you are not allowed to edit"
+                        + " posts in this post type.\",\"data\":{\"status\":401}}"));
     }
 
     /** One cell of the item matrix: the status the caller gets for the post, in the view or the edit context. */

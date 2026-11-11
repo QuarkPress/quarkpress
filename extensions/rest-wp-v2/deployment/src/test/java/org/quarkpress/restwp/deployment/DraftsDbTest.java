@@ -3,6 +3,7 @@ package org.quarkpress.restwp.deployment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.startsWith;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -193,8 +194,8 @@ class DraftsDbTest {
                 .body("code", equalTo("rest_cannot_create"))
                 .body("message", equalTo(CANNOT_CREATE))
                 .body("data.status", equalTo(401));
-        // an unknown type, and the types other controllers own
-        for (String type : List.of("nope", "attachment", "wp_block", "revision", "")) {
+        // an unknown type, and the type another controller owns
+        for (String type : List.of("nope", "attachment", "revision", "")) {
             draft(bob, type)
                     .then()
                     .statusCode(404)
@@ -202,6 +203,12 @@ class DraftsDbTest {
                     .body("message", equalTo("Invalid post type."))
                     .body("data.status", equalTo(404));
         }
+        // a synced pattern needs publish_posts, which a contributor lacks
+        draft(dave, "wp_block")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_create"))
+                .body("message", equalTo(CANNOT_CREATE));
         // nobody learns which types exist: the unknown type is 404 for the anonymous caller too
         draft(null, "nope").then().statusCode(404).body("code", equalTo("rest_type_invalid"));
         // the type is required
@@ -221,6 +228,18 @@ class DraftsDbTest {
                 .body("code", equalTo("rest_invalid_param"));
         // nothing was written by the refusals
         assertThat(autoDrafts()).isEqualTo(before);
+    }
+
+    @Test
+    void syncedPatternsStartAsWordPresssNewPatternScreenStartsThem() {
+        draft(bob, "wp_block")
+                .then()
+                .statusCode(201)
+                .header("Location", startsWith("http://" + host + "/wp-json/wp/v2/blocks/"))
+                .body("type", equalTo("wp_block"))
+                .body("status", equalTo("auto-draft"))
+                .body("title.raw", equalTo("Auto Draft"))
+                .body("wp_pattern_sync_status", equalTo(""));
     }
 
     private static long autoDrafts() {

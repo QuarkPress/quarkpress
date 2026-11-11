@@ -27,8 +27,8 @@ import org.quarkpress.taxonomy.PostFormats;
 
 /**
  * {@code POST /quarkpress/v1/drafts}: the auto-draft a new post starts from, as WordPress's new-post screen creates
- * it before the editor opens. The body names the {@code type} (a post type shown in REST, attachments and blocks
- * excepted); the caller needs the type's {@code edit_posts} and {@code create_posts}. The row is WordPress's: status
+ * it before the editor opens. The body names the {@code type} (a post type shown in REST, attachments excepted);
+ * the caller needs the type's {@code edit_posts} and {@code create_posts}. The row is WordPress's: status
  * {@code auto-draft}, the title "Auto Draft" when the type has a title (else empty), the caller as author, a
  * floating date, no slug, the type's comment and ping defaults and no term; when the site's
  * {@code default_post_format} names a format and the type supports post formats, the post gets that format. The

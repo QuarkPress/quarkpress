@@ -45,6 +45,7 @@ import org.quarkpress.posts.PostSnapshot;
 import org.quarkpress.posts.Posts;
 import org.quarkpress.posts.SlugContext;
 import org.quarkpress.posts.SlugSanitizer;
+import org.quarkpress.posts.runtime.BuiltInMetaKeys;
 import org.quarkpress.restwp.Fields;
 import org.quarkpress.restwp.RestRequest;
 import org.quarkpress.restwp.RestResponse;
@@ -68,7 +69,8 @@ import org.quarkpress.taxonomy.Terms;
  * permalink. A stored template {@code default} reads as none. The post's links come with the fields when the
  * request selects them. The derived fields of a viewable public type are the
  * permalink template (the plain link), the slug the title would generate (made unique as for a published post, the
- * post itself never colliding with it) and the front-end class list of the post.
+ * post itself never colliding with it) and the front-end class list of the post. Synced patterns have no rendered
+ * title or content, and their sync status is moved out of {@code meta} ({@link #liftSyncStatus}).
  */
 @ApplicationScoped
 class PostFields {
@@ -161,7 +163,11 @@ class PostFields {
             RestRequest request,
             boolean lifted) {
         ObjectNode data = fields(routes, post, fields, context, request, lifted);
-        RestResponse response = RestResponse.ok(ContextFilter.apply(data, routes.schema(), context));
+        JsonNode filtered = ContextFilter.apply(data, routes.schema(), context);
+        if (routes.blocks() && filtered instanceof ObjectNode block) {
+            liftSyncStatus(block);
+        }
+        RestResponse response = RestResponse.ok(filtered);
         if (fields.includes("_links") || fields.includes("_embedded")) {
             response = response.withLinks(links.of(routes, post, request));
         }
@@ -234,7 +240,7 @@ class PostFields {
             if (fields.includes("title.raw")) {
                 title.put("raw", post.title());
             }
-            if (fields.includes("title.rendered")) {
+            if (!routes.blocks() && fields.includes("title.rendered")) {
                 title.put(
                         "rendered",
                         Filters.apply(titleFilters, post.title(), (filter, value) -> filter.apply(value, rendering)));
@@ -245,7 +251,7 @@ class PostFields {
             if (fields.includes("content.raw")) {
                 content.put("raw", post.content());
             }
-            if (fields.includes("content.rendered")) {
+            if (!routes.blocks() && fields.includes("content.rendered")) {
                 content.put(
                         "rendered",
                         hidden
@@ -335,6 +341,19 @@ class PostFields {
                     .forEach(classes::add);
         }
         return data;
+    }
+
+    /**
+     * WordPress's synced pattern answer: the sync status moved out of {@code meta} (when it was computed) to a
+     * top-level {@code wp_pattern_sync_status} after every other field, its stored value or {@code ""} when it has
+     * none or {@code meta} was not computed (a request whose {@code _fields} name the status alone gets {@code ""}).
+     */
+    static void liftSyncStatus(ObjectNode data) {
+        JsonNode value = null;
+        if (data.get("meta") instanceof ObjectNode meta) {
+            value = meta.remove(BuiltInMetaKeys.PATTERN_SYNC_STATUS);
+        }
+        data.put(BuiltInMetaKeys.PATTERN_SYNC_STATUS, value != null && value.isTextual() ? value.textValue() : "");
     }
 
     /** {@code text} through the registered content filters, rendered for {@code post}'s site. */
