@@ -98,7 +98,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-locations* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1comments* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1block-directory* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1block-patterns* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1pattern-directory* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1themes* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1plugins* D6 routes QuarkPress does not serve yet
@@ -497,3 +496,6 @@ f03 req8:body* D50 the whole collection: WordPress lists its core block types to
 # D51 (f04): no renderer for the core blocks WordPress renders on the server.
 f04 req26:status D51 core/archives: WordPress renders it on the server (200); QuarkPress registers no core block type (404 block_invalid)
 f04 req26:body* D51 core/archives: WordPress's archives list; QuarkPress's block_invalid
+# D52, D53 (f05): no core, theme or wordpress.org patterns; the core pattern categories with QuarkPress's descriptions.
+none * D52 f05 turns WordPress's core patterns off and uses a theme without patterns, and the harness has no network for wordpress.org's, so both sides list the test patterns only
+f05 req8:body:/*/description D53 the core pattern categories: WordPress's descriptions; QuarkPress's own

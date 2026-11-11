@@ -48,10 +48,17 @@ final class QuarkPressSide implements Side {
      * The switches of WordPress's must-use plugin whose QuarkPress counterpart is part of the test application, so that
      * their option step has nothing to set here: {@code qp_parity_hidden_type} registers what {@link ItHiddenType} is,
      * {@code qp_parity_notice_block} what {@link ItNoticeBlock} is, {@code qp_parity_block_types} what
-     * {@link ItBlockTypes} is.
+     * {@link ItBlockTypes} is, {@code qp_parity_patterns} what {@link ItPatterns} is; {@code qp_parity_no_core_patterns}
+     * and {@code qp_parity_quarkpress_theme} turn WordPress's core patterns off and select its theme without patterns,
+     * which QuarkPress has neither of.
      */
-    private static final Set<String> BUILT_IN_SWITCHES =
-            Set.of("qp_parity_hidden_type", "qp_parity_notice_block", "qp_parity_block_types");
+    private static final Set<String> BUILT_IN_SWITCHES = Set.of(
+            "qp_parity_hidden_type",
+            "qp_parity_notice_block",
+            "qp_parity_block_types",
+            "qp_parity_patterns",
+            "qp_parity_no_core_patterns",
+            "qp_parity_quarkpress_theme");
 
     private record Token(String value, long fetchedAt) {}
 
