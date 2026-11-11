@@ -358,4 +358,32 @@ class MediaDetailsTest {
                         .asText())
                 .isEqualTo("https://bucket.s3.test/p/2026/11/a-300x225.jpg?v=1");
     }
+
+    @Test
+    void sizesOnlyInTheStoredMetadataAreBuiltFromTheMainUrl() {
+        // a file's other metadata may hold sizes the storage made none of (a PDF's preview images): WordPress's form
+        ObjectNode extra = JsonNodeFactory.instance.objectNode();
+        extra.putObject("sizes")
+                .putObject("thumbnail")
+                .put("file", "doc-pdf-116x150.jpg")
+                .put("width", 116)
+                .put("height", 150)
+                .put("mime-type", "image/jpeg")
+                .put("filesize", 3000);
+        MediaSnapshot pdf = media(
+                "application/pdf",
+                "2026/11/doc.pdf",
+                Optional.empty(),
+                9000,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                Map.of(),
+                Optional.empty(),
+                extra,
+                Processing.NONE);
+        assertThat(MediaDetails.of(pdf, UPLOADS + "doc.pdf", false)
+                        .at("/sizes/thumbnail/source_url")
+                        .asText())
+                .isEqualTo(UPLOADS + "doc-pdf-116x150.jpg");
+    }
 }

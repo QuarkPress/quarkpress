@@ -104,7 +104,9 @@ final class MediaDetails {
      * A size's URL: the storage's URL of the size's file (in the response's scheme). Where that is the main URL's
      * folder and the size's file name, as for files kept under one uploads folder, it is built as WordPress builds
      * it: the main URL with every occurrence of the main file's name replaced by the size's file. A storage whose URLs
-     * are not one folder's (signed URLs, whose query string is only valid for their own file) keeps its own.
+     * are not one folder's (signed URLs, whose query string is only valid for their own file) keeps its own. A size
+     * that only the attachment's other metadata names (such as a PDF's preview images), of which the storage made no
+     * file, is built WordPress's way.
      */
     private static String sizeUrl(
             MediaSnapshot media, String name, String file, String mainUrl, String mainName, boolean secure) {
