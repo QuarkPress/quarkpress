@@ -88,7 +88,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:/routes/~1wp~1v2~1media/endpoints/1/args/url D39 the url create parameter is not declared
 * req*:body:/body/routes/~1wp~1v2~1media/endpoints/1/args/url D39 the url create parameter is not declared (an enveloped index)
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1blocks* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1template-parts* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1global-styles* D6 routes QuarkPress does not serve yet
@@ -97,7 +96,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1font-collections* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1menus* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-locations* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1wp_pattern_category* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1comments* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1block-renderer* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1block-types* D6 routes QuarkPress does not serve yet
@@ -129,14 +127,10 @@ d19 req5:body* D6 namespace=oembed/1.0: WordPress's oEmbed namespace, QuarkPress
 * req*:body:*/wp_font_family D8 type not registered in QuarkPress
 * req*:body:*/wp_font_face D8 type not registered in QuarkPress
 * req*:body:*/nav_menu D8 taxonomy not registered in QuarkPress
-* req*:body:*/wp_pattern_category D8 taxonomy not registered in QuarkPress
-* req*:body:*wp_block/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress)
-d20 req4:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category (not registered in QuarkPress)
 d20 req6:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
 d20 req7:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
 d20 req6:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
 d20 req7:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
-rest-b-060 req3:body:/taxonomies/0 D8 wp_block's taxonomies: WordPress lists wp_pattern_category
 
 # D10: users are managed by the identity provider.
 d27 req1:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkPress 501
@@ -411,11 +405,8 @@ e02 req12:body:/media_details/compression_ratio D46 the MP3's getID3 key compres
 e02 req12:body:/media_details/fileformat D46 the MP3's getID3 key fileformat, which the media module does not read
 e02 req12:body:/media_details/length D46 the MP3's getID3 key length, which the media module does not read
 e02 req12:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
-# D43, D46 (e03): the attachment's links. A pattern parent, whose route is not served yet (D43); an MP3's cover art,
-# which becomes an attachment on WordPress's side only (D46, media D4).
-e03 req14:body:/_embedded/wp:attached-to/0/code D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
-e03 req14:body:/_embedded/wp:attached-to/0/message D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
-e03 req14:body:/_embedded/wp:attached-to/0/data/status D43 the pattern (wp_block) parent's route is not served: QuarkPress embeds rest_no_route, WordPress the anonymous caller's rest_forbidden
+# D46 (e03): the attachment's links. An MP3's cover art, which becomes an attachment on WordPress's side only (D46,
+# media D4).
 e03 req21:body:/featured_media D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress names no cover
 e03 req21:body:/_links/wp:featuredmedia D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress links no cover
 e03 req21:body:/_links/curies D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4): without the cover link QuarkPress's links have no wp: relation, hence no curies
@@ -493,3 +484,10 @@ e09 req17:body:/_links/predecessor-version/0/id D31 the revision the update save
 e09 req17:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
 e09 req18:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
 e09 req18:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+# D1, D26 (f01): synced patterns. The pattern's link and guid are the plain ?post_type=wp_block&p=<id> form (WordPress's
+# pretty /<slug>/ form, which names no type, cannot be compared in its plain form); the generated excerpt runs the
+# registered filters only.
+f01 req*:body:*/link D1 a synced pattern's link is the plain ?post_type=wp_block&p=<id> form; WordPress's follows the site's permalinks
+f01 req*:body:*/guid/rendered D1 a synced pattern's guid is the plain link it was created with; WordPress's is its pretty permalink
+f01 req*:body:*/guid/raw D1 a synced pattern's guid is the plain link it was created with; WordPress's is its pretty permalink
+f01 req*:body:*/excerpt/rendered D26 the generated excerpt of a synced pattern: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
