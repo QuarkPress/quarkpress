@@ -78,8 +78,10 @@ A file's URL is one of three, in this order:
 2. **Presigned URL** (`presigned-url-ttl` set, no base URL): a signed URL of the object, valid for the configured time,
    for a bucket that stays private. Such URLs expire, and WordPress keeps file URLs in post content: an image
    inserted into a post saves its URL into the post, so a saved post's images and links stop working once the time is
-   up (at most 7 days later), while the media library, which asks for fresh URLs on every read, keeps working. Use a
-   public base URL for a site whose posts show media; presigned URLs suit a private library only.
+   up (at most 7 days later, and sooner when the credentials that signed them expire first: role, instance or STS
+   session credentials last hours, and S3 refuses a URL signed with them once they expire), while the media library,
+   which asks for fresh URLs on every read, keeps working. Use a public base URL for a site whose posts show media;
+   presigned URLs suit a private library only.
 3. **Bucket URL** (neither set): the object's URL at the bucket, as the S3 client addresses it (the endpoint and
    path-style settings). It serves the file only when the bucket, or the object, is publicly readable; S3 answers 403
    otherwise.
@@ -93,6 +95,10 @@ which expires and is often longer than the 255 characters a guid holds. In the p
 unsigned URL that a private bucket does not serve; as in WordPress, a guid is an identifier, not the link a page uses.
 
 The URLs are the same for every site of a network: a site's keys already start with its `sites/<id>/` folder.
+
+On a request made over `https`, the REST API rewrites the main and size URLs of a file to `https`, as WordPress does
+for its own URLs. For an `https` site, use an `https` endpoint or an `https` public base URL: a store reached over
+plain `http` gets `https://` URLs on that endpoint, which it does not serve.
 
 ## Conditional writes
 
@@ -118,9 +124,15 @@ way, which readers see whole or not at all.
 - A folder listing reads every page of the answer (S3 answers at most 1,000 entries per page), lists each name once,
   skips the zero-byte folder markers that the S3 console makes (such as `2026/11/`) and never lists anything outside
   the key prefix.
-- A missing object answers as missing whatever 404 the store gives (S3's `NoSuchKey`, or a bare 404 from a `HEAD` or
-  an S3-compatible store), except a missing bucket. Any other error (403 `AccessDenied`, 500, 503 `SlowDown`, a
-  missing bucket) is an error naming the operation, the object, the status and the error code, never a missing file.
+- A missing object answers as missing whatever 404 the store gives (S3's `NoSuchKey`, or a bare 404 from an
+  S3-compatible store). Any other error (403 `AccessDenied`, 500, 503 `SlowDown`) is an error naming the operation,
+  the object, the status and the error code, never a missing file.
+- A missing bucket (a misspelt `quarkpress.media.s3.bucket`; start-up sends no request) is an error naming
+  `NoSuchBucket` only for the requests whose answer has a body: uploads (`put`), reads (`open`) and listings (`list`).
+  A `HEAD` answer has no body, and the AWS SDK turns every 404 answer to one into `NoSuchKey`, so the operations that
+  ask with a `HEAD` cannot tell a missing bucket from a missing file and answer missing: `exists` answers false,
+  `size` answers empty, `delete` answers false without deleting, and the check before a new file's upload with
+  `conditional-writes=false` finds the key free (the upload that follows then fails with `NoSuchBucket`).
 - The temporary files the media module asks for a request body on its way into the storage are created in the JVM's
   temporary folder (`java.io.tmpdir`), so put that folder on a disk with room for the largest upload, times the uploads
   running at once. The caller deletes each one when the request is answered; nothing sweeps the folder, so files left
