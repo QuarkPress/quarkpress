@@ -1,0 +1,188 @@
+{
+  "id": "f04",
+  "rule": "the block renderer (/wp/v2/block-renderer/{name}, Part G b13, b14): WordPress's order of checks on the test block type qp-it/notice (the arguments with their defaults first, so no context=edit is 400 for every caller, with Allow only for a permitted one; the context and attributes checked before post_id; then the permission, edit_post on a given post above 0, else edit_posts; then the case-sensitive lookup, 404 block_invalid with Allow), a registered type's attributes (unknown ones refused, a type mismatch, a support's attribute accepted), anything for an unregistered type, the escaped rendering by GET and POST, a block hidden by metadata.blockVisibility false (and the string \"false\", which does not hide it), HEAD, _fields and OPTIONS, a query name beating the URL's; core/paragraph (static, 404 on both sides) and core/archives, which WordPress renders and QuarkPress does not register (D51)",
+  "setup": [
+    {
+      "option": "qp_parity_notice_block",
+      "value": "1"
+    },
+    {
+      "post": "p:bobs",
+      "as": "bob",
+      "type": "post",
+      "status": "draft",
+      "title": "f04 bob draft"
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id={p:bobs}"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id=999999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id=abc"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id=abc"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id=0"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id=-1"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id={p:bobs}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[foo]=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[foo]=1"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[message][]=x"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/core/paragraph?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/nope?context=edit&attributes=5"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/nope?context=edit&attributes=5"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/nope?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/Qp-It/Notice?context=edit"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[message]=Hi%20%26%20bye"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[message]=%3Cb%3Ex%3C%2Fb%3E%20%26%20y"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit",
+      "contentType": "application/json",
+      "body": "{\"attributes\":{\"message\":\"Hi\"}}"
+    },
+    {
+      "as": "alice",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&_fields=rendered"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/core/archives?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?attributes[foo]=1&post_id=abc"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[className]=x"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&post_id=99999999999999999999"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit",
+      "contentType": "application/json",
+      "body": "{\"attributes\":{\"metadata\":{\"blockVisibility\":false}}}"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[metadata][blockVisibility]=false"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/block-renderer/qp-it/nope?context=edit&name=qp-it/notice&attributes[message]=q"
+    }
+  ]
+}

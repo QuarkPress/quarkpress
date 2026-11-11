@@ -63,3 +63,4 @@ e09-featured-media.json
 f01-blocks.json
 f02-pattern-categories.json
 f03-block-types.json
+f04-block-renderer.json
