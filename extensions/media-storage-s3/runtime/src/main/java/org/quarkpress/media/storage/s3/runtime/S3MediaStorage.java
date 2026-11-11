@@ -379,6 +379,28 @@ public class S3MediaStorage implements MediaStorage {
                     .url()
                     .toString();
         }
+        return bucketUrl(objectKey);
+    }
+
+    /**
+     * The permanent URL of the file of {@code key}, recorded as its attachment's guid: the public base URL form when
+     * that is set, otherwise the object's URL at the bucket, never presigned (a presigned URL expires, and is longer
+     * than a guid may be). No request is sent.
+     *
+     * @throws IllegalArgumentException when {@code key} is not a valid storage key, or the object key is longer than
+     *     S3 allows
+     */
+    @Override
+    public String guidUrl(SiteInfo site, String key) {
+        String objectKey = objectKey(key);
+        if (settings.publicBaseUrl().isPresent()) {
+            return withoutTrailingSlashes(settings.publicBaseUrl().get()) + "/" + objectKey;
+        }
+        return bucketUrl(objectKey);
+    }
+
+    /** The object's URL at the bucket, as the S3 client addresses it (endpoint and path style). */
+    private String bucketUrl(String objectKey) {
         return client.utilities()
                 .getUrl(GetUrlRequest.builder()
                         .bucket(settings.bucket())

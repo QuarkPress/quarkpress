@@ -35,7 +35,7 @@ class S3PublicUrlDbTest {
     static final QuarkusExtensionTest app = S3App.active(S3PublicUrlDbTest.class);
 
     /** A key with a space and a non-ASCII letter, which the presigned and bucket URLs encode. */
-    private static final String K = "2026/11/a b/café.txt";
+    private static final String K = "2026/11/a b/caf\u00e9.txt";
 
     private static final String BASE = "https://cdn.example.com/media/";
 
@@ -74,16 +74,16 @@ class S3PublicUrlDbTest {
     @Test
     void aPublicBaseUrlIsJoinedAsIs() {
         assertThat(storage("t1", Optional.of(BASE), Optional.empty()).publicUrl(SITE, K))
-                .isEqualTo("https://cdn.example.com/media/t1/2026/11/a b/café.txt");
+                .isEqualTo("https://cdn.example.com/media/t1/2026/11/a b/caf\u00e9.txt");
         assertThat(storage("", Optional.of(BASE), Optional.empty()).publicUrl(SITE, K))
-                .isEqualTo("https://cdn.example.com/media/2026/11/a b/café.txt");
+                .isEqualTo("https://cdn.example.com/media/2026/11/a b/caf\u00e9.txt");
     }
 
     @Test
     void theBaseUrlWinsOverPresigning() {
         assertThat(storage("t1", Optional.of(BASE), Optional.of(Duration.ofMinutes(10)))
                         .publicUrl(SITE, K))
-                .isEqualTo("https://cdn.example.com/media/t1/2026/11/a b/café.txt");
+                .isEqualTo("https://cdn.example.com/media/t1/2026/11/a b/caf\u00e9.txt");
     }
 
     @Test
@@ -110,6 +110,23 @@ class S3PublicUrlDbTest {
         HttpResponse<String> response = get(url);
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).isEqualTo("hello");
+    }
+
+    @Test
+    void theGuidUrlIsNeverPresigned() {
+        S3MediaStorage presigning =
+                storage(active.settings().keyPrefix(), Optional.empty(), Optional.of(Duration.ofMinutes(10)));
+        String guid = presigning.guidUrl(SITE, K);
+        assertThat(guid).doesNotContain("?").doesNotContain("X-Amz-");
+        assertThat(guid)
+                .isEqualTo(storage(active.settings().keyPrefix(), Optional.empty(), Optional.empty())
+                        .publicUrl(SITE, K));
+        assertThat(URI.create(guid).getRawPath())
+                .endsWith("/" + S3App.BUCKET + "/" + active.settings().keyPrefix() + "/2026/11/a%20b/caf%C3%A9.txt");
+        // with a public base URL, the guid is that URL's form, as the served URL is
+        assertThat(storage("t1", Optional.of(BASE), Optional.of(Duration.ofMinutes(10)))
+                        .guidUrl(SITE, K))
+                .isEqualTo("https://cdn.example.com/media/t1/2026/11/a b/caf\u00e9.txt");
     }
 
     @Test
