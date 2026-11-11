@@ -122,11 +122,11 @@ public abstract class MediaStorageContract {
 
     @Test
     void keysWithSpacesAndNonAscii() throws IOException {
-        String key = run + "/a b/café.txt";
-        put(key, "café", WriteMode.CREATE_NEW);
-        assertThat(read(key)).isEqualTo("café");
+        String key = run + "/a b/caf\u00e9.txt";
+        put(key, "caf\u00e9", WriteMode.CREATE_NEW);
+        assertThat(read(key)).isEqualTo("caf\u00e9");
         assertThat(storage().exists(key)).isTrue();
-        assertThat(storage().list(run + "/a b")).containsExactly("café.txt");
+        assertThat(storage().list(run + "/a b")).containsExactly("caf\u00e9.txt");
     }
 
     @Test
