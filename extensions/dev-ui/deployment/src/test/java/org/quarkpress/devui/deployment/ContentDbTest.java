@@ -103,7 +103,7 @@ class ContentDbTest {
                         "request-failed",
                         "request-completed");
         assertThat(texts(registries.get("taxonomies"), "key"))
-                .containsExactlyInAnyOrder("category", "post_tag", "post_format");
+                .containsExactlyInAnyOrder("category", "post_tag", "post_format", "wp_pattern_category");
         assertThat(find(registries.get("taxonomies"), "key", "category")
                         .get("hierarchical")
                         .asBoolean())
