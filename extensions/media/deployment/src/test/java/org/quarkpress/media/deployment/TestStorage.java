@@ -54,6 +54,7 @@ public class TestStorage implements MediaStorage {
     private final AtomicBoolean failNextUrl = new AtomicBoolean();
     private final AtomicInteger failingUrls = new AtomicInteger();
     private volatile Runnable duringPut;
+    private volatile boolean signedUrls;
 
     /** Removes every file and resets the switches. */
     public void clear() {
@@ -71,6 +72,15 @@ public class TestStorage implements MediaStorage {
         failNextUrl.set(false);
         failingUrls.set(0);
         duringPut = null;
+        signedUrls = false;
+    }
+
+    /**
+     * Whether the served URLs carry a long signature (longer than a guid may be), as presigned URLs do; the guid URL
+     * stays the unsigned one.
+     */
+    public void signUrls(boolean signed) {
+        signedUrls = signed;
     }
 
     /** Every write first runs {@code work} on the writing thread; null to write at once. */
@@ -245,6 +255,12 @@ public class TestStorage implements MediaStorage {
         if (failingUrls.getAndUpdate(n -> Math.max(0, n - 1)) > 0 || failNextUrl.getAndSet(false)) {
             throw new IllegalStateException("the test storage cannot tell the URL of " + key);
         }
+        String url = guidUrl(site, key);
+        return signedUrls ? url + "?signature=" + "s".repeat(300) : url;
+    }
+
+    @Override
+    public String guidUrl(SiteInfo site, String key) {
         return site.url("http") + "test-uploads/" + StoredKey.require(key);
     }
 }

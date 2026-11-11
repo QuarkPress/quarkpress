@@ -483,6 +483,15 @@ class UploadPipelineDbTest {
     }
 
     @Test
+    void aSignedServedUrlLongerThanAGuidIsStoredUnderItsStableGuid() throws Exception {
+        storage.signUrls(true);
+        MediaSnapshot stored = asCarol(upload("signed.jpg", MediaFixtures.jpeg(8, 8), "image/jpeg"));
+        String guid = "http://localhost/test-uploads/2026/11/signed.jpg";
+        assertThat(stored.post().guid()).isEqualTo(guid);
+        assertThat(stored.url()).startsWith(guid + "?signature=").hasSizeGreaterThan(255);
+    }
+
+    @Test
     void anUploadWhoseSizeIsNotItsFilesIsRefused() throws Exception {
         Upload built = upload("sized.txt", MediaFixtures.text("twelve bytes"), "text/plain")
                 .build();

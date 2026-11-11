@@ -52,6 +52,15 @@ public interface MediaStorage {
     String publicUrl(SiteInfo site, String key);
 
     /**
+     * The permanent URL of the file under {@code key} for {@code site}, recorded as the attachment's guid when the file
+     * is stored: stable, never signed or expiring. By default the {@linkplain #publicUrl public URL}; a backend whose
+     * public URLs expire (such as signed URLs) answers a URL that does not.
+     */
+    default String guidUrl(SiteInfo site, String key) {
+        return publicUrl(site, key);
+    }
+
+    /**
      * A new empty file for a request body on its way into the storage, which the caller deletes once done with it:
      * by default in the JVM's temporary folder; a backend that writes local files answers one where its own
      * temporary files are, so that the upload is read from the file system it is stored on.

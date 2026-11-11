@@ -373,8 +373,8 @@ public class UploadPipeline {
                 && !processor.supports(declared);
     }
 
-    /** The stored file: its name in the folder, its key and its URL. */
-    record Placed(String name, String key, String url) {}
+    /** The stored file: its name in the folder, its key and its guid URL. */
+    record Placed(String name, String key, String guid) {}
 
     /**
      * Stores the file under a unique name of the folder, never replacing a file: a name another upload took meanwhile
@@ -403,7 +403,7 @@ public class UploadPipeline {
             String key = folder.key(name);
             String url;
             try {
-                url = storage.publicUrl(siteInfo, key);
+                url = storage.guidUrl(siteInfo, key);
             } catch (IllegalArgumentException failure) {
                 throw moveRefused(folder, failure);
             }
@@ -474,7 +474,7 @@ public class UploadPipeline {
                 .title(title)
                 .excerpt(excerpt)
                 .content(upload.description().orElse(""))
-                .guid(placed.url());
+                .guid(placed.guid());
         upload.status().ifPresent(changes::status);
         upload.author().ifPresent(changes::author);
         upload.parent().ifPresent(changes::parent);
