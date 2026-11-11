@@ -5,11 +5,15 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.Set;
 import org.quarkpress.core.SiteInfo;
 import org.quarkpress.media.KeyTakenException;
 import org.quarkpress.media.MediaStorage;
@@ -20,9 +24,18 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CommonPrefix;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
@@ -40,6 +53,9 @@ public class S3MediaStorage implements MediaStorage {
     private static final int MAX_OBJECT_KEY_BYTES = 1024;
 
     private static final String NOT_YET = "not implemented yet";
+
+    /** S3's error code for a bucket that does not exist. */
+    private static final String NO_SUCH_BUCKET = "NoSuchBucket";
 
     private final S3Client client;
     private final S3Presigner presigner;
@@ -136,24 +152,46 @@ public class S3MediaStorage implements MediaStorage {
         }
     }
 
-    /** Whether the object {@code objectKey} exists: any 404 answer means it does not. */
+    /** Whether the object {@code objectKey} exists. */
     private boolean holdsObject(String objectKey) throws IOException {
+        return head(objectKey) != null;
+    }
+
+    /**
+     * The metadata of the object {@code objectKey}, or null when the key holds no object.
+     *
+     * @throws IOException when S3 answers with an error other than a missing key
+     */
+    private HeadObjectResponse head(String objectKey) throws IOException {
         try {
-            client.headObject(HeadObjectRequest.builder()
+            return client.headObject(HeadObjectRequest.builder()
                     .bucket(settings.bucket())
                     .key(objectKey)
                     .build());
-            return true;
-        } catch (NoSuchKeyException missing) {
-            return false;
-        } catch (AwsServiceException error) {
-            if (error.statusCode() == 404) {
-                return false;
+        } catch (S3Exception error) {
+            if (missing(error)) {
+                return null;
             }
             throw failure("HeadObject", objectKey, error);
         } catch (SdkException error) {
             throw failure("HeadObject", objectKey, error);
         }
+    }
+
+    /**
+     * Whether S3's answer means that the key holds no object: a {@link NoSuchKeyException}, or any 404 answer except
+     * a missing bucket, which is a configuration error rather than a missing file. Some S3-compatible stores, and
+     * every answer to a {@code HEAD} request, carry a 404 without the typed exception.
+     */
+    static boolean missing(S3Exception error) {
+        if (error instanceof NoSuchKeyException) {
+            return true;
+        }
+        if (error instanceof NoSuchBucketException || error.statusCode() != 404) {
+            return false;
+        }
+        AwsErrorDetails details = error.awsErrorDetails();
+        return details == null || !NO_SUCH_BUCKET.equals(details.errorCode());
     }
 
     /** An {@link IOException} for a failed request, naming the operation, the object, S3's status and error code. */
@@ -177,29 +215,140 @@ public class S3MediaStorage implements MediaStorage {
         return new IOException(message.toString(), error);
     }
 
+    /**
+     * Opens the object of {@code key} for reading; the caller closes the stream, which reads the answer's body.
+     *
+     * @throws NoSuchFileException when the key holds no object
+     * @throws IOException when S3 answers with another error, naming its status and error code
+     */
     @Override
     public InputStream open(String key) throws IOException {
-        throw new UnsupportedOperationException(NOT_YET);
+        String objectKey = objectKey(key);
+        try {
+            return client.getObject(GetObjectRequest.builder()
+                    .bucket(settings.bucket())
+                    .key(objectKey)
+                    .build());
+        } catch (S3Exception error) {
+            if (missing(error)) {
+                throw new NoSuchFileException(key);
+            }
+            throw failure("GetObject", objectKey, error);
+        } catch (SdkException error) {
+            throw failure("GetObject", objectKey, error);
+        }
     }
 
+    /**
+     * Whether {@code key} holds an object.
+     *
+     * @throws UncheckedIOException when S3 answers with an error other than a missing key
+     */
     @Override
     public boolean exists(String key) {
-        throw new UnsupportedOperationException(NOT_YET);
+        return headUnchecked(objectKey(key)) != null;
     }
 
+    /**
+     * The names of the direct entries of the folder {@code folderKey} ({@code ""} for the root, below the key
+     * prefix): its objects and the next segments of the deeper ones, read page by page. A zero-byte folder marker,
+     * such as the S3 console makes for {@code 2026/11/}, is not an entry, and nothing outside the key prefix is listed.
+     *
+     * @throws UncheckedIOException when S3 answers with an error
+     */
     @Override
     public List<String> list(String folderKey) {
-        throw new UnsupportedOperationException(NOT_YET);
+        String prefix;
+        if (folderKey.isEmpty()) {
+            prefix = settings.keyPrefix().isEmpty() ? null : settings.keyPrefix() + "/";
+        } else {
+            prefix = objectKey(folderKey) + "/";
+        }
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(settings.bucket())
+                .prefix(prefix)
+                .delimiter("/")
+                .build();
+        String start = prefix == null ? "" : prefix;
+        Set<String> names = new LinkedHashSet<>();
+        try {
+            // the pages are read once: the iterable's own contents() and commonPrefixes() each send every request again
+            for (ListObjectsV2Response page : client.listObjectsV2Paginator(request)) {
+                for (S3Object object : page.contents()) {
+                    addName(names, start, object.key());
+                }
+                for (CommonPrefix folder : page.commonPrefixes()) {
+                    String folderPrefix = folder.prefix();
+                    addName(
+                            names,
+                            start,
+                            folderPrefix.endsWith("/")
+                                    ? folderPrefix.substring(0, folderPrefix.length() - 1)
+                                    : folderPrefix);
+                }
+            }
+        } catch (SdkException error) {
+            throw new UncheckedIOException(failure("ListObjectsV2", start, error));
+        }
+        return List.copyOf(names);
     }
 
+    /** Adds the name of {@code objectKey} below {@code start}, when it is one: never empty, never outside it. */
+    private static void addName(Set<String> names, String start, String objectKey) {
+        if (objectKey != null && objectKey.startsWith(start) && objectKey.length() > start.length()) {
+            names.add(objectKey.substring(start.length()));
+        }
+    }
+
+    /**
+     * Removes the object of {@code key}: false when there was none. S3 answers a delete alike whether or not the key
+     * held an object, so this asks first; two concurrent deletes of one key can therefore both answer true.
+     *
+     * @throws UncheckedIOException when S3 answers with an error other than a missing key
+     */
     @Override
     public boolean delete(String key) {
-        throw new UnsupportedOperationException(NOT_YET);
+        String objectKey = objectKey(key);
+        if (headUnchecked(objectKey) == null) {
+            return false;
+        }
+        try {
+            client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(settings.bucket())
+                    .key(objectKey)
+                    .build());
+            return true;
+        } catch (SdkException error) {
+            throw new UncheckedIOException(failure("DeleteObject", objectKey, error));
+        }
     }
 
+    /**
+     * The size of the object of {@code key} in bytes, or empty when there is none.
+     *
+     * @throws UncheckedIOException when S3 answers with an error other than a missing key
+     */
     @Override
     public OptionalLong size(String key) {
-        throw new UnsupportedOperationException(NOT_YET);
+        HeadObjectResponse head = headUnchecked(objectKey(key));
+        if (head == null) {
+            return OptionalLong.empty();
+        }
+        Long length = head.contentLength();
+        if (length == null) {
+            throw new UncheckedIOException(new IOException("S3 HeadObject of " + settings.bucket() + '/'
+                    + objectKey(key) + " answered without a Content-Length"));
+        }
+        return OptionalLong.of(length);
+    }
+
+    /** {@link #head} for the methods that cannot throw {@link IOException}. */
+    private HeadObjectResponse headUnchecked(String objectKey) {
+        try {
+            return head(objectKey);
+        } catch (IOException error) {
+            throw new UncheckedIOException(error);
+        }
     }
 
     @Override
