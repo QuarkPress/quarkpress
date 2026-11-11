@@ -180,8 +180,10 @@ public class S3MediaStorage implements MediaStorage {
 
     /**
      * Whether S3's answer means that the key holds no object: a {@link NoSuchKeyException}, or any 404 answer except
-     * a missing bucket, which is a configuration error rather than a missing file. Some S3-compatible stores, and
-     * every answer to a {@code HEAD} request, carry a 404 without the typed exception.
+     * a missing bucket, which is a configuration error rather than a missing file. Some S3-compatible stores carry a
+     * 404 without the typed exception. Only an answer with a body, such as a {@code GET}'s, names a missing bucket: the
+     * SDK turns every 404 answer to a {@code HEAD} into a {@link NoSuchKeyException}, so {@link #head} reads a missing
+     * bucket as a missing key.
      */
     static boolean missing(S3Exception error) {
         if (error instanceof NoSuchKeyException) {
@@ -330,14 +332,15 @@ public class S3MediaStorage implements MediaStorage {
      */
     @Override
     public OptionalLong size(String key) {
-        HeadObjectResponse head = headUnchecked(objectKey(key));
+        String objectKey = objectKey(key);
+        HeadObjectResponse head = headUnchecked(objectKey);
         if (head == null) {
             return OptionalLong.empty();
         }
         Long length = head.contentLength();
         if (length == null) {
-            throw new UncheckedIOException(new IOException("S3 HeadObject of " + settings.bucket() + '/'
-                    + objectKey(key) + " answered without a Content-Length"));
+            throw new UncheckedIOException(new IOException(
+                    "S3 HeadObject of " + settings.bucket() + '/' + objectKey + " answered without a Content-Length"));
         }
         return OptionalLong.of(length);
     }
@@ -367,7 +370,7 @@ public class S3MediaStorage implements MediaStorage {
     public String publicUrl(SiteInfo site, String key) {
         String objectKey = objectKey(key);
         if (settings.publicBaseUrl().isPresent()) {
-            return withoutTrailingSlashes(settings.publicBaseUrl().get()) + "/" + objectKey;
+            return publicBaseUrl(objectKey);
         }
         if (settings.presignedUrlTtl().isPresent()) {
             return presigner
@@ -393,10 +396,7 @@ public class S3MediaStorage implements MediaStorage {
     @Override
     public String guidUrl(SiteInfo site, String key) {
         String objectKey = objectKey(key);
-        if (settings.publicBaseUrl().isPresent()) {
-            return withoutTrailingSlashes(settings.publicBaseUrl().get()) + "/" + objectKey;
-        }
-        return bucketUrl(objectKey);
+        return settings.publicBaseUrl().isPresent() ? publicBaseUrl(objectKey) : bucketUrl(objectKey);
     }
 
     /** The object's URL at the bucket, as the S3 client addresses it (endpoint and path style). */
@@ -409,12 +409,8 @@ public class S3MediaStorage implements MediaStorage {
                 .toString();
     }
 
-    /** {@code url} without its trailing slashes; settings built by hand may keep them. */
-    private static String withoutTrailingSlashes(String url) {
-        int end = url.length();
-        while (end > 0 && url.charAt(end - 1) == '/') {
-            end--;
-        }
-        return url.substring(0, end);
+    /** The object's URL below the public base URL, which {@link S3Settings} keeps without trailing slashes. */
+    private String publicBaseUrl(String objectKey) {
+        return settings.publicBaseUrl().orElseThrow() + "/" + objectKey;
     }
 }

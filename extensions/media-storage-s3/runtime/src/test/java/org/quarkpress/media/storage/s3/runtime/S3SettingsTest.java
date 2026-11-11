@@ -100,5 +100,8 @@ class S3SettingsTest {
                 Optional.empty(),
                 true);
         assertThat(S3Settings.of(config).publicBaseUrl()).contains("https://cdn.example.com/m");
+        assertThat(new S3Settings("media", "", Optional.of("https://cdn.example.com/m//"), Optional.empty(), true)
+                        .publicBaseUrl())
+                .contains("https://cdn.example.com/m");
     }
 }

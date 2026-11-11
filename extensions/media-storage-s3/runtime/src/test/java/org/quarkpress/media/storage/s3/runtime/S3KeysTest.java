@@ -56,7 +56,7 @@ class S3KeysTest {
     @Test
     void aMultiByteKeyIsCountedInUtf8Bytes() {
         // 341 three-byte characters are 1023 bytes: with "p/" that is 1025
-        String key = "€".repeat(341);
+        String key = "\u20ac".repeat(341);
         assertThatThrownBy(() -> storage("p").objectKey(key))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not 1025");

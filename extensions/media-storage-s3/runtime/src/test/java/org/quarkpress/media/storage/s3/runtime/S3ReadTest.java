@@ -147,26 +147,33 @@ class S3ReadTest {
     }
 
     @Test
-    void aMissingBucketIsAnError() {
+    void aMissingBucketIsAnErrorWhereTheAnswerNamesIt() {
         client.getObject = request -> {
-            throw ScriptedS3Client.error(404, "NoSuchBucket");
+            throw ScriptedS3Client.noSuchBucket();
         };
         assertThatThrownBy(() -> storage().open(KEY))
                 .isInstanceOf(IOException.class)
                 .isNotInstanceOf(NoSuchFileException.class)
                 .hasMessageContaining("NoSuchBucket");
 
-        client.headObject = request -> {
-            throw ScriptedS3Client.error(404, "NoSuchBucket");
+        client.listObjectsV2 = request -> {
+            throw ScriptedS3Client.noSuchBucket();
         };
-        assertThatThrownBy(() -> storage().exists(KEY))
+        assertThatThrownBy(() -> storage().list("2026/11"))
                 .isInstanceOf(UncheckedIOException.class)
                 .hasMessageContaining("NoSuchBucket");
+    }
 
-        client.listObjectsV2 = request -> {
-            throw NoSuchBucketException.builder().statusCode(404).build();
+    @Test
+    void aMissingBucketReadsAsAMissingKeyOnHead() {
+        // the SDK turns every 404 answer to a HEAD, a missing bucket's included, into NoSuchKeyException
+        client.headObject = request -> {
+            throw ScriptedS3Client.noSuchKey();
         };
-        assertThatThrownBy(() -> storage().list("2026/11")).isInstanceOf(UncheckedIOException.class);
+        assertThat(storage().exists(KEY)).isFalse();
+        assertThat(storage().size(KEY)).isEmpty();
+        assertThat(storage().delete(KEY)).isFalse();
+        assertThat(client.requests(DeleteObjectRequest.class)).isEmpty();
     }
 
     @Test

@@ -25,6 +25,11 @@ public record S3Settings(
 
     static final String BUCKET_REQUIRED = "quarkpress.media.s3.bucket is required by quarkpress-media-storage-s3";
 
+    /** Keeps {@code publicBaseUrl} without its trailing slashes, however the settings were built. */
+    public S3Settings {
+        publicBaseUrl = publicBaseUrl.map(S3Settings::withoutTrailingSlashes);
+    }
+
     /**
      * Checks {@code config}.
      *
@@ -37,8 +42,7 @@ public record S3Settings(
         String keyPrefix = config.keyPrefix().map(S3Settings::keyPrefix).orElse("");
         Optional<Duration> ttl = config.presignedUrlTtl();
         ttl.ifPresent(S3Settings::checkTtl);
-        Optional<String> publicBaseUrl = config.publicBaseUrl().map(S3Settings::withoutTrailingSlashes);
-        return new S3Settings(bucket, keyPrefix, publicBaseUrl, ttl, config.conditionalWrites());
+        return new S3Settings(bucket, keyPrefix, config.publicBaseUrl(), ttl, config.conditionalWrites());
     }
 
     private static String keyPrefix(String prefix) {

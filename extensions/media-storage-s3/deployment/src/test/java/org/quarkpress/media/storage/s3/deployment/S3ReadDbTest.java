@@ -8,14 +8,17 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.media.WriteMode;
 import org.quarkpress.media.storage.s3.runtime.S3MediaStorage;
+import org.quarkpress.media.storage.s3.runtime.S3Settings;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 
@@ -84,5 +87,28 @@ class S3ReadDbTest {
         assertThat(storage.delete("delete/gone.txt")).isTrue();
         assertThat(storage.delete("delete/gone.txt")).isFalse();
         assertThat(storage.exists("delete/gone.txt")).isFalse();
+    }
+
+    @Test
+    void aMissingBucketFailsWhereTheAnswerNamesItAndIsMissingOnHead() throws IOException {
+        S3MediaStorage nowhere = new S3MediaStorage(
+                client,
+                null,
+                new S3Settings("quarkpress-no-such-bucket", "", Optional.empty(), Optional.empty(), true));
+        Path upload = file("nowhere.txt", "x");
+        assertThatThrownBy(() -> nowhere.put("a.txt", upload, "text/plain", WriteMode.CREATE_NEW))
+                .isExactlyInstanceOf(IOException.class)
+                .hasMessageContaining("NoSuchBucket");
+        assertThatThrownBy(() -> nowhere.open("a.txt"))
+                .isInstanceOf(IOException.class)
+                .isNotInstanceOf(NoSuchFileException.class)
+                .hasMessageContaining("NoSuchBucket");
+        assertThatThrownBy(() -> nowhere.list(""))
+                .isInstanceOf(UncheckedIOException.class)
+                .hasMessageContaining("NoSuchBucket");
+        // a HEAD answer has no body: the SDK reads its 404 as a missing key
+        assertThat(nowhere.exists("a.txt")).isFalse();
+        assertThat(nowhere.size("a.txt")).isEmpty();
+        assertThat(nowhere.delete("a.txt")).isFalse();
     }
 }

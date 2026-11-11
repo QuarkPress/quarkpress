@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
@@ -41,6 +42,16 @@ final class ScriptedS3Client implements S3Client {
                 .statusCode(status)
                 .awsErrorDetails(AwsErrorDetails.builder().errorCode(code).build())
                 .message(code)
+                .build();
+    }
+
+    /** The answer with a body for a missing bucket, as the SDK reads it (a HEAD answer never gives it). */
+    static NoSuchBucketException noSuchBucket() {
+        return (NoSuchBucketException) NoSuchBucketException.builder()
+                .statusCode(404)
+                .awsErrorDetails(
+                        AwsErrorDetails.builder().errorCode("NoSuchBucket").build())
+                .message("NoSuchBucket")
                 .build();
     }
 

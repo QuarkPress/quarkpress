@@ -140,6 +140,21 @@ class S3PutTest {
     }
 
     @Test
+    void aMissingBucketPassesThePreCheckAndFailsAtThePut() {
+        // the SDK reads a HEAD's 404 for a missing bucket as NoSuchKeyException; the PUT's answer names the bucket
+        client.headObject = request -> {
+            throw ScriptedS3Client.noSuchKey();
+        };
+        client.putObject = request -> {
+            throw ScriptedS3Client.noSuchBucket();
+        };
+        assertThatThrownBy(() -> storage(false).put(KEY, file, "image/jpeg", WriteMode.CREATE_NEW))
+                .isExactlyInstanceOf(IOException.class)
+                .hasMessageContaining("404 NoSuchBucket");
+        assertThat(client.requests).hasSize(2);
+    }
+
+    @Test
     void otherPutErrorsAreIOExceptions() {
         client.putObject = request -> {
             throw ScriptedS3Client.error(403, "AccessDenied");
