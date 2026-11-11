@@ -3,7 +3,8 @@
 WordPress media for QuarkPress: uploads checked with WordPress's file name, type and size rules, stored through a
 storage backend module, image sizes generated through an image processor module, and the media library of a site as
 attachments, with a per-site switch (`media`). It requires the posts module and works on a single site and in a
-network. A storage backend is needed: add `quarkpress-media-storage-fs`, or provide a `MediaStorage` bean.
+network. A storage backend is needed: add `quarkpress-media-storage-fs` (files in a directory) or
+`quarkpress-media-storage-s3` (files in an S3 bucket), or provide a `MediaStorage` bean.
 
 ## Installation
 
@@ -15,6 +16,7 @@ network. A storage backend is needed: add `quarkpress-media-storage-fs`, or prov
 <dependency>
   <groupId>org.quarkpress</groupId>
   <artifactId>quarkpress-media-storage-fs</artifactId>
+  <!-- or quarkpress-media-storage-s3 -->
 </dependency>
 <dependency>
   <groupId>org.quarkpress</groupId>
@@ -146,7 +148,8 @@ Run time unless said; every key is checked at start-up with the other `quarkpres
 | `quarkpress.media.output-formats."<mime>"` | `image/heic`, `image/heif`, `image/heic-sequence`, `image/heif-sequence` → `image/jpeg` | The type sizes of an image type are written in, applied over the defaults; a mapping to a type the image processor does not write is ignored. |
 | `quarkpress.media.storage` (build time) | unset | The storage backend to use when several are present: a backend module's name (`fs`, `s3`) or the `@Identifier` (else the class's simple name) of an application's `MediaStorage` bean. Needed only then. |
 
-The filesystem backend's keys (`quarkpress.media.fs.*`) are described in its README.
+The filesystem backend's keys (`quarkpress.media.fs.*`) and the S3 backend's (`quarkpress.media.s3.*`) are described
+in their READMEs.
 
 The sizes are WordPress's: `thumbnail`, `medium`, `medium_large` and `large` from the site's options
 (`thumbnail_size_w`, `thumbnail_crop` and the others), then `1536x1536` and `2048x2048`, then the sizes of
@@ -157,6 +160,9 @@ The sizes are WordPress's: `thumbnail`, `medium`, `medium_large` and `large` fro
 
 Exactly one storage backend is used: the build fails without one, with several and no `quarkpress.media.storage`
 naming one, with `quarkpress.media.storage` naming a backend that is not present, or with two beans under one name.
+The modules `quarkpress-media-storage-fs` (`fs`, a directory on the server) and `quarkpress-media-storage-s3` (`s3`,
+an S3 bucket on AWS or an S3-compatible store) are the backends QuarkPress ships; only the chosen one's settings are
+required and checked.
 
 Keys are paths of `/`-separated segments: the main site's files are under `<year>/<month>/` (or directly at the root
 when the site turned year and month folders off), another site's under `sites/<id>/<year>/<month>/`, as WordPress
@@ -170,11 +176,14 @@ New files are always written create-exclusive: when another upload took a name b
 write, a new unique name is chosen from a fresh listing, at most ten times. A size whose name is taken by a file of
 another attachment is numbered (`photo-150x150-1.jpg`).
 
-The guid of an attachment is its file's URL when it is stored (at most 255 characters: a longer one refuses the
-upload with the "could not be moved" message, before anything is stored), and it never changes, as in WordPress.
-`MediaSnapshot.url` is computed from the active backend on every read. Switching from the filesystem to another
-backend (S3) is therefore a copy of the files under the same keys: the media rows name keys, not locations; only the
-guids of existing attachments keep the URLs they were stored with.
+The guid of an attachment is its file's permanent URL when it is stored (`MediaStorage.guidUrl`, by default its
+public URL; never an expiring one: the S3 backend gives an unsigned URL even when it serves presigned ones), at most
+255 characters: a longer one refuses the upload with the "could not be moved" message, before anything is stored. It
+never changes, as in WordPress. The URLs of `MediaSnapshot` (the main file's and each size's, each the storage's
+public URL of that file) are computed from the active backend on every read. Switching from the filesystem to another
+backend (S3) is therefore a copy of the files under the same keys (below the S3 backend's key prefix, when one is
+set): the media rows name keys, not locations; only the guids of existing attachments keep the URLs they were stored
+with.
 
 ## Processing
 
@@ -247,8 +256,10 @@ attachments the default terms of taxonomies registered for them on `AttachmentAd
 ## SPIs
 
 - `MediaStorage`: where the files are kept (`put` create-exclusive or replacing, `open`, `exists`, `list`, `delete`,
-  `size`, `publicUrl`, and `temporaryFile` for a request body on its way into the storage: by default a new file in the
-  JVM's temporary folder; a backend that writes local files answers one on the file system it stores on). A backend
+  `size`, `publicUrl` for the URL a file is served under, `guidUrl` for the permanent URL recorded as the attachment's
+  guid: by default the public URL, and a backend whose public URLs expire, such as signed ones, answers one that does
+  not; and `temporaryFile` for a request body on its way into the storage: by default a new file in the JVM's
+  temporary folder; a backend that writes local files answers one on the file system it stores on). A backend
   module produces a `MediaStorageBuildItem` with its name and one bean of this type with `@Identifier` of that name; an
   application may provide its own bean instead. A bean is named by its `@Identifier`, else by its class's simple name; a
   producer method's bean is named by the class that declares the method, so give produced beans an `@Identifier`.
@@ -279,7 +290,7 @@ attachments the default terms of taxonomies registered for them on `AttachmentAd
   not narrow it; the module that serves the editor's settings gives it the user's upload types.
 - On a network, the quota is checked per upload against the space the site's committed attachments take: concurrent
   uploads and the sizes made after an upload can take the site beyond it, as in WordPress.
-- An upload is refused when its URL would be longer than the 255 characters a guid holds.
+- An upload is refused when its guid URL would be longer than the 255 characters a guid holds.
 
 ## Decisions
 
@@ -315,7 +326,7 @@ storage and ImageIO modules together.
 | D3 | Sub-sizes and `-scaled`/`-rotated` files keep an RGB or grey colour profile (in JPEG and PNG output) and drop EXIF, IPTC and XMP (GD drops all four; Imagick keeps all four). Pixels, resampling and the byte sizes of files QuarkPress writes differ from WordPress's. |
 | D4 | Audio and video metadata holds `filesize`, `mime_type`, `length`, `length_formatted` and, for video, `width` and `height` when the container gives them: `length` only for MP4, MOV and M4A, AVI and WAV; MP3, OGG, WebM, FLAC and other formats get `filesize` and `mime_type` only; no tags, bit rates, codecs or `created_timestamp`, and an embedded cover image does not become an attachment. `mime_type` is the attachment's type, where WordPress stores getID3's (an MP4 can read `video/quicktime`, an M4A `audio/mp4`). |
 | D5 | A site's used space is the sum of its attachments' stored file sizes, kept with each media row; WordPress walks the site's upload folder and sums the sizes of the files in it. The files live in a storage backend, which need not be a folder that can be walked. |
-| D6 | The options `upload_path` and `upload_url_path`, where WordPress places the files and their URLs, are not read; `quarkpress.media.fs.base-url` takes their place, since the storage backend decides where files live. Refusal messages name `wp-content/uploads` (WordPress names its real folder, which a backend does not have), and a folder the storage cannot list is refused with WordPress's "Unable to create directory …" message. |
+| D6 | The options `upload_path` and `upload_url_path`, where WordPress places the files and their URLs, are not read; `quarkpress.media.fs.base-url` (or the S3 backend's `quarkpress.media.s3.public-base-url`) takes their place, since the storage backend decides where files live. Refusal messages name `wp-content/uploads` (WordPress names its real folder, which a backend does not have), and a folder the storage cannot list is refused with WordPress's "Unable to create directory …" message. |
 | D7 | File names lose accents by the default locale's rules whatever the site's locale (`ß` → `s`), where WordPress applies the site's locale (its German rules give `ss`); one fixed rule set cleans a name the same way on every site. |
 | D8 | Content types come from Apache Tika read from the content alone, where WordPress uses libmagic; where the two disagree for a file, the accept-or-refuse outcome can differ (each case is listed in the parity known differences). Image detection is Tika's too: an OS/2 BMP and a `.tif` holding a camera raw (CR2, DNG) are refused, where WordPress's image detector accepts them. |
 | D9 | Files are deleted after the transaction that deletes the attachment commits, and a storage error is logged; `Media.delete` deletes for good, never into the trash (WordPress's `MEDIA_TRASH` off). |
