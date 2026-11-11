@@ -63,7 +63,12 @@ class TaxonomyParityTest {
     };
 
     /** The built-in taxonomies WordPress registers that QuarkPress registers too, in registration order. */
-    static final List<String> BUILT_IN_KEYS = List.of("category", "post_tag", "post_format");
+    static final List<String> BUILT_IN_KEYS = List.of("category", "post_tag", "post_format", "wp_pattern_category");
+
+    /** The object types WordPress registers a built-in taxonomy for. */
+    static List<String> builtInTypes(String key) {
+        return key.equals("wp_pattern_category") ? List.of("wp_block") : List.of("post");
+    }
 
     /** Half of the first green run's 7780 comparisons, rounded down to a multiple of 50. */
     static final int MIN_COMPARISONS = 3850;
@@ -353,6 +358,42 @@ class TaxonomyParityTest {
      * The arguments create_initial_taxonomies passes for a built-in (labels not given; rewrite and query vars unused).
      */
     static ObjectNode builtInArgs(String key) {
+        if (key.equals("wp_pattern_category")) {
+            // the registration arguments of WordPress's wp_pattern_category taxonomy as the blocks behaviour
+            // reference describes them (query variable and rewrite left out, as for the other built-ins)
+            ObjectNode args = OracleJson.MAPPER
+                    .createObjectNode()
+                    .put("public", false)
+                    .put("publicly_queryable", false)
+                    .put("hierarchical", false)
+                    .put("show_ui", true)
+                    .put("show_in_nav_menus", false)
+                    .put("show_in_rest", true)
+                    .put("show_admin_column", true)
+                    .put("show_tagcloud", false)
+                    .put("_builtin", true);
+            args.putObject("labels")
+                    .put("name", "Pattern Categories")
+                    .put("singular_name", "Pattern Category")
+                    .put("add_new_item", "Add Category")
+                    .put("add_or_remove_items", "Add or remove pattern categories")
+                    .put("back_to_items", "&larr; Go to Pattern Categories")
+                    .put("choose_from_most_used", "Choose from the most used pattern categories")
+                    .put("edit_item", "Edit Pattern Category")
+                    .put("item_link", "Pattern Category Link")
+                    .put("item_link_description", "A link to a pattern category.")
+                    .put("items_list", "Pattern Categories list")
+                    .put("items_list_navigation", "Pattern Categories list navigation")
+                    .put("new_item_name", "New Pattern Category Name")
+                    .put("no_terms", "No pattern categories")
+                    .put("not_found", "No pattern categories found.")
+                    .put("popular_items", "Popular Pattern Categories")
+                    .put("search_items", "Search Pattern Categories")
+                    .put("separate_items_with_commas", "Separate pattern categories with commas")
+                    .put("update_item", "Update Pattern Category")
+                    .put("view_item", "View Pattern Category");
+            return args;
+        }
         if (key.equals("post_format")) {
             // the recorded registration arguments of WordPress's post_format taxonomy
             ObjectNode args = OracleJson.MAPPER
@@ -435,7 +476,7 @@ class TaxonomyParityTest {
                     "taxonomy-" + i, registration("mood" + i, List.of("post", "post", "page"), registrations.get(i))));
         }
         for (String key : BUILT_IN_KEYS) {
-            cases.add(new PhpOracle.Case("builtin-" + key, registration(key, List.of("post"), builtInArgs(key))));
+            cases.add(new PhpOracle.Case("builtin-" + key, registration(key, builtInTypes(key), builtInArgs(key))));
         }
         for (int i = 0; i < orders.size(); i++) {
             cases.add(new PhpOracle.Case("order-" + i, op("parse_order", "order", orders.get(i))));

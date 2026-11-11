@@ -1,19 +1,21 @@
 package org.quarkpress.taxonomy.runtime;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.quarkpress.core.TaxonomyDefinition;
 
 /**
- * WordPress's built-in taxonomies that QuarkPress registers, with the arguments WordPress registers them with. The
- * other built-ins (menus, link categories, block-theme taxonomies) come with the modules that use them.
+ * WordPress's built-in taxonomies that QuarkPress registers, with the arguments WordPress registers them with, in its
+ * order (before every taxonomy an application registers). The other built-ins (menus, link categories, block-theme
+ * taxonomies) come with the modules that use them.
  */
 public final class BuiltInTaxonomies {
 
     private BuiltInTaxonomies() {}
 
     public static List<TaxonomyDefinition> all() {
-        return List.of(category(), tag(), postFormat());
+        return List.of(category(), tag(), postFormat(), patternCategory());
     }
 
     private static TaxonomyDefinition category() {
@@ -76,6 +78,49 @@ public final class BuiltInTaxonomies {
                         "delete_terms", "manage_categories",
                         "assign_terms", "edit_posts"))
                 .showInRest(false)
+                .builtIn()
+                .build();
+    }
+
+    /**
+     * The categories of synced patterns ({@code wp_block} only), as WordPress registers them: not public nor
+     * publicly queryable, flat, with admin screens and an admin column but not in navigation menus nor a tag cloud,
+     * shown in REST under its key, with the default capabilities ({@code manage_categories} to manage, edit and
+     * delete terms, {@code edit_posts} to assign them), no default term, and WordPress's pattern category labels
+     * (the flat defaults for the rest). WordPress also turns off its query variable and rewrite rules, which the
+     * definition does not keep.
+     */
+    private static TaxonomyDefinition patternCategory() {
+        Map<String, String> labels = new LinkedHashMap<>();
+        labels.put("name", "Pattern Categories");
+        labels.put("singular_name", "Pattern Category");
+        labels.put("add_new_item", "Add Category");
+        labels.put("add_or_remove_items", "Add or remove pattern categories");
+        labels.put("back_to_items", "&larr; Go to Pattern Categories");
+        labels.put("choose_from_most_used", "Choose from the most used pattern categories");
+        labels.put("edit_item", "Edit Pattern Category");
+        labels.put("item_link", "Pattern Category Link");
+        labels.put("item_link_description", "A link to a pattern category.");
+        labels.put("items_list", "Pattern Categories list");
+        labels.put("items_list_navigation", "Pattern Categories list navigation");
+        labels.put("new_item_name", "New Pattern Category Name");
+        labels.put("no_terms", "No pattern categories");
+        labels.put("not_found", "No pattern categories found.");
+        labels.put("popular_items", "Popular Pattern Categories");
+        labels.put("search_items", "Search Pattern Categories");
+        labels.put("separate_items_with_commas", "Separate pattern categories with commas");
+        labels.put("update_item", "Update Pattern Category");
+        labels.put("view_item", "View Pattern Category");
+        return TaxonomyDefinition.builder("wp_pattern_category", List.of("wp_block"))
+                .labels(labels)
+                .hierarchical(false)
+                .publicly(false)
+                .publiclyQueryable(false)
+                .showUi(true)
+                .showInNavMenus(false)
+                .showInRest(true)
+                .showAdminColumn(true)
+                .showTagcloud(false)
                 .builtIn()
                 .build();
     }

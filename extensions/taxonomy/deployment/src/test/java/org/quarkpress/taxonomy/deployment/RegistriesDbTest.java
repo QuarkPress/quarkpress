@@ -82,6 +82,33 @@ class RegistriesDbTest {
     }
 
     @Test
+    void patternCategoriesAreFlatAndPrivateWithWordPresssArguments() {
+        TaxonomyDefinition patterns = taxonomies.find("wp_pattern_category").orElseThrow();
+        assertThat(patterns.objectTypes()).containsExactly("wp_block");
+        assertThat(patterns.hierarchical()).isFalse();
+        assertThat(patterns.publicly()).isFalse();
+        assertThat(patterns.publiclyQueryable()).isFalse();
+        assertThat(patterns.showUi()).isTrue();
+        assertThat(patterns.showInNavMenus()).isFalse();
+        assertThat(patterns.showTagcloud()).isFalse();
+        assertThat(patterns.showAdminColumn()).isTrue();
+        assertThat(patterns.showInRest()).isTrue();
+        assertThat(patterns.restBase()).isEmpty();
+        assertThat(patterns.defaultTerm()).isEmpty();
+        assertThat(patterns.builtIn()).isTrue();
+        assertThat(patterns.labels())
+                .containsEntry("name", "Pattern Categories")
+                .containsEntry("singular_name", "Pattern Category")
+                .containsEntry("add_new_item", "Add Category")
+                .containsEntry("back_to_items", "&larr; Go to Pattern Categories")
+                .containsEntry("search_items", "Search Pattern Categories");
+        assertThat(patterns.capability("manage_terms")).isEqualTo("manage_categories");
+        assertThat(patterns.capability("edit_terms")).isEqualTo("manage_categories");
+        assertThat(patterns.capability("delete_terms")).isEqualTo("manage_categories");
+        assertThat(patterns.capability("assign_terms")).isEqualTo("edit_posts");
+    }
+
+    @Test
     void tagsAreFlatWithWordPresssArguments() {
         TaxonomyDefinition tag = taxonomies.find("post_tag").orElseThrow();
         assertThat(tag.objectTypes()).containsExactly("post");
@@ -101,7 +128,16 @@ class RegistriesDbTest {
     @Test
     void annotatedTaxonomiesFollowTheBuiltInsInKeyOrder() {
         assertThat(taxonomies.all().stream().map(TaxonomyDefinition::key))
-                .containsExactly("category", "post_tag", "post_format", "genre", "lima", "mood", "shade", "zulu");
+                .containsExactly(
+                        "category",
+                        "post_tag",
+                        "post_format",
+                        "wp_pattern_category",
+                        "genre",
+                        "lima",
+                        "mood",
+                        "shade",
+                        "zulu");
         TaxonomyDefinition genre = taxonomies.find("genre").orElseThrow();
         assertThat(genre.objectTypes()).containsExactly("post", "page");
         assertThat(genre.labels())
@@ -131,6 +167,9 @@ class RegistriesDbTest {
         assertThat(taxonomies.forType("page").stream().map(TaxonomyDefinition::key))
                 .containsExactly("genre");
         assertThat(taxonomies.forType("attachment")).isEmpty();
+        // synced patterns have WordPress's pattern categories, and nothing else
+        assertThat(taxonomies.forType("wp_block").stream().map(TaxonomyDefinition::key))
+                .containsExactly("wp_pattern_category");
         assertThat(taxonomies.registered("nav_menu")).isFalse();
         assertThat(taxonomies.capabilities("nav_menu")).isEmpty();
         assertThat(taxonomies.require("post_tag").key()).isEqualTo("post_tag");
