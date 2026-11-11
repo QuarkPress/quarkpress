@@ -1,0 +1,12 @@
+---
+name: "QuarkPress Blocks"
+description: "Block types, block renderers, patterns and pattern categories for QuarkPress"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "blocks"
+    - "patterns"
+  categories:
+    - "web"
+  status: "experimental"
