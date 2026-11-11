@@ -44,7 +44,7 @@ jobs:
       # The rest-wp-v2 image serves WordPress's REST API (wp/v2) on a network with the same content modules.
       # One native image at a time: .mvn/maven.config's -T4 would build all nine at once, which exhausts the runner.
       # The media image uploads files to the filesystem storage and processes images with ImageIO and TwelveMonkeys.
-      # The media-s3 image calls S3 with the AWS SDK's URL connection client, against moto started by Dev Services.
+      # The media-s3 image uploads files to S3 (moto, started by Dev Services) through the AWS SDK's URL connection client, processes images as the media image does and checks Keycloak tokens.
       - name: Build native executables and run the integration tests
         run: >-
           mvn -B -ntp -T1 verify -fae -Dnative -Dquarkus.native.container-build=true
