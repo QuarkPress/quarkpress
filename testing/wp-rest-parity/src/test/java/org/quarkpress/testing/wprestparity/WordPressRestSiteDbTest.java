@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -18,24 +19,50 @@ class WordPressRestSiteDbTest {
     static ScenarioDatabase database;
     static WordPressRestSite site;
     static RestClient client;
+    static Path tree;
 
     @BeforeAll
     static void start() throws Exception {
         assumeTrue(ScenarioDatabase.runtimeAvailable(), "ASSUMPTION: no container runtime");
         database = ScenarioDatabase.start();
-        site = WordPressRestSite.start(
-                WordPressTree.ensure(System.getProperty("wp.version")), database, System.getProperty("wp.php", "php"));
+        tree = WordPressTree.ensure(System.getProperty("wp.version"));
+        site = WordPressRestSite.start(tree, database, System.getProperty("wp.php", "php"));
         client = new RestClient(site.root(), RestClient.applicationPasswords(site));
     }
 
     @AfterAll
     static void stop() {
-        if (site != null) {
-            site.close();
+        try {
+            if (site != null) {
+                site.close();
+                // The harness's files leave the shared tree with the last site of the JVM.
+                assertThat(themeDirectory()).doesNotExist();
+                assertThat(muPlugin()).doesNotExist();
+            }
+        } finally {
+            if (database != null) {
+                database.close();
+            }
         }
-        if (database != null) {
-            database.close();
+    }
+
+    static Path themeDirectory() {
+        return tree.toAbsolutePath().normalize().resolve("wp-content/themes").resolve(WordPressRestSite.THEME);
+    }
+
+    static Path muPlugin() {
+        return tree.toAbsolutePath()
+                .normalize()
+                .resolve("wp-content/mu-plugins")
+                .resolve(WordPressRestSite.MU_PLUGIN);
+    }
+
+    @Test
+    void theHarnessThemeAndMuPluginAreInTheTreeWhileTheSiteServes() {
+        for (String file : WordPressRestSite.THEME_FILES) {
+            assertThat(themeDirectory().resolve(file)).isRegularFile();
         }
+        assertThat(muPlugin()).isRegularFile();
     }
 
     @Test

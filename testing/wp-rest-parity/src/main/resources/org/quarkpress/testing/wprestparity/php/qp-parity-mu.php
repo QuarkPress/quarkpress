@@ -34,6 +34,18 @@
  *     fatal-error handler answers the request; qp_parity_media_trashable makes
  *     rest_attachment_trashable answer true (the stand-in for MEDIA_TRASH); qp_parity_hidden_type registers the public
  *     custom type qp_hidden with show_in_rest false.
+ *   - editor-extras switches (site options "1"): qp_parity_quarkpress_theme answers "quarkpress" (the harness's classic
+ *     theme, php/qp-theme/) for the options stylesheet and template; qp_parity_no_core_patterns removes the theme
+ *     support core-block-patterns at after_setup_theme (priority 100, after the theme's own setup);
+ *     qp_parity_patterns registers the patterns qp/inner, qp/outer and qp/plain at init; qp_parity_block_types
+ *     registers the block types acme/notice and acme/supports at init (default priority) and acme/late at init
+ *     priority 30; qp_parity_notice_block registers qp-it/notice, a dynamic block whose render callback prints the
+ *     escaped message in <p class="qp-notice">; qp_parity_rest_name_meta registers the post meta qp_secret on post
+ *     (single string, in REST under the name qp_public, an auth callback that refuses everyone).
+ *   - loopback: when the environment variable QP_PARITY_LOOPBACK holds php -S's port (WordPressRestSite sets it for a
+ *     server with two workers or more), a request WordPress makes to its own host (http://localhost/...) is sent to
+ *     127.0.0.1 (the address php -S binds) on that port instead of port 80, where nothing listens; WP_ACCESSIBLE_HOSTS
+ *     then names 127.0.0.1, so the configuration's block of external requests lets the re-sent request through.
  */
 
 /**
@@ -187,3 +199,141 @@ function qp_parity_register_hidden(): void
 }
 
 add_action('init', 'qp_parity_register_hidden', 10);
+
+// ---- editor-extras switches (EditorExtrasFactsDbTest) ---------------------------------------------------------------
+
+foreach (['pre_option_stylesheet', 'pre_option_template'] as $qp_theme_option) {
+    add_filter($qp_theme_option, static function ($value) {
+        return '1' === get_option('qp_parity_quarkpress_theme') ? 'quarkpress' : $value;
+    });
+}
+unset($qp_theme_option);
+
+add_action('after_setup_theme', static function (): void {
+    if ('1' === get_option('qp_parity_no_core_patterns')) {
+        remove_theme_support('core-block-patterns');
+    }
+}, 100);
+
+add_action('init', static function (): void {
+    if ('1' !== get_option('qp_parity_patterns')) {
+        return;
+    }
+    register_block_pattern('qp/inner', [
+        'title' => 'Inner',
+        'content' => '<!-- wp:paragraph --><p>Inner</p><!-- /wp:paragraph -->',
+        'categories' => ['buttons', 'columns', 'query', 'x'],
+    ]);
+    register_block_pattern('qp/outer', [
+        'title' => 'Outer',
+        'content' => '<!-- wp:group --><div class="wp-block-group">'
+            . '<!-- wp:pattern {"slug":"qp/inner"} /-->'
+            . '<!-- wp:pattern {"slug":"qp/missing"} /-->'
+            . '<!-- wp:pattern {"slug":"qp/outer"} /-->'
+            . '</div><!-- /wp:group -->',
+    ]);
+    register_block_pattern('qp/plain', [
+        'title' => 'Plain',
+        'content' => '<!-- wp:paragraph --><p>Plain</p><!-- /wp:paragraph -->',
+        'inserter' => false,
+        'viewportWidth' => 500,
+        'description' => 'Plain text.',
+        'keywords' => ['plain'],
+        'blockTypes' => ['core/paragraph'],
+        'postTypes' => ['post'],
+    ]);
+});
+
+add_action('init', static function (): void {
+    if ('1' !== get_option('qp_parity_block_types')) {
+        return;
+    }
+    register_block_type('acme/notice', ['title' => 'Notice']);
+    register_block_type('acme/supports', [
+        'title' => 'Supports',
+        'supports' => [
+            'align' => true,
+            'anchor' => true,
+            'ariaLabel' => true,
+            'color' => ['background' => true, 'text' => true, 'gradients' => true, 'link' => true],
+            'typography' => ['fontSize' => true, 'lineHeight' => true],
+            'border' => ['color' => true, 'radius' => true, 'style' => true, 'width' => true],
+            'spacing' => ['margin' => true, 'padding' => true],
+            'dimensions' => ['minHeight' => true],
+            'shadow' => true,
+            'background' => ['backgroundImage' => true],
+            'layout' => true,
+            'position' => ['sticky' => true],
+            'filter' => ['duotone' => true],
+        ],
+    ]);
+});
+
+add_action('init', static function (): void {
+    if ('1' === get_option('qp_parity_block_types')) {
+        register_block_type('acme/late', ['title' => 'Late']);
+    }
+}, 30);
+
+add_action('init', static function (): void {
+    if ('1' !== get_option('qp_parity_notice_block')) {
+        return;
+    }
+    register_block_type('qp-it/notice', [
+        'title' => 'Notice',
+        'category' => 'text',
+        'attributes' => ['message' => ['type' => 'string', 'default' => '']],
+        'render_callback' => static function (array $attributes): string {
+            return '<p class="qp-notice">' . esc_html((string) ($attributes['message'] ?? '')) . '</p>';
+        },
+    ]);
+});
+
+add_action('init', static function (): void {
+    if ('1' !== get_option('qp_parity_rest_name_meta')) {
+        return;
+    }
+    register_post_meta('post', 'qp_secret', [
+        'type' => 'string',
+        'single' => true,
+        'show_in_rest' => ['name' => 'qp_public'],
+        'auth_callback' => '__return_false',
+    ]);
+});
+
+/**
+ * Harness rule, not WordPress behaviour: php -S listens on a free port, while WordPress addresses its own host as
+ * http://localhost/ (port 80). When QP_PARITY_LOOPBACK holds the server's port, a request to http://localhost/...
+ * that WordPress's own checks let through is sent to 127.0.0.1 (the address php -S binds, whatever localhost
+ * resolves to first) on that port, with the same path, query and arguments,
+ * as a web server serving the network on port 80 would receive it. Redirects the answer asks for are followed by the
+ * HTTP library to port 80 and fail; the facts run's self-requests need none.
+ */
+$qp_parity_loopback = getenv('QP_PARITY_LOOPBACK');
+if (false !== $qp_parity_loopback && '' !== $qp_parity_loopback && !defined('WP_ACCESSIBLE_HOSTS')) {
+    // The site's configuration blocks external HTTP (WP_HTTP_BLOCK_EXTERNAL), which lets localhost through but not
+    // 127.0.0.1; the re-sent request is the same self-request, so its address is made accessible too.
+    define('WP_ACCESSIBLE_HOSTS', '127.0.0.1');
+}
+unset($qp_parity_loopback);
+
+add_filter('pre_http_request', static function ($response, $args, $url) {
+    $port = getenv('QP_PARITY_LOOPBACK');
+    if (false !== $response || false === $port || '' === $port || !empty($args['qp_parity_loopback'])) {
+        return $response;
+    }
+    $parts = wp_parse_url($url);
+    if (!is_array($parts) || 'http' !== ($parts['scheme'] ?? '') || 'localhost' !== ($parts['host'] ?? '')
+        || (isset($parts['port']) && 80 !== (int) $parts['port'])) {
+        return $response;
+    }
+    if (!empty($args['reject_unsafe_urls']) && false === wp_http_validate_url($url)) {
+        // WordPress refuses the URL itself; the request goes on unchanged so its own answer is recorded.
+        return $response;
+    }
+    $target = 'http://127.0.0.1:' . (int) $port . ($parts['path'] ?? '/')
+        . (isset($parts['query']) ? '?' . $parts['query'] : '');
+    $args['reject_unsafe_urls'] = false;
+    $args['qp_parity_loopback'] = true;
+    return wp_remote_request($target, $args);
+}, 10, 3);

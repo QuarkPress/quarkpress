@@ -43,9 +43,13 @@ import org.quarkpress.testing.wpscenario.WordPressScenarioOracle;
  * {@code target/wp-rest-parity/<database>/}. The harness's must-use plugin ({@code qp-parity-mu.php}: the custom type
  * {@code book} and the per-site switches of the parity run) is written into the tree's {@code wp-content/mu-plugins/}
  * before the server starts and removed in {@link #close()} whatever happened; its {@code qp-} prefix marks a leftover.
- * Because the plugin and the uploads folders live in the shared tree, one process at a time serves a tree: a site
- * waits for the tree's lock file ({@code wp-content/qp-rest-site.lock}) while another process's sites are open, as in
- * a parallel Maven build where two modules' parity tests run at once.
+ * The harness's classic theme {@code quarkpress} (resources {@code php/qp-theme/}, selected per site by the switch
+ * {@code qp_parity_quarkpress_theme}) is written into {@code wp-content/themes/quarkpress/} beside it and removed with
+ * it. {@code php -S} runs one worker unless {@link #start(Path, ScenarioDatabase, String, int)} asks for more; with
+ * two or more, a request WordPress makes to its own host reaches the server (the plugin's loopback rule) instead of
+ * blocking the only worker. Because the plugin, the theme and the uploads folders live in the shared tree, one process
+ * at a time serves a tree: a site waits for the tree's lock file ({@code wp-content/qp-rest-site.lock}) while another
+ * process's sites are open, as in a parallel Maven build where two modules' parity tests run at once.
  */
 public final class WordPressRestSite implements AutoCloseable {
 
@@ -54,6 +58,13 @@ public final class WordPressRestSite implements AutoCloseable {
 
     static final String RESOURCES = "php/";
     static final String MU_PLUGIN = "qp-parity-mu.php";
+    /** The harness theme's resource folder (under {@link #RESOURCES}) and its files. */
+    static final String THEME_RESOURCES = "qp-theme/";
+
+    static final List<String> THEME_FILES = List.of("style.css", "index.php", "functions.php");
+    /** The harness theme's directory name under {@code wp-content/themes/}. */
+    static final String THEME = "quarkpress";
+
     static final Duration STARTUP = Duration.ofSeconds(30);
     static final long SETUP_TIMEOUT_MINUTES = 5;
 
@@ -72,6 +83,7 @@ public final class WordPressRestSite implements AutoCloseable {
     private final String php;
     private final String databaseName;
     private final Path runDir;
+    private final int workers;
     private final Map<String, Long> ids = new HashMap<>();
     private final Map<String, String> passwords = new ConcurrentHashMap<>();
     private Process server;
@@ -80,6 +92,9 @@ public final class WordPressRestSite implements AutoCloseable {
     private boolean closed;
     /** The must-use plugin written into the tree, removed in {@link #close()}; null until written. */
     private Path muPlugin;
+
+    /** The harness theme's directory written into the tree, removed in {@link #close()}; null until written. */
+    private Path theme;
 
     private boolean createdMuPlugins;
 
@@ -106,17 +121,33 @@ public final class WordPressRestSite implements AutoCloseable {
 
     private static final Map<Path, TreeLease> LEASES = new HashMap<>();
 
-    private WordPressRestSite(Path wordpress, ScenarioDatabase database, String php, String databaseName, Path runDir) {
+    private WordPressRestSite(
+            Path wordpress, ScenarioDatabase database, String php, String databaseName, Path runDir, int workers) {
         this.wordpress = wordpress;
         this.database = database;
         this.php = php;
         this.databaseName = databaseName;
         this.runDir = runDir;
+        this.workers = workers;
     }
 
     /** Clones the template network, prepares it (rest-setup.php "prepare") and starts php -S on a free port. */
     public static WordPressRestSite start(Path wordpress, ScenarioDatabase database, String php)
             throws IOException, InterruptedException {
+        return start(wordpress, database, php, 1);
+    }
+
+    /**
+     * {@link #start(Path, ScenarioDatabase, String)} with {@code workers} {@code php -S} workers (the environment
+     * variable {@code PHP_CLI_SERVER_WORKERS}). Harness rule: with two or more, the must-use plugin sends WordPress's
+     * requests to its own host ({@code http://localhost/...}) to the server's port (environment variable {@code
+     * QP_PARITY_LOOPBACK}), so a self-request is answered by another worker instead of failing on port 80.
+     */
+    public static WordPressRestSite start(Path wordpress, ScenarioDatabase database, String php, int workers)
+            throws IOException, InterruptedException {
+        if (workers < 1) {
+            throw new IllegalArgumentException("php -S needs at least one worker: " + workers);
+        }
         Objects.requireNonNull(wordpress, "wordpress");
         Objects.requireNonNull(database, "database");
         Objects.requireNonNull(php, "php");
@@ -125,12 +156,13 @@ public final class WordPressRestSite implements AutoCloseable {
         String name = "rest_" + RUNS.incrementAndGet();
         Path runDir = Path.of("target", "wp-rest-parity", name).toAbsolutePath();
         Files.createDirectories(runDir);
-        WordPressRestSite site = new WordPressRestSite(tree, database, php, name, runDir);
+        WordPressRestSite site = new WordPressRestSite(tree, database, php, name, runDir, workers);
         try {
             lease(tree);
             site.leased = true;
             site.writeConfiguration();
             site.installMuPlugin();
+            site.installTheme();
             ObjectNode input = OracleJson.MAPPER.createObjectNode();
             input.put("template", NetworkVariant.SUBDIRECTORY.templateDatabase());
             input.put("database", name);
@@ -213,18 +245,20 @@ public final class WordPressRestSite implements AutoCloseable {
 
     /**
      * Runs one rest-setup.php operation on the site's database (CLI, not HTTP); returns its JSON answer. The answer of
-     * {@code role} names the user it gave the role to, with that user's id and a new application password; the user is
-     * registered as a caller from then on ({@link #userId}, {@link #applicationPassword}, {@link #knows}).
+     * {@code role} (and of {@code site_admin}) names the user it gave the role to, with that user's id and a new
+     * application password; the user is registered as a caller from then on ({@link #userId}, {@link
+     * #applicationPassword}, {@link #knows}).
      */
     public JsonNode operation(String op, ObjectNode args) throws IOException, InterruptedException {
         Objects.requireNonNull(op, "op");
         Objects.requireNonNull(args, "args");
         JsonNode answer = exec(op, args);
-        if ("role".equals(op)) {
+        if ("role".equals(op) || "site_admin".equals(op)) {
             if (!answer.path("user").isTextual()
                     || !answer.path("id").isIntegralNumber()
                     || !answer.path("password").isTextual()) {
-                throw new IllegalStateException("rest-setup.php role did not answer a user and a password: " + answer);
+                throw new IllegalStateException(
+                        "rest-setup.php " + op + " did not answer a user and a password: " + answer);
             }
             String user = answer.get("user").textValue();
             ids.put(user, answer.get("id").longValue());
@@ -266,7 +300,13 @@ public final class WordPressRestSite implements AutoCloseable {
         } finally {
             if (leased) {
                 leased = false;
-                release(wordpress, this::removeMuPlugin);
+                release(wordpress, () -> {
+                    try {
+                        removeMuPlugin();
+                    } finally {
+                        removeTheme();
+                    }
+                });
             }
         }
     }
@@ -355,6 +395,35 @@ public final class WordPressRestSite implements AutoCloseable {
             throw new UncheckedIOException("cannot remove " + muPlugin, e);
         } finally {
             muPlugin = null;
+        }
+    }
+
+    /**
+     * Harness rule: writes the classic theme {@value #THEME} (resources {@code php/qp-theme/}) into the shared tree's
+     * {@code wp-content/themes/}, replacing a leftover of an earlier run; removed again with the must-use plugin.
+     */
+    private void installTheme() throws IOException {
+        Path dir = wordpress.resolve("wp-content").resolve("themes").resolve(THEME);
+        Files.createDirectories(dir);
+        theme = dir;
+        for (String file : THEME_FILES) {
+            Files.writeString(dir.resolve(file), resource(THEME_RESOURCES + file), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void removeTheme() {
+        if (theme == null) {
+            return;
+        }
+        try {
+            for (String file : THEME_FILES) {
+                Files.deleteIfExists(theme.resolve(file));
+            }
+            Files.deleteIfExists(theme);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot remove " + theme, e);
+        } finally {
+            theme = null;
         }
     }
 
@@ -450,6 +519,10 @@ public final class WordPressRestSite implements AutoCloseable {
                 .redirectErrorStream(true)
                 .redirectOutput(log.toFile());
         builder.environment().putAll(environment());
+        if (workers > 1) {
+            builder.environment().put("PHP_CLI_SERVER_WORKERS", String.valueOf(workers));
+            builder.environment().put("QP_PARITY_LOOPBACK", String.valueOf(port));
+        }
         try {
             server = builder.start();
         } catch (IOException e) {

@@ -75,6 +75,34 @@ run serve it too, and `extensions` tells which image editors the server's PHP ha
 under `-Dwp.media.require-editor=true`); the Imagick items, the editor's recovery loop (a browser) and the outbound
 URL uploads never run here.
 
+## The editor-extras facts run
+
+`EditorExtrasFactsDbTest` (run with `-Pwp-parity -Dtest=EditorExtrasFactsDbTest`) records what WordPress answers for
+the editor-extras references' verification lists into the same `verification-facts.json`: items `b01`-`b15` (synced
+patterns, the `wp_pattern_category` taxonomy, block types, the block renderer, block patterns and their categories),
+`v01`-`v16` (themes, the post editor page, oEmbed and URL-mode uploads), `v19` (the index's links), `v20` (the route
+keys) and `c01` (the `key` of a refused REST-named meta field), each on a subdirectory site of its own (`/fb01/`,
+`/fv01/`, ...) except the editor page items `v07`-`v10`, which open `wp-admin` on the main site through cookie
+sessions; the values the page hands the editor (preload map, block categories, server block definitions, settings)
+are read out of it by marker text and noted. It saves the OPTIONS bodies of the nine routes the slice serves under
+`options/`. Every site serves the harness's classic theme `quarkpress` (`php/qp-theme/`: `style.css` with only a name
+and a description, an empty `index.php`, and a `functions.php` declaring the theme supports QuarkPress's synthetic
+theme has by default), which `WordPressRestSite` writes into `wp-content/themes/quarkpress/` beside the must-use
+plugin and removes with it. The plugin's switches for this run, site options set to `"1"` by the item and switched off
+in its `finally`, are `qp_parity_quarkpress_theme` (the classic theme is the active one), `qp_parity_no_core_patterns`
+(no theme support `core-block-patterns`), `qp_parity_patterns` (the patterns `qp/inner`, `qp/outer` and `qp/plain`),
+`qp_parity_block_types` (the block types `acme/notice`, `acme/supports` and, at `init` priority 30, `acme/late`),
+`qp_parity_notice_block` (`qp-it/notice`, a dynamic block printing its escaped `message`) and
+`qp_parity_rest_name_meta` (the post meta `qp_secret`, in REST as `qp_public`, whose auth callback refuses everyone).
+Its setup operations are `site_admin` (the network user `sadmin`, administrator of one site and not a super admin,
+whose application password is registered as `uploader`'s is), `options_like` (the names of a site's options with a
+prefix), `fileupload_maxk` (the network option) and `write_upload` (a file in a site's uploads folder, answered with
+its URL). `WordPressRestSite.start` takes a number of `php -S` workers (`PHP_CLI_SERVER_WORKERS`, default 1); with two
+or more the must-use plugin sends WordPress's requests to its own host (`http://localhost/...`) to the server's port
+instead of port 80, so the items that need a self-request (the oEmbed proxy on a draft, the same-host URL uploads) run
+on a second network served by four workers. Browser items and the outbound-network halves of the oEmbed and URL-mode
+items never run here.
+
 ## The media parity run
 
 `MediaParityDbTest` in `integration-tests/media` compares the media library below the REST layer with WordPress's

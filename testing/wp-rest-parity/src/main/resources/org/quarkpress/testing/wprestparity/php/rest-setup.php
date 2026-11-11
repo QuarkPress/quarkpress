@@ -78,6 +78,15 @@
  *   batch {as, requests}           the body of a POST /batch/v1 holding the given sub-requests ({method, path, body?}
  *                                  each, in order); answers {as, body}. It only builds the body: the test sends it
  *                                  through the REST client as "as", so the exchange is recorded
+ * Editor-extras facts operations (EditorExtrasFactsDbTest; each a harness rule):
+ *   site_admin {site}              the network user "sadmin" (created on first use), administrator of the site at
+ *                                  path "site" and not a super admin, with a new application password; answers
+ *                                  {user, id, password}
+ *   options_like {site, prefix}    the names of the site's options starting with the prefix, sorted; answers {names}
+ *   fileupload_maxk {value}        sets the network option fileupload_maxk (null deletes it); answers {previous,
+ *                                  value, upload_space_check_disabled}
+ *   write_upload {site, name, bytes}  writes the file "name" (bytes in base64) into the uploads base of the site at
+ *                                  path "site"; answers {file, url}
  * The script calls WordPress functions; every rule it applies itself is marked "Harness rule" where it happens.
  */
 
@@ -1146,6 +1155,79 @@ function qp_batch(array $input): array
     return ['as' => (string) $input['as'], 'body' => ['requests' => $requests]];
 }
 
+// ---- Editor-extras facts operations (EditorExtrasFactsDbTest) -----------------------------------------------------
+
+/**
+ * Harness rule: the network user "sadmin" (created on first use with wpmu_create_user, never a super admin) made
+ * administrator of the site at path "site", with a new application password.
+ */
+function qp_site_admin(array $input): array
+{
+    $site = qp_site_id((string) $input['site']);
+    $user = get_user_by('login', 'sadmin');
+    $id = false === $user ? wpmu_create_user('sadmin', 'sadmin', 'sadmin@quarkpress.test') : $user->ID;
+    if (false === $id) {
+        throw new RuntimeException('wpmu_create_user refused sadmin');
+    }
+    if (is_super_admin((int) $id)) {
+        throw new RuntimeException('sadmin must not be a super admin');
+    }
+    $added = add_user_to_blog($site, (int) $id, 'administrator');
+    if (is_wp_error($added)) {
+        throw new RuntimeException('add_user_to_blog(sadmin): ' . $added->get_error_code());
+    }
+    $created = WP_Application_Passwords::create_new_application_password((int) $id, ['name' => 'parity']);
+    if (is_wp_error($created)) {
+        throw new RuntimeException('create_new_application_password(sadmin): ' . $created->get_error_code());
+    }
+    return ['user' => 'sadmin', 'id' => (int) $id, 'password' => $created[0]];
+}
+
+/** Harness rule: the names of the site's options that start with the prefix, read from its options table. */
+function qp_options_like(array $input): array
+{
+    global $wpdb;
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $names = $wpdb->get_col($wpdb->prepare(
+        "SELECT option_name FROM $wpdb->options WHERE option_name LIKE %s ORDER BY option_name",
+        $wpdb->esc_like((string) $input['prefix']) . '%'));
+    restore_current_blog();
+    return ['names' => array_values($names)];
+}
+
+/** Harness rule: sets (or, for null, deletes) the network option fileupload_maxk. */
+function qp_fileupload_maxk(array $input): array
+{
+    $previous = get_site_option('fileupload_maxk', null);
+    if (null === $input['value']) {
+        delete_site_option('fileupload_maxk');
+    } else {
+        update_site_option('fileupload_maxk', $input['value']);
+    }
+    return ['previous' => $previous, 'value' => get_site_option('fileupload_maxk', null),
+        'upload_space_check_disabled' => get_site_option('upload_space_check_disabled', null)];
+}
+
+/** Harness rule: a file written into the uploads base of the site at path "site", answered with its URL. */
+function qp_write_upload(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    $name = (string) $input['name'];
+    if ('' === $name || str_contains($name, '/')) {
+        restore_current_blog();
+        throw new InvalidArgumentException("not a file name: $name");
+    }
+    $path = qp_inside(qp_uploads_base(), $name);
+    $bytes = base64_decode((string) $input['bytes'], true);
+    if (false === $bytes || false === file_put_contents($path, $bytes)) {
+        restore_current_blog();
+        throw new RuntimeException("cannot write $path");
+    }
+    $url = wp_upload_dir(null, false)['baseurl'] . '/' . rawurlencode($name);
+    restore_current_blog();
+    return ['file' => $name, 'url' => $url];
+}
+
 $qp_input = json_decode((string) file_get_contents($qp_input_file), true, 512, JSON_THROW_ON_ERROR);
 try {
     if ('prepare' === $qp_mode) {
@@ -1204,6 +1286,10 @@ try {
         'trash_post' => qp_trash_post($qp_input),
         'delete_post' => qp_delete_post($qp_input),
         'batch' => qp_batch($qp_input),
+        'site_admin' => qp_site_admin($qp_input),
+        'options_like' => qp_options_like($qp_input),
+        'fileupload_maxk' => qp_fileupload_maxk($qp_input),
+        'write_upload' => qp_write_upload($qp_input),
         default => throw new InvalidArgumentException("unknown operation $qp_mode"),
     };
     qp_write($qp_output_file, ['out' => $qp_out]);
