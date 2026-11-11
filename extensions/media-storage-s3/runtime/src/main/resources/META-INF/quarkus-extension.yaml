@@ -1,0 +1,13 @@
+---
+name: "QuarkPress Media Storage S3"
+description: "Stores QuarkPress media files in an S3 bucket"
+metadata:
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "media"
+    - "storage"
+    - "s3"
+  categories:
+    - "data"
+  status: "experimental"

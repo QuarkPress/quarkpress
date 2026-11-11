@@ -172,6 +172,16 @@
       </dependency>
       <dependency>
         <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-storage-s3</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
+        <artifactId>quarkpress-media-storage-s3-deployment</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkpress</groupId>
         <artifactId>quarkpress-media-image-imageio</artifactId>
         <version>${project.version}</version>
       </dependency>

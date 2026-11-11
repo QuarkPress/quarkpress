@@ -32,6 +32,7 @@
     <module>scheduling</module>
     <module>media</module>
     <module>media-storage-fs</module>
+    <module>media-storage-s3</module>
     <module>media-image-imageio</module>
     <module>rest-wp-v2</module>
     <module>dev-ui</module>
