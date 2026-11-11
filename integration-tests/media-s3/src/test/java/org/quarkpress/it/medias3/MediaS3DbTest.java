@@ -116,6 +116,11 @@ class MediaS3DbTest {
         assertThat(key).matches("[0-9]{4}/[0-9]{2}/" + name + "\\.jpg");
         Map<String, Map<String, Object>> sizes = media.getMap("sizes");
         assertThat(sizes).containsOnlyKeys(SIZES.keySet());
+        // the guid is the object's permanent URL: never presigned, even with presigned URLs on
+        assertThat(media.getString("guid"))
+                .doesNotContain("?")
+                .doesNotContain("X-Amz-")
+                .endsWith("/" + key);
 
         // the main file and each size, each through its own presigned URL, decoding to the stated dimensions
         Map<String, int[]> files = new LinkedHashMap<>();

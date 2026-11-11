@@ -5,13 +5,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.quarkpress.media.MediaSnapshot;
 
 /**
- * An attachment as the test resource answers it: its id, its main file's storage key and public URL, and its sizes.
- * Test scaffolding, not an API.
+ * An attachment as the test resource answers it: its id, its main file's storage key, public URL and guid, and its
+ * sizes. Test scaffolding, not an API.
  *
+ * @param guid the attachment's guid, the storage's permanent URL of the main file
  * @param sizes each generated size by name: {@code file}, {@code width}, {@code height}, its storage {@code key} and
  *     its public {@code url}
  */
-public record MediaView(long id, String storageKey, String url, ObjectNode sizes) {
+public record MediaView(long id, String storageKey, String url, String guid, ObjectNode sizes) {
 
     static MediaView of(MediaSnapshot media) {
         String folder = media.storageKey().substring(0, media.storageKey().lastIndexOf('/') + 1);
@@ -23,6 +24,11 @@ public record MediaView(long id, String storageKey, String url, ObjectNode sizes
                         .put("height", size.height())
                         .put("key", folder + size.file())
                         .put("url", media.url(name)));
-        return new MediaView(media.post().id().value(), media.storageKey(), media.url(), sizes);
+        return new MediaView(
+                media.post().id().value(),
+                media.storageKey(),
+                media.url(),
+                media.post().guid(),
+                sizes);
     }
 }
