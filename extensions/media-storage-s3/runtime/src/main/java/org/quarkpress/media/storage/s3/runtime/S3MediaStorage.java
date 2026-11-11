@@ -27,6 +27,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetUrlRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -37,6 +38,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 /**
  * Keeps media files in an S3 bucket: a key such as {@code 2026/11/photo.jpg} is the object of that key, after the
@@ -51,8 +53,6 @@ public class S3MediaStorage implements MediaStorage {
 
     /** The longest object key S3 takes, in UTF-8 bytes. */
     private static final int MAX_OBJECT_KEY_BYTES = 1024;
-
-    private static final String NOT_YET = "not implemented yet";
 
     /** S3's error code for a bucket that does not exist. */
     private static final String NO_SUCH_BUCKET = "NoSuchBucket";
@@ -351,8 +351,48 @@ public class S3MediaStorage implements MediaStorage {
         }
     }
 
+    /**
+     * The URL of the file of {@code key}, for the whole network ({@code site} is not read: the keys of a site's files
+     * already start with its {@code sites/<id>/} folder). With {@code quarkpress.media.s3.public-base-url}, the object
+     * key joined to that URL as it is, for a CDN or a public bucket; otherwise with
+     * {@code quarkpress.media.s3.presigned-url-ttl}, a presigned URL that is valid that long, so a URL saved in a post
+     * stops working when it expires; otherwise the object's URL at the bucket, which serves the file only when the
+     * bucket is public. The presigned and bucket URLs encode the key and follow the endpoint and path-style settings
+     * of the S3 client. No request is sent.
+     *
+     * @throws IllegalArgumentException when {@code key} is not a valid storage key, or the object key is longer than
+     *     S3 allows
+     */
     @Override
     public String publicUrl(SiteInfo site, String key) {
-        throw new UnsupportedOperationException(NOT_YET);
+        String objectKey = objectKey(key);
+        if (settings.publicBaseUrl().isPresent()) {
+            return withoutTrailingSlashes(settings.publicBaseUrl().get()) + "/" + objectKey;
+        }
+        if (settings.presignedUrlTtl().isPresent()) {
+            return presigner
+                    .presignGetObject(GetObjectPresignRequest.builder()
+                            .signatureDuration(settings.presignedUrlTtl().get())
+                            .getObjectRequest(
+                                    request -> request.bucket(settings.bucket()).key(objectKey))
+                            .build())
+                    .url()
+                    .toString();
+        }
+        return client.utilities()
+                .getUrl(GetUrlRequest.builder()
+                        .bucket(settings.bucket())
+                        .key(objectKey)
+                        .build())
+                .toString();
+    }
+
+    /** {@code url} without its trailing slashes; settings built by hand may keep them. */
+    private static String withoutTrailingSlashes(String url) {
+        int end = url.length();
+        while (end > 0 && url.charAt(end - 1) == '/') {
+            end--;
+        }
+        return url.substring(0, end);
     }
 }
