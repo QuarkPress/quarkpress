@@ -112,7 +112,7 @@ public final class RouteTable {
                     endpoint.args().forEach(arg -> SchemaValidator.requireSupported(arg.schema()));
                 }
                 if (schema != null) {
-                    SchemaValidator.requireSupported(schema.get());
+                    SchemaValidator.requireSupportedItem(schema.get());
                 }
                 List<Endpoint> merged = new ArrayList<>(endpoints.size());
                 for (Endpoint endpoint : endpoints) {

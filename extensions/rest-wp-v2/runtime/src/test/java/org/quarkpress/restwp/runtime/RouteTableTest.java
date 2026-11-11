@@ -68,6 +68,45 @@ class RouteTableTest {
     }
 
     @Test
+    void readOnlyItemPropertiesMayUseAnyKeyword() {
+        // a read-only property never becomes an argument (WordPress leaves read-only properties out of the arguments
+        // it derives from an item schema), so its schema is only described, as the block types' names are
+        ObjectNode item = RestJson.NODES.objectNode().put("type", "object");
+        ObjectNode properties = item.putObject("properties");
+        properties.putObject("name").put("type", "string").put("pattern", "^a").put("readonly", true);
+        properties
+                .putObject("hooks")
+                .put("type", "object")
+                .put("readonly", true)
+                .putObject("patternProperties");
+        RouteTable table = new RouteTable();
+        table.registry()
+                .route("app/v1", "/things")
+                .schema(() -> item)
+                .endpoint(endpoint(Arg.of("b", "string").build()))
+                .register();
+        assertThat(table.routes()).hasSize(1);
+        // the schema is kept as given
+        assertThat(table.routes()
+                        .get(0)
+                        .schema()
+                        .get()
+                        .at("/properties/name/pattern")
+                        .asText())
+                .isEqualTo("^a");
+        // a property that is not read-only is still checked
+        properties.putObject("slug").put("type", "string").put("pattern", "^a").put("readonly", false);
+        assertThatThrownBy(() -> new RouteTable()
+                        .registry()
+                        .route("app/v1", "/things")
+                        .schema(() -> item)
+                        .endpoint(endpoint(Arg.of("b", "string").build()))
+                        .register())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported schema keyword: pattern");
+    }
+
+    @Test
     void eachNamespaceGetsItsIndexRightBeforeItsFirstRoute() {
         List<String> asked = new ArrayList<>();
         RouteTable table = new RouteTable(namespace -> {

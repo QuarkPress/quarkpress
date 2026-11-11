@@ -262,6 +262,9 @@ class IndexDbTest {
                         "/wp/v2/users/(?P<id>[\\d]+)",
                         "/wp/v2/users/me",
                         "/wp/v2/search",
+                        "/wp/v2/block-types",
+                        "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)",
+                        "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)/(?P<name>[a-zA-Z0-9_-]+)",
                         "/wp/v2/settings");
         // REST verification list item 19
         Http.as(null)
@@ -293,6 +296,28 @@ class IndexDbTest {
                         + "\"args\":{\"namespace\":{\"default\":\"wp\\/v2\",\"required\":false},"
                         + "\"context\":{\"default\":\"view\",\"required\":false}}}],"
                         + "\"_links\":{\"self\":[{\"href\":\"http:\\/\\/localhost\\/wp-json\\/wp\\/v2\"}]}}"));
+    }
+
+    @Test
+    void emptyRegistryAnswersEmpty() {
+        // no application bean registers a block type here, and QuarkPress registers none of WordPress's core types
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-types")
+                .then()
+                .statusCode(200)
+                .header("Allow", "GET")
+                .body(equalTo("[]"));
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-types/core")
+                .then()
+                .statusCode(200)
+                .body(equalTo("[]"));
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-types/core/paragraph")
+                .then()
+                .statusCode(404)
+                .body(equalTo("{\"code\":\"rest_block_type_invalid\",\"message\":\"Invalid block type.\","
+                        + "\"data\":{\"status\":404}}"));
     }
 
     @Test

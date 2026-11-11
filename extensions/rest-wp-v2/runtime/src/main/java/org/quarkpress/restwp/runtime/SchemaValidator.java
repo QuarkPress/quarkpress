@@ -79,6 +79,27 @@ public final class SchemaValidator {
         }
     }
 
+    /**
+     * {@link #requireSupported} for an item schema, whose read-only properties are left out: such a property never
+     * becomes an argument (WordPress leaves read-only properties out of the arguments it derives from an item schema),
+     * so its schema only describes the answer and may use any keyword.
+     */
+    public static void requireSupportedItem(ObjectNode itemSchema) {
+        if (!(itemSchema.get("properties") instanceof ObjectNode properties)) {
+            requireSupported(itemSchema);
+            return;
+        }
+        ObjectNode writable = itemSchema.deepCopy();
+        ObjectNode kept = writable.putObject("properties");
+        for (Map.Entry<String, JsonNode> property : properties.properties()) {
+            JsonNode readonly = property.getValue().get("readonly");
+            if (!(readonly != null && readonly.isBoolean() && readonly.booleanValue())) {
+                kept.set(property.getKey(), property.getValue());
+            }
+        }
+        requireSupported(writable);
+    }
+
     private static IllegalArgumentException untitled() {
         return new IllegalArgumentException("unsupported schema keyword: oneOf without a list of titled schemas");
     }
