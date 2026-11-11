@@ -63,8 +63,10 @@ class MissingSizesTest {
             List<String> sizeNames,
             Processing processing) {
         Map<String, MediaSize> sizes = new LinkedHashMap<>();
+        Map<String, String> urls = new LinkedHashMap<>();
         for (String name : sizeNames) {
             sizes.put(name, new MediaSize("x-" + name + ".jpg", 1, 1, "image/jpeg", 1));
+            urls.put(name, "http://localhost/x-" + name + ".jpg");
         }
         ObjectNode meta = JsonNodeFactory.instance.objectNode().put("orientation", "1");
         return new MediaSnapshot(
@@ -81,7 +83,8 @@ class MissingSizesTest {
                 JsonNodeFactory.instance.objectNode(),
                 "",
                 processing,
-                "http://localhost/x.jpg");
+                "http://localhost/x.jpg",
+                urls);
     }
 
     private static MediaSnapshot image(int width, int height, List<String> sizes) {

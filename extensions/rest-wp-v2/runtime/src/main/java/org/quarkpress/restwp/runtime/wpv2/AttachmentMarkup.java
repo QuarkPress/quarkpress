@@ -70,7 +70,7 @@ final class AttachmentMarkup {
      * @param alt the stored alternative text, raw
      * @param width the stored width, empty when the metadata has none
      * @param height the stored height, empty when the metadata has none
-     * @param sizes the stored sizes in stored order; their files live in the main file's folder
+     * @param sizes the stored sizes in stored order, each with its URL
      * @param poster the file URL of a video's cover image, empty when it has none
      */
     record Attachment(
@@ -115,12 +115,16 @@ final class AttachmentMarkup {
         }
     }
 
-    /** A stored size: its name, its file name (no folder) and its dimensions. */
-    record Size(String name, String file, int width, int height) {
+    /**
+     * A stored size: its name, its file name (no folder), its dimensions and its URL (the storage's, which for files
+     * under one uploads folder is the main file's folder and the file name).
+     */
+    record Size(String name, String file, int width, int height, String url) {
 
         Size {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(file, "file");
+            Objects.requireNonNull(url, "url");
         }
     }
 
@@ -172,7 +176,7 @@ final class AttachmentMarkup {
         int height;
         if (medium.isPresent()) {
             displayed = medium.get().file();
-            url = folder + displayed;
+            url = medium.get().url();
             width = medium.get().width();
             height = medium.get().height();
         } else if (image) {
@@ -183,13 +187,13 @@ final class AttachmentMarkup {
             height = fitted[1];
         } else {
             displayed = full.get().file();
-            url = folder + displayed;
+            url = full.get().url();
             int[] fitted = constrain(full.get().width(), full.get().height(), mediumWidth, mediumHeight);
             width = fitted[0];
             height = fitted[1];
         }
         String alt = PhpValues.trim(Kses.stripTags(a.alt()));
-        String srcset = srcset(a, folder, displayed, width, height);
+        String srcset = srcset(a, displayed, width, height);
         String sizes = srcset.isEmpty() ? "" : "auto, (max-width: " + width + "px) 100vw, " + width + "px";
         return Optional.of(new Image(url, width, height, alt, srcset, sizes));
     }
@@ -297,7 +301,7 @@ final class AttachmentMarkup {
      * sizes, when the displayed file is not a candidate (no stored dimensions) or with fewer than two candidates.
      * Spaces in the URLs are encoded.
      */
-    private static String srcset(Attachment a, String folder, String displayed, int width, int height) {
+    private static String srcset(Attachment a, String displayed, int width, int height) {
         if (a.sizes().isEmpty()) {
             return "";
         }
@@ -305,14 +309,15 @@ final class AttachmentMarkup {
         int mainWidth = a.width().orElse(0);
         int mainHeight = a.height().orElse(0);
         if (mainWidth > 0 && mainHeight > 0) {
-            candidates.add(new Size("", a.fileUrl().substring(folder.length()), mainWidth, mainHeight));
+            String folder = folder(a.fileUrl());
+            candidates.add(new Size("", a.fileUrl().substring(folder.length()), mainWidth, mainHeight, a.fileUrl()));
         }
         Map<Integer, String> sources = new LinkedHashMap<>();
         Integer displayedWidth = null;
         for (Size candidate : candidates) {
             if (candidate.file().equals(displayed)) {
                 displayedWidth = candidate.width();
-                sources.put(displayedWidth, candidate.file());
+                sources.put(displayedWidth, candidate.url());
                 break;
             }
         }
@@ -323,7 +328,7 @@ final class AttachmentMarkup {
                     || !sameRatio(width, height, candidate.width(), candidate.height())) {
                 continue;
             }
-            sources.put(candidate.width(), candidate.file());
+            sources.put(candidate.width(), candidate.url());
         }
         if (displayedWidth == null || sources.size() < 2) {
             return "";
@@ -333,7 +338,7 @@ final class AttachmentMarkup {
             if (!out.isEmpty()) {
                 out.append(", ");
             }
-            out.append((folder + source.getValue()).replace(" ", "%20"))
+            out.append(source.getValue().replace(" ", "%20"))
                     .append(' ')
                     .append(source.getKey())
                     .append('w');

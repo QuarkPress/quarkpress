@@ -29,6 +29,8 @@ import org.quarkpress.posts.PostSnapshot;
  * @param altText the alternative text
  * @param processing how far the generated files are made
  * @param url the main file's public URL
+ * @param sizeUrls the public URL of each generated size by name, as the storage gives it for that size's file (a URL
+ *     cannot be made from another file's, as a signed URL is only valid for its own file)
  */
 public record MediaSnapshot(
         PostSnapshot post,
@@ -44,7 +46,8 @@ public record MediaSnapshot(
         ObjectNode extra,
         String altText,
         Processing processing,
-        String url) {
+        String url,
+        Map<String, String> sizeUrls) {
 
     /** The name of the main file among the sizes. */
     public static final String FULL = "full";
@@ -63,6 +66,16 @@ public record MediaSnapshot(
         Objects.requireNonNull(processing, "processing");
         Objects.requireNonNull(url, "url");
         sizes = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(sizes, "sizes")));
+        Objects.requireNonNull(sizeUrls, "sizeUrls");
+        Map<String, String> urls = new LinkedHashMap<>();
+        for (String name : sizes.keySet()) {
+            String sizeUrl = sizeUrls.get(name);
+            if (sizeUrl == null) {
+                throw new IllegalArgumentException("the size " + name + " has no URL");
+            }
+            urls.put(name, sizeUrl);
+        }
+        sizeUrls = Collections.unmodifiableMap(urls);
         imageMeta = imageMeta.map(ObjectNode::deepCopy);
         extra = extra.deepCopy();
     }
@@ -80,8 +93,7 @@ public record MediaSnapshot(
     }
 
     /**
-     * The public URL of the size {@code sizeName}: the main file's for {@link #FULL}, else the size file's, in the
-     * main file's folder.
+     * The public URL of the size {@code sizeName}: the main file's for {@link #FULL}, else the size file's.
      *
      * @throws IllegalArgumentException when the attachment has no size of that name
      */
@@ -89,11 +101,11 @@ public record MediaSnapshot(
         if (FULL.equals(sizeName)) {
             return url;
         }
-        MediaSize size = sizes.get(sizeName);
-        if (size == null) {
+        String sizeUrl = sizeUrls.get(sizeName);
+        if (sizeUrl == null) {
             throw new IllegalArgumentException("the attachment has no size named " + sizeName);
         }
-        return url.substring(0, url.lastIndexOf('/') + 1) + size.file();
+        return sizeUrl;
     }
 
     /**

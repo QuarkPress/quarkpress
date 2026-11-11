@@ -102,7 +102,8 @@ public class MediaReads {
                 JsonNodeFactory.instance.objectNode(),
                 alt.isEmpty() || !alt.get(0).isTextual() ? "" : alt.get(0).textValue(),
                 Processing.NONE,
-                post.guid());
+                post.guid(),
+                Map.of());
     }
 
     /** The answer to a request whose attachment is not found: WordPress's invalid post id, 404. */

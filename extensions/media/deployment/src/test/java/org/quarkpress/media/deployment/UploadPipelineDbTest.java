@@ -967,7 +967,8 @@ class UploadPipelineDbTest {
                 extra,
                 "",
                 Processing.DONE,
-                image.url());
+                image.url(),
+                Map.of("thumbnail", "http://localhost/test-uploads/2026/11/shape-4x4.jpg"));
         ObjectNode wp = processed.wordPressMetadata();
         assertThat(wp.fieldNames())
                 .toIterable()
@@ -993,7 +994,8 @@ class UploadPipelineDbTest {
                 extra,
                 "",
                 Processing.NONE,
-                text.url());
+                text.url(),
+                Map.of());
         assertThat(doneText.wordPressMetadata().toString()).isEqualTo("{\"k\":\"v\",\"filesize\":10}");
     }
 }

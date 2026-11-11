@@ -45,6 +45,7 @@ import org.quarkpress.media.MediaSize;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.MediaStorage;
 import org.quarkpress.media.Processing;
+import org.quarkpress.media.StoredKey;
 import org.quarkpress.media.Upload;
 import org.quarkpress.persistence.runtime.QuarkPressRuntimeConfig;
 import org.quarkpress.persistence.runtime.TenantIds;
@@ -520,6 +521,8 @@ public class JpaMedia implements Media {
                 site.id().value() == mainSiteId ? "" : "sites/" + site.id().value() + "/";
         String attachedFile =
                 row.storageKey.startsWith(base) ? row.storageKey.substring(base.length()) : row.storageKey;
+        Map<String, MediaSize> sizes = sizes(row.sizes);
+        String url = storage.publicUrl(site, row.storageKey);
         return new MediaSnapshot(
                 post,
                 row.mimeType,
@@ -529,14 +532,36 @@ public class JpaMedia implements Media {
                 row.fileSize,
                 row.width == null ? OptionalInt.empty() : OptionalInt.of(row.width),
                 row.height == null ? OptionalInt.empty() : OptionalInt.of(row.height),
-                sizes(row.sizes),
+                sizes,
                 row.imageMeta instanceof ObjectNode meta ? Optional.of(meta) : Optional.empty(),
                 // the upload's options kept for its processing are no metadata of the attachment
                 SizeGenerator.withoutOptions(
                         row.extra instanceof ObjectNode extra ? extra : JsonNodeFactory.instance.objectNode()),
                 row.altText,
                 Processing.valueOf(row.processing.toUpperCase(Locale.ROOT)),
-                storage.publicUrl(site, row.storageKey));
+                url,
+                sizeUrls(sizes, row.storageKey, url, storage, site));
+    }
+
+    /**
+     * The public URL of each size, the storage's URL of its file in the main file's folder. A size whose file name
+     * makes no valid storage key (an imported entry, never stored by a storage) gets the main URL's folder and its
+     * name, as WordPress builds every size URL.
+     */
+    private static Map<String, String> sizeUrls(
+            Map<String, MediaSize> sizes, String storageKey, String url, MediaStorage storage, SiteInfo site) {
+        String folder = storageKey.substring(0, storageKey.lastIndexOf('/') + 1);
+        Map<String, String> urls = new LinkedHashMap<>();
+        sizes.forEach((name, size) -> {
+            String sizeUrl;
+            try {
+                sizeUrl = storage.publicUrl(site, StoredKey.require(folder + size.file()));
+            } catch (IllegalArgumentException notAKey) {
+                sizeUrl = url.substring(0, url.lastIndexOf('/') + 1) + size.file();
+            }
+            urls.put(name, sizeUrl);
+        });
+        return urls;
     }
 
     /** The sizes of a media row's {@code sizes} column, in order; entries without a file name are skipped. */

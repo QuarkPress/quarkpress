@@ -139,6 +139,11 @@ class MediaDbTest {
                         "1536x1536", "IMG_1234-1536x1152.jpg",
                         "2048x2048", "IMG_1234-2048x1536.jpg"));
 
+        // each size's URL is the main file's folder and the size's file, as WordPress's uploads URLs are
+        String mainUrl = media.getString("url");
+        String folder = mainUrl.substring(0, mainUrl.lastIndexOf('/') + 1);
+        sizes.forEach((name, size) -> assertThat(size.get("url")).as(name).isEqualTo(folder + size.get("file")));
+
         // every file through the static route: the main file and each size, decoding to the stated dimensions
         Map<String, int[]> files = new LinkedHashMap<>();
         files.put(media.getString("url"), new int[] {2560, 1920});

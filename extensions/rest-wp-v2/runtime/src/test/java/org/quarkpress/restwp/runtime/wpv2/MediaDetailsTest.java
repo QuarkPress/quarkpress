@@ -70,6 +70,63 @@ class MediaDetailsTest {
             Optional<ObjectNode> imageMeta,
             ObjectNode extra,
             Processing processing) {
+        return at(
+                attachedFile.isEmpty() ? "" : "http://wp.test/wp-content/uploads/" + attachedFile,
+                mimeType,
+                attachedFile,
+                originalImage,
+                fileSize,
+                width,
+                height,
+                sizes,
+                imageMeta,
+                extra,
+                processing);
+    }
+
+    /** The attachment with its main file at {@code url} and each size's file in that URL's folder. */
+    private static MediaSnapshot at(
+            String url,
+            String mimeType,
+            String attachedFile,
+            Optional<String> originalImage,
+            long fileSize,
+            OptionalInt width,
+            OptionalInt height,
+            Map<String, MediaSize> sizes,
+            Optional<ObjectNode> imageMeta,
+            ObjectNode extra,
+            Processing processing) {
+        Map<String, String> sizeUrls = new LinkedHashMap<>();
+        sizes.forEach((name, size) -> sizeUrls.put(name, url.substring(0, url.lastIndexOf('/') + 1) + size.file()));
+        return withUrls(
+                url,
+                sizeUrls,
+                mimeType,
+                attachedFile,
+                originalImage,
+                fileSize,
+                width,
+                height,
+                sizes,
+                imageMeta,
+                extra,
+                processing);
+    }
+
+    private static MediaSnapshot withUrls(
+            String url,
+            Map<String, String> sizeUrls,
+            String mimeType,
+            String attachedFile,
+            Optional<String> originalImage,
+            long fileSize,
+            OptionalInt width,
+            OptionalInt height,
+            Map<String, MediaSize> sizes,
+            Optional<ObjectNode> imageMeta,
+            ObjectNode extra,
+            Processing processing) {
         return new MediaSnapshot(
                 post(),
                 mimeType,
@@ -84,7 +141,8 @@ class MediaDetailsTest {
                 extra,
                 "",
                 processing,
-                attachedFile.isEmpty() ? "" : "http://wp.test/wp-content/uploads/" + attachedFile);
+                url,
+                sizeUrls);
     }
 
     private static MediaSnapshot jpeg(Processing processing, Map<String, MediaSize> sizes) {
@@ -117,7 +175,7 @@ class MediaDetailsTest {
     void sizesGetTheirMimeTypeLastAndAUrl() {
         Map<String, MediaSize> sizes = medium("a-300x225.jpg");
         sizes.put("thumbnail", new MediaSize("a-150x150.jpg", 150, 150, "image/jpeg", 4000));
-        ObjectNode details = MediaDetails.of(jpeg(Processing.DONE, sizes), UPLOADS + "a.jpg");
+        ObjectNode details = MediaDetails.of(jpeg(Processing.DONE, sizes), UPLOADS + "a.jpg", false);
         assertThat(keys(details)).containsExactly("width", "height", "file", "filesize", "sizes", "image_meta");
         assertThat(keys(details.get("sizes"))).containsExactly("medium", "thumbnail", "full");
         assertThat(details.at("/sizes/medium").toString())
@@ -128,13 +186,30 @@ class MediaDetailsTest {
                         + "\"source_url\":\"" + UPLOADS + "a.jpg\"}");
         assertThat(details.at("/image_meta").toString())
                 .isEqualTo("{\"aperture\":\"0\",\"orientation\":\"1\",\"keywords\":[]}");
-        // the size URLs follow the main URL as given (a secure request's scheme)
-        assertThat(MediaDetails.of(jpeg(Processing.DONE, medium("a-300x225.jpg")), "https://wp.test/u/a.jpg")
+        // the size URLs take a secure request's scheme, as the main URL does
+        assertThat(MediaDetails.of(
+                                jpeg(Processing.DONE, medium("a-300x225.jpg")),
+                                "https://wp.test/wp-content/uploads/2026/11/a.jpg",
+                                true)
                         .at("/sizes/medium/source_url")
                         .asText())
-                .isEqualTo("https://wp.test/u/a-300x225.jpg");
-        // every occurrence of the main file's name is replaced, as WordPress's plain text replacement does
-        assertThat(MediaDetails.of(jpeg(Processing.DONE, medium("a-300x225.jpg")), "http://wp.test/a.jpg/2026/a.jpg")
+                .isEqualTo("https://wp.test/wp-content/uploads/2026/11/a-300x225.jpg");
+        // for files under one folder, every occurrence of the main file's name is replaced, as WordPress's plain text
+        // replacement does
+        String odd = "http://wp.test/a.jpg/2026/a.jpg";
+        MediaSnapshot oddFolder = at(
+                odd,
+                "image/jpeg",
+                "2026/a.jpg",
+                Optional.empty(),
+                50000,
+                OptionalInt.of(4000),
+                OptionalInt.of(3000),
+                medium("a-300x225.jpg"),
+                Optional.of(imageMeta()),
+                JsonNodeFactory.instance.objectNode(),
+                Processing.DONE);
+        assertThat(MediaDetails.of(oddFolder, odd, false)
                         .at("/sizes/medium/source_url")
                         .asText())
                 .isEqualTo("http://wp.test/a-300x225.jpg/2026/a-300x225.jpg");
@@ -150,7 +225,7 @@ class MediaDetailsTest {
                 Optional.empty(),
                 JsonNodeFactory.instance.objectNode(),
                 Processing.DONE);
-        ObjectNode heic = MediaDetails.of(heicWithSizes, UPLOADS + "h.heic");
+        ObjectNode heic = MediaDetails.of(heicWithSizes, UPLOADS + "h.heic", false);
         assertThat(heic.at("/sizes/medium/mime_type").asText()).isEqualTo("image/jpeg");
         assertThat(heic.at("/sizes/full/mime_type").asText()).isEqualTo("image/heic");
     }
@@ -168,7 +243,7 @@ class MediaDetailsTest {
                 Optional.empty(),
                 JsonNodeFactory.instance.objectNode(),
                 Processing.NONE);
-        ObjectNode details = MediaDetails.of(heic, UPLOADS + "h.heic");
+        ObjectNode details = MediaDetails.of(heic, UPLOADS + "h.heic", false);
         assertThat(details.toString()).isEqualTo("{\"filesize\":231,\"sizes\":{}}");
         assertThat(details.get("sizes")).isInstanceOf(PhpObjectNode.class);
         ObjectNode extra = JsonNodeFactory.instance.objectNode();
@@ -185,17 +260,17 @@ class MediaDetailsTest {
                 Optional.empty(),
                 extra,
                 Processing.NONE);
-        assertThat(MediaDetails.of(mp3, UPLOADS + "s.mp3").toString())
+        assertThat(MediaDetails.of(mp3, UPLOADS + "s.mp3", false).toString())
                 .isEqualTo("{\"dataformat\":\"mp3\",\"filesize\":1234,\"length\":1,\"image\":{\"mime\":\"image/jpeg\"},"
                         + "\"sizes\":{}}");
         // an image without sizes keeps its empty sizes in place and gets no full size
-        ObjectNode unsized = MediaDetails.of(jpeg(Processing.DONE, Map.of()), UPLOADS + "a.jpg");
+        ObjectNode unsized = MediaDetails.of(jpeg(Processing.DONE, Map.of()), UPLOADS + "a.jpg", false);
         assertThat(keys(unsized)).containsExactly("width", "height", "file", "filesize", "sizes", "image_meta");
         assertThat(unsized.get("sizes").toString()).isEqualTo("{}");
         assertThat(unsized.get("sizes")).isInstanceOf(PhpObjectNode.class);
         // no metadata: still being made, failed (whatever its header gave), or no stored file
         for (Processing nothingYet : List.of(Processing.PENDING, Processing.FAILED)) {
-            ObjectNode none = MediaDetails.of(jpeg(nothingYet, Map.of()), UPLOADS + "a.jpg");
+            ObjectNode none = MediaDetails.of(jpeg(nothingYet, Map.of()), UPLOADS + "a.jpg", false);
             assertThat(none.toString()).as(nothingYet.name()).isEqualTo("{}");
             assertThat(none).isInstanceOf(PhpObjectNode.class);
         }
@@ -210,7 +285,7 @@ class MediaDetailsTest {
                 Optional.empty(),
                 JsonNodeFactory.instance.objectNode(),
                 Processing.NONE);
-        assertThat(MediaDetails.of(noFile, "").toString()).isEqualTo("{}");
+        assertThat(MediaDetails.of(noFile, "", false).toString()).isEqualTo("{}");
     }
 
     @Test
@@ -226,7 +301,7 @@ class MediaDetailsTest {
                 Optional.of(imageMeta()),
                 JsonNodeFactory.instance.objectNode(),
                 Processing.DONE);
-        ObjectNode details = MediaDetails.of(scaled, UPLOADS + "a-scaled.jpg");
+        ObjectNode details = MediaDetails.of(scaled, UPLOADS + "a-scaled.jpg", false);
         assertThat(keys(details))
                 .containsExactly("width", "height", "file", "filesize", "sizes", "image_meta", "original_image");
         assertThat(details.get("file").asText()).isEqualTo("2026/11/a-scaled.jpg");
@@ -235,5 +310,52 @@ class MediaDetailsTest {
         assertThat(details.at("/sizes/full").toString())
                 .isEqualTo("{\"file\":\"a-scaled.jpg\",\"width\":2560,\"height\":1920,\"mime_type\":\"image/jpeg\","
                         + "\"source_url\":\"" + UPLOADS + "a-scaled.jpg\"}");
+    }
+
+    @Test
+    void signedSizeUrlsAreTheStoragesOwn() {
+        // a storage whose URLs carry a signature for one file: each size keeps the URL the storage gave it
+        String main = "https://bucket.s3.test/p/2026/11/a.jpg?X-Amz-Signature=main";
+        Map<String, MediaSize> sizes = medium("a-300x225.jpg");
+        sizes.put("thumbnail", new MediaSize("a-150x150.jpg", 150, 150, "image/jpeg", 4000));
+        MediaSnapshot signed = withUrls(
+                main,
+                Map.of(
+                        "medium", "https://bucket.s3.test/p/2026/11/a-300x225.jpg?X-Amz-Signature=medium",
+                        "thumbnail", "https://bucket.s3.test/p/2026/11/a-150x150.jpg?X-Amz-Signature=thumbnail"),
+                "image/jpeg",
+                "2026/11/a.jpg",
+                Optional.empty(),
+                50000,
+                OptionalInt.of(4000),
+                OptionalInt.of(3000),
+                sizes,
+                Optional.of(imageMeta()),
+                JsonNodeFactory.instance.objectNode(),
+                Processing.DONE);
+        ObjectNode details = MediaDetails.of(signed, main, true);
+        assertThat(details.at("/sizes/medium/source_url").asText())
+                .isEqualTo("https://bucket.s3.test/p/2026/11/a-300x225.jpg?X-Amz-Signature=medium");
+        assertThat(details.at("/sizes/thumbnail/source_url").asText())
+                .isEqualTo("https://bucket.s3.test/p/2026/11/a-150x150.jpg?X-Amz-Signature=thumbnail");
+        assertThat(details.at("/sizes/full/source_url").asText()).isEqualTo(main);
+        // a plain http storage URL takes a secure request's scheme
+        MediaSnapshot plain = withUrls(
+                "http://bucket.s3.test/p/2026/11/a.jpg?v=1",
+                Map.of("medium", "http://bucket.s3.test/p/2026/11/a-300x225.jpg?v=1"),
+                "image/jpeg",
+                "2026/11/a.jpg",
+                Optional.empty(),
+                50000,
+                OptionalInt.of(4000),
+                OptionalInt.of(3000),
+                medium("a-300x225.jpg"),
+                Optional.of(imageMeta()),
+                JsonNodeFactory.instance.objectNode(),
+                Processing.DONE);
+        assertThat(MediaDetails.of(plain, "https://bucket.s3.test/p/2026/11/a.jpg?v=1", true)
+                        .at("/sizes/medium/source_url")
+                        .asText())
+                .isEqualTo("https://bucket.s3.test/p/2026/11/a-300x225.jpg?v=1");
     }
 }

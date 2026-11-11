@@ -14,6 +14,11 @@ class AttachmentMarkupTest {
 
     private static final String UPLOADS = "http://wp.test/wp-content/uploads/2026/11/";
 
+    /** A size whose file is in the uploads folder of the test attachments. */
+    private static Size size(String name, String file, int width, int height) {
+        return new Size(name, file, width, height, UPLOADS + file);
+    }
+
     private static Attachment image(String file, int width, int height, List<Size> sizes) {
         return new Attachment(
                 7, "image/jpeg", UPLOADS + file, "a", file, "", OptionalInt.of(width), OptionalInt.of(height), sizes);
@@ -88,12 +93,12 @@ class AttachmentMarkupTest {
         // The sizes in the order the browser's upload stores them (thumbnail first); the expected srcset is the one
         // WordPress showed for that upload. The -scaled main file (2560) is wider than 2048 and is left out.
         List<Size> sizes = List.of(
-                new Size("thumbnail", "a-150x150.jpg", 150, 150),
-                new Size("medium", "a-300x225.jpg", 300, 225),
-                new Size("medium_large", "a-768x576.jpg", 768, 576),
-                new Size("large", "a-1024x768.jpg", 1024, 768),
-                new Size("1536x1536", "a-1536x1152.jpg", 1536, 1152),
-                new Size("2048x2048", "a-2048x1536.jpg", 2048, 1536));
+                size("thumbnail", "a-150x150.jpg", 150, 150),
+                size("medium", "a-300x225.jpg", 300, 225),
+                size("medium_large", "a-768x576.jpg", 768, 576),
+                size("large", "a-1024x768.jpg", 1024, 768),
+                size("1536x1536", "a-1536x1152.jpg", 1536, 1152),
+                size("2048x2048", "a-2048x1536.jpg", 2048, 1536));
         Attachment scaled = image("a-scaled.jpg", 2560, 1920, sizes);
         assertThat(prepended(scaled))
                 .isEqualTo("<p class=\"attachment\"><a href='" + UPLOADS + "a-scaled.jpg'><img loading=\"lazy\""
@@ -111,10 +116,10 @@ class AttachmentMarkupTest {
     void theSrcsetFollowsTheStoredOrderAfterTheDisplayedFile() {
         // Sizes as the server generates them: medium, large, thumbnail, medium_large, then the others.
         List<Size> sizes = List.of(
-                new Size("medium", "a-300x225.jpg", 300, 225),
-                new Size("large", "a-1024x768.jpg", 1024, 768),
-                new Size("thumbnail", "a-150x150.jpg", 150, 150),
-                new Size("medium_large", "a-768x576.jpg", 768, 576));
+                size("medium", "a-300x225.jpg", 300, 225),
+                size("large", "a-1024x768.jpg", 1024, 768),
+                size("thumbnail", "a-150x150.jpg", 150, 150),
+                size("medium_large", "a-768x576.jpg", 768, 576));
         assertThat(AttachmentMarkup.mediumImage(image("a.jpg", 1600, 1200, sizes), 300, 300)
                         .orElseThrow()
                         .srcset())
@@ -126,11 +131,11 @@ class AttachmentMarkupTest {
     void theDisplayedFileKeepsItsWidthAndALaterFileTakesAnotherWidth() {
         // Reference only: one entry per width, a later file taking an earlier one's slot, never the displayed file's.
         List<Size> sizes = List.of(
-                new Size("medium", "a-300x225.jpg", 300, 225),
-                new Size("custom", "a-custom.jpg", 300, 225),
-                new Size("medium_large", "a-768x576.jpg", 768, 576),
-                new Size("large", "a-1024x768.jpg", 1024, 768),
-                new Size("other", "a-other.jpg", 768, 576));
+                size("medium", "a-300x225.jpg", 300, 225),
+                size("custom", "a-custom.jpg", 300, 225),
+                size("medium_large", "a-768x576.jpg", 768, 576),
+                size("large", "a-1024x768.jpg", 1024, 768),
+                size("other", "a-other.jpg", 768, 576));
         assertThat(AttachmentMarkup.mediumImage(image("a.jpg", 2560, 1920, sizes), 300, 300)
                         .orElseThrow()
                         .srcset())
@@ -141,8 +146,8 @@ class AttachmentMarkupTest {
     @Test
     void imageAttributesAreEscaped() {
         // Reference only: src, srcset and sizes go through attribute escaping; the href through URL escaping.
-        List<Size> sizes = List.of(
-                new Size("medium", "a&b-300x225.jpg", 300, 225), new Size("medium_large", "a&b-768x576.jpg", 768, 576));
+        List<Size> sizes =
+                List.of(size("medium", "a&b-300x225.jpg", 300, 225), size("medium_large", "a&b-768x576.jpg", 768, 576));
         assertThat(prepended(image("a&b.jpg", 1600, 1200, sizes)))
                 .isEqualTo("<p class=\"attachment\"><a href='" + UPLOADS + "a&#038;b.jpg'><img loading=\"lazy\""
                         + " decoding=\"async\" width=\"300\" height=\"225\" src=\"" + UPLOADS + "a&amp;b-300x225.jpg\""
@@ -157,8 +162,8 @@ class AttachmentMarkupTest {
     void storedSizesWithoutMainDimensionsGiveNoSrcset() {
         // Reference only (sized half of the deleted-metadata case pending): the 1x1 main file is not a candidate,
         // so the square sizes never form a srcset without it.
-        List<Size> sizes = List.of(
-                new Size("thumbnail", "a-150x150.jpg", 150, 150), new Size("square", "a-300x300.jpg", 300, 300));
+        List<Size> sizes =
+                List.of(size("thumbnail", "a-150x150.jpg", 150, 150), size("square", "a-300x300.jpg", 300, 300));
         Attachment noDimensions = new Attachment(
                 7, "image/jpeg", UPLOADS + "a.jpg", "a", "a.jpg", "", OptionalInt.empty(), OptionalInt.empty(), sizes);
         assertThat(prepended(noDimensions))
@@ -178,7 +183,7 @@ class AttachmentMarkupTest {
                 "",
                 OptionalInt.empty(),
                 OptionalInt.empty(),
-                List.of(new Size("full", "doc-pdf.jpg", 1088, 1408)));
+                List.of(size("full", "doc-pdf.jpg", 1088, 1408)));
         String markup = prepended(pdf);
         assertThat(markup)
                 .isEqualTo("<p class=\"attachment\"><a href='" + UPLOADS + "doc.pdf'>"
@@ -189,7 +194,7 @@ class AttachmentMarkupTest {
     @Test
     void aSrcsetNeedsTwoCandidates() {
         // Only the thumbnail crop beside the displayed main file: no srcset, no sizes.
-        List<Size> sizes = List.of(new Size("thumbnail", "a-150x150.jpg", 150, 150));
+        List<Size> sizes = List.of(size("thumbnail", "a-150x150.jpg", 150, 150));
         AttachmentMarkup.Image shown = AttachmentMarkup.mediumImage(image("a.jpg", 200, 150, sizes), 300, 300)
                 .orElseThrow();
         assertThat(shown.srcset()).isEmpty();
@@ -334,8 +339,8 @@ class AttachmentMarkupTest {
                 .isEqualTo("<a class=\"wp-embedded-audio\" href=\"" + UPLOADS + "a%20b&#038;c&#039;d.aac\">" + UPLOADS
                         + "a b&amp;c&#039;d.aac</a>\n");
         // In a srcset only the spaces are encoded.
-        List<Size> sizes = List.of(
-                new Size("medium", "a b-300x225.jpg", 300, 225), new Size("medium_large", "a b-768x576.jpg", 768, 576));
+        List<Size> sizes =
+                List.of(size("medium", "a b-300x225.jpg", 300, 225), size("medium_large", "a b-768x576.jpg", 768, 576));
         assertThat(AttachmentMarkup.mediumImage(image("a b.jpg", 1600, 1200, sizes), 300, 300)
                         .orElseThrow()
                         .srcset())
@@ -363,5 +368,29 @@ class AttachmentMarkupTest {
         String eAcute = Character.toString(0x00e9);
         assertThat(AttachmentMarkup.escAttr("x\"y'z<>&amp;&bogus;" + eAcute))
                 .isEqualTo("x&quot;y&#039;z&lt;&gt;&amp;&amp;bogus;" + eAcute);
+    }
+
+    @Test
+    void signedSizeUrlsAreUsedAsTheStorageGaveThem() {
+        // a storage whose URLs carry a signature for one file: the medium image and the srcset use each size's own URL
+        String signed = "https://bucket.s3.test/p/2026/11/";
+        List<Size> sizes = List.of(
+                new Size("medium", "a-300x225.jpg", 300, 225, signed + "a-300x225.jpg?X-Amz-Signature=m"),
+                new Size("medium_large", "a-768x576.jpg", 768, 576, signed + "a-768x576.jpg?X-Amz-Signature=ml"));
+        Attachment a = new Attachment(
+                7,
+                "image/jpeg",
+                signed + "a.jpg?X-Amz-Signature=main",
+                "a",
+                "a.jpg",
+                "",
+                OptionalInt.of(1600),
+                OptionalInt.of(1200),
+                sizes);
+        AttachmentMarkup.Image shown = AttachmentMarkup.mediumImage(a, 300, 300).orElseThrow();
+        assertThat(shown.url()).isEqualTo(signed + "a-300x225.jpg?X-Amz-Signature=m");
+        assertThat(shown.srcset())
+                .isEqualTo(signed + "a-300x225.jpg?X-Amz-Signature=m 300w, " + signed
+                        + "a-768x576.jpg?X-Amz-Signature=ml 768w, " + signed + "a.jpg?X-Amz-Signature=main 1600w");
     }
 }

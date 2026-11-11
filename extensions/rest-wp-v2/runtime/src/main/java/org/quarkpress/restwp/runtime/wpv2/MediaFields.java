@@ -112,7 +112,7 @@ public class MediaFields {
             data.put("mime_type", attachment.mimeType());
         }
         if (selection.includesExactly("media_details")) {
-            data.set("media_details", MediaDetails.of(attachment, fileUrl));
+            data.set("media_details", MediaDetails.of(attachment, fileUrl, secure));
         }
         if (selection.includesExactly("post")) {
             Optional<PostId> parent = post.parent();
@@ -320,7 +320,8 @@ public class MediaFields {
                             size.getKey(),
                             size.getValue().file(),
                             size.getValue().width(),
-                            size.getValue().height()));
+                            size.getValue().height(),
+                            scheme(attachment.url(size.getKey()), secure)));
                 }
             }
             String name = attachment.attachedFile().isEmpty() ? "" : MediaDetails.baseName(attachment.attachedFile());

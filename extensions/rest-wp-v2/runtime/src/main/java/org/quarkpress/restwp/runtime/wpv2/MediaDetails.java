@@ -26,12 +26,14 @@ final class MediaDetails {
      * The details of {@code media}, whose main file's URL (as the response shows it, its scheme included) is
      * {@code mainUrl}: {@code {}} while its metadata is being made or could not be made, for an attachment without a
      * stored file, and when its metadata is empty; otherwise its metadata with each size entry's {@code mime-type}
-     * moved last as {@code mime_type}, followed by {@code source_url} (the main URL with every occurrence of the main
-     * file's name replaced by the size's file); sizes that are stored but empty become {@code {}} in place and absent
-     * ones are added last as {@code {}}; for an image with sizes, {@code full} (its file name, the stored width and
-     * height, the attachment's type and the main URL) is added after the stored sizes.
+     * moved last as {@code mime_type}, followed by {@code source_url} (see {@link #sizeUrl}); sizes that are stored but
+     * empty become {@code {}} in place and absent ones are added last as {@code {}}; for an image with sizes,
+     * {@code full} (its file name, the stored width and height, the attachment's type and the main URL) is added after
+     * the stored sizes.
+     *
+     * @param secure whether the request is secure, which gives the size URLs {@code https} as it gives the main URL
      */
-    static ObjectNode of(MediaSnapshot media, String mainUrl) {
+    static ObjectNode of(MediaSnapshot media, String mainUrl, boolean secure) {
         if (media.processing() == Processing.PENDING
                 || media.processing() == Processing.FAILED
                 || media.attachedFile().isEmpty()) {
@@ -57,7 +59,7 @@ final class MediaDetails {
             }
             ObjectNode sizes = details.putObject(SIZES);
             for (Map.Entry<String, JsonNode> size : stored.properties()) {
-                sizes.set(size.getKey(), size(size.getValue(), mainUrl, mainName));
+                sizes.set(size.getKey(), size(media, size.getKey(), size.getValue(), mainUrl, mainName, secure));
             }
             if (media.mimeType().startsWith("image/")
                     && media.width().isPresent()
@@ -77,7 +79,8 @@ final class MediaDetails {
     }
 
     /** A size entry: its keys without {@code mime-type}, that type as {@code mime_type}, then its URL. */
-    private static JsonNode size(JsonNode stored, String mainUrl, String mainName) {
+    private static JsonNode size(
+            MediaSnapshot media, String name, JsonNode stored, String mainUrl, String mainName, boolean secure) {
         if (!stored.isObject()) {
             return stored;
         }
@@ -92,9 +95,26 @@ final class MediaDetails {
         }
         JsonNode file = stored.get("file");
         if (!mainUrl.isEmpty() && !mainName.isEmpty() && file != null && file.isTextual()) {
-            size.put("source_url", mainUrl.replace(mainName, file.textValue()));
+            size.put("source_url", sizeUrl(media, name, file.textValue(), mainUrl, mainName, secure));
         }
         return size;
+    }
+
+    /**
+     * A size's URL: the storage's URL of the size's file (in the response's scheme). Where that is the main URL's
+     * folder and the size's file name, as for files kept under one uploads folder, it is built as WordPress builds
+     * it: the main URL with every occurrence of the main file's name replaced by the size's file. A storage whose URLs
+     * are not one folder's (signed URLs, whose query string is only valid for their own file) keeps its own.
+     */
+    private static String sizeUrl(
+            MediaSnapshot media, String name, String file, String mainUrl, String mainName, boolean secure) {
+        String replaced = mainUrl.replace(mainName, file);
+        if (!media.sizes().containsKey(name)) {
+            return replaced;
+        }
+        String stored = MediaFields.scheme(media.url(name), secure);
+        String inFolder = mainUrl.substring(0, mainUrl.lastIndexOf('/') + 1) + file;
+        return stored.equals(inFolder) ? replaced : stored;
     }
 
     /** The part of {@code path} after its last slash. */
