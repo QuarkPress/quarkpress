@@ -262,6 +262,7 @@ class IndexDbTest {
                         "/wp/v2/users/(?P<id>[\\d]+)",
                         "/wp/v2/users/me",
                         "/wp/v2/search",
+                        "/wp/v2/block-renderer/(?P<name>[a-z0-9-]+/[a-z0-9-]+)",
                         "/wp/v2/block-types",
                         "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)",
                         "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)/(?P<name>[a-zA-Z0-9_-]+)",
@@ -318,6 +319,31 @@ class IndexDbTest {
                 .statusCode(404)
                 .body(equalTo("{\"code\":\"rest_block_type_invalid\",\"message\":\"Invalid block type.\","
                         + "\"data\":{\"status\":404}}"));
+    }
+
+    @Test
+    void withoutRenderersEveryBlockIsInvalid() {
+        // no application bean renders a block here: the checks still come first, then every name is 404
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-renderer/core/archives")
+                .then()
+                .statusCode(400)
+                .body(equalTo("{\"code\":\"rest_invalid_param\",\"message\":\"Invalid parameter(s): context\","
+                        + "\"data\":{\"status\":400,\"params\":{\"context\":\"context is not edit.\"},"
+                        + "\"details\":{\"context\":{\"code\":\"rest_not_in_enum\",\"message\":\"context is not"
+                        + " edit.\",\"data\":null}}}}"));
+        Http.as(null)
+                .get("/wp-json/wp/v2/block-renderer/core/archives?context=edit")
+                .then()
+                .statusCode(401)
+                .body(equalTo("{\"code\":\"block_cannot_read\",\"message\":\"Sorry, you are not allowed to read"
+                        + " blocks as this user.\",\"data\":{\"status\":401}}"));
+        Http.as("test-" + editor)
+                .get("/wp-json/wp/v2/block-renderer/core/archives?context=edit")
+                .then()
+                .statusCode(404)
+                .header("Allow", "GET, POST")
+                .body(equalTo("{\"code\":\"block_invalid\",\"message\":\"Invalid block.\",\"data\":{\"status\":404}}"));
     }
 
     @Test
