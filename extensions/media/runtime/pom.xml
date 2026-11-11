@@ -96,6 +96,25 @@
         <groupId>io.smallrye</groupId>
         <artifactId>jandex-maven-plugin</artifactId>
       </plugin>
+      <!-- Shares the storage contract with the storage backend modules, which run it against their backend and
+           therefore need this module built in the same reactor (or installed) and test jars not skipped. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>storage-contract</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <includes>
+                <include>org/quarkpress/media/MediaStorageContract*.class</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
