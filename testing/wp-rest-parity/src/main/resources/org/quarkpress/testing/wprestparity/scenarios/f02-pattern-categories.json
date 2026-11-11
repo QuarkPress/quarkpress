@@ -1,0 +1,166 @@
+{
+  "id": "f02",
+  "rule": "WordPress's pattern categories (the wp_pattern_category taxonomy, Part G b07): its registration as the taxonomies route shows it, the terms routes served unchanged (the anonymous caller lists and reads them, the plain term link, the wp:post_type link to the synced patterns), creating as anyone who may assign (a contributor, in the setup; a duplicate answering term_exists with the term's id; a subscriber refused), the edit context and deleting needing manage_categories, and the terms of a synced pattern: written on update (by an author on her own pattern too), filtered by in the collection",
+  "setup": [
+    {
+      "term": "t:hero",
+      "as": "alice",
+      "taxonomy": "wp_pattern_category",
+      "name": "f02 Hero"
+    },
+    {
+      "term": "t:buttons",
+      "as": "alice",
+      "taxonomy": "wp_pattern_category",
+      "name": "f02 Buttons"
+    },
+    {
+      "term": "t:daves",
+      "as": "dave",
+      "taxonomy": "wp_pattern_category",
+      "name": "f02 Dave"
+    },
+    {
+      "post": "p:tagged",
+      "as": "alice",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f02 Tagged pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->"
+      }
+    },
+    {
+      "post": "p:plain",
+      "as": "alice",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f02 Plain pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->"
+      }
+    },
+    {
+      "post": "p:carols",
+      "as": "carol",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f02 Carol pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/wp_pattern_category"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies/wp_pattern_category?context=edit"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/taxonomies?type=wp_block"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/types/wp_block?_fields=taxonomies"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:buttons}"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:hero}?context=edit"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/wp_pattern_category",
+      "contentType": "application/json",
+      "body": "{\"name\":\"f02 Hero\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:daves}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/wp_pattern_category",
+      "contentType": "application/json",
+      "body": "{\"name\":\"f02 Erin\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/wp_pattern_category",
+      "contentType": "application/json",
+      "body": "{\"name\":\"f02 Nobody\"}"
+    },
+    {
+      "as": "carol",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:buttons}?force=true"
+    },
+    {
+      "as": "bob",
+      "method": "DELETE",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:buttons}?force=true"
+    },
+    {
+      "as": "alice",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/blocks/{p:tagged}?_fields=id,wp_pattern_category",
+      "contentType": "application/json",
+      "body": "{\"wp_pattern_category\":[{t:hero}]}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?wp_pattern_category={t:hero}&_fields=id,title,wp_pattern_category"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?wp_pattern_category_exclude={t:hero}&_fields=id,title,wp_pattern_category"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:hero}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/blocks/{p:carols}?_fields=title,status,wp_pattern_category,wp_pattern_sync_status",
+      "contentType": "application/json",
+      "body": "{\"wp_pattern_category\":[{t:hero}],\"meta\":{\"wp_pattern_sync_status\":\"unsynced\"}}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/wp_pattern_category/{t:hero}?_fields=id,count"
+    }
+  ]
+}

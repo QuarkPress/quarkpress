@@ -123,6 +123,7 @@ public interface Side extends AutoCloseable {
         return switch (taxonomy) {
             case "category" -> "categories";
             case "post_tag" -> "tags";
+            case "wp_pattern_category" -> "wp_pattern_category";
             default -> throw new IllegalArgumentException("no REST base for taxonomy " + taxonomy);
         };
     }

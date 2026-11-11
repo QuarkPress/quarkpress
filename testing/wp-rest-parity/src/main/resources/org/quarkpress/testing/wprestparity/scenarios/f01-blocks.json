@@ -1,0 +1,199 @@
+{
+  "id": "f01",
+  "rule": "synced patterns (/wp/v2/blocks): the posts routes with the blocks controller's differences (Part G b01-b06): the edit, view and embed shapes (raw title and content in the view context, no rendered title or content, no block version in the view content, the embed title printed as an empty array), the sync status lifted out of meta after every other field (empty when meta is not computed: the _fields trio), its writes through meta only (an empty value refused with the top-level enum error, null deleting it, the top-level key ignored), the type's read capability before the posts' read rule for items and collection rows (contributor view and edit, author, subscriber, anonymous), the collection's Allow and OPTIONS per caller, the contributor's refused create, the author's refused update of another's pattern, and a revision keeping the status inside meta with its own null value (the lists leave out the revised pattern, whose newest revision id differs between the sides)",
+  "setup": [
+    {
+      "post": "p:har",
+      "as": "alice",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f01 HAR pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->"
+      }
+    },
+    {
+      "post": "p:carols",
+      "as": "carol",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f01 Carol pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->"
+      }
+    },
+    {
+      "post": "p:unsynced",
+      "as": "alice",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f01 Unsynced pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->",
+        "meta": {
+          "wp_pattern_sync_status": "unsynced"
+        }
+      }
+    },
+    {
+      "post": "p:writable",
+      "as": "alice",
+      "type": "wp_block",
+      "status": "publish",
+      "title": "f01 Writable pattern",
+      "fields": {
+        "content": "<!-- wp:paragraph --><p>Pattern text.</p><!-- /wp:paragraph -->",
+        "meta": {
+          "wp_pattern_sync_status": "unsynced"
+        }
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}?context=edit"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}?context=embed"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}?context=edit"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:unsynced}?_fields=wp_pattern_sync_status"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:unsynced}?_fields=meta,wp_pattern_sync_status"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:unsynced}?_fields=id,title"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:unsynced}?context=embed"
+    },
+    {
+      "as": "alice",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/blocks/{p:writable}?_fields=id,meta,wp_pattern_sync_status",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"wp_pattern_sync_status\":\"\"}}"
+    },
+    {
+      "as": "alice",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/blocks/{p:writable}?_fields=id,meta,wp_pattern_sync_status",
+      "contentType": "application/json",
+      "body": "{\"wp_pattern_sync_status\":\"partial\"}"
+    },
+    {
+      "as": "alice",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/blocks/{p:writable}?_fields=id,meta,wp_pattern_sync_status",
+      "contentType": "application/json",
+      "body": "{\"meta\":{\"wp_pattern_sync_status\":null},\"content\":\"<!-- wp:paragraph --><p>Updated.</p><!-- /wp:paragraph -->\"}"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:writable}/revisions?context=edit&_fields=meta,parent"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?context=edit&exclude={p:writable}"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?exclude={p:writable}"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?context=edit&exclude={p:writable}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?exclude={p:writable}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks?context=edit&per_page=100&page=1&exclude={p:writable}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:har}"
+    },
+    {
+      "as": "carol",
+      "method": "PATCH",
+      "target": "/wp-json/wp/v2/blocks/{p:har}",
+      "contentType": "application/json",
+      "body": "{\"title\":\"carol\"}"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/blocks/{p:carols}?context=edit"
+    },
+    {
+      "as": "carol",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/blocks"
+    },
+    {
+      "as": "dave",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/blocks"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/blocks"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/blocks",
+      "contentType": "application/json",
+      "body": "{\"title\":\"D\",\"status\":\"publish\",\"content\":\"x\"}"
+    }
+  ]
+}

@@ -390,7 +390,9 @@ public record RestScenario(
                 }
                 case SetupStep.Term term -> {
                     caller(id, term.as(), false);
-                    if (!term.taxonomy().equals("category") && !term.taxonomy().equals("post_tag")) {
+                    if (!term.taxonomy().equals("category")
+                            && !term.taxonomy().equals("post_tag")
+                            && !term.taxonomy().equals("wp_pattern_category")) {
                         throw new IllegalArgumentException(id + ": unknown taxonomy " + term.taxonomy());
                     }
                     term.parentRef().ifPresent(parent -> used(id, defined, parent));

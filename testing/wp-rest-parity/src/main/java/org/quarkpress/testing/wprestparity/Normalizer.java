@@ -37,8 +37,9 @@ import java.util.TreeSet;
  * <p>Users, terms, posts and revisions are numbered apart (on WordPress a subsite's terms and posts start again at
  * 1), so an id is looked up among the refs of its kind ({@code u:}, {@code t:}, {@code p:}, {@code r:}):
  * {@code author} and {@code reassign} are users; {@code term_id}, {@code default_category}, {@code cat}, {@code tag},
- * {@code categories} and {@code tags} terms; {@code post}, {@code featured_media}, {@code page_on_front},
- * {@code page_for_posts}, {@code p}, {@code page_id}, {@code attachment_id} and {@code preview_id} posts;
+ * {@code categories}, {@code tags} and {@code wp_pattern_category} terms; {@code post}, {@code featured_media},
+ * {@code page_on_front}, {@code page_for_posts}, {@code p}, {@code page_id}, {@code attachment_id} and
+ * {@code preview_id} posts;
  * {@code parent} a term in a term, a post in a post or a revision; an {@code id} (and {@code include},
  * {@code exclude} in URLs) takes the kind of its
  * object (a {@code taxonomy} field makes a term, {@code avatar_urls}, {@code username} or {@code roles} a user, a
@@ -163,6 +164,7 @@ public final class Normalizer {
             Map.entry("tag_ID", Kind.TERM),
             Map.entry("categories", Kind.TERM),
             Map.entry("tags", Kind.TERM),
+            Map.entry("wp_pattern_category", Kind.TERM),
             Map.entry("parent", Kind.TERM),
             Map.entry("author", Kind.USER),
             Map.entry("reassign", Kind.USER),
@@ -176,11 +178,11 @@ public final class Normalizer {
             Map.entry("exclude", Kind.ANY));
     private static final Set<String> USER_HINTS = Set.of("avatar_urls", "username", "roles", "registered_date");
     private static final Set<String> POST_TYPES = Set.of("post", "page", "book", "attachment", "wp_block");
-    private static final Set<String> TAXONOMIES = Set.of("category", "post_tag");
+    private static final Set<String> TAXONOMIES = Set.of("category", "post_tag", "wp_pattern_category");
     private static final Set<String> DATE_KEYS = Set.of("date", "date_gmt", "modified", "modified_gmt");
 
     /** A post's term-id arrays, named by the taxonomies' REST bases. */
-    private static final Set<String> TERM_LISTS = Set.of("categories", "tags");
+    private static final Set<String> TERM_LISTS = Set.of("categories", "tags", "wp_pattern_category");
 
     /** The {@code class_list} prefixes followed by an id, and the kind of the id. */
     private static final Map<String, Kind> CLASS_PREFIXES =
@@ -770,7 +772,9 @@ public final class Normalizer {
         if (route.contains("/wp/v2/users")) {
             return Kind.USER;
         }
-        if (route.contains("/wp/v2/categories") || route.contains("/wp/v2/tags")) {
+        if (route.contains("/wp/v2/categories")
+                || route.contains("/wp/v2/tags")
+                || route.contains("/wp/v2/wp_pattern_category")) {
             return Kind.TERM;
         }
         if (route.contains("/revisions") || route.contains("/autosaves")) {
@@ -866,7 +870,7 @@ public final class Normalizer {
     private static Kind baseKind(String segment) {
         return switch (segment) {
             case "users" -> Kind.USER;
-            case "categories", "tags" -> Kind.TERM;
+            case "categories", "tags", "wp_pattern_category" -> Kind.TERM;
             case "posts", "pages", "media", "blocks", "books" -> Kind.POST;
             case "revisions", "autosaves" -> Kind.REVISION;
             default -> null;
