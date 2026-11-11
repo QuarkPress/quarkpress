@@ -30,6 +30,12 @@
       <artifactId>quarkpress-lib-wp-blocks</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- WordPress's text-field sanitizing of the metadata a resolved pattern gives its block. -->
+    <dependency>
+      <groupId>org.quarkpress.lib</groupId>
+      <artifactId>quarkpress-lib-wp-kses</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-arc</artifactId>

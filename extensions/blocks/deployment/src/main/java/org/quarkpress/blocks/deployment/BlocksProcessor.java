@@ -8,6 +8,8 @@ import org.quarkpress.blocks.BlockPatternCategoryProvider;
 import org.quarkpress.blocks.BlockPatternProvider;
 import org.quarkpress.blocks.BlockRenderer;
 import org.quarkpress.blocks.BlockTypeProvider;
+import org.quarkpress.blocks.runtime.BlocksConfig;
+import org.quarkpress.core.deployment.spi.QuarkPressConfigKeysBuildItem;
 
 class BlocksProcessor {
 
@@ -32,5 +34,10 @@ class BlocksProcessor {
     @BuildStep
     NativeImageResourceBuildItem supportAttributes() {
         return new NativeImageResourceBuildItem("org/quarkpress/blocks/block-support-attributes.json");
+    }
+
+    @BuildStep
+    QuarkPressConfigKeysBuildItem configKeys() {
+        return QuarkPressConfigKeysBuildItem.of("blocks", "quarkpress.blocks", BlocksConfig.class);
     }
 }
