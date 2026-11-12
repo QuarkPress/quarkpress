@@ -9,6 +9,7 @@ import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.RunTimeConfigurationDefaultBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveDeploymentBuildItem;
 import io.quarkus.resteasy.reactive.server.deployment.ResteasyReactiveResourceMethodEntriesBuildItem;
@@ -60,6 +61,12 @@ class RestWpV2Processor {
     @BuildStep
     QuarkPressConfigKeysBuildItem configKeys() {
         return QuarkPressConfigKeysBuildItem.of("rest-wp-v2", "quarkpress.rest-wp-v2", RestWpConfig.class);
+    }
+
+    /** WordPress's default template types and template part areas, read by the synthetic theme from the class path. */
+    @BuildStep
+    NativeImageResourceBuildItem themeResources() {
+        return new NativeImageResourceBuildItem("org/quarkpress/restwp/theme-template-defaults.json");
     }
 
     /**

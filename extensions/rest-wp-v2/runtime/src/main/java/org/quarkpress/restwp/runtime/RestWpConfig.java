@@ -27,6 +27,9 @@ public interface RestWpConfig {
     @WithDefault("true")
     boolean fallbackFrontEnd();
 
+    /** The features the synthetic theme {@code quarkpress} declares to the block editor. */
+    Theme theme();
+
     /** Which other origins may call the REST API from a browser. */
     interface Cors {
 
@@ -35,5 +38,81 @@ public interface RestWpConfig {
          * header.
          */
         Optional<List<String>> origins();
+    }
+
+    /**
+     * The theme features (WordPress's {@code add_theme_support}) the synthetic theme declares, as the themes routes
+     * answer them in {@code theme_supports}. A boolean feature left false is "not declared"; the features whose value
+     * is an object or a list (custom background, header and logo, the editor's colour, font size, gradient and spacing
+     * presets, block templates and template parts) are never declared.
+     */
+    interface Theme {
+
+        /** Wide and full alignments ({@code align-wide}). */
+        @WithDefault("true")
+        boolean alignWide();
+
+        /** Feed links in the page head ({@code automatic-feed-links}). */
+        @WithDefault("false")
+        boolean automaticFeedLinks();
+
+        /** Selective refresh of widgets in the customizer ({@code customize-selective-refresh-widgets}). */
+        @WithDefault("false")
+        boolean customizeSelectiveRefreshWidgets();
+
+        /** The dark editor style ({@code dark-editor-style}). */
+        @WithDefault("false")
+        boolean darkEditorStyle();
+
+        /** No custom colours in the editor ({@code disable-custom-colors}). */
+        @WithDefault("false")
+        boolean disableCustomColors();
+
+        /** No custom font sizes in the editor ({@code disable-custom-font-sizes}). */
+        @WithDefault("false")
+        boolean disableCustomFontSizes();
+
+        /** No custom gradients in the editor ({@code disable-custom-gradients}). */
+        @WithDefault("false")
+        boolean disableCustomGradients();
+
+        /** No generated layout styles ({@code disable-layout-styles}). */
+        @WithDefault("false")
+        boolean disableLayoutStyles();
+
+        /** The editor styles wrapper ({@code editor-styles}). */
+        @WithDefault("true")
+        boolean editorStyles();
+
+        /** Featured images for every post type ({@code post-thumbnails}). */
+        @WithDefault("true")
+        boolean postThumbnails();
+
+        /** Responsive embedded content ({@code responsive-embeds}). */
+        @WithDefault("true")
+        boolean responsiveEmbeds();
+
+        /** The document title tag ({@code title-tag}). */
+        @WithDefault("false")
+        boolean titleTag();
+
+        /** WordPress's default block styles on the front end ({@code wp-block-styles}). */
+        @WithDefault("false")
+        boolean wpBlockStyles();
+
+        /**
+         * The HTML5 markup the theme opts into ({@code html5}): any of {@code search-form}, {@code comment-form},
+         * {@code comment-list}, {@code gallery}, {@code caption}, {@code script}, {@code style}; the single value
+         * {@code none} declares nothing (the feature answers false), and may not be given beside another value.
+         */
+        @WithDefault("comment-form,comment-list,search-form,gallery,caption,style,script")
+        List<String> html5();
+
+        /**
+         * The post formats beyond {@code standard} the theme supports ({@code post-formats}, answered as
+         * {@code formats}): any of {@code aside}, {@code chat}, {@code gallery}, {@code link}, {@code image},
+         * {@code quote}, {@code status}, {@code video}, {@code audio}, in the order given; none by default.
+         */
+        Optional<List<String>> formats();
     }
 }

@@ -34,7 +34,8 @@ import org.quarkpress.restwp.runtime.RouteTable;
 
 /**
  * WordPress's API indexes: the site index at {@code /} (the site's data, the namespaces, the authentication schemes,
- * every route's data, then the site logo and icon), and the endpoint of each namespace's index at
+ * every route's data, then the site logo and icon, with the active theme linked for the callers who may view it), and
+ * the endpoint of each namespace's index at
  * {@code /<namespace>}, which the route table registers right before the namespace's first route. Both are public and
  * take untyped {@code context} (and {@code namespace}) arguments, so {@code ?context=help} adds every route's schema
  * and {@code ?namespace=} on a namespace index answers another namespace's.
@@ -46,6 +47,8 @@ public class IndexRoutes implements RestRouteProvider, RouteTable.NamespaceIndex
 
     private static final String FEATURED_MEDIA = "https://api.w.org/featuredmedia";
 
+    private static final String ACTIVE_THEME = "https://api.w.org/active-theme";
+
     @Inject
     RestServer server;
 
@@ -54,6 +57,9 @@ public class IndexRoutes implements RestRouteProvider, RouteTable.NamespaceIndex
 
     @Inject
     SiteContext site;
+
+    @Inject
+    SyntheticTheme theme;
 
     @ConfigProperty(name = "quarkus.oidc.enabled", defaultValue = "true")
     boolean oidcEnabled;
@@ -133,6 +139,10 @@ public class IndexRoutes implements RestRouteProvider, RouteTable.NamespaceIndex
         Links links = Links.none();
         if (selected.includes("_links") || selected.includes("_embedded")) {
             links = links.add("help", HELP);
+            // the active theme, href only, for the callers who may view it (so with the curie)
+            if (theme.mayViewActive(request)) {
+                links = links.add(ACTIVE_THEME, urls.route("/wp/v2/themes/" + SyntheticTheme.STYLESHEET));
+            }
             links = siteLogo(data, options, links);
             links = siteIcon(data, options, links);
         } else {

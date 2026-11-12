@@ -73,7 +73,7 @@ class IndexDbTest {
         assertThat(index.get("authentication").toString()).isEqualTo("[]");
         assertThat(index.at("/_links").toString())
                 .isEqualTo("{\"help\":[{\"href\":\"https://developer.wordpress.org/rest-api/\"}]}");
-        // the active theme link waits for the themes routes (README D7)
+        // an anonymous caller may not view the active theme, so it is not linked (fact v19)
         assertThat(index.at("/_links").has("wp:active-theme")).isFalse();
         assertThat(index.at("/routes/~1wp~1v2~1types/_links/self/0/href").asText())
                 .isEqualTo("http://localhost/wp-json/wp/v2/types");
@@ -267,6 +267,8 @@ class IndexDbTest {
                         "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)",
                         "/wp/v2/block-types/(?P<namespace>[a-zA-Z0-9_-]+)/(?P<name>[a-zA-Z0-9_-]+)",
                         "/wp/v2/settings",
+                        "/wp/v2/themes",
+                        "/wp/v2/themes/(?P<stylesheet>[^\\/:<>\\*\\?\"\\|]+(?:\\/[^\\/:<>\\*\\?\"\\|]+)?)",
                         "/wp/v2/block-patterns/patterns",
                         "/wp/v2/block-patterns/categories");
         // REST verification list item 19
@@ -368,6 +370,36 @@ class IndexDbTest {
                         + "{\"name\":\"portfolio\"},{\"name\":\"gallery\"},{\"name\":\"media\"},"
                         + "{\"name\":\"videos\"},{\"name\":\"audio\"},{\"name\":\"posts\"},"
                         + "{\"name\":\"footer\"},{\"name\":\"header\"},{\"name\":\"navigation\"}]"));
+    }
+
+    @Test
+    void editorsGetTheActiveThemeLink() {
+        // fact v19: the callers who may view the active theme (a site administrator, an editor, an author, a
+        // contributor) get its link, href only, followed by the curie; a subscriber and an anonymous caller help only
+        AgroalDataSource data = Jdbc.dataSource();
+        long author = TestData.memberOfMain(data, "author").value();
+        long contributor = TestData.memberOfMain(data, "contributor").value();
+        long subscriber = TestData.memberOfMain(data, "subscriber").value();
+        String linked = "{\"help\":[{\"href\":\"https://developer.wordpress.org/rest-api/\"}],"
+                + "\"wp:active-theme\":[{\"href\":\"http://localhost/wp-json/wp/v2/themes/quarkpress\"}],"
+                + "\"curies\":[{\"name\":\"wp\",\"href\":\"https://api.w.org/{rel}\",\"templated\":true}]}";
+        for (long user : List.of(administrator, editor, author, contributor)) {
+            JsonNode index = json(Http.as("test-" + user).get("/wp-json/").asString());
+            assertThat(index.get("_links").toString()).isEqualTo(linked);
+            // selected alone, the links still carry it
+            assertThat(json(Http.as("test-" + user)
+                                    .get("/wp-json/?_fields=_links")
+                                    .asString())
+                            .at("/_links/wp:active-theme/0/href")
+                            .asText())
+                    .isEqualTo("http://localhost/wp-json/wp/v2/themes/quarkpress");
+        }
+        for (String bearer : Arrays.asList(null, "test-" + subscriber)) {
+            assertThat(json(Http.as(bearer).get("/wp-json/").asString())
+                            .get("_links")
+                            .toString())
+                    .isEqualTo("{\"help\":[{\"href\":\"https://developer.wordpress.org/rest-api/\"}]}");
+        }
     }
 
     @Test
