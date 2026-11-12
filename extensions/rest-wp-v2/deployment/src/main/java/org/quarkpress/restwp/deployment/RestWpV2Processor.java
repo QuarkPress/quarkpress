@@ -2,6 +2,7 @@ package org.quarkpress.restwp.deployment;
 
 import io.quarkus.arc.deployment.ExcludedTypeBuildItem;
 import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
+import io.quarkus.cache.deployment.spi.AdditionalCacheNameBuildItem;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -29,6 +30,8 @@ import org.quarkpress.restwp.runtime.RestEntryResource;
 import org.quarkpress.restwp.runtime.RestPaths;
 import org.quarkpress.restwp.runtime.RestWpConfig;
 import org.quarkpress.restwp.runtime.RestWpRecorder;
+import org.quarkpress.restwp.runtime.oembed.OEmbedConfig;
+import org.quarkpress.restwp.runtime.wpv2.OEmbedController;
 
 class RestWpV2Processor {
 
@@ -36,6 +39,9 @@ class RestWpV2Processor {
     static final int FORM_ATTRIBUTE_LIMIT = Integer.MAX_VALUE;
 
     static final String FEATURE = "quarkpress-rest-wp-v2";
+
+    /** The name of the oEmbed proxy's answer cache. */
+    static final String OEMBED_CACHE = "oembed";
 
     /** The capability the revisions module provides. */
     static final String REVISIONS = "org.quarkpress.revisions";
@@ -58,15 +64,51 @@ class RestWpV2Processor {
                         + " rest_no_route");
     }
 
+    /** The module's two configuration roots: its own settings and the oEmbed proxy's. */
     @BuildStep
-    QuarkPressConfigKeysBuildItem configKeys() {
-        return QuarkPressConfigKeysBuildItem.of("rest-wp-v2", "quarkpress.rest-wp-v2", RestWpConfig.class);
+    List<QuarkPressConfigKeysBuildItem> configKeys() {
+        return List.of(
+                QuarkPressConfigKeysBuildItem.of("rest-wp-v2", "quarkpress.rest-wp-v2", RestWpConfig.class),
+                QuarkPressConfigKeysBuildItem.of("rest-wp-v2", "quarkpress.oembed", OEmbedConfig.class));
     }
 
-    /** WordPress's default template types and template part areas, read by the synthetic theme from the class path. */
+    /** The oEmbed proxy's per-site feature: off, a site's proxy route answers as no route would. */
     @BuildStep
-    NativeImageResourceBuildItem themeResources() {
-        return new NativeImageResourceBuildItem("org/quarkpress/restwp/theme-template-defaults.json");
+    SiteFeatureBuildItem oembedFeature() {
+        return new SiteFeatureBuildItem(
+                OEmbedController.FEATURE,
+                "oembed",
+                true,
+                "Proxies the block editor's oEmbed requests to allow-listed providers; when off, the site's"
+                        + " /oembed/1.0/proxy route answers 404 rest_no_route");
+    }
+
+    /**
+     * The resources read from the class path: WordPress's default template types and template part areas (the
+     * synthetic theme) and the snapshot of the oembed.com provider registry (the oEmbed proxy).
+     */
+    @BuildStep
+    void resources(BuildProducer<NativeImageResourceBuildItem> resources) {
+        resources.produce(new NativeImageResourceBuildItem("org/quarkpress/restwp/theme-template-defaults.json"));
+        resources.produce(new NativeImageResourceBuildItem("org/quarkpress/restwp/oembed/providers.json"));
+    }
+
+    /** The oEmbed answer cache, named for the controller's injection point. */
+    @BuildStep
+    AdditionalCacheNameBuildItem oembedCache() {
+        return new AdditionalCacheNameBuildItem(OEMBED_CACHE);
+    }
+
+    /**
+     * The oEmbed cache keeps a provider's answer for a day, as WordPress's transient does, and at most ten thousand
+     * of them; an application's own setting still wins.
+     */
+    @BuildStep
+    void oembedCacheDefaults(BuildProducer<RunTimeConfigurationDefaultBuildItem> defaults) {
+        defaults.produce(new RunTimeConfigurationDefaultBuildItem(
+                "quarkus.cache.caffeine.\"" + OEMBED_CACHE + "\".expire-after-write", "P1D"));
+        defaults.produce(new RunTimeConfigurationDefaultBuildItem(
+                "quarkus.cache.caffeine.\"" + OEMBED_CACHE + "\".maximum-size", "10000"));
     }
 
     /**

@@ -25,7 +25,8 @@ class SingleSiteDispatchDbTest {
                 .header("Link", "<http://localhost/wp-json/>; rel=\"https://api.w.org/\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .body("url", equalTo("http://localhost"))
-                .body("namespaces[0]", equalTo("wp/v2"));
+                .body("namespaces[0]", equalTo("oembed/1.0"))
+                .body("namespaces[1]", equalTo("wp/v2"));
         Http.as(null).get("/wp-json/wp/v2/types/post").then().statusCode(200).body("slug", equalTo("post"));
         Http.as(null)
                 .get("/?rest_route=/wp/v2/types/page")

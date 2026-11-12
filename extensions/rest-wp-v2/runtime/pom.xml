@@ -50,6 +50,16 @@
     </dependency>
     <dependency>
       <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-outbound</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress.lib</groupId>
+      <artifactId>quarkpress-lib-wp-kses</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-revisions</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
@@ -75,6 +85,10 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-jackson</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-cache</artifactId>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

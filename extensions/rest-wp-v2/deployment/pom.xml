@@ -54,6 +54,11 @@
     </dependency>
     <dependency>
       <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-outbound-deployment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkpress</groupId>
       <artifactId>quarkpress-revisions-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
@@ -79,6 +84,14 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-jackson-deployment</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-cache-deployment</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-cache-deployment-spi</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>

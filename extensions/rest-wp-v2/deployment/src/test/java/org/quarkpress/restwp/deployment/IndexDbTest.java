@@ -82,6 +82,8 @@ class IndexDbTest {
         assertThat(routes)
                 .startsWith(
                         "/",
+                        "/oembed/1.0",
+                        "/oembed/1.0/proxy",
                         "/wp/v2",
                         "/wp/v2/posts",
                         "/wp/v2/posts/(?P<id>[\\d]+)",
@@ -112,9 +114,10 @@ class IndexDbTest {
                 .isGreaterThan(routes.indexOf("/wp/v2/taxonomies/(?P<taxonomy>[\\w-]+)"));
         // REST verification list item 19: gmt_offset is the JSON string "0" on a fresh site (type-strict)
         assertThat(index.get("gmt_offset")).isEqualTo(TextNode.valueOf("0"));
-        // namespaces lists wp/v2, the test namespace and the locks' namespace in registration order (the two at
-        // order 1000 by class name)
-        assertThat(index.get("namespaces").toString()).isEqualTo("[\"wp/v2\",\"qp-test/v1\",\"quarkpress/v1\"]");
+        // namespaces lists the oEmbed namespace first (WordPress registers it before wp/v2), then wp/v2, the test
+        // namespace and the locks' namespace in registration order (the two at order 1000 by class name)
+        assertThat(index.get("namespaces").toString())
+                .isEqualTo("[\"oembed/1.0\",\"wp/v2\",\"qp-test/v1\",\"quarkpress/v1\"]");
         // the route data as WordPress describes the index routes (REST verification list item 19)
         assertThat(index.at("/routes/~1").toString())
                 .isEqualTo("{\"namespace\":\"\",\"methods\":[\"GET\"],\"endpoints\":[{\"methods\":[\"GET\"],"
