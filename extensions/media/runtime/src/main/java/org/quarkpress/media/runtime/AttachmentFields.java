@@ -53,6 +53,15 @@ public final class AttachmentFields {
     }
 
     /**
+     * The description of a sideloaded file, where WordPress puts an embedded caption: the requested description unless
+     * it is empty as PHP sees it, in which case the embedded caption when that is not empty, else the requested value
+     * (or nothing).
+     */
+    public static String sideloadDescription(Optional<String> requested, EmbeddedText embedded) {
+        return caption(requested, embedded);
+    }
+
+    /**
      * The alternative text: the requested one when given, even empty; else the embedded one when it is not blank
      * (PHP's trim leaves something); else empty; cleaned as WordPress cleans a text field either way.
      */

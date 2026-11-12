@@ -515,7 +515,8 @@ class UploadPipelineDbTest {
                 built.commentStatus(),
                 built.pingStatus(),
                 built.imageTypeCheck(),
-                built.clientNameTitle());
+                built.clientNameTitle(),
+                built.sideloaded());
         assertNothingWritten(
                 () -> as(Identities.user(carol), () -> media.store(lying)), IllegalArgumentException.class, null, null);
     }

@@ -100,6 +100,16 @@ public interface Media {
     Path spool(InputStream body) throws IOException;
 
     /**
+     * The largest upload the site tells its editor it takes, as WordPress's {@code wp_max_upload_size} does: the
+     * smaller of {@code quarkpress.media.max-upload-size} (when set) and the HTTP body limit ({@code
+     * quarkus.http.limits.max-body-size}, which plays the part of PHP's {@code post_max_size} and {@code
+     * upload_max_filesize}), and on a network also the per-file limit {@code fileupload_maxk} in KB (whether or not
+     * the network's upload checks are on) and, with the checks on, the space left on the site. Checks no capability:
+     * the caller decides what it tells whom.
+     */
+    long maxUploadSize();
+
+    /**
      * The file types the caller may upload on the current site, as extension patterns (such as {@code jpg|jpeg|jpe})
      * with their MIME types, in lookup order: the site's list, with the network's list and the caller's {@code
      * unfiltered_html} applied, as WordPress's {@code get_allowed_mime_types()} answers.

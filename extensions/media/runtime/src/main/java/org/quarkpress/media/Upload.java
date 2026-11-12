@@ -38,8 +38,11 @@ import org.quarkpress.core.UserId;
  * @param imageTypeCheck whether an image declared in a type the image processor cannot make sizes for is refused
  *     before its file is read; false lets it through, stored without sizes
  * @param clientNameTitle whether the client name gives the title when neither the request nor the file gives one;
- *     false for a name sent in a header with the file (a sideload), whose title then comes from the stored file name,
- *     made clean and unique
+ *     false for a name sent in a header with the file (a raw-body upload), whose title then comes from the stored
+ *     file name, made clean and unique
+ * @param sideloaded whether the server fetched the file itself (from a URL), which WordPress's sideload names as
+ *     {@code clientNameTitle} false does and whose embedded caption becomes the description, not the caption, when
+ *     the request gives no description
  */
 public record Upload(
         String clientName,
@@ -61,7 +64,8 @@ public record Upload(
         Optional<String> commentStatus,
         Optional<String> pingStatus,
         boolean imageTypeCheck,
-        boolean clientNameTitle) {
+        boolean clientNameTitle,
+        boolean sideloaded) {
 
     public Upload {
         Objects.requireNonNull(clientName, "clientName");
@@ -115,6 +119,7 @@ public record Upload(
         private String pingStatus;
         private boolean imageTypeCheck = true;
         private boolean clientNameTitle = true;
+        private boolean sideloaded;
 
         private Builder(String clientName, Path file) {
             this.clientName = Objects.requireNonNull(clientName, "clientName");
@@ -215,6 +220,19 @@ public record Upload(
             return this;
         }
 
+        /**
+         * A file the server fetched itself, named as WordPress's sideload names it: the title is the stored file name
+         * without its extension (cleaned, made unique, its extension corrected to the content, such as {@code
+         * photo-1}), replaced by an embedded title that is not blank and not a number once its slug is made; an
+         * embedded caption goes to the description, not the caption; an embedded alternative text is stored; a
+         * title, caption or description the request gives wins as for any upload.
+         */
+        public Builder sideloaded() {
+            this.clientNameTitle = false;
+            this.sideloaded = true;
+            return this;
+        }
+
         public Upload build() {
             return new Upload(
                     clientName,
@@ -236,7 +254,8 @@ public record Upload(
                     Optional.ofNullable(commentStatus),
                     Optional.ofNullable(pingStatus),
                     imageTypeCheck,
-                    clientNameTitle);
+                    clientNameTitle,
+                    sideloaded);
         }
     }
 }

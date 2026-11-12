@@ -468,12 +468,18 @@ public class UploadPipeline {
         // a name without a dot gives no title, so a sideload's title comes from the stored name
         String title = AttachmentFields.title(
                 upload.title(), embedded, upload.clientNameTitle() ? upload.clientName() : "", placed.name());
-        String excerpt = AttachmentFields.caption(upload.caption(), embedded);
+        // a sideload's embedded caption is its description, as WordPress's sideload stores it
+        String excerpt = upload.sideloaded()
+                ? upload.caption().orElse("")
+                : AttachmentFields.caption(upload.caption(), embedded);
+        String content = upload.sideloaded()
+                ? AttachmentFields.sideloadDescription(upload.description(), embedded)
+                : upload.description().orElse("");
         PostChanges.Builder changes = PostChanges.builder()
                 .type("attachment")
                 .title(title)
                 .excerpt(excerpt)
-                .content(upload.description().orElse(""))
+                .content(content)
                 .guid(placed.guid());
         upload.status().ifPresent(changes::status);
         upload.author().ifPresent(changes::author);

@@ -84,5 +84,8 @@ class SingleSiteNetworkOptionsDbTest {
                         Identities.user(carol),
                         () -> allowedTypes.current().extensions()))
                 .contains("txt", "pdf", "gif");
+        // the upload limit told to the editor reads no network cap either: Quarkus's default body limit, 10240K
+        assertThat(Identities.onSite(TestData.MAIN, Identities.user(carol), () -> media.maxUploadSize()))
+                .isEqualTo(10_485_760L);
     }
 }

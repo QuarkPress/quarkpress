@@ -1,11 +1,13 @@
 package org.quarkpress.media.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.quarkus.runtime.configuration.MemorySize;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.media.MediaException;
 import org.quarkpress.persistence.NetworkOptions;
@@ -60,6 +62,42 @@ public class UploadLimits {
 
     @Inject
     MediaRepository mediaRows;
+
+    /** The HTTP body limit, Quarkus's default when no HTTP extension sets one. */
+    @ConfigProperty(name = "quarkus.http.limits.max-body-size", defaultValue = "10240K")
+    MemorySize maxBodySize;
+
+    /**
+     * The largest upload the current site tells its editor it takes, as WordPress's {@code wp_max_upload_size}
+     * answers: the smaller of the configured maximum (when set) and the HTTP body limit, and on a network also the
+     * per-file limit {@code fileupload_maxk} in KB (read as a whole number, as WordPress's multisite filter casts it,
+     * and applied whether or not the network's checks are on) and, with the checks on, the space left on the site
+     * (its quota less the stored sizes of its files, never below 0).
+     */
+    public long maxUploadSize() {
+        if (!installMode.multisite()) {
+            return smallest(config.maxUploadSize(), maxBodySize, Optional.empty());
+        }
+        long networkCap = ((long) leadingNumber(maxK(network.find("fileupload_maxk")))) * KB_IN_BYTES;
+        if (checksOn(config.networkLimits().enabled(), network.find("upload_space_check_disabled"))) {
+            long allowed = allowedBytes(site.options().get("blog_upload_space"), network.find("blog_upload_space"));
+            long used = mediaRows.storedBytes(site.siteId());
+            networkCap = Math.min(networkCap, new Space(allowed, used).available());
+        }
+        return smallest(config.maxUploadSize(), maxBodySize, Optional.of(networkCap));
+    }
+
+    /** The smallest of the configured maximum (when set), the HTTP body limit and the network's cap (when any). */
+    public static long smallest(Optional<MemorySize> configured, MemorySize bodyLimit, Optional<Long> networkCap) {
+        long limit = bodyLimit.asLongValue();
+        if (configured.isPresent()) {
+            limit = Math.min(limit, configured.get().asLongValue());
+        }
+        if (networkCap.isPresent()) {
+            limit = Math.min(limit, networkCap.get());
+        }
+        return limit;
+    }
 
     /**
      * The refusal of an upload of {@code size} bytes to the current site by the network's limits; empty on a single

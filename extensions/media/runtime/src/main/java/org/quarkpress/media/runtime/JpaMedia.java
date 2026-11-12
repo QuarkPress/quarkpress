@@ -123,6 +123,9 @@ public class JpaMedia implements Media {
     AllowedTypesFor allowedTypesFor;
 
     @Inject
+    UploadLimits uploadLimits;
+
+    @Inject
     ImageProcessor processor;
 
     @Inject
@@ -294,6 +297,14 @@ public class JpaMedia implements Media {
             throw failure;
         }
         return file;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public long maxUploadSize() {
+        requireFeature(site);
+        return uploadLimits.maxUploadSize();
     }
 
     @Override
