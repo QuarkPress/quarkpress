@@ -358,7 +358,6 @@ public final class RestComparison {
             "/wp/v2/search",
             "/wp/v2/block-directory",
             "/wp/v2/pattern-directory",
-            "/wp/v2/themes",
             "/wp/v2/plugins",
             "/wp/v2/sidebars",
             "/wp/v2/widget-types",
@@ -366,9 +365,6 @@ public final class RestComparison {
             "/wp/v2/icons",
             "/wp/v2/icon-collections",
             "/wp/v2/view-config");
-
-    /** The index links WordPress gives an editor and QuarkPress does not have yet (the active theme's). */
-    public static final List<String> NOT_SERVED_INDEX_LINKS = List.of("wp:active-theme", "curies");
 
     static boolean notServedRoute(String route) {
         for (String served : NOT_SERVED_ROUTES) {
@@ -381,9 +377,9 @@ public final class RestComparison {
 
     /**
      * For an index or a namespace's index on both sides: removes from WordPress's body the namespaces, routes and index
-     * links that QuarkPress does not serve yet ({@link #NOT_SERVED_NAMESPACES}, {@link #NOT_SERVED_ROUTES},
-     * {@link #NOT_SERVED_INDEX_LINKS}) and that QuarkPress's body lacks; answers the JSON pointer of each removed one.
-     * Anything else either side lists is compared.
+     * links that QuarkPress does not serve yet ({@link #NOT_SERVED_NAMESPACES}, {@link #NOT_SERVED_ROUTES}) and that
+     * QuarkPress's body lacks; answers the JSON pointer of each removed one. Anything else either side lists is
+     * compared, the index links among it since the active theme is linked.
      */
     static List<String> dropWordPressOnly(JsonNode wordpress, JsonNode quarkpress, boolean indexRequest) {
         List<String> dropped = new ArrayList<>();
@@ -424,15 +420,6 @@ public final class RestComparison {
             }
             namespaces.removeAll();
             namespaces.addAll(kept);
-        }
-        if (index && wordpress.path("_links").isObject()) {
-            ObjectNode wpLinks = (ObjectNode) wordpress.get("_links");
-            for (String rel : NOT_SERVED_INDEX_LINKS) {
-                if (wpLinks.has(rel) && !quarkpress.path("_links").has(rel)) {
-                    wpLinks.remove(rel);
-                    dropped.add("/_links/" + escape(rel));
-                }
-            }
         }
         return dropped;
     }

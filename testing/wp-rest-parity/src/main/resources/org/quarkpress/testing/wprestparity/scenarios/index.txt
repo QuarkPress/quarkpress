@@ -65,3 +65,4 @@ f02-pattern-categories.json
 f03-block-types.json
 f04-block-renderer.json
 f05-block-patterns.json
+f06-themes.json

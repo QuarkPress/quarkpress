@@ -252,18 +252,19 @@ class NormalizerTest {
     }
 
     @Test
-    void theActiveThemeLinksAreDroppedFromTheIndexOnly() {
+    void noIndexLinkIsDroppedNowThatTheActiveThemeIsLinked() {
+        // the active theme link is served: an index whose QuarkPress side lacks it differs plainly, as any body does
         assertThat(aspects(
                         "/wp-json/",
                         "{\"namespaces\":[],\"_links\":{\"help\":[],\"wp:active-theme\":[],\"curies\":[]}}",
                         "{\"namespaces\":[],\"_links\":{\"help\":[]}}"))
-                .containsExactly("req1:body:wp-only:/_links/wp:active-theme", "req1:body:wp-only:/_links/curies");
+                .containsExactly("req1:body:/_links/wp:active-theme", "req1:body:/_links/curies");
         // an index request whose _fields leaves out the namespaces is still the index
         assertThat(aspects(
                         "/s1/wp-json/?_fields=_links",
                         "{\"_links\":{\"help\":[],\"wp:active-theme\":[]}}",
                         "{\"_links\":{\"help\":[]}}"))
-                .containsExactly("req1:body:wp-only:/_links/wp:active-theme");
+                .containsExactly("req1:body:/_links/wp:active-theme");
         assertThat(RestComparison.isIndexTarget("/s1/?rest_route=/&_fields=id")).isTrue();
         assertThat(RestComparison.isIndexTarget("/s1/wp-json/wp/v2/tags")).isFalse();
         assertThat(aspects(

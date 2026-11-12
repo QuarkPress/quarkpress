@@ -1,0 +1,157 @@
+{
+  "id": "f06",
+  "rule": "the themes routes (/wp/v2/themes and /wp/v2/themes/<stylesheet>, Part G v01-v07) on WordPress with the harness theme quarkpress active, compared field by field with QuarkPress's synthetic theme: the active theme for an editor, an author and a contributor, with and without the editor's context=edit (identical bodies, X-WP-Total 1, Allow GET); a subscriber (403) and anonymous (401) refused the active theme; bob's other lists refused (403 rest_cannot_view_themes, no Allow) and status[]=active accepted; status=foo refused before permission (400, no Allow) for bob and anonymous; alice's full and inactive lists (D54: WordPress lists every installed theme); the active theme's item for bob, erin and anonymous, another theme's and an unknown one for bob (403) and alice (404 rest_theme_not_found with Allow; D54 for the installed one); a percent-encoded stylesheet decoded once (also a doubly encoded one, decoded by the request path and then by the route); nested _fields; HEAD; OPTIONS of both routes",
+  "setup": [
+    {
+      "option": "qp_parity_quarkpress_theme",
+      "value": "1"
+    }
+  ],
+  "requests": [
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=active"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?context=edit&status=active"
+    },
+    {
+      "as": "carol",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=active"
+    },
+    {
+      "as": "dave",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?context=edit&status=active"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=active"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?context=edit&status=active"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=active"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=inactive"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=active,inactive"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status[]=active"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=foo"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=foo"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=inactive"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/quarkpress"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/quarkpress"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/quarkpress"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/twentytwentyfour"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/nope"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/twentytwentyfour"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/nope"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/a/b"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/quarkpres%73"
+    },
+    {
+      "as": "alice",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes/quarkpres%2573"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/wp/v2/themes?status=active&_fields=theme_supports.formats,stylesheet"
+    },
+    {
+      "as": "dave",
+      "method": "HEAD",
+      "target": "/wp-json/wp/v2/themes?status=active"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/themes"
+    },
+    {
+      "as": "alice",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/themes/quarkpress"
+    }
+  ]
+}
