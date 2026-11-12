@@ -73,12 +73,11 @@ d15 req5:header:content-type D5 _jsonp=a-b: WordPress refuses the callback name 
 d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_callback_disabled
 
 # D6: the index and a namespace's index list only the namespaces and routes QuarkPress serves.
-* req*:body:wp-only:*/namespaces/oembed~11.0 D6 a namespace QuarkPress does not serve yet
 * req*:body:wp-only:*/namespaces/wp-site-health~1v1 D6 a namespace QuarkPress does not serve yet
 * req*:body:wp-only:*/namespaces/wp-block-editor~1v1 D6 a namespace QuarkPress does not serve yet
 * req*:body:wp-only:*/namespaces/wp-abilities~1v1 D6 a namespace QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1batch~1v1* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1oembed~11.0* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1oembed~11.0~1embed* D6 the oEmbed embed route (the local embed of a post) is not served yet
 * req*:body:wp-only:*/routes/~1wp-site-health~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp-block-editor~1v1* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
@@ -107,8 +106,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkPress authenticates with tokens only
-d19 req5:status D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404)
-d19 req5:body* D6 namespace=oembed/1.0: WordPress's oEmbed namespace, QuarkPress's rest_invalid_namespace
 
 # D7: the index links the synthetic theme quarkpress; WordPress links its own active theme (Twenty Twenty-Five on a
 # site without the harness theme switch).
@@ -508,3 +505,8 @@ f06 req21:status D54 twentytwentyfour: installed on WordPress (200); unknown to 
 f06 req21:body* D54 twentytwentyfour: WordPress's inactive theme; QuarkPress's rest_theme_not_found
 f06 req*:body:*/_links/wp:user-global-styles D54 WordPress links (and creates) the active theme's user global styles; QuarkPress has no global styles routes
 f06 req*:body:*/_links/curies D54 WordPress's curie comes with its wp:user-global-styles link; QuarkPress's theme record has no wp: link and so no curie
+
+# D55: the oEmbed proxy asks allow-listed providers only, filters every provider's html, refuses the site's own URLs
+# and sends 600/750 for a zero size; offline scenarios cannot show it (a site URL cannot be written into a target, and
+# a provider answer needs the network).
+none * D55 the proxy's allow-list, untrusted filter, own-site refusal and default sizes need a provider on the network or a site URL inside a target, which the scenarios cannot express
