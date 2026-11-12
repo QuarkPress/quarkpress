@@ -1,0 +1,82 @@
+{
+  "id": "f07",
+  "rule": "the oEmbed proxy (/oembed/1.0/proxy, Part G v11-v12) on requests that need no network: the missing url (400 before the permission, for an editor and a subscriber), format outside its enum, maxwidth=abc accepted and read as 0, a subscriber (403) and anonymous (401) refused with WordPress's message, url=notaurl sanitized to http://notaurl (404), the audio and video embed handlers (shortcode text; the video sizes only when both were sent), a page URL no provider serves (404 oembed_invalid_url, format=xml and discover=false changing nothing), OPTIONS of the proxy route and the namespace index (D6: the embed route is not served). Own-site URLs need a site URL inside a target, which scenarios cannot express (D55 is documented without a scenario); provider answers would need the network.",
+  "setup": [],
+  "requests": [
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fpages.invalid%2Fpage&format=foo"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fpages.invalid%2Fpage&maxwidth=abc"
+    },
+    {
+      "as": "erin",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fpages.invalid%2Fpage"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fpages.invalid%2Fpage"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=notaurl"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fmedia.invalid%2Fa.mp3"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fmedia.invalid%2Fa.mp4"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fmedia.invalid%2Fa.mp4&maxheight=300"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fmedia.invalid%2Fa.mp3&maxwidth=abc&maxheight=0"
+    },
+    {
+      "as": "bob",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0/proxy?url=https%3A%2F%2Fpages.invalid%2Fpage&format=xml&discover=false"
+    },
+    {
+      "as": "bob",
+      "method": "OPTIONS",
+      "target": "/wp-json/oembed/1.0/proxy"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/oembed/1.0/proxy"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/wp-json/oembed/1.0"
+    }
+  ]
+}

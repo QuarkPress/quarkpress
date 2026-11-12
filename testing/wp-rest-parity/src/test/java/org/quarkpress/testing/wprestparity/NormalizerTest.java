@@ -182,7 +182,7 @@ class NormalizerTest {
                 200,
                 Map.of(),
                 bytes(
-                        "{\"namespaces\":[\"oembed/1.0\",\"wp/v2\"],\"routes\":{\"/\":{},\"/oembed/1.0\":{},\"/wp/v2\":{}}}"));
+                        "{\"namespaces\":[\"wp-site-health/v1\",\"wp/v2\"],\"routes\":{\"/\":{},\"/wp-site-health/v1\":{},\"/wp/v2\":{}}}"));
         Exchange qp = new Exchange(
                 call, 200, Map.of(), bytes("{\"namespaces\":[\"wp/v2\"],\"routes\":{\"/\":{},\"/wp/v2\":{}}}"));
         comparison.compare(new RestScenario("s1", "test", List.of(), List.of(call)), List.of(wp), List.of(qp), run);
@@ -190,7 +190,8 @@ class NormalizerTest {
         run.mismatches().forEach(m -> aspects.add(m.aspect()));
         assertThat(aspects)
                 .containsExactly(
-                        "req1:body:wp-only:/routes/~1oembed~11.0", "req1:body:wp-only:/namespaces/oembed~11.0");
+                        "req1:body:wp-only:/routes/~1wp-site-health~1v1",
+                        "req1:body:wp-only:/namespaces/wp-site-health~1v1");
     }
 
     @Test
@@ -202,8 +203,8 @@ class NormalizerTest {
                 call,
                 200,
                 Map.of(),
-                bytes("{\"body\":{\"namespaces\":[\"oembed/1.0\",\"wp/v2\"],"
-                        + "\"routes\":{\"/oembed/1.0\":{},\"/wp/v2\":{}}},\"status\":200,\"headers\":{}}"));
+                bytes("{\"body\":{\"namespaces\":[\"wp-site-health/v1\",\"wp/v2\"],"
+                        + "\"routes\":{\"/wp-site-health/v1\":{},\"/wp/v2\":{}}},\"status\":200,\"headers\":{}}"));
         Exchange qp = new Exchange(
                 call,
                 200,
@@ -215,8 +216,8 @@ class NormalizerTest {
         run.mismatches().forEach(m -> aspects.add(m.aspect()));
         assertThat(aspects)
                 .containsExactly(
-                        "req1:body:wp-only:/body/routes/~1oembed~11.0",
-                        "req1:body:wp-only:/body/namespaces/oembed~11.0");
+                        "req1:body:wp-only:/body/routes/~1wp-site-health~1v1",
+                        "req1:body:wp-only:/body/namespaces/wp-site-health~1v1");
     }
 
     /** The mismatching aspects of comparing one request's two bodies. */
@@ -239,13 +240,13 @@ class NormalizerTest {
         // a route and a namespace QuarkPress serves but no longer lists still differ
         assertThat(aspects(
                         "/wp-json/",
-                        "{\"namespaces\":[\"oembed/1.0\",\"wp/v2\"],\"routes\":{\"/wp/v2/posts\":{},"
+                        "{\"namespaces\":[\"wp-site-health/v1\",\"wp/v2\"],\"routes\":{\"/wp/v2/posts\":{},"
                                 + "\"/wp/v2/posts/(?P<id>[\\\\d]+)\":{},\"/wp/v2/tags\":{},\"/wp/v2/postsx\":{}}}",
                         "{\"namespaces\":[],\"routes\":{}}"))
                 .containsExactly(
                         "req1:body:wp-only:/routes/~1wp~1v2~1posts",
                         "req1:body:wp-only:/routes/~1wp~1v2~1posts~1(?P<id>[\\d]+)",
-                        "req1:body:wp-only:/namespaces/oembed~11.0",
+                        "req1:body:wp-only:/namespaces/wp-site-health~1v1",
                         "req1:body:/namespaces/0",
                         "req1:body:/routes/~1wp~1v2~1tags",
                         "req1:body:/routes/~1wp~1v2~1postsx");

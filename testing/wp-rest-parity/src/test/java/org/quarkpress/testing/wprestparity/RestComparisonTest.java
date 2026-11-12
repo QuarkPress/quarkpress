@@ -351,7 +351,7 @@ class RestComparisonTest {
 
     @Test
     void theQuarkPressOnlyNamespaceIsItsOwnAspect() {
-        String wp = "{\"namespaces\":[\"oembed/1.0\",\"wp/v2\",\"wp-site-health/v1\"],\"routes\":{}}";
+        String wp = "{\"namespaces\":[\"wp-block-editor/v1\",\"wp/v2\",\"wp-site-health/v1\"],\"routes\":{}}";
         assertThat(aspects(
                         "/wp-json/",
                         wp,
@@ -359,7 +359,7 @@ class RestComparisonTest {
                         Map.of(),
                         Map.of()))
                 .containsExactlyInAnyOrder(
-                        "req1:body:wp-only:/namespaces/oembed~11.0",
+                        "req1:body:wp-only:/namespaces/wp-block-editor~1v1",
                         "req1:body:wp-only:/namespaces/wp-site-health~1v1",
                         "req1:body:qp-only:/namespaces/quarkpress~1v1");
         // any other namespace QuarkPress lists still differs

@@ -325,7 +325,7 @@ public final class RestComparison {
 
     /** The namespaces WordPress serves and QuarkPress does not serve yet. */
     public static final Set<String> NOT_SERVED_NAMESPACES =
-            Set.of("oembed/1.0", "wp-site-health/v1", "wp-block-editor/v1", "wp-abilities/v1");
+            Set.of("wp-site-health/v1", "wp-block-editor/v1", "wp-abilities/v1");
 
     /** The namespaces only QuarkPress serves: the editor's lock, preview and draft routes. */
     public static final Set<String> QUARKPRESS_ONLY_NAMESPACES = Set.of("quarkpress/v1");
@@ -336,7 +336,7 @@ public final class RestComparison {
      */
     public static final List<String> NOT_SERVED_ROUTES = List.of(
             "/batch/v1",
-            "/oembed/1.0",
+            "/oembed/1.0/embed",
             "/wp-site-health/v1",
             "/wp-block-editor/v1",
             "/wp-abilities/v1",
