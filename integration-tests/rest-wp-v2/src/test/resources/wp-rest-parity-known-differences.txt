@@ -99,7 +99,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1comments* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1block-directory* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1pattern-directory* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1themes* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1plugins* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1sidebars* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1widget-types* D6 routes QuarkPress does not serve yet
@@ -111,9 +110,9 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 d19 req5:status D6 namespace=oembed/1.0: WordPress describes its oEmbed namespace; QuarkPress does not serve it (404)
 d19 req5:body* D6 namespace=oembed/1.0: WordPress's oEmbed namespace, QuarkPress's rest_invalid_namespace
 
-# D7: no wp:active-theme link until the synthetic theme route exists.
-* req*:body:wp-only:*/_links/wp:active-theme D7 WordPress links an editor's index to the active theme
-* req*:body:wp-only:*/_links/curies D7 WordPress's index curies come with the wp:active-theme link
+# D7: the index links the synthetic theme quarkpress; WordPress links its own active theme (Twenty Twenty-Five on a
+# site without the harness theme switch).
+* req*:body:*/_links/wp:active-theme/0/href D7 WordPress's index links the active theme twentytwentyfive; QuarkPress's its synthetic theme quarkpress
 
 # D8: only registered types and taxonomies.
 * req*:body:*/nav_menu_item D8 type not registered in QuarkPress (lists and the has_published_posts enum)
@@ -499,3 +498,13 @@ f04 req26:body* D51 core/archives: WordPress's archives list; QuarkPress's block
 # D52, D53 (f05): no core, theme or wordpress.org patterns; the core pattern categories with QuarkPress's descriptions.
 none * D52 f05 turns WordPress's core patterns off and uses a theme without patterns, and the harness has no network for wordpress.org's, so both sides list the test patterns only
 f05 req8:body:/*/description D53 the core pattern categories: WordPress's descriptions; QuarkPress's own
+# D54 (f06): one theme only, the synthetic quarkpress: alice's lists of every installed theme and the items of the
+# others, and the user global styles link WordPress adds to the active theme.
+f06 req14:header:x-wp-total D54 alice's full list: WordPress counts every installed theme (4); QuarkPress has the synthetic theme only
+f06 req14:body* D54 alice's full list: WordPress lists every installed theme; QuarkPress the synthetic theme only
+f06 req15:header:x-wp-total D54 alice's inactive themes: WordPress has three; QuarkPress none
+f06 req15:body* D54 alice's inactive themes: WordPress lists three; QuarkPress none
+f06 req21:status D54 twentytwentyfour: installed on WordPress (200); unknown to QuarkPress (404 rest_theme_not_found)
+f06 req21:body* D54 twentytwentyfour: WordPress's inactive theme; QuarkPress's rest_theme_not_found
+f06 req*:body:*/_links/wp:user-global-styles D54 WordPress links (and creates) the active theme's user global styles; QuarkPress has no global styles routes
+f06 req*:body:*/_links/curies D54 WordPress's curie comes with its wp:user-global-styles link; QuarkPress's theme record has no wp: link and so no curie
