@@ -39,12 +39,14 @@ import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
  *               {"as": "carol", "method": "POST", "target": "/wp-json/wp/v2/media", "contentType": "image/jpeg",
  *                "headerLines": {"Content-Disposition": ["attachment; filename=a.jpg"]},
  *                "raw": {"fixture": {"fixture": "jpeg", "args": [16, 16]}}},
- *               {"as": "alice", "method": "GET", "target": "/wp-json/wp/v2/media/{m:photo}", "https": true}]}
+ *               {"as": "alice", "method": "GET", "target": "/wp-json/wp/v2/media/{m:photo}", "https": true},
+ *               {"as": "bob", "preload": {"type": "post", "post": "{p:draft}"}}]}
  * }</pre>
  *
  * {@code "editor": true} marks a scenario that needs an image editor on WordPress's side ({@link
- * RestScenario#editor}). Targets are relative to the scenario's site. Unknown keys are refused, so a typo never
- * silently drops a step.
+ * RestScenario#editor}). Targets are relative to the scenario's site. A request with {@code preload} instead of a
+ * method and target is a preload comparison ({@link RestScenario.Preload}): the editor route's GET for that post,
+ * whose preload map both sides answer. Unknown keys are refused, so a typo never silently drops a step.
  */
 public final class RestScenarioJson {
 
@@ -60,8 +62,20 @@ public final class RestScenarioJson {
     private static final Set<String> LEAVE_KEYS = Set.of("leave");
     private static final Set<String> MEDIA_KEYS = Set.of("media", "as", "fixture", "name", "type", "fields");
     private static final Set<String> FIXTURE_KEYS = Set.of("fixture", "args");
-    private static final Set<String> REQUEST_KEYS =
-            Set.of("as", "method", "target", "headers", "headerLines", "contentType", "body", "upload", "raw", "https");
+    private static final Set<String> REQUEST_KEYS = Set.of(
+            "as",
+            "method",
+            "target",
+            "headers",
+            "headerLines",
+            "contentType",
+            "body",
+            "upload",
+            "raw",
+            "https",
+            "preload");
+    private static final Set<String> PRELOAD_REQUEST_KEYS = Set.of("as", "preload", "https");
+    private static final Set<String> PRELOAD_KEYS = Set.of("type", "post");
     private static final Set<String> UPLOAD_KEYS = Set.of("fixture", "name", "type", "fields");
     private static final Set<String> RAW_KEYS = Set.of("fixture");
 
@@ -168,7 +182,16 @@ public final class RestScenarioJson {
             RestCall call = scenario.requests().get(i);
             RestScenario.Form form = scenario.forms().get(i);
             ObjectNode node = requests.addObject();
-            node.put("as", call.as()).put("method", call.method()).put("target", call.target());
+            node.put("as", call.as());
+            if (form.preload().isPresent()) {
+                RestScenario.Preload preload = form.preload().get();
+                node.putObject("preload").put("type", preload.type()).put("post", preload.post());
+                if (form.https()) {
+                    node.put("https", true);
+                }
+                continue;
+            }
+            node.put("method", call.method()).put("target", call.target());
             if (!call.headers().isEmpty()) {
                 ObjectNode headers = node.putObject("headers");
                 call.headers().entrySet().stream()
@@ -321,6 +344,9 @@ public final class RestScenarioJson {
             throw new IllegalArgumentException(id + ": a request is an object");
         }
         keys(request, REQUEST_KEYS, id + " request");
+        if (request.has("preload")) {
+            return preload(id, request);
+        }
         Map<String, String> headers = new LinkedHashMap<>();
         if (request.has("headers")) {
             JsonNode node = request.get("headers");
@@ -413,6 +439,37 @@ public final class RestScenarioJson {
         RestCall call =
                 new RestCall(text(request, "as"), method, text(request, "target"), headers, contentType, body, lines);
         return new Request(call, new RestScenario.Form(upload, raw, https));
+    }
+
+    /**
+     * A preload comparison: {@code as}, {@code preload} ({@code type}, {@code post}) and {@code https} only; the call
+     * is the editor route's GET for that post.
+     */
+    private static Request preload(String id, JsonNode request) {
+        for (Iterator<String> it = request.fieldNames(); it.hasNext(); ) {
+            String key = it.next();
+            if (!PRELOAD_REQUEST_KEYS.contains(key)) {
+                throw new IllegalArgumentException(
+                        id + " request: a preload comparison names only as, preload and https, not " + key);
+            }
+        }
+        JsonNode node = request.get("preload");
+        if (!node.isObject()) {
+            throw new IllegalArgumentException(id + ": preload is an object {\"type\": ..., \"post\": ...}");
+        }
+        keys(node, PRELOAD_KEYS, id + " preload");
+        RestScenario.Preload preload = new RestScenario.Preload(text(node, "type"), text(node, "post"));
+        boolean https = false;
+        if (request.has("https")) {
+            if (!request.get("https").isBoolean()) {
+                throw new IllegalArgumentException(id + ": https is true or false");
+            }
+            https = request.get("https").booleanValue();
+        }
+        RestCall call =
+                RestCall.get(text(request, "as"), EditorPreloadPaths.editorTarget(preload.type(), preload.post()));
+        return new Request(
+                call, new RestScenario.Form(Optional.empty(), Optional.empty(), https, Optional.of(preload)));
     }
 
     private static void keys(JsonNode node, Set<String> allowed, String what) {

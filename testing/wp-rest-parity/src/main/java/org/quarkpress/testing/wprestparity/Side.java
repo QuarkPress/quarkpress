@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.quarkpress.testing.wporacle.OracleJson;
 import org.quarkpress.testing.wprestparity.RestScenario.SetupStep;
 
@@ -408,9 +410,97 @@ public interface Side extends AutoCloseable {
             return out;
         }
 
+        /**
+         * Sends the call; a preload comparison (the editor route's target, {@link EditorPreloadPaths}) is answered
+         * with the preload map WordPress's edit screen would build for that post and caller ({@link #preload}).
+         */
         @Override
         public Exchange send(String sitePath, RestCall call) throws IOException, InterruptedException {
+            Optional<EditorPreloadPaths.Target> target = EditorPreloadPaths.parse(call.target());
+            if (target.isPresent()) {
+                return preload(sitePath, call, target.get());
+            }
             return client.send(underSite(sitePath, call));
+        }
+
+        /**
+         * The preload map as WordPress's edit screen builds it, from WordPress's live answers: the post item is read
+         * first as the caller (a refusal is answered as it is, with its status: the screen would refuse too); then each
+         * served entry of {@link EditorPreloadPaths#forPost} (the author from the item, 0 when the type has none) is
+         * sent as the caller and kept when it answers 200, as {@code {"body", "headers"}} with the answer's own headers
+         * ({@link #preloadHeaders}); the OPTIONS entries under the {@code OPTIONS} key where the first falls. The
+         * exchange carries the map as its body, a 200 and no headers of its own.
+         */
+        private Exchange preload(String sitePath, RestCall call, EditorPreloadPaths.Target target)
+                throws IOException, InterruptedException {
+            String base = "/wp/v2/" + EditorPreloadPaths.restBase(target.type());
+            Exchange item = client.send(underSite(
+                    sitePath, RestCall.get(call.as(), "/wp-json" + base + "/" + target.id() + "?context=edit")));
+            if (item.status() != 200) {
+                return new Exchange(call, item.status(), Map.of(), item.body(), item.sentAt());
+            }
+            long author = item.json().path("author").asLong(0);
+            ObjectNode map = OracleJson.MAPPER.createObjectNode();
+            ObjectNode options = null;
+            Instant sentAt = Instant.now();
+            for (EditorPreloadPaths.Entry entry : EditorPreloadPaths.forPost(
+                    target.type(), target.id(), author, EditorPreloadPaths.restBase(target.type()))) {
+                Exchange answer = client.send(underSite(
+                        sitePath,
+                        new RestCall(
+                                call.as(),
+                                entry.method(),
+                                "/wp-json" + entry.path(),
+                                Map.of(),
+                                Optional.empty(),
+                                Optional.empty())));
+                if (answer.status() != 200) {
+                    continue;
+                }
+                ObjectNode preloaded = OracleJson.MAPPER.createObjectNode();
+                preloaded.set("body", answer.json());
+                preloaded.set("headers", preloadHeaders(answer));
+                if (entry.options()) {
+                    if (options == null) {
+                        options = map.putObject(EditorPreloadPaths.OPTIONS);
+                    }
+                    options.set(entry.path(), preloaded);
+                } else {
+                    map.set(entry.path(), preloaded);
+                }
+            }
+            return new Exchange(call, 200, Map.of(), map.toString().getBytes(StandardCharsets.UTF_8), sentAt);
+        }
+
+        /**
+         * The answer's own headers as the screen's map prints them (Part G fact v08): {@code Link} (a post item's
+         * alternate link; never the API root link of a page), the totals as numbers, then {@code Allow}; {@code []}
+         * when the answer set none.
+         */
+        static JsonNode preloadHeaders(Exchange answer) {
+            ObjectNode headers = OracleJson.MAPPER.createObjectNode();
+            List<String> links = new ArrayList<>();
+            for (String line : answer.headerLines("Link")) {
+                if (!line.contains("rel=\"https://api.w.org/\"")) {
+                    links.add(line);
+                }
+            }
+            if (!links.isEmpty()) {
+                headers.put("Link", String.join(", ", links));
+            }
+            for (String name : List.of("X-WP-Total", "X-WP-TotalPages")) {
+                answer.header(name).ifPresent(value -> {
+                    String digits = value.strip();
+                    boolean number = !digits.isEmpty() && digits.chars().allMatch(c -> c >= '0' && c <= '9');
+                    if (number && digits.length() <= 18) {
+                        headers.put(name, Long.parseLong(digits));
+                    } else {
+                        headers.put(name, value);
+                    }
+                });
+            }
+            answer.header("Allow").ifPresent(value -> headers.put("Allow", value));
+            return headers.isEmpty() ? OracleJson.MAPPER.createArrayNode() : headers;
         }
 
         @Override

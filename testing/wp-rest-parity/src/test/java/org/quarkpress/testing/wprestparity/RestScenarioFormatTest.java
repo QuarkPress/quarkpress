@@ -397,4 +397,86 @@ class RestScenarioFormatTest {
         assertThat(RestScenarios.isGenerated("d01")).isFalse();
         assertThat(RestScenarios.isGenerated("x01")).isFalse();
     }
+
+    @Test
+    void aPreloadRequestRoundTrips() {
+        String setup = "{\"post\":\"p:x\",\"as\":\"bob\",\"type\":\"post\",\"status\":\"publish\",\"title\":\"t\"}";
+        String preload = "{\"as\":\"bob\",\"preload\":{\"type\":\"post\",\"post\":\"{p:x}\"}}";
+        RestScenario read = RestScenarioJson.read(scenario(setup, preload));
+        // the request is the editor route's GET, the post ref in its target, marked as a preload comparison
+        RestCall call = read.requests().get(0);
+        assertThat(call.method()).isEqualTo("GET");
+        assertThat(call.target()).isEqualTo("/wp-json/quarkpress/v1/editor/post/{p:x}");
+        assertThat(call.as()).isEqualTo("bob");
+        assertThat(read.forms().get(0).preload()).hasValue(new RestScenario.Preload("post", "{p:x}"));
+        assertThat(read.call(0, Map.of("p:x", 7L)).target()).isEqualTo("/wp-json/quarkpress/v1/editor/post/7");
+        // written back as the preload key, not as method and target, and read again as the same scenario
+        String written = RestScenarioJson.write(read);
+        assertThat(written)
+                .contains("\"preload\" : {")
+                .doesNotContain("\"target\"")
+                .doesNotContain("\"method\"");
+        assertThat(RestScenarioJson.read(written)).usingRecursiveComparison().isEqualTo(read);
+        // unknown keys inside preload are refused, naming the scenario; so is a key beside it other than as and https
+        String typo = "{\"as\":\"bob\",\"preload\":{\"type\":\"post\",\"psot\":\"{p:x}\"}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(setup, typo)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1")
+                .hasMessageContaining("unknown key psot");
+        String withTarget = "{\"as\":\"bob\",\"method\":\"GET\",\"target\":\"/wp-json/\","
+                + "\"preload\":{\"type\":\"post\",\"post\":\"{p:x}\"}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(setup, withTarget)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1")
+                .hasMessageContaining("preload");
+        // the post is a p: ref in braces, defined before; the type a name
+        String noRef = "{\"as\":\"bob\",\"preload\":{\"type\":\"post\",\"post\":\"7\"}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(setup, noRef)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1")
+                .hasMessageContaining("p: ref");
+        String undefined = "{\"as\":\"bob\",\"preload\":{\"type\":\"post\",\"post\":\"{p:y}\"}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(setup, undefined)))
+                .hasMessageContaining("p:y is used before it is defined");
+        String emptyType = "{\"as\":\"bob\",\"preload\":{\"type\":\"\",\"post\":\"{p:x}\"}}";
+        assertThatThrownBy(() -> RestScenarioJson.read(scenario(setup, emptyType)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("x1");
+        // the preload comparison is told apart by its target on both sides
+        assertThat(EditorPreloadPaths.isEditorTarget("/wp-json/quarkpress/v1/editor/post/7"))
+                .isTrue();
+        assertThat(EditorPreloadPaths.parse("/wp-json/quarkpress/v1/editor/post/7"))
+                .hasValue(new EditorPreloadPaths.Target("post", 7));
+        assertThat(EditorPreloadPaths.parse("/wp-json/wp/v2/posts/7")).isEmpty();
+        assertThat(EditorPreloadPaths.parse("/wp-json/quarkpress/v1/editor/post/x"))
+                .isEmpty();
+        // the shared list: fact v08's served entries in its order, the OPTIONS key where the first OPTIONS falls, the
+        // author entry only for an author
+        List<EditorPreloadPaths.Entry> entries = EditorPreloadPaths.forPost("post", 7, 3, "posts");
+        assertThat(EditorPreloadPaths.keys(entries))
+                .containsExactly(
+                        "/wp/v2/types?context=view",
+                        "/wp/v2/taxonomies?context=view",
+                        "/wp/v2/posts/7?context=edit",
+                        "/wp/v2/types/post?context=edit",
+                        "/wp/v2/users/me",
+                        "OPTIONS",
+                        "/wp/v2/posts/7/autosaves?context=edit",
+                        "/wp/v2/settings",
+                        "/wp/v2/themes?context=edit&status=active",
+                        "/wp/v2/block-patterns/categories",
+                        "/?_fields=description,gmt_offset,home,image_max_bit_depth,image_sizes,image_size_threshold,"
+                                + "image_strip_meta,name,site_icon,site_icon_url,site_logo,timezone_string,url,"
+                                + "page_for_posts,page_on_front,show_on_front",
+                        "/wp/v2/taxonomies?context=edit",
+                        "/wp/v2/users/3?context=view&_fields=id,name");
+        assertThat(EditorPreloadPaths.optionsKeys(entries))
+                .containsExactly("/wp/v2/media", "/wp/v2/pages", "/wp/v2/blocks", "/wp/v2/settings", "/wp/v2/posts");
+        assertThat(EditorPreloadPaths.keys(EditorPreloadPaths.forPost("page", 9, 0, "pages")))
+                .doesNotContain("/wp/v2/users/0?context=view&_fields=id,name")
+                .contains("/wp/v2/pages/9?context=edit", "/wp/v2/types/page?context=edit")
+                .noneMatch(key -> key.startsWith("/wp/v2/templates") || key.startsWith("/wp/v2/global-styles"));
+        assertThat(EditorPreloadPaths.restBase("book")).isEqualTo("books");
+        assertThat(EditorPreloadPaths.restBase("wp_block")).isEqualTo("blocks");
+    }
 }

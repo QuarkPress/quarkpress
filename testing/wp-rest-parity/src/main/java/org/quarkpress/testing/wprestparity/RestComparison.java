@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -236,8 +237,15 @@ public final class RestComparison {
             run.compare(caseId, prefix + "body", wpText, qpText);
             return;
         }
-        JsonNode wpBody = normalizer.body(wpJson.get(), wordpressRefs, sitePath, kind, Optional.of(wp.sentAt()));
-        JsonNode qpBody = normalizer.body(qpJson.get(), quarkpressRefs, sitePath, kind, Optional.of(qp.sentAt()));
+        JsonNode wpBody;
+        JsonNode qpBody;
+        if (EditorPreloadPaths.isEditorTarget(wp.call().target())) {
+            wpBody = preloadMap(wpJson.get(), wordpressRefs, wp.sentAt());
+            qpBody = preloadMap(qpJson.get(), quarkpressRefs, qp.sentAt());
+        } else {
+            wpBody = normalizer.body(wpJson.get(), wordpressRefs, sitePath, kind, Optional.of(wp.sentAt()));
+            qpBody = normalizer.body(qpJson.get(), quarkpressRefs, sitePath, kind, Optional.of(qp.sentAt()));
+        }
         boolean indexRequest = isIndexTarget(wp.call().target());
         List<String> dropped = dropWordPressOnly(wpBody, qpBody, indexRequest);
         if (isEnvelope(wpBody) && isEnvelope(qpBody)) {
@@ -278,6 +286,32 @@ public final class RestComparison {
         for (String[] leaf : leaves) {
             run.compare(caseId, prefix + "body:" + leaf[0], leaf[1], leaf[2]);
         }
+    }
+
+    /**
+     * A preload map (the answer of a preload comparison, {@link EditorPreloadPaths}) normalised entry by entry: each
+     * key, a preloaded path, with its ids as refs (each side's map names its own post, autosaves and author ids), and
+     * each entry's value normalised as the answer of that path would be (an {@code id} of a users route is a user's,
+     * whatever the fields kept). The entries under {@code OPTIONS} go the same way; anything else is normalised as a
+     * body.
+     */
+    private JsonNode preloadMap(JsonNode map, Normalizer.Refs refs, Instant sentAt) {
+        if (!map.isObject()) {
+            return normalizer.body(map, refs, sitePath, Normalizer.Kind.ANY, Optional.of(sentAt));
+        }
+        ObjectNode renamed = OracleJson.MAPPER.createObjectNode();
+        for (Iterator<Map.Entry<String, JsonNode>> it = map.fields(); it.hasNext(); ) {
+            Map.Entry<String, JsonNode> entry = it.next();
+            if (entry.getKey().equals(EditorPreloadPaths.OPTIONS)) {
+                renamed.set(entry.getKey(), preloadMap(entry.getValue(), refs, sentAt));
+            } else {
+                Normalizer.Kind kind = Normalizer.Kind.ofTarget(entry.getKey());
+                renamed.set(
+                        normalizer.route(entry.getKey(), refs),
+                        normalizer.body(entry.getValue(), refs, sitePath, kind, Optional.of(sentAt)));
+            }
+        }
+        return renamed;
     }
 
     /**

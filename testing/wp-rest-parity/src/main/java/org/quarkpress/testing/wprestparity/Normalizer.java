@@ -819,6 +819,20 @@ public final class Normalizer {
         return c <= ' ' || c == '"' || c == '\'' || c == '<' || c == '>' || c == '\\';
     }
 
+    /**
+     * A route target ({@code /wp/v2/posts/12?context=edit}, a preload map's key) with every known id in its path
+     * and query as its ref, as {@link #text} normalises the same path inside a URL.
+     */
+    public String route(String target, Refs refs) {
+        int query = target.indexOf('?');
+        String path = query < 0 ? target : target.substring(0, query);
+        StringBuilder out = new StringBuilder(path(path, refs));
+        if (query >= 0) {
+            out.append('?').append(query(target.substring(query + 1), refs, routeKind(path)));
+        }
+        return out.toString();
+    }
+
     /** One local URL: {host}, {site}, then the ids in its path and id query parameters. */
     private String url(String url, Refs refs, String sitePath) {
         int afterScheme = url.indexOf("//") + 2;

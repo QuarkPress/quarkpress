@@ -18,7 +18,8 @@ import java.util.Set;
  * One scenario: setup steps on a fresh subdirectory site, then requests. Request targets, header values and bodies may
  * name refs in braces ({@code {t:news}}, {@code {u:carol}}, {@code {p:draft}}, {@code {m:photo}}); each side replaces
  * them by its own ids before sending (see {@link #call}). Each request has a {@link Form}: its body as given, a
- * multipart upload of a fixture, or a fixture's bytes as the body, and whether it is sent over HTTPS. {@code editor}
+ * multipart upload of a fixture, or a fixture's bytes as the body, whether it is sent over HTTPS, and whether it is a
+ * preload comparison (the editor route's GET, whose {@code preload} map both sides answer). {@code editor}
  * marks a scenario that needs an image editor on WordPress's side (PHP's GD): its setup uploads make their sizes, and
  * without GD it cannot run there.
  */
@@ -60,7 +61,8 @@ public record RestScenario(
      * How a request is sent beyond its call: as a multipart {@code upload}, with a {@code raw} fixture's bytes as its
      * body (the call's content type and header lines kept), or as given; and over HTTPS when {@code https} is true.
      */
-    public record Form(Optional<Upload> upload, Optional<MediaScenario.Fixture> raw, boolean https) {
+    public record Form(
+            Optional<Upload> upload, Optional<MediaScenario.Fixture> raw, boolean https, Optional<Preload> preload) {
 
         /** A request sent as given, over plain HTTP. */
         public static final Form PLAIN = new Form(Optional.empty(), Optional.empty(), false);
@@ -68,9 +70,30 @@ public record RestScenario(
         public Form {
             Objects.requireNonNull(upload, "upload");
             Objects.requireNonNull(raw, "raw");
+            Objects.requireNonNull(preload, "preload");
             if (upload.isPresent() && raw.isPresent()) {
                 throw new IllegalArgumentException("a request is an upload or a raw body, not both");
             }
+            if (preload.isPresent() && (upload.isPresent() || raw.isPresent())) {
+                throw new IllegalArgumentException("a preload comparison sends no body");
+            }
+        }
+
+        /** A request that is not a preload comparison. */
+        public Form(Optional<Upload> upload, Optional<MediaScenario.Fixture> raw, boolean https) {
+            this(upload, raw, https, Optional.empty());
+        }
+    }
+
+    /**
+     * A preload comparison: the editor route's GET for the post of {@code type} named by {@code post} (a {@code p:}
+     * ref in braces), whose {@code preload} map QuarkPress's side answers and WordPress's side builds from the same
+     * requests ({@link EditorPreloadPaths}) sent as the caller.
+     */
+    public record Preload(String type, String post) {
+        public Preload {
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(post, "post");
         }
     }
 
@@ -436,6 +459,23 @@ public record RestScenario(
                 }
                 if (form.upload().isPresent() && call.contentType().isPresent()) {
                     throw new IllegalArgumentException(id + ": an upload's content type is the multipart one");
+                }
+            }
+            if (form.preload().isPresent()) {
+                Preload preload = form.preload().get();
+                if (preload.type().isEmpty()) {
+                    throw new IllegalArgumentException(id + ": a preload comparison needs a type");
+                }
+                if (!preload.post().startsWith("{")
+                        || !preload.post().endsWith("}")
+                        || !isRef(preload.post().substring(1, preload.post().length() - 1))
+                        || preload.post().charAt(1) != 'p') {
+                    throw new IllegalArgumentException(
+                            id + ": a preload comparison's post is a p: ref in braces: " + preload.post());
+                }
+                if (!call.method().equals("GET")
+                        || !call.target().equals(EditorPreloadPaths.editorTarget(preload.type(), preload.post()))) {
+                    throw new IllegalArgumentException(id + ": a preload comparison is the editor route's GET");
                 }
             }
             List<String> texts = new ArrayList<>();
