@@ -179,6 +179,13 @@ class MediaWriter {
 
     /** The 201: the attachment in the edit context, whatever the request asked for, with its address and id. */
     private RestResponse created(PostRoutes routes, RestRequest request, MediaSnapshot uploaded) {
+        return answer(routes, request, uploaded)
+                .withHeader(
+                        ATTACHMENT_ID_HEADER, Long.toString(uploaded.post().id().value()));
+    }
+
+    /** The 201 without the id header: the attachment in the edit context with its address. */
+    private RestResponse answer(PostRoutes routes, RestRequest request, MediaSnapshot uploaded) {
         reads.remember(uploaded);
         request.useContext("edit");
         Fields.Selection selection =
@@ -186,8 +193,25 @@ class MediaWriter {
         PostId id = uploaded.post().id();
         return fields.prepare(routes, uploaded, selection, "edit", request, new AttachmentMarkup.Counters())
                 .withStatus(201)
-                .withHeader("Location", urls.route(routes.item(id)))
-                .withHeader(ATTACHMENT_ID_HEADER, Long.toString(id.value()));
+                .withHeader("Location", urls.route(routes.item(id)));
+    }
+
+    /**
+     * Stores a sideloaded upload (a file fetched from a URL) and answers it as WordPress's sideload does: no request
+     * field but the upload's own is written, no featured image or meta, and the 201 carries {@code Location} but no
+     * upload header. A refusal of the pipeline is {@code upload_error} (500); the network's limits and the parent
+     * answer as for any upload. Must be called with no transaction active.
+     */
+    RestResponse sideload(PostRoutes routes, RestRequest request, Upload upload) {
+        MediaSnapshot uploaded;
+        try {
+            uploaded = media.upload(upload);
+        } catch (MediaException refused) {
+            throw MediaUploadRequest.pipelineRefusal(refused, "upload_error", request.authCode());
+        } catch (PostException refused) {
+            throw new RestException(PostWriter.insertError(refused));
+        }
+        return answer(routes, request, uploaded);
     }
 
     // ---- an update

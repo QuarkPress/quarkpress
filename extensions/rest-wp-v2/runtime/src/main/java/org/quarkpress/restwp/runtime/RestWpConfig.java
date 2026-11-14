@@ -4,6 +4,7 @@ import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,14 @@ public interface RestWpConfig {
 
     /** The features the synthetic theme {@code quarkpress} declares to the block editor. */
     Theme theme();
+
+    /**
+     * How long an upload from a URL ({@code POST /wp/v2/media} with {@code url}) may take to fetch the file, redirects
+     * and body included; WordPress allows 300 seconds. The outbound module's idle timeout still bounds the wait
+     * between two reads.
+     */
+    @WithDefault("300s")
+    Duration mediaUrlTimeout();
 
     /** Which other origins may call the REST API from a browser. */
     interface Cors {

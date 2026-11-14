@@ -19,6 +19,7 @@ import org.quarkpress.media.Media;
 import org.quarkpress.media.MediaFeature;
 import org.quarkpress.media.MediaSnapshot;
 import org.quarkpress.media.MimeTypes;
+import org.quarkpress.outbound.SafeFetcher;
 import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostPasswords;
 import org.quarkpress.posts.PostPermissions;
@@ -60,6 +61,8 @@ import org.quarkpress.taxonomy.Taxonomies;
  *
  * <p>An upload is checked in WordPress's order: the create permission (which the collection's {@code Allow} follows),
  * the parent's type, then the body ({@link MediaUploadRequest}); it is then stored and answered by {@link MediaWriter}.
+ * A request naming a {@code url} (validated with the outbound module's URL test before anything else) fetches the
+ * file from it instead ({@link UrlUpload}).
  * An update is checked as the posts routes check one (no upload capability is needed), then its parent's type; it is
  * written and answered by {@link MediaWriter} too, and never reads a file.
  *
@@ -133,6 +136,12 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     @Inject
     MediaLinks links;
 
+    @Inject
+    SafeFetcher fetcher;
+
+    @Inject
+    UrlUpload urlUpload;
+
     @Override
     public int order() {
         return 60;
@@ -178,7 +187,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
                         .allowBatch(false)
                         .build())
                 .endpoint(Endpoint.of("POST")
-                        .args(MediaSchema.createArgs(media))
+                        .args(MediaSchema.createArgs(media, fetcher::allowed))
                         .permission(this::mayCreate)
                         .handler(request -> create(media, request))
                         .allowBatch(false)
@@ -320,12 +329,17 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
     }
 
     /**
-     * WordPress's create: a {@code post} that is a revision or an attachment is refused, then the file is received
+     * WordPress's create: a {@code post} that is a revision or an attachment is refused; then a request with a
+     * {@code url} fetches it and stores the file as a sideload ({@link UrlUpload}); otherwise the file is received
      * ({@link MediaUploadRequest#receive}), its refusals in WordPress's order, then stored and answered ({@link
      * MediaWriter#create}), which deletes a spooled body whatever the outcome.
      */
     private RestResponse create(PostRoutes media, RestRequest request) {
         refuseParentType(request);
+        Optional<String> url = MediaUploadRequest.url(request);
+        if (url.isPresent()) {
+            return urlUpload.create(media, request, url.get());
+        }
         MediaUploadRequest.Body body;
         try {
             body = MediaUploadRequest.receive(request, library);

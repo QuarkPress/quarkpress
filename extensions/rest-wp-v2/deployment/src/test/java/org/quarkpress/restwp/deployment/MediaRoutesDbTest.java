@@ -145,7 +145,11 @@ class MediaRoutesDbTest {
                         "description",
                         "post",
                         "generate_sub_sizes",
-                        "convert_format");
+                        "convert_format",
+                        "url");
+        assertThat(create.at("/args/url").toString())
+                .isEqualTo("{\"type\":\"string\",\"format\":\"uri\",\"description\":\"URL of an external image to"
+                        + " sideload into the media library, instead of uploading a file.\",\"required\":false}");
         assertThat(create.at("/args/caption").toString())
                 .isEqualTo("{\"description\":\"The attachment caption.\",\"type\":\"object\",\"properties\":"
                         + "{\"raw\":{\"description\":\"Caption for the attachment, as it exists in the database.\","

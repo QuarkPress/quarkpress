@@ -265,13 +265,44 @@ final class MediaSchema {
 
     /**
      * The create arguments in WordPress's order: the schema's writable properties ({@link #writeArgs}), then
-     * {@code generate_sub_sizes} and {@code convert_format}, booleans defaulting to true.
+     * {@code generate_sub_sizes} and {@code convert_format}, booleans defaulting to true, then {@code url}, checked
+     * with {@code allowedUrl}.
      */
-    static List<Arg> createArgs(PostRoutes routes) {
+    static List<Arg> createArgs(PostRoutes routes, Predicate<String> allowedUrl) {
         List<Arg> args = new ArrayList<>(writeArgs(routes, Optional::empty));
         args.add(flag("generate_sub_sizes", "Whether to generate image sub sizes."));
         args.add(flag("convert_format", "Whether to convert image formats."));
+        args.add(urlArg(allowedUrl));
         return List.copyOf(args);
+    }
+
+    /** WordPress's message for a {@code url} the safe fetch refuses. */
+    static final String INVALID_URL = "Invalid URL. Provide a valid, publicly reachable HTTP or HTTPS image URL.";
+
+    /**
+     * The {@code url} of an upload from a URL, as WordPress declares it: a string in the URI format, checked by the
+     * schema and then by the outbound module's URL test on the value as sent ({@code allowedUrl}), whose refusal is
+     * the detail {@code rest_invalid_url} (an empty value is refused too, as WordPress refuses it); the value is then
+     * sanitized as a URL.
+     */
+    private static Arg urlArg(Predicate<String> allowedUrl) {
+        ObjectNode schema = RestJson.NODES.objectNode();
+        schema.put("type", "string");
+        schema.put("format", "uri");
+        schema.put(
+                "description",
+                "URL of an external image to sideload into the media library, instead of uploading a file.");
+        return new Arg(
+                "url", schema, false, Optional.empty(), Arg.Phase.VALIDATE, Optional.empty(), Optional.of(value -> {
+                    Optional<RestError> invalid = SchemaValidator.validate(value, schema, "url");
+                    if (invalid.isPresent()) {
+                        throw new RestException(invalid.get());
+                    }
+                    if (!allowedUrl.test(value.textValue())) {
+                        throw new RestException(RestError.of("rest_invalid_url", INVALID_URL, 400));
+                    }
+                    return true;
+                }));
     }
 
     /** The update arguments: the schema's writable properties ({@link #writeArgs}), without defaults. */

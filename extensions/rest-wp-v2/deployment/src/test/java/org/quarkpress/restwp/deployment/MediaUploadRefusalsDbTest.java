@@ -430,30 +430,35 @@ class MediaUploadRefusalsDbTest {
     }
 
     @Test
-    void aJsonUrlBodyIsARawUploadOfTheJson() {
+    void aUrlFromAnySourceIsValidatedAsTheUrlMode() {
         Site site = site();
-        for (String url : List.of("https://example.org/x.jpg", "http://127.0.0.1/x.jpg")) {
-            site.refused(
-                    site.json(carol, "", "{\"url\":\"" + url + "\"}"),
-                    400,
-                    "rest_upload_no_content_disposition",
-                    "No Content-Disposition supplied.");
+        // a loopback address and an unresolvable host fail the url argument's validation, whatever the body
+        for (String url : List.of("https://images.invalid/x.jpg", "http://127.0.0.1/x.jpg")) {
+            Reply refused = site.json(carol, "", "{\"url\":\"" + url + "\"}");
+            assertThat(refused.status()).as(refused.text()).isEqualTo(400);
+            assertThat(json(refused).get("code").asText()).isEqualTo("rest_invalid_param");
+            assertThat(json(refused).get("message").asText()).isEqualTo("Invalid parameter(s): url");
+            assertThat(json(refused).at("/data/details/url/code").asText()).isEqualTo("rest_invalid_url");
         }
-        // in the query string as well: an undeclared parameter
-        site.refused(
+        // in the query string as well, and as a multipart field beside a file, which is then not read
+        for (Reply refused : List.of(
                 site.json(carol, "?url=http://127.0.0.1/x.jpg", "{}"),
-                400,
-                "rest_upload_no_content_disposition",
-                "No Content-Disposition supplied.");
-        site.passes(site.jpeg(carol, "url", "https://example.org/x.jpg"));
+                site.jpeg(carol, "url", "http://127.0.0.1/x.jpg"))) {
+            assertThat(refused.status()).as(refused.text()).isEqualTo(400);
+            assertThat(json(refused).get("code").asText()).isEqualTo("rest_invalid_param");
+            assertThat(json(refused).at("/data/details/url/code").asText()).isEqualTo("rest_invalid_url");
+        }
     }
 
     @Test
-    void aMultipartUploadWithAUrlFieldStoresItsFile() {
+    void anEmptyUrlIsRefusedToo() {
         Site site = site();
-        Reply stored = site.jpeg(carol, "url", "https://example.org/x.jpg");
-        assertThat(stored.status()).as(stored.text()).isEqualTo(201);
-        assertThat(json(stored).get("mime_type").asText()).isEqualTo("image/jpeg");
+        // WordPress's validator refuses an empty url as any other invalid one, in a JSON body and beside a file
+        for (Reply refused : List.of(site.json(carol, "", "{\"url\":\"\"}"), site.jpeg(carol, "url", ""))) {
+            assertThat(refused.status()).as(refused.text()).isEqualTo(400);
+            assertThat(json(refused).get("code").asText()).isEqualTo("rest_invalid_param");
+            assertThat(json(refused).at("/data/details/url/code").asText()).isEqualTo("rest_invalid_url");
+        }
     }
 
     @Test

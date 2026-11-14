@@ -33,8 +33,9 @@ import org.quarkpress.restwp.runtime.PhpValues;
 /**
  * The file of a media upload, received as WordPress receives it, and the answers to its refusals.
  *
- * <p>A request with any file part is a multipart upload: its file is the part named exactly {@code file}. Otherwise the
- * body itself is the file (a JSON body included), which must carry a {@code Content-Type} and a
+ * <p>A request with a {@code url} is an upload from a URL ({@link UrlUpload}), whatever else it carries.
+ * Otherwise a request with any file part is a multipart upload: its file is the part named exactly {@code file}, and
+ * otherwise the body itself is the file (a JSON body included), which must carry a {@code Content-Type} and a
  * {@code Content-Disposition} naming the file; it is spooled to the media storage's temporary area. In both modes a
  * {@code Content-MD5} header, when present, must be the lower-case hexadecimal MD5 of the file's bytes.
  */
@@ -142,6 +143,15 @@ final class MediaUploadRequest {
         return raw(request, media, md5);
     }
 
+    /**
+     * The URL of an upload from a URL: the request's {@code url} (from any source, sanitized as a URL; an empty one
+     * never reaches here, its validation refuses it); such a request fetches the URL and reads no file part or body,
+     * as WordPress's does.
+     */
+    static Optional<String> url(RestRequest request) {
+        return request.param("url").filter(value -> !PhpValues.isEmpty(value)).map(PhpValues::toPhpString);
+    }
+
     /** The part named exactly {@code file} (the last one, as PHP keeps it); empty when there is none. */
     static Optional<UploadedFile> filePart(RestRequest request) {
         return filePart(request.files());
@@ -163,15 +173,20 @@ final class MediaUploadRequest {
      * caller may not edit takes the caller's status (401 or 403); a parent of the wrong type is a 400 without details.
      */
     static RestException pipelineRefusal(MediaException refused, Body body, int authCode) {
+        return pipelineRefusal(
+                refused, body instanceof Raw ? "rest_upload_sideload_error" : "rest_upload_unknown_error", authCode);
+    }
+
+    /**
+     * As {@link #pipelineRefusal(MediaException, Body, int)}, with {@code uploadErrorCode} as the code of a refusal of
+     * the upload itself (WordPress's sideload from a URL answers it as {@code upload_error}).
+     */
+    static RestException pipelineRefusal(MediaException refused, String uploadErrorCode, int authCode) {
         String code = refused.code();
         String message = refused.getMessage();
         return new RestException(
                 switch (code) {
-                    case "upload_error" ->
-                        RestError.of(
-                                body instanceof Raw ? "rest_upload_sideload_error" : "rest_upload_unknown_error",
-                                message,
-                                500);
+                    case "upload_error" -> RestError.of(uploadErrorCode, message, 500);
                     case "rest_upload_limited_space",
                             "rest_upload_file_too_big",
                             "rest_upload_user_quota_exceeded",
