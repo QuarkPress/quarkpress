@@ -500,3 +500,20 @@ f06 req*:body:*/_links/curies D54 WordPress's curie comes with its wp:user-globa
 # and sends 600/750 for a zero size; offline scenarios cannot show it (a site URL cannot be written into a target, and
 # a provider answer needs the network).
 none * D55 the proxy's allow-list, untrusted filter, own-site refusal and default sizes need a provider on the network or a site URL inside a target, which the scenarios cannot express
+
+# D1, D26, D53, D54 (f09): inside the preload map, the entries show the differences their routes show elsewhere: the
+# post item's guid and alternate Link header (pretty permalinks), its rendered title, content and excerpt (filters),
+# the pattern category descriptions and the active theme's user global styles link with its curie.
+f09 req*:body:*?context=edit/body/guid/rendered D1 the preloaded post item's guid: WordPress stores the pretty permalink, QuarkPress the plain one
+f09 req*:body:*?context=edit/body/guid/raw D1 the preloaded post item's guid: WordPress stores the pretty permalink, QuarkPress the plain one
+f09 req*:body:*?context=edit/headers/Link D1 the preloaded post item's alternate Link header: WordPress's follows the site's permalinks, QuarkPress's is the plain ?p= form
+f09 req*:body:*?context=edit/body/title/rendered D26 the preloaded post item's title with an apostrophe: WordPress's the_title filters texturize it; QuarkPress runs the registered filters only
+f09 req*:body:*?context=edit/body/content/rendered D26 the preloaded post item's content: WordPress's the_content filters render the paragraph block; QuarkPress runs the registered filters only
+f09 req*:body:*?context=edit/body/excerpt/rendered D26 the preloaded post item's generated excerpt: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+f09 req*:body:/~1wp~1v2~1block-patterns~1categories/body/*/description D53 the preloaded core pattern categories: WordPress's descriptions; QuarkPress's own
+f09 req*:body:/~1wp~1v2~1themes*/body/0/_links/wp:user-global-styles D54 the preloaded active theme: WordPress links (and creates) its user global styles; QuarkPress has no global styles routes
+f09 req*:body:/~1wp~1v2~1themes*/body/0/_links/curies D54 the preloaded active theme: WordPress's curie comes with its wp:user-global-styles link; QuarkPress's theme record has no wp: link and so no curie
+
+# D58 (f09): the preload map holds only the routes QuarkPress serves. WordPress's side builds its map from the same
+# served list (the seven omitted routes are not sent), so the omission itself shows in no comparison.
+none * D58 WordPress's side of the preload comparison sends only the routes QuarkPress serves, so the templates OPTIONS, the global-styles reads and the template lookups WordPress preloads never appear on either side

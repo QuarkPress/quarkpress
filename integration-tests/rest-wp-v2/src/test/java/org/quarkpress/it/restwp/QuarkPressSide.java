@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.test.keycloak.client.KeycloakTestClient;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.quarkpress.testing.wporacle.OracleJson;
+import org.quarkpress.testing.wprestparity.EditorPreloadPaths;
 import org.quarkpress.testing.wprestparity.Exchange;
 import org.quarkpress.testing.wprestparity.MediaScenarios;
 import org.quarkpress.testing.wprestparity.RestCall;
@@ -28,7 +30,9 @@ import org.quarkpress.testing.wprestparity.WordPressRestSite;
  * resource on that site, terms through the REST API, attachments through the setup resource's upload (the media
  * module's own upload, as the caller). The application registers the custom types {@code book} and {@code qp_hidden}
  * itself. A call marked for HTTPS ({@link Side#HTTPS_MARKER}) is sent with {@code X-Forwarded-Proto: https} instead,
- * which the application honours from the loopback proxy.
+ * which the application honours from the loopback proxy. A preload comparison (the editor route's target,
+ * {@link EditorPreloadPaths}) is answered with the route's {@code preload} map alone, so it compares with the map
+ * WordPress's side builds from its live answers.
  */
 final class QuarkPressSide implements Side {
 
@@ -295,6 +299,16 @@ final class QuarkPressSide implements Side {
 
     @Override
     public Exchange send(String sitePath, RestCall call) throws Exception {
+        Exchange exchange = sendAsIs(sitePath, call);
+        if (EditorPreloadPaths.isEditorTarget(call.target()) && exchange.status() == 200) {
+            // the editor route's answer reduced to its preload map, as WordPress's side answers a preload comparison
+            byte[] preload = exchange.json().path("preload").toString().getBytes(StandardCharsets.UTF_8);
+            return new Exchange(call, 200, Map.of(), preload, exchange.sentAt());
+        }
+        return exchange;
+    }
+
+    private Exchange sendAsIs(String sitePath, RestCall call) throws Exception {
         RestCall moved = Side.underSite(sitePath, call);
         Map<String, String> headers = new LinkedHashMap<>();
         moved.headers().forEach((name, value) -> {
