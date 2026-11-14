@@ -1,0 +1,172 @@
+{
+  "id": "f08",
+  "rule": "uploads from a URL (POST /wp/v2/media with url, Part G v15) on requests neither side fetches: the url argument's validation (an unresolvable host, loopback, private and reserved addresses, an IPv6 literal, a port outside 80/443/8080, a value without a scheme: 400 rest_invalid_param with the detail rest_invalid_url) before the permission (dave's 403 for a public literal, and the 400 for a subscriber and for anonymous), then the file-name check on a public literal (no name; a name of no image type, a directory name since trailing slashes are dropped as PHP's basename drops them: top-level 400 rest_invalid_url), an empty url refused like any other, url in the query string and as a multipart field beside a file (a PDF, so the image check of the create permission, which the harness WordPress without an image editor fails for images, does not change the Allow), and OPTIONS of the media route with the url argument. A public literal (8.8.8.8) is refused by the name check before any fetch on both sides; a reachable host (the own-host difference, the cap) cannot be named offline (D39).",
+  "setup": [],
+  "requests": [
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"https://images.invalid/a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"https://images.invalid/\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://127.0.0.1/a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://[::1]/a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://10.1.2.3/a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8:22/a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"notaurl\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/dir/?x=a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/a.pdf\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/a\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/a.jpg.txt\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/a.svg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://8.8.8.8/a.jpg\"}"
+    },
+    {
+      "as": "dave",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://127.0.0.1/a.jpg\"}"
+    },
+    {
+      "as": "erin",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://127.0.0.1/a.jpg\"}"
+    },
+    {
+      "as": "anonymous",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "contentType": "application/json",
+      "body": "{\"url\": \"http://127.0.0.1/a.jpg\"}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media?url=http%3A%2F%2F127.0.0.1%2Fa.jpg",
+      "contentType": "application/json",
+      "body": "{}"
+    },
+    {
+      "as": "bob",
+      "method": "POST",
+      "target": "/wp-json/wp/v2/media",
+      "upload": {
+        "fixture": {
+          "fixture": "pdf"
+        },
+        "name": "f08.pdf",
+        "type": "application/pdf",
+        "fields": {
+          "url": "http://127.0.0.1/f08.jpg"
+        }
+      }
+    },
+    {
+      "as": "bob",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media"
+    },
+    {
+      "as": "anonymous",
+      "method": "OPTIONS",
+      "target": "/wp-json/wp/v2/media"
+    }
+  ]
+}
