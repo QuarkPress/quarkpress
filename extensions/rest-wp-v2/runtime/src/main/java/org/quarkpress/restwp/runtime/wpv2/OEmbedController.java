@@ -66,8 +66,6 @@ public class OEmbedController implements RestRouteProvider {
 
     private static final String SECRET_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     @Inject
     SiteContext site;
 
@@ -296,10 +294,13 @@ public class OEmbedController implements RestRouteProvider {
         return key.toString();
     }
 
-    private static String secret() {
+    /** Created with the bean, not with the class: a generator in the image heap would repeat its seed. */
+    private final SecureRandom random = new SecureRandom();
+
+    private String secret() {
         StringBuilder secret = new StringBuilder(10);
         for (int i = 0; i < 10; i++) {
-            secret.append(SECRET_CHARS.charAt(RANDOM.nextInt(SECRET_CHARS.length())));
+            secret.append(SECRET_CHARS.charAt(random.nextInt(SECRET_CHARS.length())));
         }
         return secret.toString();
     }
