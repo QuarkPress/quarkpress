@@ -84,8 +84,6 @@ d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_c
 * req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1edit D38 the media edit route is not served
 * req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1sideload D38 the sideload route WordPress registers in client-side mode (a localhost site) is not served
 * req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1finalize D38 the finalize route WordPress registers in client-side mode (a localhost site) is not served
-* req*:body:/routes/~1wp~1v2~1media/endpoints/1/args/url D39 the url create parameter is not declared
-* req*:body:/body/routes/~1wp~1v2~1media/endpoints/1/args/url D39 the url create parameter is not declared (an enveloped index)
 * req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1template-parts* D6 routes QuarkPress does not serve yet
@@ -339,11 +337,8 @@ p09 req11:body:/previous/guid/raw D1 the guid of a post published with pretty pe
 p09 req15:body:/previous/guid/rendered D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 p09 req15:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
 
-# D38, D39, D6 (e01) and D40-D45: the media routes. The image editing route and the url create parameter are not
-# served; the batch route is not served (D6). Neither of the two has an Allow header on QuarkPress's side.
-e01 req1:body:/endpoints/1/args/url D39 the url create parameter is not declared
-e01 req2:body:/endpoints/1/args/url D39 the url create parameter is not declared
-e01 req3:body:/endpoints/1/args/url D39 the url create parameter is not declared
+# D38, D6 (e01) and D40-D45: the media routes. The image editing route is not served; the batch route is not served (D6).
+# Neither of the two has an Allow header on QuarkPress's side.
 e01 req11:body:/code D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
 e01 req11:body:/message D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
 e01 req11:header:allow D38 the media edit route is not served: QuarkPress's no-route answer has no Allow, WordPress's lists POST
@@ -403,13 +398,8 @@ e02 req12:body:/media_details/length_formatted D46 the MP3's getID3 key length_f
 e03 req21:body:/featured_media D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress names no cover
 e03 req21:body:/_links/wp:featuredmedia D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress links no cover
 e03 req21:body:/_links/curies D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4): without the cover link QuarkPress's links have no wp: relation, hence no curies
-e05 req34:body:/code D39 the url create parameter is not declared: a JSON {"url"} with a loopback address is a raw-body upload without a Content-Disposition; WordPress refuses the address
-e05 req34:body:/message D39 the url create parameter is not declared: a JSON {"url"} with a loopback address is a raw-body upload without a Content-Disposition; WordPress refuses the address
-e05 req34:body:/data/params D39 the url create parameter is not declared: WordPress's invalid-parameter answer names url
-e05 req34:body:/data/details D39 the url create parameter is not declared: WordPress's invalid-parameter answer details url's rest_invalid_url
-e05 req35:body:/code D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
-e05 req35:body:/message D39 the url create parameter is not declared: a JSON {"url"} naming a text file is a raw-body upload without a Content-Disposition; WordPress refuses the URL as no supported image
 e06 req1:body:/caption/rendered D42 the JPEG's stored caption "e06 caption" (an upload): WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+none * D39 the own-host refusal, the pinned address and the abort at the cap need a reachable host, which the offline scenarios never name (f08 shows only the refusals both sides answer alike); MediaUrlUploadDbTest and MediaUrlRefusalsDbTest show them
 none * D44 a crash after the attachment is stored cannot be provoked on QuarkPress's side of the parity run (its WordPress switch has no QuarkPress counterpart); MediaCreateDbTest shows the 500 with the header
 # D31, D42, D45 (e07, e07e): attachment updates. A stored caption or description runs only the registered filters
 # after the markup; a parent the site does not have is refused (r14's recorded WordPress answer, 200 with post 999999,
