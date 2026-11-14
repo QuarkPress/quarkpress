@@ -110,6 +110,12 @@ class IndexDbTest {
                         "/wp/v2/types/(?P<type>[\\w-]+)");
         assertThat(routes.get(routes.indexOf("/qp-test/v1") + 1)).startsWith("/qp-test/v1/");
         assertThat(routes).contains("/quarkpress/v1/drafts");
+        // the editor's settings route sits last in the namespace, after the locks
+        assertThat(routes.indexOf("/quarkpress/v1/editor/(?P<type>[\\w-]+)/(?P<id>[\\d]+)"))
+                .isGreaterThan(routes.indexOf("/quarkpress/v1/locks/(?P<id>[\\d]+)/takeover"));
+        assertThat(index.at("/routes/~1quarkpress~1v1~1editor~1(?P<type>[\\w-]+)~1(?P<id>[\\d]+)/methods")
+                        .toString())
+                .isEqualTo("[\"GET\"]");
         assertThat(routes.indexOf("/qp-test/v1"))
                 .isGreaterThan(routes.indexOf("/wp/v2/taxonomies/(?P<taxonomy>[\\w-]+)"));
         // REST verification list item 19: gmt_offset is the JSON string "0" on a fresh site (type-strict)

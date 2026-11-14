@@ -177,6 +177,46 @@ class WithoutOptionalModulesDbTest {
     }
 
     @Test
+    void theEditorSettingsAnswerWithoutMediaOrRevisions() {
+        PostId post = PostFixtures.builder(site)
+                .author(bob)
+                .title("Edited " + UUID.randomUUID())
+                .insert(data);
+        JsonNode body = json(Http.as("test-" + bob)
+                .get("/wp-json/quarkpress/v1/editor/post/" + post.value())
+                .then()
+                .statusCode(200)
+                .extract()
+                .asString());
+        JsonNode settings = body.get("settings");
+        // no media module: nothing may be uploaded, no registered sub-size; the size names are WordPress's own
+        assertThat(settings.get("allowedMimeTypes").toString()).isEqualTo("{}");
+        assertThat(settings.get("maxUploadFileSize").asLong()).isZero();
+        assertThat(settings.has("imageDimensions")).isFalse();
+        assertThat(settings.get("imageDefaultSize").asText()).isEqualTo("large");
+        assertThat(settings.get("imageSizes").size()).isEqualTo(4);
+        List<String> keys = new ArrayList<>();
+        settings.fieldNames().forEachRemaining(keys::add);
+        assertThat(keys)
+                .startsWith(
+                        "alignWide",
+                        "allowedBlockTypes",
+                        "allowedMimeTypes",
+                        "blockCategories",
+                        "isRTL",
+                        "imageDefaultSize",
+                        "imageEditing",
+                        "imageSizes",
+                        "maxUploadFileSize");
+        assertThat(keys).endsWith("__experimentalDiscussionSettings", "canUpdateBlockBindings", "canEditCSS");
+        // no revisions module: no autosave can be newer; no registered block type: no definition
+        assertThat(settings.has("autosave")).isFalse();
+        assertThat(settings.get("postLock").toString()).isEqualTo("{\"isLocked\":false}");
+        assertThat(body.get("blockDefinitions").toString()).isEqualTo("{}");
+        assertThat(body.get("preload").toString()).isEqualTo("{}");
+    }
+
+    @Test
     void thePostsWriteRoutesWork() {
         String title = "Written " + UUID.randomUUID();
         Response created = as(carol).body("{\"title\":\"" + title + "\"}").post("/wp-json/wp/v2/posts");

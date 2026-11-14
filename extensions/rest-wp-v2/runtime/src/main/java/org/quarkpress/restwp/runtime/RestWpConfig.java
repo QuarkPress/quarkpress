@@ -31,6 +31,9 @@ public interface RestWpConfig {
     /** The features the synthetic theme {@code quarkpress} declares to the block editor. */
     Theme theme();
 
+    /** What the editor route tells the block editor about the editing session. */
+    Editor editor();
+
     /**
      * How long an upload from a URL ({@code POST /wp/v2/media} with {@code url}) may take to fetch the file, redirects
      * and body included; WordPress allows 300 seconds. The outbound module's idle timeout still bounds the wait
@@ -47,6 +50,25 @@ public interface RestWpConfig {
          * header.
          */
         Optional<List<String>> origins();
+    }
+
+    /** The editing session's settings, served with the block editor's settings object. */
+    interface Editor {
+
+        /** Seconds between the editor's autosaves to the server (WordPress's {@code AUTOSAVE_INTERVAL}). */
+        @WithDefault("60")
+        int autosaveInterval();
+
+        /** Seconds between the editor's autosaves to the browser's storage. */
+        @WithDefault("15")
+        int localAutosaveInterval();
+
+        /**
+         * The admin shell's URL, where WordPress's {@code wp-admin/} is: the editor's dashboard link and the base of
+         * the link to a newer autosave's revision screen; the site's home followed by {@code wp-admin/} when unset. A
+         * value without a trailing slash gets one.
+         */
+        Optional<String> dashboardUrl();
     }
 
     /**

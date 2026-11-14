@@ -85,11 +85,13 @@ class RestWpV2Processor {
 
     /**
      * The resources read from the class path: WordPress's default template types and template part areas (the
-     * synthetic theme) and the snapshot of the oembed.com provider registry (the oEmbed proxy).
+     * synthetic theme), the recorded theme.json-derived defaults of a classic theme (the editor's settings) and the
+     * snapshot of the oembed.com provider registry (the oEmbed proxy).
      */
     @BuildStep
     void resources(BuildProducer<NativeImageResourceBuildItem> resources) {
         resources.produce(new NativeImageResourceBuildItem("org/quarkpress/restwp/theme-template-defaults.json"));
+        resources.produce(new NativeImageResourceBuildItem("org/quarkpress/restwp/editor-settings-defaults.json"));
         resources.produce(new NativeImageResourceBuildItem("org/quarkpress/restwp/oembed/providers.json"));
     }
 
@@ -173,8 +175,8 @@ class RestWpV2Processor {
     static final String MEDIA = "org.quarkpress.media";
 
     /**
-     * The beans typed on the media module (the media routes, their attachment reads and the attachment's fields),
-     * named here as texts so that this processor loads without that module.
+     * The beans typed on the media module (the media routes, their attachment reads, the attachment's fields and the
+     * editor settings' media answers), named here as texts so that this processor loads without that module.
      */
     static final List<String> MEDIA_BEANS = List.of(
             "org.quarkpress.restwp.runtime.wpv2.MediaController",
@@ -183,7 +185,8 @@ class RestWpV2Processor {
             "org.quarkpress.restwp.runtime.wpv2.MediaLinks",
             "org.quarkpress.restwp.runtime.wpv2.MediaCollection",
             "org.quarkpress.restwp.runtime.wpv2.MediaWriter",
-            "org.quarkpress.restwp.runtime.wpv2.UrlUpload");
+            "org.quarkpress.restwp.runtime.wpv2.UrlUpload",
+            "org.quarkpress.restwp.runtime.wpv2.MediaEditorSettings");
 
     /**
      * Without the media module, the beans typed on it are left out of the application: no media route is

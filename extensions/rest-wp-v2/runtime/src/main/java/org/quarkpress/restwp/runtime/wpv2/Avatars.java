@@ -77,6 +77,18 @@ public final class Avatars {
         return Optional.of(BASE + hash(email.orElse("")) + "?s=" + size + query(name, options));
     }
 
+    /**
+     * The default image at {@code size} pixels, forced whatever address a user has (WordPress's {@code force_default},
+     * as the editor's discussion settings show it): the address-less URL with the site's default image and rating,
+     * {@code f=y} between them, shown whether or not the site shows avatars.
+     */
+    public static String forcedDefault(int size, SiteOptions options) {
+        if (size <= 0) {
+            throw new IllegalArgumentException("an avatar size is a positive number of pixels: " + size);
+        }
+        return BASE + "?s=" + size + query("", options, true);
+    }
+
     /** The hash of the address: none for an empty address or "0" (PHP's truth). */
     private static String hash(String address) {
         return address.isEmpty() || address.equals("0") ? "" : sha256(asciiLower(PhpValues.trim(address)));
@@ -84,6 +96,11 @@ public final class Avatars {
 
     /** The parameters after the size: the default image, the rating and, with the initials image, the initials. */
     private static String query(String name, SiteOptions options) {
+        return query(name, options, false);
+    }
+
+    /** The parameters after the size, with {@code f=y} after the default image when the default is forced. */
+    private static String query(String name, SiteOptions options, boolean forced) {
         String image = options.string("avatar_default", "mystery");
         image = switch (image) {
             case "mystery", "mysteryman" -> "mm";
@@ -94,6 +111,9 @@ public final class Avatars {
         StringBuilder query = new StringBuilder();
         if (!image.isEmpty()) {
             query.append("&d=").append(encode(image));
+        }
+        if (forced) {
+            query.append("&f=y");
         }
         if (!rating.isEmpty()) {
             query.append("&r=").append(encode(rating));
