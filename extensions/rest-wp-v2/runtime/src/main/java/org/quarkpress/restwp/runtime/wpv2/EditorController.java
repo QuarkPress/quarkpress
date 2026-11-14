@@ -10,6 +10,7 @@ import org.quarkpress.core.PostTypeDefinition;
 import org.quarkpress.core.SiteContext;
 import org.quarkpress.posts.PostPermissions;
 import org.quarkpress.posts.PostSnapshot;
+import org.quarkpress.posts.PostStatuses;
 import org.quarkpress.posts.PostTypes;
 import org.quarkpress.posts.runtime.PostEntity;
 import org.quarkpress.posts.runtime.PostRepository;
@@ -24,13 +25,15 @@ import org.quarkpress.restwp.RestRouteProvider;
 import org.quarkpress.restwp.RouteRegistry;
 import org.quarkpress.restwp.runtime.PhpValues;
 import org.quarkpress.restwp.runtime.RestJson;
+import org.quarkpress.taxonomy.Taxonomies;
 
 /**
  * What the block editor gets from WordPress's edit screen before its first request, over REST:
  * {@code GET /quarkpress/v1/editor/<type>/<id>} answers {@code {settings, preload, blockDefinitions}} for a post of
- * that type on this site. The route reads and writes nothing else: no lock is taken (the admin shell takes it through
- * the locks route when it opens the post), and an older autosave is left as it is, where WordPress's screen takes the
- * lock and deletes the autosave.
+ * that type on this site: the settings object, the apiFetch preload map ({@link EditorPreload}, each entry the
+ * caller's own answer of the routes of this server) and the server block definitions. The route reads and writes
+ * nothing else: no lock is taken (the admin shell takes it through the locks route when it opens the post), and an
+ * older autosave is left as it is, where WordPress's screen takes the lock and deletes the autosave.
  *
  * <p>An id that is not a post of {@code type} on this site, or a type not shown in REST, is {@code rest_post_invalid_id};
  * the caller needs {@code edit_post} on the post, else {@code rest_cannot_edit}.
@@ -44,6 +47,21 @@ public class EditorController implements RestRouteProvider {
 
     @Inject
     EditorSettings settings;
+
+    @Inject
+    EditorPreload preload;
+
+    @Inject
+    PostsController postsController;
+
+    @Inject
+    Taxonomies taxonomies;
+
+    @Inject
+    PostStatuses statuses;
+
+    @Inject
+    MetaFields meta;
 
     @Inject
     PostPermissions permissions;
@@ -98,14 +116,25 @@ public class EditorController implements RestRouteProvider {
         Edited edited = requested(request).orElseThrow(() -> new RestException(invalidId()));
         ObjectNode body = RestJson.NODES.objectNode();
         body.set("settings", settings.of(request, edited.post(), edited.type()));
-        // the apiFetch preload map
-        body.putObject("preload");
+        body.set("preload", preload.of(routesOf(edited.type()), edited.post(), request));
         body.set("blockDefinitions", settings.blockDefinitions());
         return RestResponse.ok(body);
     }
 
     /** The post the route names and its type. */
     private record Edited(PostSnapshot post, PostTypeDefinition type) {}
+
+    /**
+     * The REST routes of the type: the posts controller's for the types it serves, else (attachments, served by the
+     * media controller) derived the same way, for the type's base and features.
+     */
+    private PostRoutes routesOf(PostTypeDefinition type) {
+        PostRoutes routes = postsController.routes().get(type.key());
+        if (routes != null) {
+            return routes;
+        }
+        return PostRoutes.of(type, taxonomies.all(), meta, PostRoutes.creatable(statuses.all()));
+    }
 
     /**
      * The post of this site with the route's id whose type is the route's type and is shown in REST, read without any

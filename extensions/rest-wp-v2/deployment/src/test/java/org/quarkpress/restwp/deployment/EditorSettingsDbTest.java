@@ -134,7 +134,8 @@ class EditorSettingsDbTest {
         answer.then().statusCode(200).header("Allow", "GET");
         JsonNode body = json(answer);
         assertThat(names(body)).containsExactly("settings", "preload", "blockDefinitions");
-        assertThat(body.get("preload").toString()).isEqualTo("{}");
+        // the preload map (its own test): an object
+        assertThat(body.get("preload").isObject()).isTrue();
         JsonNode settings = body.get("settings");
         assertThat(names(settings)).containsExactlyElementsOf(KEYS);
         // the values WordPress computes for a classic theme without a theme.json (facts v07, v08)
@@ -331,10 +332,25 @@ class EditorSettingsDbTest {
                 .insert(data);
         // an older autosave of bob's, which WordPress's edit screen would delete
         long autosave = autosaveRow(post, bob, "older words", "2026-10-18T09:00:00Z");
+        List<String> fresh = state(post);
+        List<String> optionsBefore = optionNames();
+        assertThat(optionsBefore).doesNotContain("quarkpress_preview_secret");
+        // the autosaves route, which the preload map dispatches, issues a preview token per autosave and so creates
+        // the site's preview-token secret the first time a site needs one (the posts module's one-time initialisation,
+        // WordPress's install-time salts): the first editor GET on a fresh site adds exactly that option row
+        settings(bob, post);
+        List<String> optionsAfter = optionNames();
+        assertThat(optionsAfter).hasSize(optionsBefore.size() + 1).containsAll(optionsBefore);
+        assertThat(optionsAfter).contains("quarkpress_preview_secret");
         List<String> before = state(post);
+        List<String> expectedBefore = new ArrayList<>(fresh);
+        expectedBefore.set(3, "options " + optionsAfter.size());
+        assertThat(before).isEqualTo(expectedBefore);
+        // from then on nothing changes
         settings(bob, post);
         settings(alice, post);
         assertThat(state(post)).isEqualTo(before);
+        assertThat(optionNames()).isEqualTo(optionsAfter);
         assertThat(Jdbc.count(data, "select count(*) from qp_revision where id = ?", autosave))
                 .isEqualTo(1);
     }
@@ -548,6 +564,11 @@ class EditorSettingsDbTest {
         state.add("revisions " + Jdbc.count(data, "select count(*) from qp_revision where post_id = ?", post.value()));
         state.add("locks " + storedLock(post));
         return state;
+    }
+
+    /** The names of the site's options, in name order. */
+    private static List<String> optionNames() {
+        return Jdbc.strings(data, "select name from qp_option where site_id = ? order by name", site.value());
     }
 
     /** The stored {@code _edit_lock} value, read past the services; null when the post has none. */
