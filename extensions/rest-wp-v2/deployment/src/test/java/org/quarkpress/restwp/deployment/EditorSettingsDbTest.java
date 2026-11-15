@@ -224,6 +224,32 @@ class EditorSettingsDbTest {
     }
 
     @Test
+    void mediaFeatureOffAnswersAsWithoutTheMediaModule() {
+        PostId post = publishedOf(bob);
+        TestData.siteOption(data, site, "qp_features", "{\"media\": false}");
+        try {
+            Response answer = as(bob).get(EDITOR + "post/" + post.value());
+            answer.then().statusCode(200);
+            JsonNode body = json(answer);
+            JsonNode settings = body.get("settings");
+            // nothing may be uploaded and no sub-size is registered, the editor's sizes are still named
+            assertThat(settings.get("allowedMimeTypes").toString()).isEqualTo("{}");
+            assertThat(settings.get("maxUploadFileSize").asLong()).isZero();
+            assertThat(settings.has("imageDimensions")).isFalse();
+            assertThat(settings.get("imageSizes").findValuesAsText("slug"))
+                    .containsExactly("thumbnail", "medium", "large", "full");
+            // the media routes answer no route on that site, but OPTIONS still describes them (Limits), so the
+            // preload keeps WordPress's entry
+            assertThat(names(body.at("/preload/OPTIONS"))).contains("/wp/v2/media");
+        } finally {
+            Jdbc.update(data, "delete from qp_option where site_id = ? and name = ?", site.value(), "qp_features");
+        }
+        JsonNode on = settings(bob, post);
+        assertThat(on.get("allowedMimeTypes").has("jpg|jpeg|jpe")).isTrue();
+        assertThat(on.has("imageDimensions")).isTrue();
+    }
+
+    @Test
     void staticDefaultsAreTheRecordedOnes() {
         JsonNode settings = settings(bob, publishedOf(bob));
         // fact v07: core's theme.json defaults for a classic theme

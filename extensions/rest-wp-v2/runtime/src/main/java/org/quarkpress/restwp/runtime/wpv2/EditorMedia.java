@@ -6,10 +6,13 @@ import java.util.Map;
 
 /**
  * What the block editor's settings take from the media module, in plain types: a bean only while that module is present,
- * so the editor route asks {@code Instance<EditorMedia>.isResolvable()} first and, without it, tells the editor that
- * nothing may be uploaded and no image size is registered.
+ * so the editor route asks {@code Instance<EditorMedia>.isResolvable()} first, then {@link #enabled()}, and without
+ * either tells the editor that nothing may be uploaded and no image size is registered.
  */
 public interface EditorMedia {
+
+    /** Whether the current site's media feature is on; off, the editor answers as without the media module. */
+    boolean enabled();
 
     /**
      * A registered image sub-size as the editor's {@code imageDimensions} shows it: the box and how it is cut

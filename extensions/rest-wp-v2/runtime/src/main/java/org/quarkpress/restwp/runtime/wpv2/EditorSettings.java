@@ -34,11 +34,11 @@ import org.quarkpress.security.UserProfiles;
 /**
  * The block editor's settings object for a post, as WordPress's edit screen hands it to {@code initializeEditor}: the
  * keys in the order the screen prints them for a classic theme without a theme.json, the media keys following the caller
- * (its allowed types, its upload limit, the registered image sizes; nothing without the media module), the theme flags
- * from the synthetic theme's configuration, the theme.json-derived presets as recorded from WordPress's core defaults
- * (a resource file, since no theme.json exists), the per-screen keys (placeholders, intervals, the lock as it stands,
- * the link to a newer autosave), and the caller's capabilities last. WordPress's style sheets, resolved
- * assets and admin-ajax lock utilities are not served: the admin shell adds its own.
+ * (its allowed types, its upload limit, the registered image sizes; nothing without the media module or while the site's
+ * media feature is off), the theme flags from the synthetic theme's configuration, the theme.json-derived presets as
+ * recorded from WordPress's core defaults (a resource file, since no theme.json exists), the per-screen keys
+ * (placeholders, intervals, the lock as it stands, the link to a newer autosave), and the caller's capabilities last.
+ * WordPress's style sheets, resolved assets and admin-ajax lock utilities are not served: the admin shell adds its own.
  *
  * <p>The server block definitions WordPress bootstraps beside the settings come from the blocks module's registry, each
  * with the properties WordPress's block type always holds and those it has set.
@@ -117,11 +117,28 @@ public class EditorSettings {
     @Inject
     RestUrls urls;
 
-    /** The recorded defaults, read from the class path when the application starts. */
+    /** The recorded flags read as booleans, in the order the settings print them. */
+    static final List<String> FLAGS =
+            List.of("disableCustomColors", "disableCustomFontSizes", "disableCustomGradients", "disableLayoutStyles");
+
+    /** The recorded values copied as they stand, in the order the settings print them. */
+    static final List<String> RECORDED = List.of(
+            "enableCustomLineHeight",
+            "enableCustomSpacing",
+            "enableCustomUnits",
+            "__experimentalFeatures",
+            "colors",
+            "gradients",
+            "fontSizes",
+            "disableCustomSpacingSizes",
+            "spacingSizes");
+
+    /** The recorded defaults, read from the class path and checked when the application starts. */
     private ObjectNode defaults;
 
+    /** The resource is checked when the application starts, so a broken one fails the start, not the first request. */
     void start(@Observes StartupEvent started) {
-        defaults = readDefaults();
+        defaults = checked(readDefaults());
     }
 
     /** The settings object for {@code post} (of {@code type}) as the request's caller sees it. */
@@ -129,7 +146,8 @@ public class EditorSettings {
         RestWpConfig.Theme theme = config.theme();
         RestWpConfig.Editor editor = config.editor();
         SiteOptions options = site.options();
-        Optional<EditorMedia> present = media.isResolvable() ? Optional.of(media.get()) : Optional.empty();
+        Optional<EditorMedia> present =
+                media.isResolvable() ? Optional.of(media.get()).filter(EditorMedia::enabled) : Optional.empty();
         ObjectNode settings = RestJson.NODES.objectNode();
         settings.put("alignWide", theme.alignWide());
         settings.put("allowedBlockTypes", true);
@@ -375,6 +393,21 @@ public class EditorSettings {
 
     private boolean flag(String key) {
         return defaults.get(key).booleanValue();
+    }
+
+    /** {@code defaults} with every recorded key present and every flag a boolean; else the start fails naming the key. */
+    static ObjectNode checked(ObjectNode defaults) {
+        for (String key : FLAGS) {
+            if (!defaults.path(key).isBoolean()) {
+                throw new IllegalStateException(DEFAULTS + " must hold the boolean " + key);
+            }
+        }
+        for (String key : RECORDED) {
+            if (!defaults.has(key)) {
+                throw new IllegalStateException(DEFAULTS + " must hold " + key);
+            }
+        }
+        return defaults;
     }
 
     private static ObjectNode readDefaults() {
