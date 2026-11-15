@@ -94,6 +94,21 @@ MediaPage images = media.query(MediaQuery.builder().mimeTypes(List.of("image")).
   `search` also matches the attached file's path relative to the site's uploads folder (each term as a part of it, a
   `-term` as one it must not hold, an exact search the whole path), whatever columns are searched. `countOnly` counts
   without reading the attachments. Attachments without a media row are neither listed nor counted (D22).
+- `maxUploadSize()` is WordPress's `wp_max_upload_size` for the current site, the limit a site tells its editor: the
+  smaller of `quarkpress.media.max-upload-size` (when set) and the HTTP body limit `quarkus.http.limits.max-body-size`
+  (which stands for PHP's `post_max_size` and `upload_max_filesize`; read as `10240K`, Quarkus's own default, when the
+  key is unset or blank, so set a value rather than blank the key), and on a network also the per-file limit
+  `fileupload_maxk` in KB (read as a whole number, as WordPress's multisite filter casts it, and applied whether or not
+  the network's upload checks are on) and, with the checks on, the space left on the site (its quota less the stored
+  sizes of its files, never below 0). It checks no capability: the caller decides what it tells whom. The REST API
+  module serves it as the editor's `maxUploadFileSize` and caps a URL upload's download with it.
+- `Upload.Builder.sideloaded()` marks a file the server fetched itself (a URL upload) and names it as WordPress's
+  sideload does: the title is the stored file name without its extension (after cleaning, uniqueness and the
+  extension's correction to the content, so `photo-1`, or `drawing` for a PNG named `drawing.jpg`), replaced by an
+  embedded title that is not blank and not a number once its slug is made, or, when the file embeds no title, by a
+  short embedded caption (under 80 bytes), as WordPress's image metadata reader gives it; an embedded caption goes to
+  the description (`post_content`), not the caption; an embedded alternative text is stored; a title, caption or
+  description the request gives wins as for any upload. Everything else is as `upload`.
 - `spool(InputStream)` copies a request body to a new file in the storage's temporary area
   (`MediaStorage.temporaryFile`) and answers it; the caller deletes it once done. `allowedTypes()` answers the
   caller's upload types on the site (extension patterns with their MIME types, in lookup order, the network's list and
@@ -118,7 +133,7 @@ the posts module's `invalid_post` for `update`, `process` and `missingSizes`; `f
 | `delete` | `delete_post` on the attachment |
 | `find`, `missingSizes`, `query` | the posts module's read rules |
 | `MediaQuery.unfiltered` | checks nothing: the caller decides per row what it shows |
-| `read`, `spool`, `allowedTypes`, `outputType`, `refusesImageType` | checks nothing |
+| `read`, `spool`, `allowedTypes`, `outputType`, `refusesImageType`, `maxUploadSize` | checks nothing |
 
 Every call needs the site's `media` feature on.
 
@@ -134,7 +149,7 @@ Run time unless said; every key is checked at start-up with the other `quarkpres
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.media.max-upload-size` | unset: no limit | The largest file a site accepts (`20M`); a larger one is refused with "This file is too big. Files must be less than {n} KB in size.", `n` the limit's bytes / 1024 rounded down. On a network, the network's limits (`fileupload_maxk`, the site's upload space) still apply. |
+| `quarkpress.media.max-upload-size` | unset: no limit | The largest file a site accepts (`20M`); a larger one is refused with "This file is too big. Files must be less than {n} KB in size.", `n` the limit's bytes / 1024 rounded down. On a network, the network's limits (`fileupload_maxk`, the site's upload space) still apply. With `quarkus.http.limits.max-body-size` and, on a network, the network's limits it also gives `Media.maxUploadSize`, the limit the site tells its editor. |
 | `quarkpress.media.network-limits.enabled` | unset: follow the network | Whether the network's upload limits apply on a network; unset, they apply when the network option `upload_space_check_disabled` is false as PHP reads it. A network QuarkPress creates sets that option to `"1"`, as WordPress's network setup does, so the limits start off. |
 | `quarkpress.media.allowed-types."<pattern>"` | none | Upload types added to WordPress's list, extension pattern (`jpg\|jpeg`) to MIME type. A pattern WordPress's list holds takes the new type in its place; the others come after the list, sorted by pattern. A pattern holding a dot fails the start (a file's type is looked up by the part of its name after its last dot), and so does a type longer than 100 characters (an attachment's type holds at most 100). |
 | `quarkpress.media.denied-extensions` | none | Extensions no site may upload, whatever the types say; each is trimmed and may start with a dot (`.exe`). A pattern left without extensions is dropped. |
