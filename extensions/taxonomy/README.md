@@ -118,7 +118,12 @@ status) nor readable (`read_post`), else `ALLOWED`.
 
 ### Taxonomies
 
-The built-in taxonomies are `category` (hierarchical) and `post_tag`, both on `post`, with WordPress's arguments.
+The built-in taxonomies are `category` (hierarchical) and `post_tag`, both on `post`, `post_format` (see
+[Post formats](#post-formats)) and `wp_pattern_category` (the categories of synced patterns, on `wp_block` only: flat,
+not public, shown in REST without a REST base of its own and in the admin column, not in menus or the tag cloud,
+managed with `manage_categories` and assigned with `edit_posts`, labelled "Pattern Categories"/"Pattern Category"),
+registered in that order as WordPress registers its own before any plugin's, with WordPress's arguments. The REST API
+module serves `wp_pattern_category`'s terms at `/wp/v2/wp_pattern_category` and filters `/wp/v2/blocks` by them.
 Register a taxonomy with `@Taxonomy` on any application class, or from an extension with core's `TaxonomyBuildItem`,
 which takes every argument; arguments not given take WordPress's defaults (a taxonomy is public). A key registered
 twice, the built-in ones included, fails the build. `Taxonomies` answers what is registered and which taxonomies a post
@@ -239,7 +244,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 | D7 | No `alias_of` or term groups: every term's group is 0, and ordering by `term_group` orders by id. |
 | D8 | Assignments name terms as `TermRef.id` or `TermRef.name` (WordPress reads the text "5" as a name and the number 5 as an id); the post must exist on the site (`invalid_post`), where WordPress accepts any object id. |
 | D9 | A failed call changes nothing: an assignment whose later name fails leaves no term created and nothing assigned, where WordPress keeps what it wrote before the failure. |
-| D10 | The built-in taxonomies are `category`, `post_tag` and `post_format`; menus, link categories and the block-theme taxonomies come with their modules. A taxonomy registered twice fails the build; WordPress replaces the earlier registration. A default term named "" or "0" is no default term in either form; WordPress ignores such a text `default_term` too, but keeps an array one, creating a term "0" (and failing silently for ""). Rewrite rules, query variables, meta boxes, `args` and `update_count_callback` are not kept. |
+| D10 | The built-in taxonomies are `category`, `post_tag`, `post_format` and `wp_pattern_category`; menus (`nav_menu`), link categories and the block-theme taxonomies come with their modules. A taxonomy registered twice fails the build; WordPress replaces the earlier registration. A default term named "" or "0" is no default term in either form; WordPress ignores such a text `default_term` too, but keeps an array one, creating a term "0" (and failing silently for ""). Rewrite rules, query variables, meta boxes, `args` and `update_count_callback` are not kept. |
 | D11 | Default terms of custom taxonomies are ensured at startup (on every site, at every startup) and when a site is created, not on every request; one renamed while the application runs is looked up again at the next startup. On save they go to posts whose caller may assign the taxonomy's terms, the system identity included, where WordPress's user 0 never gets them on save; the same rule holds on publish (`Posts.publish`), where WordPress's `wp_publish_post` gives them whoever the caller is. |
 | D12 | `PostChanges` has no `post_category`, `tags_input` or `tax_input`: callers assign terms after the save, as WordPress's REST API does. |
 | D13 | A term whose name gives no slug gets its id as slug, made unique when another term of the taxonomy holds that text; WordPress stores the duplicate. |
