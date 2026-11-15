@@ -202,11 +202,26 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   (`extensions`) and, without GD, skips it with `SKIPPED (needs an image editor): php8.4-gd is not installed on this
   host; the CI parity cell installs it`, unless `-Dwp.media.require-editor=true` (as in CI), which fails the run
   instead.
+- A request with `"preload": {"type": "post", "post": "{p:x}"}` (and no body) compares the editor route's preload map:
+  QuarkPress's side sends `GET /wp-json/quarkpress/v1/editor/<type>/<id>` and takes its `preload`; WordPress's side
+  builds the same map by sending each request of `EditorPreloadPaths.forPost` (WordPress's edit-screen preload list
+  minus the routes QuarkPress does not serve, keyed as the screen prints them) to WordPress as the caller and keeping
+  the 200s, with the headers the screen prints (`X-WP-Total` and `X-WP-TotalPages` as numbers, an empty set as `[]`).
+  Both maps go through the normaliser (each entry's ids by its own kind) and the usual comparison, one aspect path
+  `/<key>/body/…` per entry. The order of the map's keys and of each entry's headers is not compared here (bodies
+  compare parsed); `EditorPreloadDbTest` pins them against the recorded page instead.
 - A setup `option` step may name a switch of the must-use plugin only when the test application has its counterpart
-  built in; QuarkPress's side then sets nothing, and any other `qp_parity_*` switch fails the scenario there. The one
-  such pair is `qp_parity_hidden_type` on WordPress's side and the test application's `ItHiddenType` on QuarkPress's:
-  the same public type `qp_hidden`, outside REST, so a scenario can name a parent or a featured image of a type REST
-  does not show.
+  built in; QuarkPress's side then sets nothing, and any other `qp_parity_*` switch fails the scenario there. The
+  pairs (`QuarkPressSide.BUILT_IN_SWITCHES`) are: `qp_parity_hidden_type` ↔ `ItHiddenType` (the same public type
+  `qp_hidden`, outside REST, so a scenario can name a parent or a featured image of a type REST does not show);
+  `qp_parity_notice_block` ↔ `ItNoticeBlock` (the dynamic block `qp-it/notice`, whose renderer prints its escaped
+  `message`); `qp_parity_block_types` ↔ `ItBlockTypes` (`acme/notice`, `acme/supports`, `acme/late` and the
+  `qp-probe/*` types of the block-supports probes); `qp_parity_patterns` ↔ `ItPatterns` (the patterns `qp/inner`,
+  `qp/outer` and `qp/plain`) with `qp_parity_no_core_patterns` (WordPress without its core patterns, as QuarkPress
+  ships none); and `qp_parity_quarkpress_theme` ↔ the built-in synthetic theme (WordPress's active theme is the
+  harness's classic `quarkpress` theme). The test application always registers its block types and patterns (they
+  show only on routes no other scenario requests), so block types, rendering and pattern resolution are compared with
+  WordPress's rather than only their errors.
 - The hand-written scenarios come first: one per item of the REST verification list (`d01` to `d28`), then `x01` to
   `x06` for rules found later (among them who writes terms, `x04`, and a member of another site only, `x05`: a
   `{"leave": "<user>"}` setup step takes the user's role on the scenario's site away). The content scenarios follow:
@@ -216,8 +231,12 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   auto-draft of a new post, `p14` the front-end preview answers to an anonymous visitor, `p15` search, `p16` generated
   slugs. The media scenarios follow: `e01` the media routes and their OPTIONS, `e02` an attachment item, `e03` its
   links, `e04` the media collection, `e05` upload refusals, `e06` uploads, `e07` updates, `e08` deletes and
-  post-processes, `e09` posts' featured media; `e07e` and `e08e` are their `editor` halves. Then 60 generated scenarios
-  for each of the seeds `rest-a` and `rest-b`, the same on every run: random callers, routes, methods and query
+  post-processes, `e09` posts' featured media; `e07e` and `e08e` are their `editor` halves. The editor-extras scenarios
+  follow: `f01` synced patterns (`/wp/v2/blocks`), `f02` pattern categories (`/wp/v2/wp_pattern_category`), `f03`
+  block types (with the block-supports probes), `f04` the block renderer, `f05` block patterns and their categories,
+  `f06` the themes routes on the harness theme, `f07` the oEmbed proxy's offline answers (`*.invalid` hosts, embed
+  handlers, the site's own URL), `f08` URL-mode upload refusals, `f09` the editor route's preload map. Then 60
+  generated scenarios for each of the seeds `rest-a` and `rest-b`, the same on every run: random callers, routes, methods and query
   parameters drawn from each route's declared arguments, keeping clear of requests whose answers differ as a whole (see
   `RestScenarios`).
 
@@ -267,8 +286,8 @@ request, so the rest of a request is still compared. Every entry is asserted: an
 that covers no comparison, fails the run. A scenario of `none` documents a difference no scenario can show. Entries
 naming generated scenarios by id are fragile: a change to the generator renumbers them.
 
-The run also needs at least `MIN_COMPARISONS` comparisons (22000, 90 % of the 24483 comparisons of the last green
-run, 181 scenarios), every scenario of the corpus, and at least one comparison per scenario, so a
+The run also needs at least `MIN_COMPARISONS` comparisons (22000, set from the 24483 comparisons of an earlier green
+run; the last green run compared 27392 over 190 scenarios), every scenario of the corpus, and at least one comparison per scenario, so a
 harness that silently stops comparing fails; with the `wp-parity` profile on, a missing container runtime fails the run
 instead of skipping it. `-Drest.parity.only=d01,x0` narrows the run to scenarios whose ids start so, for local
 debugging; such a run never passes, since the other scenarios' known differences then match nothing.
