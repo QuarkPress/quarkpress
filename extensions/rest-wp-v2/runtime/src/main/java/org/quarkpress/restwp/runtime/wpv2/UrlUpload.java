@@ -60,8 +60,6 @@ class UrlUpload {
 
     private static final int ERROR_BODY_BYTES = 1024;
 
-    private static final int MAX_REDIRECTS = 5;
-
     private static final String NO_FILE_NAME = "Could not determine a filename from the provided URL.";
 
     private static final String NOT_AN_IMAGE = "The provided URL does not point to a supported image file.";
@@ -188,13 +186,15 @@ class UrlUpload {
     }
 
     /**
-     * Fetches {@code uri} into the storage's temporary area, reading at most {@code cap + 1} bytes (the configured
-     * outbound limit when the cap is not positive); a body cut there is checked as a file one byte longer than the
-     * bound, and refused as the cut when no size check refuses it.
+     * Fetches {@code uri} into the storage's temporary area, following the outbound module's configured number of
+     * redirects and reading at most {@code cap + 1} bytes (the configured outbound limit when the cap is not
+     * positive); a body cut there is checked as a file one byte longer than the bound, and refused as the cut when no
+     * size check refuses it.
      */
     private Fetched fetch(URI uri, long cap) {
         long maxBytes = cap > 0 ? cap + 1 : fetcher.defaults().maxBytes();
-        FetchLimits limits = new FetchLimits(config.mediaUrlTimeout(), MAX_REDIRECTS, maxBytes);
+        FetchLimits limits =
+                new FetchLimits(config.mediaUrlTimeout(), fetcher.defaults().maxRedirects(), maxBytes);
         try (FetchResponse response = fetcher.get(uri, limits)) {
             if (response.status() != 200) {
                 throw new RestException(notFound(response));
