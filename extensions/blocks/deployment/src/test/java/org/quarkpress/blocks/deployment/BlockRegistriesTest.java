@@ -1,6 +1,7 @@
 package org.quarkpress.blocks.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.quarkus.test.QuarkusExtensionTest;
@@ -162,6 +163,25 @@ class BlockRegistriesTest {
     void aDependentProviderIsDestroyedOnceRead() {
         assertThat(types.all()).isNotEmpty();
         assertThat(Mike.DESTROYED).hasValue(1);
+    }
+
+    @Test
+    void attributesOnlyForTheRegisteredTypes() {
+        BlockType first = types.find("acme/first").orElseThrow();
+        // the start-up copy: lock, metadata and what the default supports add
+        assertThat(types.attributes(first).fieldNames())
+                .toIterable()
+                .containsExactly("lock", "metadata", "className", "style");
+        // a new object each time
+        assertThat(types.attributes(first)).isNotSameAs(types.attributes(first));
+        // another instance of a registered name, and an unregistered name, are refused
+        assertThatThrownBy(
+                        () -> types.attributes(BlockType.builder("acme/first").build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("acme/first");
+        assertThatThrownBy(() -> types.attributes(BlockType.builder("acme/none").build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("acme/none");
     }
 
     @Test

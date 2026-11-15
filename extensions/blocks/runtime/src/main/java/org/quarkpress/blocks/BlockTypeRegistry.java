@@ -84,12 +84,15 @@ public class BlockTypeRegistry {
     }
 
     /**
-     * The attributes of {@code type} as WordPress answers them: its declared ones, {@code lock}, {@code metadata} and
-     * those its supports add ({@link BlockSupports}). A new object on each call.
+     * The attributes of the registered {@code type} as WordPress answers them: its declared ones, {@code lock},
+     * {@code metadata} and those its supports add ({@link BlockSupports}), computed once at start-up. A new object on
+     * each call; a type that is not the registered one of its name is refused.
      */
     public ObjectNode attributes(BlockType type) {
-        ObjectNode known = types.get(type.name()) == type ? attributesByName.get(type.name()) : null;
-        return known != null ? known.deepCopy() : BlockSupports.attributes(type);
+        if (types.get(type.name()) != type) {
+            throw new IllegalArgumentException("QuarkPress: " + type.name() + " is not a registered block type");
+        }
+        return attributesByName.get(type.name()).deepCopy();
     }
 
     /** Whether the registered type of this name is rendered on the server. */
