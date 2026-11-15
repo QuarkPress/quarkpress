@@ -213,7 +213,13 @@ class WithoutOptionalModulesDbTest {
         assertThat(settings.has("autosave")).isFalse();
         assertThat(settings.get("postLock").toString()).isEqualTo("{\"isLocked\":false}");
         assertThat(body.get("blockDefinitions").toString()).isEqualTo("{}");
-        assertThat(body.get("preload").toString()).isEqualTo("{}");
+        // the preload still lists the editor's first requests; without a media route the media OPTIONS entry is
+        // WordPress's answer to OPTIONS on an unknown route: 200 [] without a header
+        JsonNode preload = body.get("preload");
+        assertThat(preload.has("/wp/v2/types?context=view")).isTrue();
+        assertThat(preload.get("OPTIONS").get("/wp/v2/media").toString()).isEqualTo("{\"body\":[],\"headers\":[]}");
+        assertThat(preload.has("/wp/v2/posts/" + post.value() + "/autosaves?context=edit"))
+                .isFalse();
     }
 
     @Test
