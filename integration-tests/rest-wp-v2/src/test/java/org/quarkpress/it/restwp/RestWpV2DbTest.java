@@ -10,6 +10,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -1252,5 +1253,262 @@ class RestWpV2DbTest {
                 .statusCode(200)
                 .body("id", contains(id));
         as("alice").get(MEDIA + "/" + id).then().statusCode(404);
+    }
+
+    @Test
+    void aSyncedPatternIsCreatedListedAndDeleted() {
+        // main site of the network: bob (editor) files a pattern category, carol (author) creates a synced pattern in
+        // it
+        String categoryName = "Heroes " + token();
+        int category = as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", categoryName))
+                .post("/wp-json/wp/v2/wp_pattern_category")
+                .then()
+                .statusCode(201)
+                .body("taxonomy", equalTo("wp_pattern_category"))
+                .extract()
+                .path("id");
+        String title = "Pattern " + token();
+        Response created = as("carol")
+                .contentType(ContentType.JSON)
+                .body(Map.of(
+                        "title",
+                        title,
+                        "status",
+                        "publish",
+                        "content",
+                        BLOCK,
+                        "wp_pattern_category",
+                        List.of(category)))
+                .post("/wp-json/wp/v2/blocks");
+        created.then()
+                .statusCode(201)
+                .body("type", equalTo("wp_block"))
+                .body("title.raw", equalTo(title))
+                .body("title", not(hasKey("rendered")))
+                .body("content.raw", equalTo(BLOCK))
+                .body("wp_pattern_category", contains(category))
+                .body("wp_pattern_sync_status", equalTo(""));
+        int id = created.path("id");
+        assertThat(created.header("Location")).isEqualTo("http://localhost/wp-json/wp/v2/blocks/" + id);
+        // the edit list holds it, filtered by its category
+        as("carol")
+                .get("/wp-json/wp/v2/blocks?context=edit&wp_pattern_category=" + category)
+                .then()
+                .statusCode(200)
+                .body("id", contains(id))
+                .body("[0].content.block_version", equalTo(1));
+        // a subscriber reads no pattern
+        as("erin")
+                .get("/wp-json/wp/v2/blocks/" + id)
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_forbidden"))
+                .body("message", equalTo("Sorry, you are not allowed to do that."));
+        as("carol")
+                .delete("/wp-json/wp/v2/blocks/" + id + "?force=true")
+                .then()
+                .statusCode(200)
+                .body("deleted", equalTo(true))
+                .body("previous.id", equalTo(id));
+        as("carol")
+                .get("/wp-json/wp/v2/blocks/" + id)
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("rest_post_invalid_id"));
+        as("bob")
+                .delete("/wp-json/wp/v2/wp_pattern_category/" + category + "?force=true")
+                .then()
+                .statusCode(200)
+                .body("deleted", equalTo(true));
+    }
+
+    @Test
+    void theTestBlockTypeRendersNatively() {
+        // main site of the network: the application's block type and its renderer, in the packaged application too
+        as("bob")
+                .get("/wp-json/wp/v2/block-types/qp-it/notice")
+                .then()
+                .statusCode(200)
+                .header("Allow", "GET")
+                .body("name", equalTo("qp-it/notice"))
+                .body("title", equalTo("Notice"))
+                .body("category", equalTo("text"))
+                .body("is_dynamic", equalTo(true))
+                .body("attributes.message.type", equalTo("string"))
+                .body("attributes.className.type", equalTo("string"));
+        as("bob")
+                .get("/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[message]=Hi")
+                .then()
+                .statusCode(200)
+                .body("rendered", equalTo("<p class=\"qp-notice\">Hi</p>"));
+        // the message is escaped; a subscriber may not render
+        as("bob")
+                .get("/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit&attributes[message]=<b>")
+                .then()
+                .statusCode(200)
+                .body("rendered", equalTo("<p class=\"qp-notice\">&lt;b&gt;</p>"));
+        as("erin")
+                .get("/wp-json/wp/v2/block-renderer/qp-it/notice?context=edit")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("block_cannot_read"))
+                .body("message", equalTo("Sorry, you are not allowed to read blocks as this user."));
+        as("bob")
+                .get("/wp-json/wp/v2/block-types/qp-it/nope")
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("rest_block_type_invalid"))
+                .body("message", equalTo("Invalid block type."));
+    }
+
+    @Test
+    void patternsResolve() {
+        // main site of the network: dave (contributor) may list the application's patterns, with their references
+        // resolved
+        Response patterns = as("dave").get("/wp-json/wp/v2/block-patterns/patterns");
+        patterns.then()
+                .statusCode(200)
+                .header("Allow", "GET")
+                .body("name", contains("qp/inner", "qp/outer", "qp/plain"));
+        String outer = patterns.jsonPath().getString("find { it.name == 'qp/outer' }.content");
+        assertThat(outer)
+                .startsWith("<!-- wp:group --><div class=\"wp-block-group\">")
+                .contains(
+                        "<!-- wp:paragraph {\"metadata\":{\"patternName\":\"qp/inner\",\"name\":\"Inner\","
+                                + "\"categories\":[\"buttons\",\"columns\",\"query\",\"x\"]}} --><p>Inner</p><!-- /wp:paragraph -->")
+                .contains("<!-- wp:pattern {\"slug\":\"qp/missing\"} /-->")
+                .contains("<!-- wp:group {\"metadata\":{\"patternName\":\"qp/outer\",\"name\":\"Outer\"}} -->")
+                .doesNotContain("{\"slug\":\"qp/inner\"}")
+                .doesNotContain("{\"slug\":\"qp/outer\"}");
+        // the categories of qp/inner migrated to their current names
+        assertThat(patterns.jsonPath().getList("find { it.name == 'qp/inner' }.categories", String.class))
+                .containsExactly("call-to-action", "text", "posts", "x");
+        as("dave")
+                .get("/wp-json/wp/v2/block-patterns/categories")
+                .then()
+                .statusCode(200)
+                .body("name", hasItem("call-to-action"))
+                .body("find { it.name == 'text' }.label", equalTo("Text"));
+        as("erin")
+                .get("/wp-json/wp/v2/block-patterns/patterns")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_view"))
+                .body("message", equalTo("Sorry, you are not allowed to view the registered block patterns."));
+    }
+
+    @Test
+    void theActiveTheme() {
+        // main site of the network: bob (editor) sees the active theme only
+        as("bob")
+                .get("/wp-json/wp/v2/themes?status=active")
+                .then()
+                .statusCode(200)
+                .header("X-WP-Total", "1")
+                .header("X-WP-TotalPages", "1")
+                .body("stylesheet", contains("quarkpress"))
+                .body("[0].status", equalTo("active"))
+                .body("[0].is_block_theme", equalTo(false))
+                .body("[0].name.rendered", equalTo("QuarkPress"))
+                .body("[0].theme_supports.align-wide", equalTo(true))
+                .body("[0].theme_supports.post-thumbnails", equalTo(true))
+                .body("[0].theme_supports.html5", hasItem("caption"))
+                .body("[0].stylesheet_uri", equalTo("http://localhost/wp-content/themes/quarkpress"))
+                .body("[0].default_template_types", hasSize(26))
+                .body("[0]._links", not(hasKey("wp:user-global-styles")));
+        as("bob").get("/wp-json/wp/v2/themes").then().statusCode(403).body("code", equalTo("rest_cannot_view_themes"));
+        as("alice")
+                .get("/wp-json/wp/v2/themes/quarkpress")
+                .then()
+                .statusCode(200)
+                .body("stylesheet", equalTo("quarkpress"));
+        as("alice")
+                .get("/wp-json/wp/v2/themes/twentytwentyfive")
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("rest_theme_not_found"))
+                .body("message", equalTo("Theme not found."));
+        // the index links the active theme for editors
+        as("bob")
+                .get("/wp-json/")
+                .then()
+                .statusCode(200)
+                .body("_links.'wp:active-theme'[0].href", equalTo("http://localhost/wp-json/wp/v2/themes/quarkpress"));
+    }
+
+    @Test
+    void theEditorRoute() {
+        // main site of the network: bob (editor) opens his own draft in the editor
+        int id = as("bob")
+                .contentType(ContentType.JSON)
+                .body(Map.of("type", "post", "status", "draft", "title", "Editor " + token()))
+                .post("/it/posts")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("id");
+        JsonPath editor = as("bob")
+                .get("/wp-json/quarkpress/v1/editor/post/" + id)
+                .then()
+                .statusCode(200)
+                .body("settings.alignWide", equalTo(true))
+                .body("settings.titlePlaceholder", equalTo("Add title"))
+                .body("settings.postLock.isLocked", equalTo(false))
+                .body("settings.richEditingEnabled", equalTo(true))
+                .body("settings.__unstableIsBlockBasedTheme", equalTo(false))
+                .body("blockDefinitions.'qp-it/notice'.title", equalTo("Notice"))
+                .extract()
+                .jsonPath();
+        Map<String, Object> preload = editor.getMap("preload");
+        assertThat(preload)
+                .containsKey("/wp/v2/types?context=view")
+                .containsKey("/wp/v2/posts/" + id + "?context=edit")
+                .containsKey("/wp/v2/users/me")
+                .containsKey("OPTIONS")
+                .containsKey("/wp/v2/themes?context=edit&status=active")
+                .doesNotContainKey("/wp/v2/settings");
+        assertThat(editor.getInt("preload.'/wp/v2/posts/" + id + "?context=edit'.body.id"))
+                .isEqualTo(id);
+        assertThat(editor.getString("preload.'/wp/v2/users/me'.body.slug")).isEqualTo("bob");
+        assertThat(editor.getMap("preload.OPTIONS")).containsKeys("/wp/v2/media", "/wp/v2/blocks", "/wp/v2/posts");
+        // the settings depend on the caller's capabilities; another user's post refuses a contributor
+        as("dave")
+                .get("/wp-json/quarkpress/v1/editor/post/" + id)
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_cannot_edit"))
+                .body("message", equalTo("Sorry, you are not allowed to edit this post."));
+        as(null).get("/wp-json/quarkpress/v1/editor/post/" + id).then().statusCode(401);
+        as("bob")
+                .get("/wp-json/quarkpress/v1/editor/page/" + id)
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("rest_post_invalid_id"))
+                .body("message", equalTo("Invalid post ID."));
+    }
+
+    @Test
+    void anAudioUrlEmbedsThroughTheHandler() {
+        // main site of the network: no provider is asked, the audio handler answers offline
+        Response audio = as("bob").get("/wp-json/oembed/1.0/proxy?url=https://media.invalid/a.mp3");
+        audio.then().statusCode(200).header("Allow", "GET");
+        assertThat(audio.asString().replace("\\/", "/"))
+                .isEqualTo(
+                        "{\"provider_name\":\"Embed Handler\",\"html\":\"[audio src=\\\"https://media.invalid/a.mp3\\\""
+                                + " /]\",\"scripts\":[]}");
+        as("bob")
+                .get("/wp-json/oembed/1.0/proxy?url=https://pages.invalid/page")
+                .then()
+                .statusCode(404)
+                .body("code", equalTo("oembed_invalid_url"))
+                .body("message", equalTo("Not Found"));
+        as("erin")
+                .get("/wp-json/oembed/1.0/proxy?url=https://media.invalid/a.mp3")
+                .then()
+                .statusCode(403)
+                .body("code", equalTo("rest_forbidden"))
+                .body("message", equalTo("Sorry, you are not allowed to make proxied oEmbed requests."));
     }
 }
