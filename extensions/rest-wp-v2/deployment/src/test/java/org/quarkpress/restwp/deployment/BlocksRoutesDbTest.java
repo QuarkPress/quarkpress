@@ -21,7 +21,7 @@ import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 
 /**
- * Synced patterns ({@code /wp/v2/blocks}): the posts routes with WordPress's blocks controller differences — the raw
+ * Synced patterns ({@code /wp/v2/blocks}): the posts routes with WordPress's blocks controller differences: the raw
  * title and content in the view context and no rendered ones, the sync status lifted out of {@code meta} to a
  * top-level key (empty when {@code meta} is not computed), the type's read capability ({@code edit_posts}) checked
  * before the posts' read rule, for an item as for each collection row, and the revisions keeping the key inside

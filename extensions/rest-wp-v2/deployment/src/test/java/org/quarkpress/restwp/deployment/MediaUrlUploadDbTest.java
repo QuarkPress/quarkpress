@@ -41,7 +41,7 @@ import org.quarkpress.testing.wprestparity.MediaFixtures;
 import org.quarkpress.testing.wprestparity.MediaFixtures.JpegMeta;
 
 /**
- * Uploads from a URL ({@code POST /wp/v2/media {"url": …}}) against a local image server on the loopback address,
+ * Uploads from a URL ({@code POST /wp/v2/media {"url": ...}}) against a local image server on the loopback address,
  * which the outbound module is told to reach: the attachment is named after the URL's last path segment as it stands
  * (not decoded), titled by the stored name's stem, its type corrected from the content, answered 201 with
  * {@code Location} and no {@code X-WP-Upload-Attachment-ID}; the network's per-file limit is checked before the
