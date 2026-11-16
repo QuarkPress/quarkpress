@@ -29,9 +29,10 @@ import org.quarkpress.taxonomy.Taxonomies;
 
 /**
  * What the block editor gets from WordPress's edit screen before its first request, over REST:
- * {@code GET /quarkpress/v1/editor/<type>/<id>} answers {@code {settings, preload, blockDefinitions}} for a post of
- * that type on this site: the settings object, the apiFetch preload map ({@link EditorPreload}, each entry the
- * caller's own answer of the routes of this server) and the server block definitions. The route reads and writes
+ * {@code GET /quarkpress/v1/editor/<type>/<id>} answers {@code {settings, preload, blockDefinitions, dateSettings}}
+ * for a post of that type on this site: the settings object, the apiFetch preload map ({@link EditorPreload}, each
+ * entry the caller's own answer of the routes of this server), the server block definitions and the site's date
+ * settings the screen prints as {@code wp.date} settings ({@link EditorDateSettings}). The route reads and writes
  * nothing else: no lock is taken (the admin shell takes it through the locks route when it opens the post), and an
  * older autosave is left as it is, where WordPress's screen takes the lock and deletes the autosave.
  *
@@ -50,6 +51,9 @@ public class EditorController implements RestRouteProvider {
 
     @Inject
     EditorPreload preload;
+
+    @Inject
+    EditorDateSettings dateSettings;
 
     @Inject
     PostsController postsController;
@@ -118,6 +122,7 @@ public class EditorController implements RestRouteProvider {
         body.set("settings", settings.of(request, edited.post(), edited.type()));
         body.set("preload", preload.of(routesOf(edited.type()), edited.post(), request));
         body.set("blockDefinitions", settings.blockDefinitions());
+        body.set("dateSettings", dateSettings.of());
         return RestResponse.ok(body);
     }
 

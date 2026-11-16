@@ -104,7 +104,7 @@ class EditorPreloadDbTest {
         Response answer = as(bob).get(EDITOR + "post/" + post.value());
         answer.then().statusCode(200).header("Allow", "GET");
         JsonNode body = json(answer);
-        assertThat(names(body)).containsExactly("settings", "preload", "blockDefinitions");
+        assertThat(names(body)).containsExactly("settings", "preload", "blockDefinitions", "dateSettings");
         JsonNode preload = body.get("preload");
         assertThat(names(preload)).containsExactlyElementsOf(keysForBob(post));
         // the OPTIONS key right after /wp/v2/users/me holds the OPTIONS answers, the posts route last

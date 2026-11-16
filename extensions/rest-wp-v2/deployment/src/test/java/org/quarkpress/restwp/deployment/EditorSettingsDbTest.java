@@ -133,7 +133,7 @@ class EditorSettingsDbTest {
         Response answer = as(bob).get(EDITOR + "post/" + post.value());
         answer.then().statusCode(200).header("Allow", "GET");
         JsonNode body = json(answer);
-        assertThat(names(body)).containsExactly("settings", "preload", "blockDefinitions");
+        assertThat(names(body)).containsExactly("settings", "preload", "blockDefinitions", "dateSettings");
         // the preload map (its own test): an object
         assertThat(body.get("preload").isObject()).isTrue();
         JsonNode settings = body.get("settings");
