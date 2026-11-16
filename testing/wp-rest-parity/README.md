@@ -308,3 +308,22 @@ another directory) and are never committed: they hold WordPress's responses. The
 `http://localhost/...` URLs and cookies, and Playwright forwards those requests to the server's real port. Only REST
 and admin-ajax traffic is kept (one open-post HAR is kept whole). Everything runs on the main site, since a
 subdirectory site's `wp-admin` and `wp-login.php` are not served under the router.
+
+The same profile runs the block editor's browser-facts run, `EditorBrowserFactsDbTest`: one test per question the
+admin-editor and editor-assets references left to a real browser (`a01`–`a14`, `s01`–`s12`, `x01`–`x04`), each noting
+what it saw under its item in `target/wp-rest-parity/verification-facts.json`, with one HAR per browser context in
+`target/har/facts-<item>-<label>.har` (every WordPress request, response bodies omitted except in a09's HAR) and the
+pages it reads in `target/wp-rest-parity/pages/`. It turns behaviour on per item through site options of the main site that the
+harness's must-use plugin reads (`qp_parity_no_concat`, `qp_parity_no_classic_editor`, `qp_parity_bare_canvas`,
+`qp_parity_dataviews_media`, `qp_parity_stub_media`, `qp_parity_stub_all_media`, `qp_parity_no_chrome_css`,
+`qp_parity_notes_404`, `qp_parity_notes_400`, `qp_parity_themes_500`, `qp_parity_no_bindings_key`,
+`qp_parity_nonce_403_once`, `qp_parity_block_styles`; each described in `qp-parity-mu.php`) and resets each one when
+its item ends. Item `s09` downloads the release zip with its `.sha1` and `.md5` from wordpress.org into
+`target/wp-pin/`, checks both and records the SHA-256; `x02` downloads the `oidc-client-ts` tarball from npm only with
+`-Dfacts.npm=true`. `-Dtest=EditorBrowserFactsDbTest` overrides the profile's surefire `<includes>`, which name only
+`EditorHarCapture`:
+
+```bash
+mvn -pl testing/wp-rest-parity -am verify -Pwp-parity,capture-har -Dtest=EditorBrowserFactsDbTest \
+  -Dsurefire.failIfNoSpecifiedTests=false
+```

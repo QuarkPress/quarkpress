@@ -43,6 +43,28 @@
  *     registers qp-it/notice, a dynamic block whose render callback prints the escaped message in
  *     <p class="qp-notice">; qp_parity_rest_name_meta registers the post meta qp_secret on post
  *     (single string, in REST under the name qp_public, an auth callback that refuses everyone).
+ *   - admin-editor browser-facts switches (EditorBrowserFactsDbTest; site options of the main site, "1" unless said
+ *     otherwise; to "omit" a handle is to replace its registration by a source-less one without dependencies, so the
+ *     file is not printed while its dependents still are): qp_parity_no_concat defines CONCATENATE_SCRIPTS false when
+ *     this plugin loads (never SCRIPT_DEBUG, which WordPress has defined by then); qp_parity_no_classic_editor
+ *     dequeues and omits the script "editor" at enqueue_block_editor_assets (a dequeue alone leaves it printed:
+ *     wp-block-library depends on it); qp_parity_bare_canvas removes
+ *     __unstableResolvedAssets, styles and defaultEditorStyles through block_editor_settings_all;
+ *     qp_parity_dataviews_media prints window.__experimentalDataViewsMediaModal = true before wp-editor and omits
+ *     media-views; qp_parity_stub_media omits media-editor, media-audiovideo, mce-view, image-edit and imgareaselect,
+ *     the styles media-views, imgareaselect and mediaelement, removes the media templates and replaces the data
+ *     _wpMediaViewsL10n by {settings:{post:{id:0}}} and _wpPluploadSettings by {defaults:{}};
+ *     qp_parity_stub_all_media also omits media-views, wp-plupload, the mediaelement scripts and postbox and prints
+ *     wp.media = {view:{settings:{}}}; postboxes = {}; in the head; qp_parity_no_chrome_css omits the admin-chrome
+ *     stylesheets (admin-menu, dashboard, list-tables, edit, revisions, media, themes, about, nav-menus, widgets,
+ *     site-icon, l10n, wp-tooltip, admin-bar, wp-pointer, wp-auth-check); qp_parity_notes_404 / qp_parity_notes_400
+ *     answer GET /wp/v2/comments with type=note by a 404 rest_no_route / 400 rest_invalid_param error
+ *     (rest_pre_dispatch); qp_parity_themes_500 answers every /wp/v2/themes route by a 500 error ("empty": by an empty
+ *     list) and drops those paths from the editor's preload; qp_parity_no_bindings_key removes
+ *     __experimentalBlockBindingsSupportedAttributes from the editor settings; qp_parity_nonce_403_once answers the
+ *     first PUT /wp/v2/posts/<id> after the switch was set by 403 rest_cookie_invalid_nonce "Cookie check failed"
+ *     (the option qp_parity_nonce_403_done records that it happened; "always": every such PUT);
+ *     qp_parity_block_styles adds the theme support wp-block-styles at after_setup_theme (priority 100).
  *   - loopback: when the environment variable QP_PARITY_LOOPBACK holds php -S's port (WordPressRestSite sets it for a
  *     server with two workers or more), a request WordPress makes to its own host (http://localhost/...) is sent to
  *     127.0.0.1 (the address php -S binds) on that port instead of port 80, where nothing listens; WP_ACCESSIBLE_HOSTS
@@ -317,6 +339,153 @@ add_action('init', static function (): void {
         'auth_callback' => '__return_false',
     ]);
 });
+
+// ---- admin-editor browser-facts switches (EditorBrowserFactsDbTest) ------------------------------------------------
+
+if ('1' === get_option('qp_parity_no_concat') && !defined('CONCATENATE_SCRIPTS')) {
+    define('CONCATENATE_SCRIPTS', false);
+}
+
+/** Harness rule: the handle stays registered without a source and without dependencies, so nothing is printed for it. */
+function qp_parity_omit_script(string $handle): void
+{
+    if (wp_script_is($handle, 'registered')) {
+        $queued = wp_script_is($handle, 'enqueued');
+        wp_deregister_script($handle);
+        wp_register_script($handle, false, [], null);
+        if ($queued) {
+            wp_enqueue_script($handle);
+        }
+    }
+}
+
+/** Harness rule: as qp_parity_omit_script, for a stylesheet. */
+function qp_parity_omit_style(string $handle): void
+{
+    if (wp_style_is($handle, 'registered')) {
+        $queued = wp_style_is($handle, 'enqueued');
+        wp_deregister_style($handle);
+        wp_register_style($handle, false, [], null);
+        if ($queued) {
+            wp_enqueue_style($handle);
+        }
+    }
+}
+
+add_action('enqueue_block_editor_assets', static function (): void {
+    if ('1' === get_option('qp_parity_no_classic_editor')) {
+        // wp-block-library depends on "editor", so a dequeue alone would leave it printed.
+        wp_dequeue_script('editor');
+        qp_parity_omit_script('editor');
+    }
+    $stub_all = '1' === get_option('qp_parity_stub_all_media');
+    if ('1' === get_option('qp_parity_dataviews_media')) {
+        wp_add_inline_script('wp-editor', 'window.__experimentalDataViewsMediaModal = true;', 'before');
+        qp_parity_omit_script('media-views');
+    }
+    if ('1' === get_option('qp_parity_stub_media') || $stub_all) {
+        foreach (['media-editor', 'media-audiovideo', 'mce-view', 'image-edit', 'imgareaselect'] as $handle) {
+            qp_parity_omit_script($handle);
+        }
+        foreach (['media-views', 'imgareaselect', 'mediaelement'] as $handle) {
+            qp_parity_omit_style($handle);
+        }
+        foreach (['admin_footer', 'wp_footer', 'customize_controls_print_footer_scripts'] as $hook) {
+            remove_action($hook, 'wp_print_media_templates');
+        }
+        $scripts = wp_scripts();
+        if (wp_script_is('media-views', 'registered')) {
+            $scripts->add_data('media-views', 'data', 'var _wpMediaViewsL10n = {"settings":{"post":{"id":0}}};');
+        }
+        if (wp_script_is('wp-plupload', 'registered')) {
+            $scripts->add_data('wp-plupload', 'data', 'var _wpPluploadSettings = {"defaults":{}};');
+        }
+    }
+    if ($stub_all) {
+        foreach (['media-views', 'wp-plupload', 'mediaelement-core', 'mediaelement-migrate', 'mediaelement',
+            'wp-mediaelement', 'postbox'] as $handle) {
+            qp_parity_omit_script($handle);
+        }
+    }
+    if ('1' === get_option('qp_parity_no_chrome_css')) {
+        foreach (['admin-menu', 'dashboard', 'list-tables', 'edit', 'revisions', 'media', 'themes', 'about',
+            'nav-menus', 'widgets', 'site-icon', 'l10n', 'wp-tooltip', 'admin-bar', 'wp-pointer', 'wp-auth-check']
+            as $handle) {
+            qp_parity_omit_style($handle);
+        }
+    }
+}, 100);
+
+add_action('admin_print_scripts', static function (): void {
+    if ('1' === get_option('qp_parity_stub_all_media')) {
+        echo "<script id=\"qp-parity-media-stub\">window.wp = window.wp || {}; wp.media = {view:{settings:{}}};"
+            . " window.postboxes = {};</script>\n";
+    }
+}, 0);
+
+add_filter('block_editor_settings_all', static function ($settings) {
+    if ('1' === get_option('qp_parity_bare_canvas')) {
+        unset($settings['__unstableResolvedAssets'], $settings['styles'], $settings['defaultEditorStyles']);
+    }
+    if ('1' === get_option('qp_parity_no_bindings_key')) {
+        unset($settings['__experimentalBlockBindingsSupportedAttributes']);
+    }
+    return $settings;
+}, PHP_INT_MAX);
+
+add_filter('block_editor_rest_api_preload_paths', static function ($paths) {
+    if (!in_array(get_option('qp_parity_themes_500'), ['1', 'empty'], true)) {
+        return $paths;
+    }
+    $kept = [];
+    foreach ($paths as $path) {
+        $route = is_array($path) ? (string) ($path[0] ?? '') : (string) $path;
+        if (!str_starts_with($route, '/wp/v2/themes')) {
+            $kept[] = $path;
+        }
+    }
+    return $kept;
+}, PHP_INT_MAX);
+
+add_filter('rest_pre_dispatch', static function ($result, $server, $request) {
+    if (null !== $result) {
+        return $result;
+    }
+    $route = $request->get_route();
+    if ('/wp/v2/comments' === $route && 'GET' === $request->get_method() && 'note' === $request->get_param('type')) {
+        if ('1' === get_option('qp_parity_notes_404')) {
+            return new WP_Error('rest_no_route', 'No route was found matching the URL and request method.',
+                ['status' => 404]);
+        }
+        if ('1' === get_option('qp_parity_notes_400')) {
+            return new WP_Error('rest_invalid_param', 'Invalid parameter(s): type',
+                ['status' => 400, 'params' => ['type' => 'type is not one of comment.']]);
+        }
+    }
+    $themes = get_option('qp_parity_themes_500');
+    if (str_starts_with($route, '/wp/v2/themes')) {
+        if ('1' === $themes) {
+            return new WP_Error('qp_parity_themes_500', 'Harness rule: the themes route fails.', ['status' => 500]);
+        }
+        if ('empty' === $themes) {
+            return new WP_REST_Response([], 200);
+        }
+    }
+    $nonce = get_option('qp_parity_nonce_403_once');
+    if (in_array($nonce, ['1', 'always'], true) && 'PUT' === $request->get_method()
+        && 1 === preg_match('#^/wp/v2/posts/\d+$#', $route)
+        && ('always' === $nonce || '1' !== get_option('qp_parity_nonce_403_done'))) {
+        update_option('qp_parity_nonce_403_done', '1');
+        return new WP_Error('rest_cookie_invalid_nonce', 'Cookie check failed', ['status' => 403]);
+    }
+    return $result;
+}, 10, 3);
+
+add_action('after_setup_theme', static function (): void {
+    if ('1' === get_option('qp_parity_block_styles')) {
+        add_theme_support('wp-block-styles');
+    }
+}, 100);
 
 /**
  * Harness rule, not WordPress behaviour: php -S listens on a free port, while WordPress addresses its own host as
