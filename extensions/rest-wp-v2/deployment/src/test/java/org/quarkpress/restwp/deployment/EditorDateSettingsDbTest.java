@@ -130,12 +130,12 @@ class EditorDateSettingsDbTest {
             option("timezone_string", "\"Atlantic/Reykjavik\"");
             assertThat(dateSettings(bob).get("timezone").toString())
                     .isEqualTo("{\"offset\":0,\"string\":\"Atlantic/Reykjavik\",\"abbr\":\"GMT\"}");
-            // Java names this zone GMT at +02:00 in its summer, where PHP prints the numeric form
+            // the time zone database abbreviates this zone numerically in every season, whatever Java calls it
             option("timezone_string", "\"Antarctica/Troll\"");
             zone = dateSettings(bob).get("timezone");
             assertThat(zone.get("offset").asInt()).isIn(0, 2);
             assertThat(zone.get("abbr").textValue())
-                    .isEqualTo(zone.get("offset").asInt() == 0 ? "GMT" : "+02");
+                    .isEqualTo(zone.get("offset").asInt() == 0 ? "+00" : "+02");
 
             // zones whose abbreviation is numeric in the time zone database: PHP's numeric form
             option("timezone_string", "\"America/Sao_Paulo\"");
