@@ -49,7 +49,8 @@ jobs:
           [ -n "$lib" ] || { echo "::error::libvips.so.42 not found after install"; exit 1; }
           dpkg -l | awk '/libvips42|libheif|libcgif/ { print $2, $3 }'
           vips -l | grep -E 'gifsave_buffer|heifsave_buffer|heifload |webpsave_buffer|tiffsave_buffer' || true
-          echo "QUARKUS_LIBVIPS_LIBRARY=$lib" >> "$GITHUB_ENV"
+          # Not exported as QUARKUS_LIBVIPS_LIBRARY: quarkus-libvips finds libvips.so.42 by its soname, and an
+          # environment value would override the tests that point quarkus.libvips.library at a missing file.
       - name: Install quarkus-libvips at the pinned commit
         if: matrix.java == 25
         # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
