@@ -25,6 +25,8 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+      # Keep in step with native.yml's native-vips job: the same pin, checkout, libvips packages and quarkus-libvips
+      # install (that job adds the AWT libraries).
       - name: Read the quarkus-libvips pin
         if: matrix.java == 25
         run: |
@@ -87,10 +89,11 @@ jobs:
             integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
       - name: WordPress libvips media parity
         if: matrix.java == 25
-        # as the JDK 21 step above: the report, removed first (the build wrote a skipped one), must show the test ran
+        # as the JDK 21 step above: the report, removed first (the build wrote a skipped one), must show the test ran;
+        # -DskipITs, because the build step already ran the Failsafe integration tests
         run: |
           rm -f integration-tests/media-vips/target/surefire-reports/TEST-*ParityDbTest.xml
-          mvn -B -ntp -pl integration-tests/media-vips -am verify -Pwp-parity -Dtest=MediaVipsParityDbTest -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -Dvips.require-all-formats=true -DtestDb=${{ matrix.db }}
+          mvn -B -ntp -pl integration-tests/media-vips -am verify -DskipITs -Pwp-parity -Dtest=MediaVipsParityDbTest -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -Dvips.require-all-formats=true -DtestDb=${{ matrix.db }}
           bash .github/scripts/require-tests-ran.sh \
             integration-tests/media-vips/target/surefire-reports/TEST-org.quarkpress.it.mediavips.MediaVipsParityDbTest.xml
       - name: Check formatting
@@ -99,4 +102,4 @@ jobs:
       - name: Check formatting (Java 25 modules)
         # the step above runs on JDK 21, whose reactor leaves these modules out
         if: matrix.java == 25 && matrix.db == 'postgresql'
-        run: mvn -B -ntp spotless:check -pl extensions/media-image-vips/runtime,extensions/media-image-vips/deployment
+        run: mvn -B -ntp spotless:check -pl extensions/media-image-vips/runtime,extensions/media-image-vips/deployment,integration-tests/media-vips

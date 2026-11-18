@@ -70,6 +70,8 @@ jobs:
           distribution: temurin
           java-version: 25
           cache: maven
+      # Keep in step with ci.yml's JDK 25 cells: the same pin, checkout, libvips packages and quarkus-libvips install
+      # (this job adds the AWT libraries).
       - name: Read the quarkus-libvips pin
         run: |
           pin="$(sed -n 's:.*<quarkus-libvips.commit>\(.*\)</quarkus-libvips.commit>.*:\1:p' pom.xml)"
@@ -93,7 +95,8 @@ jobs:
           [ -n "$lib" ] || { echo "::error::libvips.so.42 not found after install"; exit 1; }
           dpkg -l | awk '/libvips42|libheif|libcgif/ { print $2, $3 }'
           vips -l | grep -E 'gifsave_buffer|heifsave_buffer|heifload |webpsave_buffer|tiffsave_buffer' || true
-          echo "QUARKUS_LIBVIPS_LIBRARY=$lib" >> "$GITHUB_ENV"
+          # Not exported as QUARKUS_LIBVIPS_LIBRARY: quarkus-libvips finds libvips.so.42 by its soname, and an
+          # environment value would override the tests that point quarkus.libvips.library at a missing file.
       - name: Install quarkus-libvips at the pinned commit
         # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
         run: |
@@ -104,12 +107,13 @@ jobs:
       # The media-vips image makes sizes with libvips and decodes BMP with ImageIO (its fallback), behind WordPress's
       # REST API. The build is capped (C1 JIT for the builder, eight threads); no other native-image build argument is
       # set for this application, so these are its whole list. The tests fail rather than skip when libvips lacks a
-      # format. `shell: bash` runs with -o pipefail, so tee keeps the build's exit status.
+      # format. `shell: bash` runs with -o pipefail, so tee keeps the build's exit status. The builder image is pinned
+      # to a dated Mandrel tag (Mandrel 25.0.5.0, JDK 25.0.5) rather than `jdk-25`, which is rebuilt every week.
       - name: Build the native executable and run the integration tests
         shell: bash
         run: >-
           mvn -B -ntp -T1 verify -Dnative -Dquarkus.native.container-build=true
-          -Dquarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25
+          -Dquarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:25.0.5.0-Final-java25-2026-11-15
           -Dquarkus.native.additional-build-args=-J-XX:TieredStopAtLevel=1,--parallelism=8
           -DskipUnitTests=true -Dvips.require-all-formats=true
           -DtestDb=${{ matrix.db }} -pl integration-tests/media-vips
