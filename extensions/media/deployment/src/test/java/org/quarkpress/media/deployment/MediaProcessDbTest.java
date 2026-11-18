@@ -549,6 +549,14 @@ class MediaProcessDbTest {
         assertThat(metadata.get("original_image").textValue()).isEqualTo("IMG_5.heic");
         assertThat(metadata.get("width").intValue()).isEqualTo(2560);
         assertThat(metadata.get("height").intValue()).isEqualTo(1920);
+        // WordPress with Imagick stores image_meta of default values for a HEIC it converts (facts v03): it reads no
+        // HEIC EXIF
+        assertThat(metadata.get("image_meta"))
+                .isEqualTo(new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree("{\"aperture\": \"0\", \"credit\": \"\", \"camera\": \"\", \"caption\": \"\","
+                                + " \"created_timestamp\": \"0\", \"copyright\": \"\", \"focal_length\": \"0\","
+                                + " \"iso\": \"0\", \"shutter_speed\": \"0\", \"title\": \"\", \"orientation\": \"0\","
+                                + " \"keywords\": [], \"alt\": \"\"}"));
         assertThat(m.sizes().values()).extracting(MediaSize::mimeType).containsOnly("image/jpeg");
         assertThat(files(m))
                 .containsExactly(

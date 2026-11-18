@@ -791,6 +791,11 @@ public class SizeGenerator {
                     }
                     row.width = w0;
                     row.height = h0;
+                    if (HEIC.equals(mimeType) && row.imageMeta == null) {
+                        // a HEIC's embedded data is not read at upload; WordPress's editor reads none either and
+                        // stores the default image_meta when it converts the image
+                        row.imageMeta = new ImageMetaReader.Fields().toJson("");
+                    }
                     changed = true;
                     if (copy != null) {
                         useMainCopy(row, copy);
