@@ -31,9 +31,10 @@ import org.quarkpress.media.runtime.MediaConfig;
 import org.w3c.dom.Node;
 
 /**
- * The image processor of ImageIO and the TwelveMonkeys plugins: reads and writes JPEG, PNG, GIF and BMP (WebP and
- * TIFF are read only). Sub-sizes keep the source's ICC colour profile, with the pixels left in its colour space, and
- * nothing else of its metadata; JPEG is written baseline at the asked quality; an animated GIF gives its first frame.
+ * The image processor of ImageIO and the TwelveMonkeys plugins: reads and writes JPEG, PNG and GIF, and reads BMP
+ * (whose copies are written in JPEG, as WordPress with Imagick writes them), WebP and TIFF. Sub-sizes keep the
+ * source's ICC colour profile, with the pixels left in its colour space, and nothing else of its metadata; JPEG is
+ * written baseline at the asked quality; an animated GIF gives its first frame.
  */
 @ApplicationScoped
 public class ImageIoProcessor implements ImageProcessor {
@@ -66,6 +67,12 @@ public class ImageIoProcessor implements ImageProcessor {
     @Override
     public boolean supports(String mimeType) {
         return SUPPORTED.contains(mimeType);
+    }
+
+    /** Whether copies are written as {@code mimeType}: JPEG, PNG and GIF; never BMP, which is only read. */
+    @Override
+    public boolean writes(String mimeType) {
+        return writeFormat(mimeType) != null;
     }
 
     @Override
@@ -262,7 +269,6 @@ public class ImageIoProcessor implements ImageProcessor {
             case "image/jpeg" -> "jpeg";
             case "image/png" -> "png";
             case "image/gif" -> "gif";
-            case "image/bmp" -> "bmp";
             default -> null;
         };
     }

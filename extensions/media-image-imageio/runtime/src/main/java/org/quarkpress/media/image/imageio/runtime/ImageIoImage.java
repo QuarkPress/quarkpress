@@ -285,8 +285,7 @@ final class ImageIoImage implements DecodedImage {
             switch (format) {
                 case "jpeg" -> writeJpeg(target, Math.max(1, Math.min(100, quality)));
                 case "png" -> writePng(target);
-                case "gif" -> write(target, "gif", srgb(true, true));
-                default -> write(target, "bmp", srgb(false, false));
+                default -> write(target, "gif", srgb(true, true));
             }
             return new Encoded(mimeType, width, height, Files.size(target));
         } catch (IOException | RuntimeException e) {

@@ -20,8 +20,8 @@ the media module's keys.
 
 ## Formats
 
-- Read and written: JPEG, PNG, GIF and BMP. These are the types it `supports`, so the media module makes sizes for
-  them and accepts their uploads.
+- Read and written: JPEG, PNG and GIF. Read, with sizes written in JPEG (as WordPress with Imagick writes them): BMP.
+  These are the types it `supports`, so the media module makes sizes for them and accepts their uploads.
 - Read only: WebP (TwelveMonkeys) and TIFF (the JDK's reader). The media module never decodes them, since the
   processor cannot write them: WebP, AVIF and TIFF uploads that declare their type are refused unless
   `quarkpress.media.accept-unprocessable-images` is set, then stored without sizes. For TIFF that is what WordPress
@@ -33,12 +33,12 @@ the media module's keys.
 ## Writing
 
 - JPEG is written baseline (never progressive) at the quality the media module asks (82), clamped to 1–100, with its
-  own JFIF segment; PNG losslessly, with its alpha; GIF with one transparent colour; BMP without alpha.
+  own JFIF segment; PNG losslessly, with its alpha; GIF with one transparent colour. BMP is never written.
 - Scaling is bilinear, pixel centres onto pixel centres, colours weighted by alpha so that transparent pixels lend no
   colour to their neighbours; cutting and turning move samples only.
 - Metadata kept: an RGB or grey ICC colour profile, in JPEG (APP2) and PNG (`iCCP`) output. The pixels stay in that
   profile's colour space, never converted, so the kept profile still describes them. Any other image (CMYK, for one)
-  is converted to sRGB and written without a profile, and GIF and BMP output is sRGB. EXIF, IPTC and XMP are never
+  is converted to sRGB and written without a profile, and GIF output is sRGB. EXIF, IPTC and XMP are never
   written (media README, D3).
 
 ## Memory

@@ -52,7 +52,23 @@ class ImageIoProcessorTest extends ImageProcessorContract {
 
     @Override
     protected Set<String> writableTypes() {
-        return Set.of("image/jpeg", "image/png", "image/gif", "image/bmp");
+        return Set.of("image/jpeg", "image/png", "image/gif");
+    }
+
+    /** BMP is read but never written: its copies are JPEG, as WordPress with Imagick writes them. */
+    @Override
+    protected Set<String> readOnlyTypes() {
+        return Set.of("image/bmp");
+    }
+
+    @Test
+    void bmpIsReadButNotWritten() {
+        assertThat(p.supports("image/bmp")).isTrue();
+        assertThat(p.writes("image/bmp")).isFalse();
+        for (String t : List.of("image/jpeg", "image/png", "image/gif")) {
+            assertThat(p.writes(t)).as(t).isTrue();
+        }
+        assertThat(p.writes("image/webp")).isFalse();
     }
 
     @Test
