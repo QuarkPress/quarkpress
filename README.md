@@ -63,6 +63,11 @@ If your default `java` is older than 21, point Maven at a newer JDK:
 JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64 mvn verify
 ```
 
+On JDK 25 the build also includes the optional libvips image processor, which needs
+[quarkus-libvips](https://github.com/SiteNetSoft/quarkus-libvips) installed at the commit named by
+`quarkus-libvips.commit` in `pom.xml` (it is not published yet): clone it, check out that commit and run
+`mvn install -DskipTests`. To build without it, add `-Dquarkpress.skip-vips`.
+
 Format sources before committing:
 
 ```bash
