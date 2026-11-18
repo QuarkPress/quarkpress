@@ -8,6 +8,7 @@ import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.RuntimeInitializedPackageBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
 import java.util.List;
+import org.quarkpress.media.deployment.ImageProcessorBuildItem;
 import org.quarkpress.media.image.imageio.runtime.ImageIoProcessor;
 
 /**
@@ -27,6 +28,12 @@ class MediaImageIoProcessor {
     @BuildStep
     AdditionalBeanBuildItem beans() {
         return AdditionalBeanBuildItem.unremovableOf(ImageIoProcessor.class);
+    }
+
+    /** Names this module for {@code quarkpress.media.image-processor}. */
+    @BuildStep
+    ImageProcessorBuildItem imageProcessor() {
+        return new ImageProcessorBuildItem("imageio");
     }
 
     /**

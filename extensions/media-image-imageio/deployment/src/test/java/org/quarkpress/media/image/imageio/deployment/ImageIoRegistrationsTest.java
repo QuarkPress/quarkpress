@@ -81,6 +81,11 @@ class ImageIoRegistrationsTest {
         assertThat(item.isRemovable()).isFalse();
     }
 
+    @Test
+    void imageIoNamesItselfAsAnImageProcessor() {
+        assertThat(new MediaImageIoProcessor().imageProcessor().name()).isEqualTo("imageio");
+    }
+
     /** A build step without its annotation would compile, pass the tests above and never run in a build. */
     @Test
     void everyBuildStepMethodCarriesTheAnnotation() {
@@ -96,7 +101,13 @@ class ImageIoRegistrationsTest {
         }
         assertThat(steps)
                 .containsExactlyInAnyOrder(
-                        "feature", "imageIoServices", "reflection", "runtimeInit", "iccResources", "beans");
+                        "feature",
+                        "imageIoServices",
+                        "reflection",
+                        "runtimeInit",
+                        "iccResources",
+                        "beans",
+                        "imageProcessor");
     }
 
     @Test
