@@ -735,7 +735,7 @@ public class SizeGenerator {
                     Images images = new Images()) {
                 DecodedImage original;
                 try {
-                    original = images.add(processor.decode(source, realType));
+                    original = decode(source, info, images);
                 } catch (ImageProcessingException | RuntimeException | OutOfMemoryError failure) {
                     decodeFailed(failure);
                     return last(row -> {
@@ -902,7 +902,7 @@ public class SizeGenerator {
                         Images images = new Images()) {
                     DecodedImage decoded;
                     try {
-                        decoded = images.add(processor.decode(source, realType));
+                        decoded = decode(source, info, images);
                     } catch (ImageProcessingException | RuntimeException | OutOfMemoryError failure) {
                         decodeFailed(failure);
                         return media;
@@ -992,6 +992,24 @@ public class SizeGenerator {
         private boolean decodable(ImageInfo info) {
             return processor.supports(info.mimeType())
                     && (long) info.width() * info.height() <= config.maxImagePixels();
+        }
+
+        /**
+         * {@code source} decoded, kept in {@code images}. A decoded image of another size than the header measured
+         * (an AVIF whose first {@code ispe} is a tile's or a thumbnail's, say) fails as an undecodable one: copies
+         * planned from the header's size would be cut from other pixels. A HEIC attachment is measured by the
+         * processor that decodes it, which turns it as its {@code irot} says, so its size is not compared.
+         */
+        private DecodedImage decode(Path source, ImageInfo info, Images images) throws ImageProcessingException {
+            DecodedImage decoded = images.add(processor.decode(source, info.mimeType()));
+            boolean measuredByProcessor = HEIC.equals(media.mimeType())
+                    || info.mimeType().equals(HEIC)
+                    || info.mimeType().equals("image/heif");
+            if (!measuredByProcessor && (decoded.width() != info.width() || decoded.height() != info.height())) {
+                throw new ImageProcessingException("The image decoded to " + decoded.width() + "x" + decoded.height()
+                        + ", not the " + info.width() + "x" + info.height() + " its header declares.");
+            }
+            return decoded;
         }
 
         private void decodeFailed(Throwable failure) {

@@ -822,6 +822,36 @@ class MediaProcessDbTest {
     }
 
     @Test
+    void anImageThatDecodesToAnotherSizeThanItsHeaderGetsNoSizes() throws Exception {
+        // a decoder that reads another item than the header did (an AVIF whose first ispe is a tile's): sizes cut from
+        // it would be planned for the wrong dimensions, so it counts as a failed decode
+        processor.decodeAs(1000, 1000);
+        MediaSnapshot m = upload("x.jpg", jpeg(4000, 3000));
+        assertThat(processor.decodes()).isEqualTo(1);
+        assertThat(m.storageKey()).isEqualTo("2026/11/x.jpg");
+        assertThat(m.originalImage()).isEmpty();
+        assertThat(m.width()).hasValue(4000);
+        assertThat(m.height()).hasValue(3000);
+        assertThat(m.sizes()).isEmpty();
+        assertThat(m.imageMeta()).isPresent();
+        assertThat(m.processing()).isEqualTo(Processing.PARTIAL);
+        assertThat(storage.keys()).containsExactly("2026/11/x.jpg");
+        assertThat(processor.encodes()).isZero();
+        // a post-process decodes it again and makes nothing either
+        MediaSnapshot again = process(m.post().id());
+        assertThat(processor.decodes()).isEqualTo(2);
+        assertThat(again.sizes()).isEmpty();
+        assertThat(storage.keys()).containsExactly("2026/11/x.jpg");
+        assertThat(processor.encodes()).isZero();
+        // decoded at its header's size, the same attachment gets its copies
+        processor.reset();
+        MediaSnapshot fixed = process(m.post().id());
+        assertThat(fixed.storageKey()).isEqualTo("2026/11/x-scaled.jpg");
+        assertThat(fixed.sizes()).hasSize(6);
+        assertThat(fixed.processing()).isEqualTo(Processing.DONE);
+    }
+
+    @Test
     void twoProcessRunsAtOnceAgree() throws Exception {
         processor.throwOnDecode(new IllegalStateException("not now"));
         MediaSnapshot base = upload("x.jpg", jpeg(4000, 3000));

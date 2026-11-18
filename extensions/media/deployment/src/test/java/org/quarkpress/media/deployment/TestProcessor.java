@@ -74,6 +74,7 @@ public class TestProcessor implements ImageProcessor {
     private volatile Throwable turnFailure;
     private volatile Throwable supportsFailure;
     private volatile long decodeMillis;
+    private volatile int[] decodedSize;
     private final AtomicInteger decodes = new AtomicInteger();
     private final AtomicInteger encodes = new AtomicInteger();
     private volatile CyclicBarrier encodeBarrier;
@@ -126,6 +127,14 @@ public class TestProcessor implements ImageProcessor {
     /** Each decode takes at least {@code millis} milliseconds longer. */
     public void slowDecodes(long millis) {
         decodeMillis = millis;
+    }
+
+    /**
+     * Decoded images come out {@code width}&times;{@code height}, whatever the file's header says (as a decoder that
+     * reads another item of the file than the header does); 0 and 0 to decode at the file's own size again.
+     */
+    public void decodeAs(int width, int height) {
+        decodedSize = width > 0 && height > 0 ? new int[] {width, height} : null;
     }
 
     /** Whether WebP and HEIC are supported too (see the class description). */
@@ -190,6 +199,7 @@ public class TestProcessor implements ImageProcessor {
         turnFailure = null;
         supportsFailure = null;
         decodeMillis = 0;
+        decodedSize = null;
         decodes.set(0);
         encodes.set(0);
         encodeBarrier = null;
@@ -291,6 +301,17 @@ public class TestProcessor implements ImageProcessor {
             BufferedImage image = ImageIO.read(file.toFile());
             if (image == null) {
                 throw new ImageProcessingException("No image reader knows the file's type.");
+            }
+            int[] size = decodedSize;
+            if (size != null) {
+                BufferedImage resized = new BufferedImage(size[0], size[1], BufferedImage.TYPE_INT_RGB);
+                Graphics2D g = resized.createGraphics();
+                try {
+                    g.drawImage(image, 0, 0, size[0], size[1], null);
+                } finally {
+                    g.dispose();
+                }
+                image = resized;
             }
             Root root = new Root();
             Image decoded = new Image(image, root);
