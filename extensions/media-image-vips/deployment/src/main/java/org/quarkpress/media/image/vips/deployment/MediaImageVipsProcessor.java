@@ -6,14 +6,15 @@ import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.RunTimeConfigBuilderBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import org.quarkpress.media.deployment.ImageProcessorBuildItem;
 import org.quarkpress.media.image.vips.runtime.VipsConfigBuilder;
 import org.quarkpress.media.image.vips.runtime.VipsImageProcessor;
 import org.quarkpress.media.runtime.MediaBuildTimeConfig;
 
 /**
- * The libvips image processor module: its feature, its name for the processor choice, its processor bean, and the
- * defaults that keep libvips's input limits at or above QuarkPress's.
+ * The libvips image processor module: its feature, its name for the processor choice, its processor bean, the
+ * defaults that keep libvips's input limits at or above QuarkPress's, and the probe images a native image must hold.
  */
 class MediaImageVipsProcessor {
 
@@ -50,5 +51,15 @@ class MediaImageVipsProcessor {
     @BuildStep
     ImageProcessorBuildItem imageProcessor() {
         return new ImageProcessorBuildItem("vips");
+    }
+
+    /**
+     * The images the processor's start-up probe decodes to find what this libvips reads and writes (a PNG, and an HEIC
+     * that tells whether an HEVC decoder is installed). A native image holds no resource it is not told about.
+     */
+    @BuildStep
+    NativeImageResourceBuildItem probeResources() {
+        return new NativeImageResourceBuildItem(
+                "org/quarkpress/media/image/vips/probe.heic", "org/quarkpress/media/image/vips/probe.png");
     }
 }

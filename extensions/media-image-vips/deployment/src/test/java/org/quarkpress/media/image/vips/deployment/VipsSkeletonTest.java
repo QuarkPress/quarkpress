@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.ExcludedTypeBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.builditem.nativeimage.NativeImageResourceBuildItem;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -61,6 +62,23 @@ class VipsSkeletonTest {
                 .isEqualTo(VipsConfigBuilder.class.getName());
     }
 
+    /**
+     * The start-up probe reads these files from the class path; a native image holds no resource it is not told about,
+     * and without them the probe would find no type at all.
+     */
+    @Test
+    void theProbeImagesAreBundledInANativeImage() {
+        NativeImageResourceBuildItem item = new MediaImageVipsProcessor().probeResources();
+        assertThat(item.getResources())
+                .containsExactlyInAnyOrder(
+                        "org/quarkpress/media/image/vips/probe.heic", "org/quarkpress/media/image/vips/probe.png");
+        for (String resource : item.getResources()) {
+            assertThat(VipsImageProcessor.class.getClassLoader().getResource(resource))
+                    .as("%s on the class path", resource)
+                    .isNotNull();
+        }
+    }
+
     private static MediaBuildTimeConfig choice(Optional<String> processor) {
         return new MediaBuildTimeConfig() {
             @Override
@@ -88,6 +106,7 @@ class VipsSkeletonTest {
                     .isTrue();
             steps.add(method.getName());
         }
-        assertThat(steps).containsExactlyInAnyOrder("feature", "imageProcessor", "beans", "configBuilder");
+        assertThat(steps)
+                .containsExactlyInAnyOrder("feature", "imageProcessor", "beans", "configBuilder", "probeResources");
     }
 }
