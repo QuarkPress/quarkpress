@@ -86,6 +86,25 @@ class SizePlanTest {
                 .isEqualTo("image/heic");
     }
 
+    /** A type the processor takes as a source but cannot write is never chosen for copies. */
+    @Test
+    void aMappingToATypeTheProcessorOnlyReadsKeepsTheSourceType() {
+        ImageProcessor readsHeic = readOnly(
+                Set.of("image/jpeg", "image/png", "image/heic", "image/tiff"), Set.of("image/jpeg", "image/png"));
+        Map<String, String> formats =
+                Map.of("image/jpeg", "image/heic", "image/png", "image/tiff", "image/heic", "image/jpeg");
+        assertThat(SizePlan.outputType("image/jpeg", formats, readsHeic)).isEqualTo("image/jpeg");
+        assertThat(SizePlan.outputType("image/png", formats, readsHeic)).isEqualTo("image/png");
+        assertThat(SizePlan.outputType("image/heic", formats, readsHeic)).isEqualTo("image/jpeg");
+    }
+
+    @Test
+    void writesIsSupportsUnlessTheProcessorSaysOtherwise() {
+        ImageProcessor plain = processor(Set.of("image/jpeg"));
+        assertThat(plain.writes("image/jpeg")).isTrue();
+        assertThat(plain.writes("image/png")).isFalse();
+    }
+
     @Test
     void cropFromAnOption() {
         JsonNodeFactory json = JsonNodeFactory.instance;
@@ -171,6 +190,31 @@ class SizePlanTest {
         assertThat(sizes.get("thumbnail")).isEqualTo(new ImageSizeDefinition("thumbnail", 99, 99, Crop.none()));
         assertThat(sizes.get("a")).isEqualTo(new ImageSizeDefinition("a", 11, 0, Crop.hard()));
         assertThat(sizes.get("1536x1536").width()).isEqualTo(1500);
+    }
+
+    /** Takes {@code sources} as sources and writes only {@code written}. */
+    private static ImageProcessor readOnly(Set<String> sources, Set<String> written) {
+        return new ImageProcessor() {
+            @Override
+            public boolean supports(String mimeType) {
+                return sources.contains(mimeType);
+            }
+
+            @Override
+            public boolean writes(String mimeType) {
+                return written.contains(mimeType);
+            }
+
+            @Override
+            public Optional<ImageInfo> read(Path file) {
+                return Optional.empty();
+            }
+
+            @Override
+            public DecodedImage decode(Path file, String mimeType) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     private static ImageProcessor processor(Set<String> types) {

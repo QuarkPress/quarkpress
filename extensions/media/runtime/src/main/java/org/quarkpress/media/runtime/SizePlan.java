@@ -79,7 +79,7 @@ public final class SizePlan {
      */
     public static String outputType(String sourceType, Map<String, String> outputFormats, ImageProcessor processor) {
         String mapped = outputFormats.get(sourceType);
-        if (mapped == null || mapped.equals(sourceType) || !processor.supports(mapped)) {
+        if (mapped == null || mapped.equals(sourceType) || !processor.writes(mapped)) {
             return sourceType;
         }
         return mapped;

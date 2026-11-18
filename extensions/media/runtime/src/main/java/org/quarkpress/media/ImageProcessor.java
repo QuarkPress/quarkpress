@@ -9,8 +9,18 @@ import java.util.Optional;
  */
 public interface ImageProcessor {
 
-    /** Whether this processor both reads and writes images of {@code mimeType}. */
+    /**
+     * Whether this processor accepts images of {@code mimeType} as a source: it decodes them, or only measures them;
+     * it does not necessarily write that type (see {@link #writes}).
+     */
     boolean supports(String mimeType);
+
+    /**
+     * Whether this processor writes copies as {@code mimeType}. By default, every type it {@link #supports supports}.
+     */
+    default boolean writes(String mimeType) {
+        return supports(mimeType);
+    }
 
     /**
      * The detected image type and the stored dimensions of {@code file}, never rotated by its EXIF orientation;
