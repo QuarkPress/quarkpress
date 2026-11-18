@@ -11,7 +11,8 @@ permissions:
 jobs:
   build:
     name: JDK ${{ matrix.java }} / ${{ matrix.db }}
-    runs-on: ubuntu-latest
+    # the libvips package names below are Ubuntu 24.04's
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -24,6 +25,37 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+      - name: Read the quarkus-libvips pin
+        if: matrix.java == 25
+        run: |
+          pin="$(sed -n 's:.*<quarkus-libvips.commit>\(.*\)</quarkus-libvips.commit>.*:\1:p' pom.xml)"
+          [ "${#pin}" -eq 40 ] || { echo "::error::quarkus-libvips.commit not found in pom.xml"; exit 1; }
+          echo "QUARKUS_LIBVIPS_COMMIT=$pin" >> "$GITHUB_ENV"
+      # quarkus-libvips is not on Maven Central yet: built from the pinned commit (the admin repository's way).
+      - uses: actions/checkout@v4
+        if: matrix.java == 25
+        with:
+          repository: SiteNetSoft/quarkus-libvips
+          ref: ${{ env.QUARKUS_LIBVIPS_COMMIT }}
+          path: .quarkus-libvips
+      - name: Install libvips
+        if: matrix.java == 25
+        run: |
+          sudo apt-get update -q
+          # libheif-plugin-libde265 is only Suggested by noble's libheif1: without it HEIC decodes silently black.
+          # libheif-plugin-aomenc writes AVIF. libvips-tools carries the `vips` CLI used below.
+          sudo apt-get install -y -q libvips42t64 libvips-tools libheif-plugin-aomenc libheif-plugin-libde265
+          lib="$(ldconfig -p | awk '/libvips\.so\.42 / { print $NF; exit }')"
+          [ -n "$lib" ] || { echo "::error::libvips.so.42 not found after install"; exit 1; }
+          dpkg -l | awk '/libvips42|libheif|libcgif/ { print $2, $3 }'
+          vips -l | grep -E 'gifsave_buffer|heifsave_buffer|heifload |webpsave_buffer|tiffsave_buffer' || true
+          echo "QUARKUS_LIBVIPS_LIBRARY=$lib" >> "$GITHUB_ENV"
+      - name: Install quarkus-libvips at the pinned commit
+        if: matrix.java == 25
+        # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
+        run: |
+          rm -rf ~/.m2/repository/org/sitenetsoft/quarkus-libvips*
+          mvn -B -ntp install -DskipTests -f .quarkus-libvips/pom.xml -pl runtime,deployment -am
       - uses: shivammathur/setup-php@2.37.2
         if: matrix.java == 21
         with:
@@ -39,7 +71,8 @@ jobs:
             integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
       - name: Build and test
         if: matrix.java != 21 || matrix.db != 'postgresql'
-        run: mvn -B -ntp verify -DtestDb=${{ matrix.db }}
+        # on JDK 25 the vips module is built, and its tests fail rather than skip when libvips lacks a format
+        run: mvn -B -ntp verify -DtestDb=${{ matrix.db }} ${{ matrix.java == 25 && '-Dvips.require-all-formats=true' || '' }}
       - name: WordPress parity on MySQL
         if: matrix.java == 21 && matrix.db == 'mysql'
         # the upstream modules have none of the named tests, hence failIfNoSpecifiedTests=false; the reports, removed
@@ -54,3 +87,7 @@ jobs:
       - name: Check formatting
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check
+      - name: Check formatting (Java 25 modules)
+        # the step above runs on JDK 21, whose reactor leaves these modules out
+        if: matrix.java == 25 && matrix.db == 'postgresql'
+        run: mvn -B -ntp spotless:check -pl extensions/media-image-vips/runtime,extensions/media-image-vips/deployment
