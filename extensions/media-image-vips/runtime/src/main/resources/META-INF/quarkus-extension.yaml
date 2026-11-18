@@ -1,0 +1,14 @@
+---
+name: "QuarkPress Media Image Vips"
+description: "Reads, orients, crops, scales and writes QuarkPress images with libvips, through quarkus-libvips"
+metadata:
+  unlisted: false
+  keywords:
+    - "quarkpress"
+    - "cms"
+    - "media"
+    - "images"
+    - "libvips"
+  categories:
+    - "data"
+  status: "experimental"

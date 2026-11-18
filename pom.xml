@@ -49,6 +49,11 @@
     <twelvemonkeys.version>3.15.3</twelvemonkeys.version>
     <tika.version>4.2.0</tika.version>
     <metadata-extractor.version>2.22.0</metadata-extractor.version>
+    <!-- quarkus-libvips (the libvips image processor's bindings) is not on Maven Central yet. CI checks out
+         SiteNetSoft/quarkus-libvips at this commit and installs it; developers run `mvn install -DskipTests` once
+         in a checkout of that commit. Change both properties together. -->
+    <quarkus-libvips.version>0.1.0-SNAPSHOT</quarkus-libvips.version>
+    <quarkus-libvips.commit>b3e1deaa0d38d8a96393dcc438e900e509c38fa9</quarkus-libvips.commit>
 
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>

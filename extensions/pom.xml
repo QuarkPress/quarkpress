@@ -40,6 +40,24 @@
     <module>dev-ui</module>
   </modules>
 
+  <profiles>
+    <profile>
+      <!-- Modules that need Java 25 (the libvips image processor: quarkus-libvips is built on Java 25's Foreign
+           Function and Memory API). A Java 21 build leaves them out; -Dquarkpress.skip-vips leaves them out on
+           Java 25 too. -->
+      <id>jdk25-modules</id>
+      <activation>
+        <jdk>[25,)</jdk>
+        <property>
+          <name>!quarkpress.skip-vips</name>
+        </property>
+      </activation>
+      <modules>
+        <module>media-image-vips</module>
+      </modules>
+    </profile>
+  </profiles>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
