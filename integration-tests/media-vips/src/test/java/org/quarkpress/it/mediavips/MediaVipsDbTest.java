@@ -31,8 +31,8 @@ import org.quarkpress.testing.wprestparity.MediaFixtures;
  * decoded by ImageIO (the fallback). Everything goes over HTTP, so {@code MediaVipsIT} runs the same tests against the
  * packaged application.
  *
- * <p>A type this libvips cannot write or decode skips its test, or fails it with {@code -Dvips.require-all-formats=true}
- * (CI).
+ * <p>A type this libvips cannot write or decode skips its test, or fails it with
+ * {@code -Dvips.require-all-formats=true} (CI).
  */
 @QuarkusTest
 @WithTestResource(MediaFilesResource.class)
@@ -230,6 +230,20 @@ class MediaVipsDbTest {
     }
 
     @Test
+    void aJpegWiderThanLibjpegReadsIsStoredWithoutSizes() {
+        // the widest a JPEG header can declare (its SOF holds 16 bits, so 70 000 cannot be written) is above libjpeg's
+        // 65 500 and well within the pixel limit: libjpeg refuses it at decode, and no libvips text is answered
+        JsonPath media = uploaded("wide.jpg", "image/jpeg", jpegDeclaring(MediaFixtures.jpeg(64, 10), 65535, 10));
+        assertThat(media.getString("processing")).isEqualTo("partial");
+        assertThat(media.getInt("width")).isEqualTo(65535);
+        assertThat(media.getInt("height")).isEqualTo(10);
+        assertThat(media.getMap("sizes")).isEmpty();
+        assertThat(media.getString("originalImage")).isNull();
+        assertThat(media.getString("attachedFile")).endsWith("/wide.jpg");
+        assertThat(media.prettify()).doesNotContainIgnoringCase("libvips").doesNotContain("65500", "dimension");
+    }
+
+    @Test
     void aHalfJpegGetsItsSizesAndAHalfPngNone() {
         // as WordPress with either editor: a JPEG cut in half still gets its sizes
         JsonPath jpeg = uploaded("half.jpg", "image/jpeg", half(MediaFixtures.jpeg(1200, 900)));
@@ -298,6 +312,26 @@ class MediaVipsDbTest {
     }
 
     /** The first half of {@code bytes}: the header intact, the pixels cut off. */
+    /** {@code jpeg} with the width and height of its baseline frame header (SOF0) changed. */
+    static byte[] jpegDeclaring(byte[] jpeg, int width, int height) {
+        byte[] bytes = jpeg.clone();
+        for (int i = 2; i + 9 < bytes.length; ) {
+            if ((bytes[i] & 0xFF) != 0xFF) {
+                throw new IllegalArgumentException("not a JPEG segment at " + i);
+            }
+            int marker = bytes[i + 1] & 0xFF;
+            if (marker == 0xC0) {
+                bytes[i + 5] = (byte) (height >> 8);
+                bytes[i + 6] = (byte) height;
+                bytes[i + 7] = (byte) (width >> 8);
+                bytes[i + 8] = (byte) width;
+                return bytes;
+            }
+            i += 2 + (((bytes[i + 2] & 0xFF) << 8) | (bytes[i + 3] & 0xFF));
+        }
+        throw new IllegalArgumentException("no baseline frame header");
+    }
+
     static byte[] half(byte[] bytes) {
         return Arrays.copyOf(bytes, bytes.length / 2);
     }

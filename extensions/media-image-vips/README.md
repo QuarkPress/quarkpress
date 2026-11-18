@@ -141,6 +141,14 @@ throws Quarkus's `BlockingOperationNotAllowedException`, rather than failing as 
   `VIPS_DISC_THRESHOLD` (an environment variable, 100 MB of pixels by default, about 33 million RGB pixels) is decoded
   to a temporary file in `TMPDIR` instead, and the media module's own copies go to `java.io.tmpdir`. Where that folder
   is a tmpfs, those files are memory too: point `TMPDIR` at a disc folder, or plan the memory for it.
+- `quarkpress.media.max-concurrent-decodes` defaults to half the processors and at most one decode per 512 MiB of
+  Java heap. That heap sizing fits ImageIO; libvips decodes outside the heap, so a small heap does not lower its
+  memory and a large one does not make room for it. On a libvips host, set it explicitly from the memory left beside
+  the heap (a decoded RGB image takes about 3 bytes per pixel, up to `quarkpress.media.max-image-pixels`).
+- HEIC and AVIF frames: `quarkpress.media.max-image-pixels` and `max-input-pixels` check the size the file declares
+  (its `ispe`). libheif decodes the coded frame first and only then finds a frame larger than declared, so that frame
+  is bounded by libheif's own security limits (its largest image size), not by these settings. WordPress with Imagick
+  has the same exposure. Keep libheif up to date (below).
 - Decoding ignores `quarkus.libvips.fail-on`: the processor sets it per type (see Formats).
 - quarkus-libvips blocks the loaders libvips marks untrusted. Its matrix loader is not marked, and an upload never
   needs it: block it with `quarkus.libvips.security.blocked-operations=VipsForeignLoadMatrix`.

@@ -105,6 +105,20 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
         return Boolean.getBoolean("vips.require-all-formats");
     }
 
+    /**
+     * The committed file {@code src/test/resources/images/<name>}, made by us; the HEIC and AVIF images come from
+     * {@link MediaFixtures}, which records how they were made.
+     *
+     * <ul>
+     *   <li>{@code animated.webp}: a 16&times;12 animated WebP of three solid frames, red, green and blue, 100 ms
+     *       each, looping, no metadata; written by libvips ({@code vips webpsave} of the three frames joined top to
+     *       bottom, {@code --page-height 12}).
+     *   <li>{@code adobe-cmyk.jpg}: a 64&times;48 Adobe CMYK JPEG (APP14), left half red, right half blue, its CMYK
+     *       pixels made with libvips's own CMYK profile, with an embedded {@code CGATS001Compat-v2-micro.icc}
+     *       (description "uCMY") from Debian's {@code icc-profiles-free} package (Compact-ICC-Profiles by Clinton
+     *       Ingram, CC0-1.0).
+     * </ul>
+     */
     static Path fixture(String name) {
         return Path.of("src/test/resources/images", name);
     }
@@ -140,7 +154,7 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
     void avifSizesAreAvif() throws Exception {
         assumeTrue(formats.writes("image/avif") || requireAll(), AVIF_SKIP);
         ImageProcessor p = processor(100_000_000);
-        Path source = fixture("photo.avif");
+        Path source = write(MediaFixtures.avif(2600, 1800));
         assertThat(p.read(source)).contains(new ImageInfo("image/avif", 2600, 1800));
         Path target = dir.resolve("out.avif");
         try (DecodedImage decoded = p.decode(source, "image/avif");
@@ -162,11 +176,12 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
         ImageProcessor p = processor(100_000_000);
         assertThat(p.supports("image/heic")).isTrue();
         assertThat(p.supports("image/heif")).isTrue();
-        assertThat(p.read(fixture("still.heic"))).contains(new ImageInfo("image/heic", 4032, 3024));
+        assertThat(p.read(write(MediaFixtures.heic(4032, 3024)))).contains(new ImageInfo("image/heic", 4032, 3024));
         // libheif applies the container's rotation on reading, as WordPress's Imagick sees it
-        assertThat(p.read(fixture("rotated.heic"))).contains(new ImageInfo("image/heic", 3024, 4032));
+        assertThat(p.read(write(MediaFixtures.heicRotated(4032, 3024))))
+                .contains(new ImageInfo("image/heic", 3024, 4032));
         Path jpeg = dir.resolve("out.jpg");
-        try (DecodedImage decoded = p.decode(fixture("still.heic"), "image/heic");
+        try (DecodedImage decoded = p.decode(write(MediaFixtures.heic(4032, 3024)), "image/heic");
                 DecodedImage region = decoded.region(0, 0, 4032, 3024, 400, 300)) {
             assertThat(region.encode(jpeg, "image/jpeg", 82))
                     .isEqualTo(new Encoded("image/jpeg", 400, 300, Files.size(jpeg)));
@@ -186,7 +201,8 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
         if (formats.decodes("image/heic")) {
             // with a decoder, a HEIC decodes to its colours
             Path png = dir.resolve("heic.png");
-            try (DecodedImage decoded = processor(100_000_000).decode(fixture("still.heic"), "image/heic")) {
+            try (DecodedImage decoded =
+                    processor(100_000_000).decode(write(MediaFixtures.heic(4032, 3024)), "image/heic")) {
                 decoded.encode(png, "image/png", 82);
             }
             assertThat(isBlack(ImageIO.read(png.toFile()))).isFalse();
@@ -200,7 +216,7 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
         ImageProcessor p = processor(100_000_000);
         assertThat(p.supports("image/heic")).isFalse();
         assertThat(p.supports("image/heif")).isFalse();
-        assertThatThrownBy(() -> p.decode(fixture("still.heic"), "image/heic"))
+        assertThatThrownBy(() -> p.decode(write(MediaFixtures.heic(4032, 3024)), "image/heic"))
                 .isInstanceOf(ImageProcessingException.class)
                 .hasMessage("No image processor reads image/heic.");
         if (libvips.hasOperation("heifload") && !libvips.isBlocked("VipsForeignLoadHeifFile")) {

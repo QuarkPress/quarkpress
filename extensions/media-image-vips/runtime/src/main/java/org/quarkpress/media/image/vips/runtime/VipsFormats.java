@@ -38,6 +38,10 @@ public record VipsFormats(Set<String> writable, Set<String> readable, Set<String
 
     private static final List<String> READ_ORDER = List.of("image/heic", "image/heif");
 
+    /**
+     * Where the probe images are, both made by us with libvips: {@code probe.png}, 8&times;8 of one colour (RGB 40,
+     * 120, 200), and {@code probe.heic}, 16&times;16 red, saved with {@code vips heifsave --compression hevc}.
+     */
     private static final String RESOURCES = "/org/quarkpress/media/image/vips/";
 
     public VipsFormats {
