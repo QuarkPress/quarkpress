@@ -717,15 +717,18 @@ public class SizeGenerator {
             int h0 = info.height();
             String realType = info.mimeType();
             losslessSource = losslessWebp(source, realType);
-            if (!options.generateSubSizes() || !decodable(info)) {
+            Map<String, String> formats = options.convertFormat() ? config.effectiveOutputFormats() : Map.of();
+            Optional<String> written = SizePlan.writtenType(realType, formats, processor);
+            if (!options.generateSubSizes() || !decodable(info) || written.isEmpty()) {
+                // a processor that writes neither the image's type nor JPEG makes no copies
                 return last(row -> {
                     row.width = w0;
                     row.height = h0;
                     return MediaEntity.DONE;
                 });
             }
-            Map<String, String> formats = options.convertFormat() ? config.effectiveOutputFormats() : Map.of();
-            String outputType = SizePlan.outputType(realType, formats, processor);
+            String convertedType = SizePlan.outputType(realType, formats, processor);
+            String outputType = written.get();
             String sourceName = fileName(sourceKey());
             int orientation = realType.equals(JPEG) ? orientation(media.imageMeta()) : 0;
             try (DecodeLimiter.Permit permit = limiter.acquire(config.decodeWait());
@@ -756,7 +759,17 @@ public class SizeGenerator {
                 boolean copyApplies = false;
                 MainCopy main = null;
                 try {
-                    main = mainCopy(original, upright, orientation, w0, h0, realType, outputType, sourceName, images);
+                    main = mainCopy(
+                            original,
+                            upright,
+                            orientation,
+                            w0,
+                            h0,
+                            realType,
+                            convertedType,
+                            outputType,
+                            sourceName,
+                            images);
                     copyApplies = main != null;
                 } catch (ImageProcessingException | RuntimeException | OutOfMemoryError failure) {
                     copyApplies = true;
@@ -863,9 +876,14 @@ public class SizeGenerator {
                 String realType = info.mimeType();
                 losslessSource = losslessWebp(source, realType);
                 Map<String, String> formats = options.convertFormat() ? config.effectiveOutputFormats() : Map.of();
-                String outputType = SizePlan.outputType(realType, formats, processor);
+                Optional<String> written = SizePlan.writtenType(realType, formats, processor);
+                if (written.isEmpty()) {
+                    return media;
+                }
+                String convertedType = SizePlan.outputType(realType, formats, processor);
+                String outputType = written.get();
                 int orientation = realType.equals(JPEG) ? fileOrientation(source, realType) : 0;
-                boolean retryCopy = mayLackCopy && copyApplies(info, orientation, outputType);
+                boolean retryCopy = mayLackCopy && copyApplies(info, orientation, convertedType);
                 if (names.isEmpty() && !retryCopy) {
                     return media;
                 }
@@ -892,7 +910,7 @@ public class SizeGenerator {
                         return media;
                     }
                     if (retryCopy) {
-                        retryMainCopy(decoded, upright, orientation, info, outputType, images);
+                        retryMainCopy(decoded, upright, orientation, info, convertedType, outputType, images);
                     }
                     List<Planned> planned = plan(ordered, upright, fileName(sourceKey()), realType, outputType);
                     if (planned.isEmpty() && !retryCopy) {
@@ -905,13 +923,16 @@ public class SizeGenerator {
             }
         }
 
-        /** Whether the main-file step would make a copy of this image: scaled, converted or turned upright. */
-        private boolean copyApplies(ImageInfo info, int orientation, String outputType) {
+        /**
+         * Whether the main-file step would make a copy of this image: scaled, converted (to {@code convertedType}) or
+         * turned upright.
+         */
+        private boolean copyApplies(ImageInfo info, int orientation, String convertedType) {
             int threshold = config.bigImageThreshold();
             if (threshold > 0 && (info.width() > threshold || info.height() > threshold)) {
                 return SizePlan.scaled(info.width(), info.height(), threshold).isPresent();
             }
-            return !outputType.equals(info.mimeType()) || (orientation >= 2 && orientation <= 8);
+            return !convertedType.equals(info.mimeType()) || (orientation >= 2 && orientation <= 8);
         }
 
         /** Makes the main-file copy again and saves it, unless another run did. */
@@ -920,6 +941,7 @@ public class SizeGenerator {
                 DecodedImage upright,
                 int orientation,
                 ImageInfo info,
+                String convertedType,
                 String outputType,
                 Images images) {
             MainCopy copy;
@@ -931,6 +953,7 @@ public class SizeGenerator {
                         info.width(),
                         info.height(),
                         info.mimeType(),
+                        convertedType,
                         outputType,
                         fileName(sourceKey()),
                         images);
@@ -988,7 +1011,10 @@ public class SizeGenerator {
             }
         }
 
-        /** The main-file copy, when one applies: scaled, else converted, else turned upright. */
+        /**
+         * The main-file copy, when one applies: scaled, else converted (when {@code convertedType} is not the image's
+         * own), else turned upright; written as {@code outputType}.
+         */
         private MainCopy mainCopy(
                 DecodedImage original,
                 DecodedImage upright,
@@ -996,6 +1022,7 @@ public class SizeGenerator {
                 int w0,
                 int h0,
                 String realType,
+                String convertedType,
                 String outputType,
                 String sourceName,
                 Images images)
@@ -1018,7 +1045,7 @@ public class SizeGenerator {
                 return encodeMain(
                         turned, SizePlan.scaledName(sourceName, realType, outputType), outputType, turned != resized);
             }
-            if (!outputType.equals(realType)) {
+            if (!convertedType.equals(realType)) {
                 return encodeMain(
                         upright, SizePlan.convertedName(sourceName, outputType), outputType, upright != original);
             }

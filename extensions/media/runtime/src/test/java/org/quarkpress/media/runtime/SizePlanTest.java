@@ -98,6 +98,49 @@ class SizePlanTest {
         assertThat(SizePlan.outputType("image/heic", formats, readsHeic)).isEqualTo("image/jpeg");
     }
 
+    /**
+     * As WordPress's editors: a type the processor cannot write, after the output mapping, is written as JPEG (the
+     * editors' default type); the type the main file is converted to stays the mapped one.
+     */
+    @Test
+    void aTypeTheProcessorCannotWriteIsWrittenAsJpeg() {
+        ImageProcessor readsBmp = readOnly(
+                Set.of("image/jpeg", "image/png", "image/bmp", "image/heic"), Set.of("image/jpeg", "image/png"));
+        assertThat(SizePlan.writtenType("image/bmp", Map.of(), readsBmp)).contains("image/jpeg");
+        assertThat(SizePlan.outputType("image/bmp", Map.of(), readsBmp)).isEqualTo("image/bmp");
+        assertThat(SizePlan.writtenType("image/heic", Map.of(), readsBmp)).contains("image/jpeg");
+        assertThat(SizePlan.writtenType("image/png", Map.of(), readsBmp)).contains("image/png");
+        // the mapping comes first: a mapped type it writes wins
+        assertThat(SizePlan.writtenType("image/bmp", Map.of("image/bmp", "image/png"), readsBmp))
+                .contains("image/png");
+        // a mapped type it cannot write is ignored, then the source type it cannot write either gives JPEG
+        assertThat(SizePlan.writtenType("image/bmp", Map.of("image/bmp", "image/webp"), readsBmp))
+                .contains("image/jpeg");
+        assertThat(SizePlan.outputType("image/bmp", Map.of("image/bmp", "image/webp"), readsBmp))
+                .isEqualTo("image/bmp");
+    }
+
+    /** A processor that writes neither the type nor JPEG makes no copies. */
+    @Test
+    void withoutJpegATypeTheProcessorCannotWriteGetsNoCopies() {
+        ImageProcessor noJpeg = readOnly(Set.of("image/png", "image/bmp"), Set.of("image/png"));
+        assertThat(SizePlan.writtenType("image/bmp", Map.of(), noJpeg)).isEmpty();
+        assertThat(SizePlan.writtenType("image/png", Map.of(), noJpeg)).contains("image/png");
+    }
+
+    /**
+     * A processor that writes the source type keeps it (ImageIO and GIF); BMP, which ImageIO reads but does not write,
+     * is written as JPEG.
+     */
+    @Test
+    void aTypeTheProcessorWritesIsKept() {
+        ImageProcessor imageIo = readOnly(
+                Set.of("image/jpeg", "image/png", "image/gif", "image/bmp"),
+                Set.of("image/jpeg", "image/png", "image/gif"));
+        assertThat(SizePlan.writtenType("image/gif", Map.of(), imageIo)).contains("image/gif");
+        assertThat(SizePlan.writtenType("image/bmp", Map.of(), imageIo)).contains("image/jpeg");
+    }
+
     @Test
     void writesIsSupportsUnlessTheProcessorSaysOtherwise() {
         ImageProcessor plain = processor(Set.of("image/jpeg"));

@@ -73,9 +73,13 @@ public final class SizePlan {
         return Dimensions.resize(w0, h0, threshold, threshold, Crop.none()).map(r -> new Size(r.width(), r.height()));
     }
 
+    /** The type WordPress's editors write a type they cannot write in. */
+    private static final String DEFAULT_TYPE = "image/jpeg";
+
     /**
-     * The type copies of a {@code sourceType} image are written in: the type {@code outputFormats} maps it to when
-     * {@code processor} writes that type, otherwise the source type.
+     * The output type of a {@code sourceType} image, which the main file is converted to: the type {@code
+     * outputFormats} maps it to when {@code processor} writes that type, otherwise the source type. Copies are written
+     * in {@link #writtenType}.
      */
     public static String outputType(String sourceType, Map<String, String> outputFormats, ImageProcessor processor) {
         String mapped = outputFormats.get(sourceType);
@@ -83,6 +87,21 @@ public final class SizePlan {
             return sourceType;
         }
         return mapped;
+    }
+
+    /**
+     * The type copies of a {@code sourceType} image are written in, as WordPress's editors choose it: the
+     * {@link #outputType output type} when {@code processor} writes it, else JPEG (the editors' default type) when it
+     * writes JPEG; empty when it writes neither, and no copies are made. The main file is converted only to the output
+     * type: a copy of it written in JPEG this way (scaled or turned) is not a conversion.
+     */
+    public static Optional<String> writtenType(
+            String sourceType, Map<String, String> outputFormats, ImageProcessor processor) {
+        String type = outputType(sourceType, outputFormats, processor);
+        if (processor.writes(type)) {
+            return Optional.of(type);
+        }
+        return processor.writes(DEFAULT_TYPE) ? Optional.of(DEFAULT_TYPE) : Optional.empty();
     }
 
     private static String withExtension(String stem, String sourceName, String sourceType, String outputType) {
