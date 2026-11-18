@@ -14,6 +14,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quarkpress.blocks.BlockType;
 import org.quarkpress.blocks.BlockTypeRegistry;
 import org.quarkpress.core.PostTypeDefinition;
@@ -116,6 +117,17 @@ public class EditorSettings {
 
     @Inject
     RestUrls urls;
+
+    /**
+     * The admin screens' path below each site, the admin module's setting: present only when a module that declares
+     * it is installed (QuarkPress refuses an undeclared {@code quarkpress.*} key), so this module reads it without
+     * depending on that module.
+     */
+    @ConfigProperty(name = ADMIN_PATH)
+    Optional<String> adminPath;
+
+    /** The key of the admin screens' path. */
+    static final String ADMIN_PATH = "quarkpress.admin.path";
 
     /** The recorded flags read as booleans, in the order the settings print them. */
     static final List<String> FLAGS =
@@ -323,11 +335,31 @@ public class EditorSettings {
 
     // ---- per-screen keys
 
-    /** The configured dashboard URL with its trailing slash, or the site's {@code wp-admin/}. */
+    /**
+     * The configured dashboard URL with its trailing slash; otherwise WordPress's {@code admin_url('/')}: the site's
+     * URL followed by the admin path ({@value #ADMIN_PATH} when set, {@code wp-admin/} otherwise).
+     */
     private String dashboard(RestWpConfig.Editor editor) {
         return editor.dashboardUrl()
                 .map(url -> url.endsWith("/") ? url : url + "/")
-                .orElseGet(() -> urls.home() + "wp-admin/");
+                .orElseGet(() -> urls.home() + adminFolder(adminPath));
+    }
+
+    /**
+     * The admin folder below a site's URL for an admin path such as {@code /a/b/}: {@code a/b/}, without leading and
+     * with one trailing slash; {@code wp-admin/} when there is no path or it names no folder.
+     */
+    static String adminFolder(Optional<String> adminPath) {
+        String folder = adminPath.orElse("").strip();
+        int start = 0;
+        while (start < folder.length() && folder.charAt(start) == '/') {
+            start++;
+        }
+        folder = folder.substring(start);
+        if (folder.isEmpty()) {
+            return "wp-admin/";
+        }
+        return folder.endsWith("/") ? folder : folder + "/";
     }
 
     /**

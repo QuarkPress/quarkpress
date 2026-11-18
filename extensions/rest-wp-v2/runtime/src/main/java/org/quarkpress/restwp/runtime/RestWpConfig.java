@@ -65,8 +65,10 @@ public interface RestWpConfig {
 
         /**
          * The admin shell's URL, where WordPress's {@code wp-admin/} is: the editor's dashboard link and the base of
-         * the link to a newer autosave's revision screen; the site's home followed by {@code wp-admin/} when unset. A
-         * value without a trailing slash gets one.
+         * the link to a newer autosave's revision screen. When unset, the site's home followed by the admin path, as
+         * WordPress's {@code admin_url('/')}: {@code quarkpress.admin.path} (the admin module's setting, read when a
+         * module declares it) without its leading slash, else {@code wp-admin/}. A value without a trailing slash gets
+         * one.
          */
         Optional<String> dashboardUrl();
     }
