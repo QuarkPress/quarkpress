@@ -71,6 +71,32 @@ public abstract class ImageProcessorContract {
     protected abstract Set<String> writableTypes();
 
     /**
+     * The types the processor decodes but never writes (their copies are written in another type), for which {@code
+     * supports} is true although an encode to them is refused. None by default.
+     */
+    protected Set<String> readOnlyTypes() {
+        return Set.of();
+    }
+
+    /**
+     * Whether PNG copies keep the source's colour profile. WordPress's editors write PNG copies without any profile; a
+     * processor answering true keeps it (and the pixels as stored), one answering false writes none (and the pixels
+     * still as stored).
+     */
+    protected boolean keepsPngProfile() {
+        return true;
+    }
+
+    /**
+     * Whether a JPEG whose data stops early is decoded as far as it goes, so that it still gets sizes, as WordPress
+     * gives it with either editor; false when its decode or first write fails. A truncated PNG or GIF fails whatever
+     * this says.
+     */
+    protected boolean truncatedJpegMakesSizes() {
+        return false;
+    }
+
+    /**
      * Whether a kept profile is written with the samples as the source stored them, for a linear-RGB PNG and a grey
      * JPEG. A processor answering false says why in its own tests.
      */
@@ -263,9 +289,14 @@ public abstract class ImageProcessorContract {
             assertThat(region.encode(target, "image/png", 82))
                     .isEqualTo(new Encoded("image/png", 1, 1, Files.size(target)));
         }
-        assertThat(ImageMetadataReader.readMetadata(target.toFile()).getFirstDirectoryOfType(IccDirectory.class))
-                .isNotNull();
-        assertThat(ContractImages.pngProfile(target)).isEqualTo(linear.getData());
+        if (keepsPngProfile()) {
+            assertThat(ImageMetadataReader.readMetadata(target.toFile()).getFirstDirectoryOfType(IccDirectory.class))
+                    .isNotNull();
+            assertThat(ContractImages.pngProfile(target)).isEqualTo(linear.getData());
+        } else {
+            assertThat(ImageMetadataReader.readMetadata(target.toFile()).getFirstDirectoryOfType(IccDirectory.class))
+                    .isNull();
+        }
         // The JDK's PNG reader does not apply the profile: these are the samples as stored.
         Raster written = ImageIO.read(target.toFile()).getRaster();
         for (int band = 0; band < 3; band++) {
@@ -381,10 +412,17 @@ public abstract class ImageProcessorContract {
     @Test
     public final void anUnsupportedOutputTypeIsRefused() throws Exception {
         ImageProcessor p = processor(100_000_000);
-        assertThat(p.supports("image/heic")).isFalse();
+        // a processor that only reads HEIC supports it as a source, and still refuses to write it
+        assertThat(p.supports("image/heic")).isEqualTo(readOnlyTypes().contains("image/heic"));
         try (DecodedImage decoded = p.decode(write(MediaFixtures.png(4, 4)), "image/png")) {
             assertThatThrownBy(() -> decoded.encode(dir.resolve("out.heic"), "image/heic", 82))
                     .isInstanceOf(ImageProcessingException.class);
+            for (String type : readOnlyTypes()) {
+                assertThat(p.supports(type)).as(type).isTrue();
+                assertThatThrownBy(() -> decoded.encode(dir.resolve("out-read-only"), type, 82))
+                        .as(type)
+                        .isInstanceOf(ImageProcessingException.class);
+            }
         }
     }
 
@@ -399,10 +437,16 @@ public abstract class ImageProcessorContract {
     @Test
     public final void aTruncatedImageFailsCleanly() throws Exception {
         // the failure may come with the decode or, for a processor reading pixels on demand, with an encode
+        // a half JPEG fails or gives its sizes, as the processor declares
         ImageProcessor p = processor(100_000_000);
         byte[] jpeg = MediaFixtures.jpeg(400, 300);
         Path half = write(Arrays.copyOf(jpeg, jpeg.length / 2));
-        assertThatThrownBy(() -> decodeAndEncode(p, half, "image/jpeg")).isInstanceOf(ImageProcessingException.class);
+        if (truncatedJpegMakesSizes()) {
+            decodeAndEncode(p, half, "image/jpeg");
+        } else {
+            assertThatThrownBy(() -> decodeAndEncode(p, half, "image/jpeg"))
+                    .isInstanceOf(ImageProcessingException.class);
+        }
         byte[] png = MediaFixtures.png(400, 300);
         Path halfPng = write(Arrays.copyOf(png, png.length / 2));
         assertThatThrownBy(() -> decodeAndEncode(p, halfPng, "image/png")).isInstanceOf(ImageProcessingException.class);
