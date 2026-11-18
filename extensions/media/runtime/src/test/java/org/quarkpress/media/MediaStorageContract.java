@@ -28,7 +28,8 @@ import org.junit.jupiter.api.Test;
  */
 public abstract class MediaStorageContract {
 
-    private static final int WRITERS = 8;
+    /** The writers of {@link #concurrentCreatesHaveOneWinner}. */
+    protected static final int WRITERS = 8;
 
     /** The folder of the running test, {@code run-<uuid>}. */
     private String run;
@@ -37,6 +38,18 @@ public abstract class MediaStorageContract {
 
     /** The storage under test; the same one for every call within a test. */
     protected abstract MediaStorage storage();
+
+    /**
+     * The storage that {@link #concurrentCreatesHaveOneWinner} has its writers race on: {@link #storage()}, unless the
+     * backend's test double cannot answer concurrent requests the way the real store does. The writers then race in
+     * the backend's code, and the double sees their requests one at a time.
+     */
+    protected MediaStorage racedStorage() {
+        return storage();
+    }
+
+    /** Checks what the backend saw of the race, after {@link #concurrentCreatesHaveOneWinner} checked the outcome. */
+    protected void afterRace() {}
 
     @BeforeEach
     void newRun() throws IOException {
@@ -172,7 +185,7 @@ public abstract class MediaStorageContract {
                 writers.add(pool.submit(() -> {
                     start.await();
                     try {
-                        storage().put(key, sources.get(writer), "text/plain", WriteMode.CREATE_NEW);
+                        racedStorage().put(key, sources.get(writer), "text/plain", WriteMode.CREATE_NEW);
                         return writer;
                     } catch (KeyTakenException taken) {
                         return -1;
@@ -193,6 +206,7 @@ public abstract class MediaStorageContract {
             assertThat(winners).as("writers that stored the file").hasSize(1);
             assertThat(taken).as("writers told the key is taken").isEqualTo(WRITERS - 1);
             assertThat(read(key)).isEqualTo("writer " + winners.get(0));
+            afterRace();
         } finally {
             pool.shutdownNow();
         }
