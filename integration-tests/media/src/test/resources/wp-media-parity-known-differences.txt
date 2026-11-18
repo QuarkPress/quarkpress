@@ -14,7 +14,7 @@ m04 step14:meta:_wp_attached_file D1 WordPress's file is the overwritten shot-1.
 m04 step14:metadata:/file D1 WordPress's file is the overwritten shot-1.png; QuarkPress's the new shot-2.png
 m04 step14:files D1 QuarkPress's folder also holds shot-2.png; WordPress's shot-1.png was replaced
 
-# D2: BMP declared image/bmp (GD cannot write BMP; ImageIO can).
+# D2: BMP declared image/bmp (GD cannot write BMP; QuarkPress stores it, with JPEG sizes as Imagick writes them).
 m07 step10:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkPress stores it
 
 # D4: audio and video metadata. QuarkPress does not read what getID3 reads (format, codec, rates, channels, tags, MP3

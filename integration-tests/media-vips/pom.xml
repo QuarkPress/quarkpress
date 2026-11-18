@@ -102,7 +102,9 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- MediaFixtures: the test images (JPEG with EXIF, PNG, BMP, GIF, and the committed WebP, AVIF and HEIC files). -->
+    <!-- MediaFixtures: the test images (JPEG with EXIF, PNG, BMP, GIF, and the committed WebP, AVIF and HEIC files); and
+         the media parity comparison (MediaVipsParityDbTest, -Pwp-parity): WordPress served by php -S, the scenarios and
+         the comparison library. -->
     <dependency>
       <groupId>org.quarkpress.testing</groupId>
       <artifactId>quarkpress-test-wp-rest-parity</artifactId>
@@ -267,6 +269,11 @@
         <configuration>
           <!-- The parent's flags, plus native access for quarkus-libvips's downcalls. -->
           <argLine>@{argLine} ${surefire.argLine.additional} --enable-native-access=ALL-UNNAMED</argLine>
+          <systemPropertyVariables>
+            <!-- MediaVipsParityDbTest sends its requests with java.net.http and names the network's host (localhost,
+                 without the test port) in the Host header. -->
+            <jdk.httpclient.allowRestrictedHeaders>host</jdk.httpclient.allowRestrictedHeaders>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>

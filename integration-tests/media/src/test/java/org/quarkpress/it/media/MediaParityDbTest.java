@@ -53,7 +53,8 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
  * -Dwp.media.require-editor=true} ({@link MediaKnownDifferences}).
  * Runs with {@code -Pwp-parity} only, and then fails without a container runtime instead of skipping. The installing
  * super admin is the current user while WordPress's template network is created (harness rule, as {@code
- * MediaFactsDbTest}), so the network's upload types are the ones an administrator's installation writes.
+ * MediaFactsDbTest}), so the network's upload types are the ones an administrator's installation writes. The scenarios
+ * marked {@code vips} are left out: {@code integration-tests/media-vips}'s parity test plays them with libvips.
  */
 @QuarkusTest
 @WithTestResource(MediaFilesResource.class)
@@ -85,7 +86,10 @@ class MediaParityDbTest {
         assertThat(ScenarioDatabase.runtimeAvailable())
                 .as("the media parity run (-Pwp-parity) needs a container runtime")
                 .isTrue();
-        List<MediaScenario> scenarios = MediaScenarios.all();
+        // the libvips scenarios compare formats ImageIO does not process with WordPress's Imagick
+        // (MediaVipsParityDbTest)
+        List<MediaScenario> scenarios =
+                MediaScenarios.all().stream().filter(s -> !s.vips()).toList();
         // -Dmedia.parity.only=m01,m04 narrows the run (local debugging only: the known differences of the others then
         // match nothing, so such a run never passes)
         String only = System.getProperty("media.parity.only", "");

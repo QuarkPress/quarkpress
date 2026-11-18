@@ -1,0 +1,1130 @@
+{
+  "source": "WordPress 7.1.3 with Imagick (ImageMagick 6.9.12-98 Q16, php-imagick 3.8.1, PHP 8.4, ubuntu-24.04), recorded by MediaImagickFactsDbTest in GitHub Actions run 44250089682 (commit fbe3706), items v01-v07: for each upload its declared type, size and SHA-256, the answer's status, then the stored attachment (rest-setup.php attachment: post row, raw meta without the serialized metadata, the metadata, the folder listing's paths) or the refusal's body.",
+  "uploads": {
+    "v01-lossy.webp": {
+      "item": "v01",
+      "declared_type": "image/webp",
+      "bytes": 21864,
+      "sha256": "b4abb8a7768ad8d6fad4cc870d853c47aa10c00680e57f81956045bb05761936",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 3,
+          "post_type": "attachment",
+          "post_title": "v01-lossy",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/webp",
+          "post_name": "v01-lossy",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv01/wp-content/uploads/sites/2/2026/11/v01-lossy.webp",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:25",
+          "post_date_gmt": "2026-11-18 06:18:25",
+          "post_modified": "2026-11-18 06:18:25",
+          "post_modified_gmt": "2026-11-18 06:18:25"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v01-lossy-scaled.webp"
+          ]
+        },
+        "metadata": {
+          "width": 2560,
+          "height": 1707,
+          "file": "2026/11/v01-lossy-scaled.webp",
+          "filesize": 21610,
+          "sizes": {
+            "medium": {
+              "file": "v01-lossy-300x200.webp",
+              "width": 300,
+              "height": 200,
+              "mime-type": "image/webp",
+              "filesize": 904
+            },
+            "large": {
+              "file": "v01-lossy-1024x683.webp",
+              "width": 1024,
+              "height": 683,
+              "mime-type": "image/webp",
+              "filesize": 5380
+            },
+            "thumbnail": {
+              "file": "v01-lossy-150x150.webp",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/webp",
+              "filesize": 462
+            },
+            "medium_large": {
+              "file": "v01-lossy-768x512.webp",
+              "width": 768,
+              "height": 512,
+              "mime-type": "image/webp",
+              "filesize": 3500
+            },
+            "1536x1536": {
+              "file": "v01-lossy-1536x1024.webp",
+              "width": 1536,
+              "height": 1024,
+              "mime-type": "image/webp",
+              "filesize": 10006
+            },
+            "2048x2048": {
+              "file": "v01-lossy-2048x1365.webp",
+              "width": 2048,
+              "height": 1365,
+              "mime-type": "image/webp",
+              "filesize": 15270
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v01-lossy.webp"
+        },
+        "folder_listing": [
+          "2026/11/v01-lossy-1024x683.webp",
+          "2026/11/v01-lossy-150x150.webp",
+          "2026/11/v01-lossy-1536x1024.webp",
+          "2026/11/v01-lossy-2048x1365.webp",
+          "2026/11/v01-lossy-300x200.webp",
+          "2026/11/v01-lossy-768x512.webp",
+          "2026/11/v01-lossy-scaled.webp",
+          "2026/11/v01-lossy.webp"
+        ]
+      }
+    },
+    "v01-lossless.webp": {
+      "item": "v01",
+      "declared_type": "image/webp",
+      "bytes": 44,
+      "sha256": "cc5e4547de9880c08bacf1b10054a7dd533fa46145a2f4e3dc27955cb45da1cb",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 4,
+          "post_type": "attachment",
+          "post_title": "v01-lossless",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/webp",
+          "post_name": "v01-lossless",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv01/wp-content/uploads/sites/2/2026/11/v01-lossless.webp",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:27",
+          "post_date_gmt": "2026-11-18 06:18:27",
+          "post_modified": "2026-11-18 06:18:27",
+          "post_modified_gmt": "2026-11-18 06:18:27"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v01-lossless-scaled.webp"
+          ]
+        },
+        "metadata": {
+          "width": 2560,
+          "height": 1707,
+          "file": "2026/11/v01-lossless-scaled.webp",
+          "filesize": 224,
+          "sizes": {
+            "medium": {
+              "file": "v01-lossless-300x200.webp",
+              "width": 300,
+              "height": 200,
+              "mime-type": "image/webp",
+              "filesize": 42
+            },
+            "large": {
+              "file": "v01-lossless-1024x683.webp",
+              "width": 1024,
+              "height": 683,
+              "mime-type": "image/webp",
+              "filesize": 70
+            },
+            "thumbnail": {
+              "file": "v01-lossless-150x150.webp",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/webp",
+              "filesize": 40
+            },
+            "medium_large": {
+              "file": "v01-lossless-768x512.webp",
+              "width": 768,
+              "height": 512,
+              "mime-type": "image/webp",
+              "filesize": 58
+            },
+            "1536x1536": {
+              "file": "v01-lossless-1536x1024.webp",
+              "width": 1536,
+              "height": 1024,
+              "mime-type": "image/webp",
+              "filesize": 108
+            },
+            "2048x2048": {
+              "file": "v01-lossless-2048x1365.webp",
+              "width": 2048,
+              "height": 1365,
+              "mime-type": "image/webp",
+              "filesize": 158
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v01-lossless.webp"
+        },
+        "folder_listing": [
+          "2026/11/v01-lossless-1024x683.webp",
+          "2026/11/v01-lossless-150x150.webp",
+          "2026/11/v01-lossless-1536x1024.webp",
+          "2026/11/v01-lossless-2048x1365.webp",
+          "2026/11/v01-lossless-300x200.webp",
+          "2026/11/v01-lossless-768x512.webp",
+          "2026/11/v01-lossless-scaled.webp",
+          "2026/11/v01-lossless.webp",
+          "2026/11/v01-lossy-1024x683.webp",
+          "2026/11/v01-lossy-150x150.webp",
+          "2026/11/v01-lossy-1536x1024.webp",
+          "2026/11/v01-lossy-2048x1365.webp",
+          "2026/11/v01-lossy-300x200.webp",
+          "2026/11/v01-lossy-768x512.webp",
+          "2026/11/v01-lossy-scaled.webp",
+          "2026/11/v01-lossy.webp"
+        ]
+      }
+    },
+    "v02.avif": {
+      "item": "v02",
+      "declared_type": "image/avif",
+      "bytes": 9756,
+      "sha256": "76b55cdb4592304a727d623043625320e43145765df85621367a670b53e31b21",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 3,
+          "post_type": "attachment",
+          "post_title": "v02",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/avif",
+          "post_name": "v02",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv02/wp-content/uploads/sites/3/2026/11/v02.avif",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:33",
+          "post_date_gmt": "2026-11-18 06:18:33",
+          "post_modified": "2026-11-18 06:18:33",
+          "post_modified_gmt": "2026-11-18 06:18:33"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v02-scaled.avif"
+          ]
+        },
+        "metadata": {
+          "width": 2560,
+          "height": 1772,
+          "file": "2026/11/v02-scaled.avif",
+          "filesize": 11306,
+          "sizes": {
+            "medium": {
+              "file": "v02-300x208.avif",
+              "width": 300,
+              "height": 208,
+              "mime-type": "image/avif",
+              "filesize": 1313
+            },
+            "large": {
+              "file": "v02-1024x709.avif",
+              "width": 1024,
+              "height": 709,
+              "mime-type": "image/avif",
+              "filesize": 3110
+            },
+            "thumbnail": {
+              "file": "v02-150x150.avif",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/avif",
+              "filesize": 781
+            },
+            "medium_large": {
+              "file": "v02-768x532.avif",
+              "width": 768,
+              "height": 532,
+              "mime-type": "image/avif",
+              "filesize": 2653
+            },
+            "1536x1536": {
+              "file": "v02-1536x1063.avif",
+              "width": 1536,
+              "height": 1063,
+              "mime-type": "image/avif",
+              "filesize": 5696
+            },
+            "2048x2048": {
+              "file": "v02-2048x1418.avif",
+              "width": 2048,
+              "height": 1418,
+              "mime-type": "image/avif",
+              "filesize": 9339
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v02.avif"
+        },
+        "folder_listing": [
+          "2026/11/v02-1024x709.avif",
+          "2026/11/v02-150x150.avif",
+          "2026/11/v02-1536x1063.avif",
+          "2026/11/v02-2048x1418.avif",
+          "2026/11/v02-300x208.avif",
+          "2026/11/v02-768x532.avif",
+          "2026/11/v02-scaled.avif",
+          "2026/11/v02.avif"
+        ]
+      }
+    },
+    "v03.heic": {
+      "item": "v03",
+      "declared_type": "image/heic",
+      "bytes": 20138,
+      "sha256": "c49abc86dead03c0bf2ed4ee2383a1f565a7f0a6dd3c0567b7508509ff905f26",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 3,
+          "post_type": "attachment",
+          "post_title": "v03",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/heic",
+          "post_name": "v03",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv03/wp-content/uploads/sites/4/2026/11/v03.heic",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:39",
+          "post_date_gmt": "2026-11-18 06:18:39",
+          "post_modified": "2026-11-18 06:18:39",
+          "post_modified_gmt": "2026-11-18 06:18:39"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v03-scaled.jpg"
+          ]
+        },
+        "metadata": {
+          "width": 2560,
+          "height": 1920,
+          "file": "2026/11/v03-scaled.jpg",
+          "filesize": 72055,
+          "sizes": {
+            "medium": {
+              "file": "v03-300x225.jpg",
+              "width": 300,
+              "height": 225,
+              "mime-type": "image/jpeg",
+              "filesize": 3228
+            },
+            "large": {
+              "file": "v03-1024x768.jpg",
+              "width": 1024,
+              "height": 768,
+              "mime-type": "image/jpeg",
+              "filesize": 20072
+            },
+            "thumbnail": {
+              "file": "v03-150x150.jpg",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/jpeg",
+              "filesize": 1655
+            },
+            "medium_large": {
+              "file": "v03-768x576.jpg",
+              "width": 768,
+              "height": 576,
+              "mime-type": "image/jpeg",
+              "filesize": 13029
+            },
+            "1536x1536": {
+              "file": "v03-1536x1152.jpg",
+              "width": 1536,
+              "height": 1152,
+              "mime-type": "image/jpeg",
+              "filesize": 36059
+            },
+            "2048x2048": {
+              "file": "v03-2048x1536.jpg",
+              "width": 2048,
+              "height": 1536,
+              "mime-type": "image/jpeg",
+              "filesize": 52798
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v03.heic"
+        },
+        "folder_listing": [
+          "2026/11/v03-1024x768.jpg",
+          "2026/11/v03-150x150.jpg",
+          "2026/11/v03-1536x1152.jpg",
+          "2026/11/v03-2048x1536.jpg",
+          "2026/11/v03-300x225.jpg",
+          "2026/11/v03-768x576.jpg",
+          "2026/11/v03-scaled.jpg",
+          "2026/11/v03.heic"
+        ]
+      }
+    },
+    "v03-irot.heic": {
+      "item": "v03",
+      "declared_type": "image/heic",
+      "bytes": 20148,
+      "sha256": "82144352a853320e343b75856f14503677a84da2776bf0432cd7e95d3b143ddb",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 4,
+          "post_type": "attachment",
+          "post_title": "v03-irot",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/heic",
+          "post_name": "v03-irot",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv03/wp-content/uploads/sites/4/2026/11/v03-irot.heic",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:44",
+          "post_date_gmt": "2026-11-18 06:18:44",
+          "post_modified": "2026-11-18 06:18:44",
+          "post_modified_gmt": "2026-11-18 06:18:44"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v03-irot-scaled.jpg"
+          ]
+        },
+        "metadata": {
+          "width": 1920,
+          "height": 2560,
+          "file": "2026/11/v03-irot-scaled.jpg",
+          "filesize": 74067,
+          "sizes": {
+            "medium": {
+              "file": "v03-irot-225x300.jpg",
+              "width": 225,
+              "height": 300,
+              "mime-type": "image/jpeg",
+              "filesize": 3549
+            },
+            "large": {
+              "file": "v03-irot-768x1024.jpg",
+              "width": 768,
+              "height": 1024,
+              "mime-type": "image/jpeg",
+              "filesize": 18533
+            },
+            "thumbnail": {
+              "file": "v03-irot-150x150.jpg",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/jpeg",
+              "filesize": 1798
+            },
+            "medium_large": {
+              "file": "v03-irot-768x1024.jpg",
+              "width": 768,
+              "height": 1024,
+              "mime-type": "image/jpeg",
+              "filesize": 18533
+            },
+            "1536x1536": {
+              "file": "v03-irot-1152x1536.jpg",
+              "width": 1152,
+              "height": 1536,
+              "mime-type": "image/jpeg",
+              "filesize": 35089
+            },
+            "2048x2048": {
+              "file": "v03-irot-1536x2048.jpg",
+              "width": 1536,
+              "height": 2048,
+              "mime-type": "image/jpeg",
+              "filesize": 52913
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v03-irot.heic"
+        },
+        "folder_listing": [
+          "2026/11/v03-1024x768.jpg",
+          "2026/11/v03-150x150.jpg",
+          "2026/11/v03-1536x1152.jpg",
+          "2026/11/v03-2048x1536.jpg",
+          "2026/11/v03-300x225.jpg",
+          "2026/11/v03-768x576.jpg",
+          "2026/11/v03-irot-1152x1536.jpg",
+          "2026/11/v03-irot-150x150.jpg",
+          "2026/11/v03-irot-1536x2048.jpg",
+          "2026/11/v03-irot-225x300.jpg",
+          "2026/11/v03-irot-768x1024.jpg",
+          "2026/11/v03-irot-scaled.jpg",
+          "2026/11/v03-irot.heic",
+          "2026/11/v03-scaled.jpg",
+          "2026/11/v03.heic"
+        ]
+      }
+    },
+    "v03-heic-bytes.heif": {
+      "item": "v03",
+      "declared_type": "image/heif",
+      "bytes": 20138,
+      "sha256": "c49abc86dead03c0bf2ed4ee2383a1f565a7f0a6dd3c0567b7508509ff905f26",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 5,
+          "post_type": "attachment",
+          "post_title": "v03-heic-bytes",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/heic",
+          "post_name": "v03-heic-bytes",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv03/wp-content/uploads/sites/4/2026/11/v03-heic-bytes.heic",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:49",
+          "post_date_gmt": "2026-11-18 06:18:49",
+          "post_modified": "2026-11-18 06:18:49",
+          "post_modified_gmt": "2026-11-18 06:18:49"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v03-heic-bytes-scaled.jpg"
+          ]
+        },
+        "metadata": {
+          "width": 2560,
+          "height": 1920,
+          "file": "2026/11/v03-heic-bytes-scaled.jpg",
+          "filesize": 72055,
+          "sizes": {
+            "medium": {
+              "file": "v03-heic-bytes-300x225.jpg",
+              "width": 300,
+              "height": 225,
+              "mime-type": "image/jpeg",
+              "filesize": 3228
+            },
+            "large": {
+              "file": "v03-heic-bytes-1024x768.jpg",
+              "width": 1024,
+              "height": 768,
+              "mime-type": "image/jpeg",
+              "filesize": 20072
+            },
+            "thumbnail": {
+              "file": "v03-heic-bytes-150x150.jpg",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/jpeg",
+              "filesize": 1655
+            },
+            "medium_large": {
+              "file": "v03-heic-bytes-768x576.jpg",
+              "width": 768,
+              "height": 576,
+              "mime-type": "image/jpeg",
+              "filesize": 13029
+            },
+            "1536x1536": {
+              "file": "v03-heic-bytes-1536x1152.jpg",
+              "width": 1536,
+              "height": 1152,
+              "mime-type": "image/jpeg",
+              "filesize": 36059
+            },
+            "2048x2048": {
+              "file": "v03-heic-bytes-2048x1536.jpg",
+              "width": 2048,
+              "height": 1536,
+              "mime-type": "image/jpeg",
+              "filesize": 52798
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v03-heic-bytes.heic"
+        },
+        "folder_listing": [
+          "2026/11/v03-1024x768.jpg",
+          "2026/11/v03-150x150.jpg",
+          "2026/11/v03-1536x1152.jpg",
+          "2026/11/v03-2048x1536.jpg",
+          "2026/11/v03-300x225.jpg",
+          "2026/11/v03-768x576.jpg",
+          "2026/11/v03-heic-bytes-1024x768.jpg",
+          "2026/11/v03-heic-bytes-150x150.jpg",
+          "2026/11/v03-heic-bytes-1536x1152.jpg",
+          "2026/11/v03-heic-bytes-2048x1536.jpg",
+          "2026/11/v03-heic-bytes-300x225.jpg",
+          "2026/11/v03-heic-bytes-768x576.jpg",
+          "2026/11/v03-heic-bytes-scaled.jpg",
+          "2026/11/v03-heic-bytes.heic",
+          "2026/11/v03-irot-1152x1536.jpg",
+          "2026/11/v03-irot-150x150.jpg",
+          "2026/11/v03-irot-1536x2048.jpg",
+          "2026/11/v03-irot-225x300.jpg",
+          "2026/11/v03-irot-768x1024.jpg",
+          "2026/11/v03-irot-scaled.jpg",
+          "2026/11/v03-irot.heic",
+          "2026/11/v03-scaled.jpg",
+          "2026/11/v03.heic"
+        ]
+      }
+    },
+    "v03-mif1.heif": {
+      "item": "v03",
+      "declared_type": "image/heif",
+      "bytes": 20138,
+      "sha256": "899cee8a1c0de7e829eec654f3e5388f40758e956e2418230973328c292b15e6",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 6,
+          "post_type": "attachment",
+          "post_title": "v03-mif1",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/heic",
+          "post_name": "v03-mif1",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv03/wp-content/uploads/sites/4/2026/11/v03-mif1.heic",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:18:54",
+          "post_date_gmt": "2026-11-18 06:18:54",
+          "post_modified": "2026-11-18 06:18:54",
+          "post_modified_gmt": "2026-11-18 06:18:54"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v03-mif1-scaled.jpg"
+          ]
+        },
+        "metadata": {
+          "width": 2560,
+          "height": 1920,
+          "file": "2026/11/v03-mif1-scaled.jpg",
+          "filesize": 72055,
+          "sizes": {
+            "medium": {
+              "file": "v03-mif1-300x225.jpg",
+              "width": 300,
+              "height": 225,
+              "mime-type": "image/jpeg",
+              "filesize": 3228
+            },
+            "large": {
+              "file": "v03-mif1-1024x768.jpg",
+              "width": 1024,
+              "height": 768,
+              "mime-type": "image/jpeg",
+              "filesize": 20072
+            },
+            "thumbnail": {
+              "file": "v03-mif1-150x150.jpg",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/jpeg",
+              "filesize": 1655
+            },
+            "medium_large": {
+              "file": "v03-mif1-768x576.jpg",
+              "width": 768,
+              "height": 576,
+              "mime-type": "image/jpeg",
+              "filesize": 13029
+            },
+            "1536x1536": {
+              "file": "v03-mif1-1536x1152.jpg",
+              "width": 1536,
+              "height": 1152,
+              "mime-type": "image/jpeg",
+              "filesize": 36059
+            },
+            "2048x2048": {
+              "file": "v03-mif1-2048x1536.jpg",
+              "width": 2048,
+              "height": 1536,
+              "mime-type": "image/jpeg",
+              "filesize": 52798
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          },
+          "original_image": "v03-mif1.heic"
+        },
+        "folder_listing": [
+          "2026/11/v03-1024x768.jpg",
+          "2026/11/v03-150x150.jpg",
+          "2026/11/v03-1536x1152.jpg",
+          "2026/11/v03-2048x1536.jpg",
+          "2026/11/v03-300x225.jpg",
+          "2026/11/v03-768x576.jpg",
+          "2026/11/v03-heic-bytes-1024x768.jpg",
+          "2026/11/v03-heic-bytes-150x150.jpg",
+          "2026/11/v03-heic-bytes-1536x1152.jpg",
+          "2026/11/v03-heic-bytes-2048x1536.jpg",
+          "2026/11/v03-heic-bytes-300x225.jpg",
+          "2026/11/v03-heic-bytes-768x576.jpg",
+          "2026/11/v03-heic-bytes-scaled.jpg",
+          "2026/11/v03-heic-bytes.heic",
+          "2026/11/v03-irot-1152x1536.jpg",
+          "2026/11/v03-irot-150x150.jpg",
+          "2026/11/v03-irot-1536x2048.jpg",
+          "2026/11/v03-irot-225x300.jpg",
+          "2026/11/v03-irot-768x1024.jpg",
+          "2026/11/v03-irot-scaled.jpg",
+          "2026/11/v03-irot.heic",
+          "2026/11/v03-mif1-1024x768.jpg",
+          "2026/11/v03-mif1-150x150.jpg",
+          "2026/11/v03-mif1-1536x1152.jpg",
+          "2026/11/v03-mif1-2048x1536.jpg",
+          "2026/11/v03-mif1-300x225.jpg",
+          "2026/11/v03-mif1-768x576.jpg",
+          "2026/11/v03-mif1-scaled.jpg",
+          "2026/11/v03-mif1.heic",
+          "2026/11/v03-scaled.jpg",
+          "2026/11/v03.heic"
+        ]
+      }
+    },
+    "v04.gif": {
+      "item": "v04",
+      "declared_type": "image/gif",
+      "bytes": 7961,
+      "sha256": "7e2d4846f356849e0c7057c2bd539111eb8e849ab265b105f5a0ea61170e9dbd",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 3,
+          "post_type": "attachment",
+          "post_title": "v04",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/gif",
+          "post_name": "v04",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv04/wp-content/uploads/sites/5/2026/11/v04.gif",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:19:00",
+          "post_date_gmt": "2026-11-18 06:19:00",
+          "post_modified": "2026-11-18 06:19:00",
+          "post_modified_gmt": "2026-11-18 06:19:00"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v04.gif"
+          ]
+        },
+        "metadata": {
+          "width": 800,
+          "height": 600,
+          "file": "2026/11/v04.gif",
+          "filesize": 7961,
+          "sizes": {
+            "medium": {
+              "file": "v04-300x225.gif",
+              "width": 300,
+              "height": 225,
+              "mime-type": "image/gif",
+              "filesize": 1188
+            },
+            "thumbnail": {
+              "file": "v04-150x150.gif",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/gif",
+              "filesize": 728
+            },
+            "medium_large": {
+              "file": "v04-768x576.gif",
+              "width": 768,
+              "height": 576,
+              "mime-type": "image/gif",
+              "filesize": 3066
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          }
+        },
+        "folder_listing": [
+          "2026/11/v04-150x150.gif",
+          "2026/11/v04-300x225.gif",
+          "2026/11/v04-768x576.gif",
+          "2026/11/v04.gif"
+        ]
+      }
+    },
+    "v04.webp": {
+      "item": "v04",
+      "declared_type": "image/webp",
+      "bytes": 10326,
+      "sha256": "ec178e6bc1cc7e58a6f53ed4e14a8a312ccd8cf7e118934c3bdf6f9cdb67ffd8",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 4,
+          "post_type": "attachment",
+          "post_title": "v04",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/webp",
+          "post_name": "v04-2",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv04/wp-content/uploads/sites/5/2026/11/v04.webp",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:19:01",
+          "post_date_gmt": "2026-11-18 06:19:01",
+          "post_modified": "2026-11-18 06:19:01",
+          "post_modified_gmt": "2026-11-18 06:19:01"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v04.webp"
+          ]
+        },
+        "metadata": {
+          "width": 800,
+          "height": 600,
+          "file": "2026/11/v04.webp",
+          "filesize": 10326,
+          "sizes": {
+            "medium": {
+              "file": "v04-300x225.webp",
+              "width": 300,
+              "height": 225,
+              "mime-type": "image/webp",
+              "filesize": 1026
+            },
+            "thumbnail": {
+              "file": "v04-150x150.webp",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/webp",
+              "filesize": 494
+            },
+            "medium_large": {
+              "file": "v04-768x576.webp",
+              "width": 768,
+              "height": 576,
+              "mime-type": "image/webp",
+              "filesize": 3930
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          }
+        },
+        "folder_listing": [
+          "2026/11/v04-150x150.gif",
+          "2026/11/v04-150x150.webp",
+          "2026/11/v04-300x225.gif",
+          "2026/11/v04-300x225.webp",
+          "2026/11/v04-768x576.gif",
+          "2026/11/v04-768x576.webp",
+          "2026/11/v04.gif",
+          "2026/11/v04.webp"
+        ]
+      }
+    },
+    "v05.tif": {
+      "item": "v05",
+      "declared_type": "image/tiff",
+      "bytes": 360488,
+      "sha256": "7445a7290440c3967b4197754ab284d29024b14306766073e2970c78d59938b8",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 3,
+          "post_type": "attachment",
+          "post_title": "v05",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/tiff",
+          "post_name": "v05",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv05/wp-content/uploads/sites/6/2026/11/v05.tif",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:19:02",
+          "post_date_gmt": "2026-11-18 06:19:02",
+          "post_modified": "2026-11-18 06:19:02",
+          "post_modified_gmt": "2026-11-18 06:19:02"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v05.tif"
+          ]
+        },
+        "metadata": {
+          "filesize": 360488
+        },
+        "folder_listing": [
+          "2026/11/v05.tif"
+        ]
+      }
+    },
+    "v06.heics": {
+      "item": "v06",
+      "declared_type": "image/heic-sequence",
+      "bytes": 231,
+      "sha256": "0819161ff99249e68c59948512e883c7fd5a2356ef0c93200e0ac97acfcce69c",
+      "status": 400,
+      "body": {
+        "code": "rest_upload_image_type_not_supported",
+        "message": "The web server cannot generate responsive image sizes for this image. Convert it to JPEG or PNG before uploading.",
+        "data": {
+          "status": 400
+        }
+      }
+    },
+    "v07.bmp": {
+      "item": "v07",
+      "declared_type": "image/bmp",
+      "bytes": 360054,
+      "sha256": "761f166e4782b8a02adf3b47d105ed7e01b7c46cb6faf37eace8829ba6be7e41",
+      "status": 201,
+      "attachment": {
+        "row": {
+          "ID": 3,
+          "post_type": "attachment",
+          "post_title": "v07",
+          "post_excerpt": "",
+          "post_content": "",
+          "post_status": "inherit",
+          "post_mime_type": "image/bmp",
+          "post_name": "v07",
+          "post_parent": 0,
+          "post_author": "2",
+          "guid": "http://localhost/mv07/wp-content/uploads/sites/8/2026/11/v07.bmp",
+          "comment_status": "open",
+          "ping_status": "closed",
+          "menu_order": 0,
+          "post_date": "2026-11-18 06:19:05",
+          "post_date_gmt": "2026-11-18 06:19:05",
+          "post_modified": "2026-11-18 06:19:05",
+          "post_modified_gmt": "2026-11-18 06:19:05"
+        },
+        "meta": {
+          "_wp_attached_file": [
+            "2026/11/v07.bmp"
+          ]
+        },
+        "metadata": {
+          "width": 400,
+          "height": 300,
+          "file": "2026/11/v07.bmp",
+          "filesize": 360054,
+          "sizes": {
+            "medium": {
+              "file": "v07-300x225.jpg",
+              "width": 300,
+              "height": 225,
+              "mime-type": "image/jpeg",
+              "filesize": 1724
+            },
+            "thumbnail": {
+              "file": "v07-150x150.jpg",
+              "width": 150,
+              "height": 150,
+              "mime-type": "image/jpeg",
+              "filesize": 961
+            }
+          },
+          "image_meta": {
+            "aperture": "0",
+            "credit": "",
+            "camera": "",
+            "caption": "",
+            "created_timestamp": "0",
+            "copyright": "",
+            "focal_length": "0",
+            "iso": "0",
+            "shutter_speed": "0",
+            "title": "",
+            "orientation": "0",
+            "keywords": [],
+            "alt": ""
+          }
+        },
+        "folder_listing": [
+          "2026/11/v07-150x150.jpg",
+          "2026/11/v07-300x225.jpg",
+          "2026/11/v07.bmp"
+        ]
+      }
+    }
+  }
+}
