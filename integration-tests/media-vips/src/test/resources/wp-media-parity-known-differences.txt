@@ -17,8 +17,13 @@ m04 step14:metadata:/file D1 WordPress's file is the overwritten shot-1.png; Qua
 m04 step14:files D1 QuarkPress's folder also holds shot-2.png; WordPress's shot-1.png was replaced
 
 # D2: BMP declared image/bmp (GD cannot write BMP; libvips's fallback ImageIO decodes it, and its sizes are JPEG, as
-# with Imagick: m20 step12 matches WordPress with Imagick).
-m07 step10:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkPress stores it
+# with Imagick: m20 step12 matches WordPress with Imagick), and, with libvips, TIFF declared image/tiff (stored with its
+# file size only, as with Imagick). m07 compares WordPress with GD, which refuses both, so both files are in its later
+# listings on QuarkPress's side only.
+m07 step7:outcome D2 WordPress with GD refuses a TIFF declared image/tiff; QuarkPress with libvips stores it with its file size only, as WordPress with Imagick does (facts v05)
+m07 step10:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkPress stores it with JPEG sizes, as WordPress with Imagick does (facts v07)
+m07 step11:files D2 QuarkPress's folder also holds m07-bmp.bmp and m07-tiff.tif, which WordPress with GD refused; WordPress with Imagick stores both (facts v07, v05)
+m07 step12:files D2 QuarkPress's folder also holds m07-bmp.bmp and m07-tiff.tif, which WordPress with GD refused; WordPress with Imagick stores both (facts v07, v05)
 
 # D4: audio and video metadata. QuarkPress does not read what getID3 reads (format, codec, rates, channels, tags, MP3
 # playing time, the cover's description) and stores the attachment's type as mime_type.

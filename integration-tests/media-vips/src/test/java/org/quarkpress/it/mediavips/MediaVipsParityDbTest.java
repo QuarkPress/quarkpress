@@ -70,8 +70,8 @@ class MediaVipsParityDbTest {
     /** 90 % of the comparisons of the first run without GD (4812), rounded down to a multiple of 50. */
     static final int MIN_WITHOUT_EDITOR = 4300;
 
-    /** Until the first CI run with an editor: then 90 % of its comparisons, rounded down to a multiple of 50. */
-    static final int MIN_WITH_EDITOR = 3700;
+    /** 90 % of the comparisons of the first CI run with GD (6646, run 44284958584), rounded down to 50s. */
+    static final int MIN_WITH_EDITOR = 5950;
 
     static final String EDITOR_SKIP =
             "SKIPPED (needs an image editor): php8.4-gd is not installed; the CI parity cell installs it";
