@@ -28,6 +28,10 @@
  *     is written the second time in a request, i.e. after the base save and the first sub-size's save; qp_parity_extra_sizes "900" registers
  *     the size qp-900w (900x0), "gravity" the sizes qp-left (100x100, left/top) and qp-right (100x100,
  *     right/bottom).
+ *   - Imagick facts switches (site options "1"): qp_parity_webp_to_jpeg maps image/webp to image/jpeg in
+ *     image_editor_output_format; qp_parity_quality_log appends to the option qp_parity_qualities (a list) every
+ *     wp_editor_set_quality call and every file an image editor writes, with the editor's quality (see below);
+ *     qp_parity_editor_gd makes wp_image_editors answer GD alone.
  *   - REST media switches (site options "1"): qp_parity_fatal_on_second_size raises a real PHP fatal error (memory
  *     exhausted, E_ERROR) at the same point as qp_parity_fail_on_second_size (the second write of
  *     _wp_attachment_metadata in a request, after the base save and the first sub-size's save), so WordPress's
@@ -190,6 +194,98 @@ foreach (['added_post_meta', 'updated_post_meta'] as $qp_meta_hook) {
     }, 10, 3);
 }
 unset($qp_meta_hook);
+
+/*
+ * Harness rule, not WordPress behaviour (Imagick facts, MediaImagickFactsDbTest): qp_parity_webp_to_jpeg adds
+ * image/webp => image/jpeg to the image_editor_output_format map, so the quality WordPress asks for a lossless WebP
+ * written as JPEG can be recorded.
+ */
+add_filter('image_editor_output_format', static function ($formats) {
+    if ('1' === get_option('qp_parity_webp_to_jpeg') && is_array($formats)) {
+        $formats['image/webp'] = 'image/jpeg';
+    }
+    return $formats;
+}, 1000);
+
+/*
+ * Harness rule, not WordPress behaviour: with qp_parity_editor_gd "1", wp_image_editors answers GD alone, so the same
+ * upload can be recorded with GD on a server that has Imagick too.
+ */
+add_filter('wp_image_editors', static function ($editors) {
+    return '1' === get_option('qp_parity_editor_gd') ? ['WP_Image_Editor_GD'] : $editors;
+}, 1000);
+
+/**
+ * Harness rule: the first function on the call stack that is not this plugin's, a closure or the hook machinery
+ * (apply_filters, WP_Hook): the WordPress function that asked for the filter, as "Class::method" or "function".
+ */
+function qp_parity_caller(): ?string
+{
+    foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+        $function = (string) ($frame['function'] ?? '');
+        $class = (string) ($frame['class'] ?? '');
+        if ('' === $function || str_starts_with($function, '{closure') || str_starts_with($function, 'qp_parity_')
+            || 'apply_filters' === $function || 'WP_Hook' === $class) {
+            continue;
+        }
+        return '' === $class ? $function : $class . '::' . $function;
+    }
+    return null;
+}
+
+/** Harness rule: the image editor that is running the current filter, found on the call stack; null when none. */
+function qp_parity_running_editor(): ?WP_Image_Editor
+{
+    foreach (debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT) as $frame) {
+        if (isset($frame['object']) && $frame['object'] instanceof WP_Image_Editor) {
+            return $frame['object'];
+        }
+    }
+    return null;
+}
+
+/** Harness rule: appends one entry to the option qp_parity_qualities (a list) of the current site. */
+function qp_parity_log_quality(array $entry): void
+{
+    $log = get_option('qp_parity_qualities', []);
+    $log = is_array($log) ? $log : [];
+    $log[] = $entry;
+    update_option('qp_parity_qualities', $log, false);
+}
+
+/*
+ * Harness rule, not WordPress behaviour: with qp_parity_quality_log "1", records every wp_editor_set_quality call
+ * (the quality WordPress asks by default, the mime type, the size, the editor's class and the calling function) and, for every file an
+ * editor writes (image_make_intermediate_size, which the editors' save applies), the file's name with the editor's
+ * get_quality() at that moment. Both filters return their input unchanged.
+ */
+add_filter('wp_editor_set_quality', static function ($quality, $mime_type = null, $size = null) {
+    if ('1' === get_option('qp_parity_quality_log')) {
+        $editor = qp_parity_running_editor();
+        qp_parity_log_quality([
+            'filter' => 'wp_editor_set_quality',
+            'quality' => $quality,
+            'mime_type' => $mime_type,
+            'size' => $size,
+            'editor' => null === $editor ? null : get_class($editor),
+            'caller' => qp_parity_caller(),
+        ]);
+    }
+    return $quality;
+}, 1000, 3);
+
+add_filter('image_make_intermediate_size', static function ($filename) {
+    if ('1' === get_option('qp_parity_quality_log')) {
+        $editor = qp_parity_running_editor();
+        qp_parity_log_quality([
+            'filter' => 'image_make_intermediate_size',
+            'file' => wp_basename((string) $filename),
+            'quality' => null === $editor ? null : $editor->get_quality(),
+            'editor' => null === $editor ? null : get_class($editor),
+        ]);
+    }
+    return $filename;
+}, 1000);
 
 add_action('init', static function (): void {
     $sizes = get_option('qp_parity_extra_sizes');

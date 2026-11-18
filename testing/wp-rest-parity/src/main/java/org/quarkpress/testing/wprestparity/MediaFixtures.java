@@ -35,7 +35,14 @@ import javax.imageio.stream.ImageOutputStream;
  * JDK, and the EXIF (APP1), XMP (APP1), ICC (APP2) and IPTC (APP13) segments of a JPEG, the PNG {@code iTXt} XMP chunk
  * and every non-image container written by hand, so the same bytes exist on every machine without external tools. The
  * files are small and deterministic: the same arguments give the same bytes. They are fixtures, not samples of real
- * cameras or encoders: each holds just enough structure for a type detector and a header reader.
+ * cameras or encoders: each holds just enough structure for a type detector and a header reader. The exceptions are the
+ * coded HEIC, AVIF and lossy or animated WebP images that an editor must decode, which the JDK cannot write: those are
+ * committed files under {@code fixtures/} next to this class, each made by us with the commands its method names:
+ * libvips 8.18.7 ({@code vips}) over libheif 1.23.6 with its x265 (x265 4.2) and aom (libaom 3.14.1) encoder plugins,
+ * and ExifTool 13.55 ({@code exiftool}) for the HEIC fixtures' EXIF, from "the gradient" {@code rgb.v} that libvips draws
+ * at the fixture's W&times;H: red rising from left to right, green from top to bottom, blue 128 ({@code vips xyz xy.v W
+ * H; vips linear xy.v g.v "255/W 255/H" "0 0" --uchar; vips bandjoin_const g.v rgb.v 128}, the two factors written
+ * out as decimals). No third-party image is used.
  */
 public final class MediaFixtures {
 
@@ -351,6 +358,36 @@ public final class MediaFixtures {
     }
 
     /**
+     * A {@code w}&times;{@code h} RGBA PNG of the gradient whose alpha falls from opaque at the top to half transparent
+     * at the bottom, with an {@code iCCP} chunk (profile name "ICC", zlib-compressed {@code icc}) right after IHDR.
+     */
+    public static byte[] pngAlphaIcc(int w, int h, byte[] icc) {
+        BufferedImage image = gradient(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            int alpha = 255 - (128 * y) / Math.max(1, h - 1);
+            for (int x = 0; x < w; x++) {
+                image.setRGB(x, y, (alpha << 24) | (image.getRGB(x, y) & 0xFFFFFF));
+            }
+        }
+        byte[] plain = encode(image, "png");
+        Deflater deflater = new Deflater();
+        deflater.setInput(icc);
+        deflater.finish();
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        while (!deflater.finished()) {
+            compressed.write(buffer, 0, deflater.deflate(buffer));
+        }
+        deflater.end();
+        byte[] iccp = concat(ascii("ICC"), new byte[] {0, 0}, compressed.toByteArray());
+        int afterIhdr = 8 + 4 + 4 + 13 + 4;
+        return concat(
+                Arrays.copyOfRange(plain, 0, afterIhdr),
+                pngChunk("iCCP", iccp),
+                Arrays.copyOfRange(plain, afterIhdr, plain.length));
+    }
+
+    /**
      * The header of a {@code w}&times;{@code h} lossy WebP (a {@code VP8 } chunk first) without coded pixels: a key
      * frame's tag, start code and 14-bit sizes, then zero bytes up to a file of more than 40 bytes. Readers of the
      * header take its type and size; nothing can decode it.
@@ -423,6 +460,92 @@ public final class MediaFixtures {
         byte[] iprp = box("iprp", ipco, ipma);
         byte[] meta = fullBox("meta", 0, 0, hdlr, pitm, iinf, iprp);
         return concat(ftyp, meta, box("mdat"));
+    }
+
+    // ---- committed coded images (fixtures/) ------------------------------------------------------------------
+
+    /**
+     * A {@code w}&times;{@code h} lossy WebP (one {@code VP8 } chunk, no {@code VP8X}), committed as
+     * {@code fixtures/webp-lossy-<w>x<h>.webp}; only 3000&times;2000 exists. Made with the gradient, then
+     * {@code vips webpsave rgb.v webp-lossy-3000x2000.webp --Q 50 --keep none}.
+     *
+     * @throws IllegalArgumentException when no fixture of that size is committed
+     */
+    public static byte[] webpLossy(int w, int h) {
+        return fixture("webp-lossy-" + w + "x" + h + ".webp");
+    }
+
+    /**
+     * An animated 800&times;600 WebP of three frames ({@code VP8X}, {@code ANIM}, three {@code ANMF}, with alpha),
+     * committed as {@code fixtures/webp-animated-800x600.webp}. Made with the gradient {@code f1.v} at 800&times;600,
+     * then {@code vips invert f1.v f2.v; vips flip f1.v f3.v horizontal; vips arrayjoin "f1.v f2.v f3.v" strip.v
+     * --across 1; vips webpsave strip.v webp-animated-800x600.webp --Q 50 --keep none --page-height 600}.
+     */
+    public static byte[] animatedWebp() {
+        return fixture("webp-animated-800x600.webp");
+    }
+
+    /**
+     * A {@code w}&times;{@code h} AVIF (major brand {@code avif}, AV1, no metadata), committed as
+     * {@code fixtures/avif-<w>x<h>.avif}; only 2600&times;1800 exists. Made with the gradient, then
+     * {@code vips heifsave rgb.v avif-2600x1800.avif --Q 50 --compression av1 --keep none}.
+     *
+     * @throws IllegalArgumentException when no fixture of that size is committed
+     */
+    public static byte[] avif(int w, int h) {
+        return fixture("avif-" + w + "x" + h + ".avif");
+    }
+
+    /**
+     * A still {@code w}&times;{@code h} HEIC (major brand {@code heic}, HEVC, no {@code irot}) with EXIF
+     * {@code Model} "QuarkPress fixture" and no orientation, committed as {@code fixtures/heic-<w>x<h>.heic}; only
+     * 4032&times;3024 exists. Made with the gradient, then {@code vips jpegsave rgb.v src.jpg --Q 90 --keep none;
+     * exiftool -Model="QuarkPress fixture" src.jpg; vips heifsave src.jpg heic-4032x3024.heic --Q 20 --compression
+     * hevc}.
+     *
+     * @throws IllegalArgumentException when no fixture of that size is committed
+     */
+    public static byte[] heic(int w, int h) {
+        return fixture("heic-" + w + "x" + h + ".heic");
+    }
+
+    /**
+     * {@link #heic(int, int)} turned a quarter: the same stored {@code w}&times;{@code h} pixels ({@code ispe}) with
+     * an {@code irot} of 270&deg; anticlockwise (90&deg; clockwise) and EXIF Orientation 6, as a camera held upright
+     * writes it, so it displays {@code h}&times;{@code w}; committed as {@code fixtures/heic-<w>x<h>-irot90.heic}. Made
+     * from {@code src.jpg} of {@link #heic(int, int)} with {@code exiftool -Orientation#=6 src.jpg; vips heifsave
+     * src.jpg heic-4032x3024-irot90.heic --Q 20 --compression hevc} (libvips writes the orientation as {@code irot}).
+     *
+     * @throws IllegalArgumentException when no fixture of that size is committed
+     */
+    public static byte[] heicRotated(int w, int h) {
+        return fixture("heic-" + w + "x" + h + "-irot90.heic");
+    }
+
+    /**
+     * {@link #heic(int, int)} with the {@code ftyp} major brand {@code mif1} instead of {@code heic} (the compatible
+     * brands still list {@code mif1}, {@code heic} and {@code miaf}): a still HEIF image that a type detector reading
+     * the major brand, then libmagic, takes for {@code image/heif} rather than {@code image/heic}.
+     */
+    public static byte[] heifMif1(int w, int h) {
+        byte[] bytes = heic(w, h);
+        if (!new String(bytes, 4, 8, StandardCharsets.ISO_8859_1).equals("ftypheic")) {
+            throw new IllegalStateException("the HEIC fixture does not start with an ftyp box of major brand heic");
+        }
+        System.arraycopy(ascii("mif1"), 0, bytes, 8, 4);
+        return bytes;
+    }
+
+    /** The committed file {@code fixtures/<name>} next to this class. */
+    private static byte[] fixture(String name) {
+        try (var in = MediaFixtures.class.getResourceAsStream("fixtures/" + name)) {
+            if (in == null) {
+                throw new IllegalArgumentException("no committed fixture fixtures/" + name);
+            }
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** A 16&times;16 32-bit icon (ICO with one BMP-coded image). */

@@ -87,6 +87,13 @@
  *                                  value, upload_space_check_disabled}
  *   write_upload {site, name, bytes}  writes the file "name" (bytes in base64) into the uploads base of the site at
  *                                  path "site"; answers {file, url}
+ * Imagick facts operations (MediaImagickFactsDbTest; each a harness rule):
+ *   imagick_info {}                Imagick's version, queryFormats for HEIC/HEIF/AVIF/WEBP/TIFF/BMP/PDF and the
+ *                                  policy.xml lines naming PDF or HEIC ({imagick: false} without the extension), and
+ *                                  GD's gd_info and gd.jpeg_ignore_warning
+ *   image_files {site, id}         the attachment's own files: size, getimagesize, wp_getimagesize,
+ *                                  wp_get_image_mime, WebP chunk types and, with Imagick, format, frames, width,
+ *                                  height, compression quality, orientation, profile names and channel means
  * The script calls WordPress functions; every rule it applies itself is marked "Harness rule" where it happens.
  */
 
@@ -1030,6 +1037,167 @@ function qp_attachment(array $input): array
     return $answer;
 }
 
+// ---- Imagick facts operations (MediaImagickFactsDbTest) ------------------------------------------------------------
+
+/**
+ * Harness rule: what the server's Imagick is: {imagick: false} without the extension, else the extension's version,
+ * Imagick::getVersion(), whether queryFormats() lists each of HEIC, HEIF, AVIF, WEBP, TIFF, BMP and PDF, and the lines
+ * of ImageMagick's policy.xml (found in the configure path, else under /etc/ImageMagick*) that name PDF or HEIC; and,
+ * with or without Imagick, under "gd": whether GD is loaded, gd_info() and the ini value gd.jpeg_ignore_warning.
+ */
+function qp_imagick_info(): array
+{
+    $gd = [
+        'gd' => extension_loaded('gd'),
+        'gd_info' => function_exists('gd_info') ? gd_info() : null,
+        'jpeg_ignore_warning' => ini_get('gd.jpeg_ignore_warning'),
+    ];
+    if (!extension_loaded('imagick')) {
+        return ['imagick' => false, 'gd' => $gd];
+    }
+    $formats = [];
+    foreach (['HEIC', 'HEIF', 'AVIF', 'WEBP', 'TIFF', 'BMP', 'PDF'] as $format) {
+        $formats[$format] = [] !== Imagick::queryFormats($format);
+    }
+    $configure = [];
+    try {
+        $configure = Imagick::getConfigureOptions('CONFIGURE_PATH');
+    } catch (Throwable $e) {
+        $configure = ['error' => get_class($e) . ': ' . $e->getMessage()];
+    }
+    $candidates = [];
+    if (isset($configure['CONFIGURE_PATH'])) {
+        $candidates[] = rtrim((string) $configure['CONFIGURE_PATH'], '/') . '/policy.xml';
+    }
+    array_push($candidates, ...(glob('/etc/ImageMagick*/policy.xml') ?: []));
+    $policy = [];
+    foreach (array_unique($candidates) as $file) {
+        if (!is_readable($file)) {
+            continue;
+        }
+        $lines = [];
+        foreach (file($file, FILE_IGNORE_NEW_LINES) as $number => $line) {
+            if (false !== stripos($line, 'PDF') || false !== stripos($line, 'HEIC')) {
+                $lines[] = ($number + 1) . ': ' . trim($line);
+            }
+        }
+        $policy[$file] = $lines;
+    }
+    return [
+        'imagick' => true,
+        'extension_version' => phpversion('imagick'),
+        'version' => Imagick::getVersion(),
+        'formats' => $formats,
+        'configure' => $configure,
+        'policy' => $policy,
+        'gd' => $gd,
+    ];
+}
+
+/** Harness rule: the top-level chunk types of a RIFF WebP file, in order (at most 16); null for another file. */
+function qp_webp_chunks(string $path): ?array
+{
+    $bytes = (string) file_get_contents($path);
+    if (strlen($bytes) < 12 || 'RIFF' !== substr($bytes, 0, 4) || 'WEBP' !== substr($bytes, 8, 4)) {
+        return null;
+    }
+    $chunks = [];
+    $at = 12;
+    while ($at + 8 <= strlen($bytes) && count($chunks) < 16) {
+        $chunks[] = substr($bytes, $at, 4);
+        $size = unpack('V', substr($bytes, $at + 4, 4))[1];
+        $at += 8 + $size + ($size % 2);
+    }
+    return $chunks;
+}
+
+/**
+ * Harness rule: the files of attachment "id" on the site at path "site" (the attached file, and the metadata's file,
+ * original_image and sizes' files, when they exist in its folder), each with its size, PHP's getimagesize (width,
+ * height, mime), WordPress's wp_getimagesize and wp_get_image_mime, the WebP chunk types and, with Imagick, what
+ * Imagick reads: format, number of images (frames), width, height, compression quality, orientation, the names of the
+ * profiles it holds (exif, icc, iptc, xmp...) and the mean of the red, green and blue channels of the first frame
+ * (with the quantum range, so an all-black decode shows). Answers {folder, files: [...]}, sorted by name.
+ */
+function qp_image_files(array $input): array
+{
+    switch_to_blog(qp_site_id((string) $input['site']));
+    try {
+        $base = qp_uploads_base();
+        $file = get_attached_file((int) $input['id'], true);
+        if (!is_string($file) || '' === $file) {
+            return ['folder' => null, 'files' => []];
+        }
+        $dir = dirname($file);
+        $own = [wp_basename($file)];
+        $metadata = wp_get_attachment_metadata((int) $input['id'], true);
+        if (is_array($metadata)) {
+            foreach (['file', 'original_image'] as $key) {
+                if (!empty($metadata[$key]) && is_string($metadata[$key])) {
+                    $own[] = wp_basename($metadata[$key]);
+                }
+            }
+            foreach ((array) ($metadata['sizes'] ?? []) as $size) {
+                if (is_array($size) && !empty($size['file'])) {
+                    $own[] = wp_basename((string) $size['file']);
+                }
+            }
+        }
+        $names = array_values(array_unique(array_filter($own, static fn($name) => is_file($dir . '/' . $name))));
+        sort($names, SORT_STRING);
+        $files = [];
+        foreach ($names as $name) {
+            $path = $dir . '/' . $name;
+            $php = @getimagesize($path);
+            $wp = wp_getimagesize($path);
+            $entry = [
+                'name' => $name,
+                'size' => filesize($path),
+                'getimagesize' => false === $php ? false
+                    : ['width' => $php[0], 'height' => $php[1], 'mime' => $php['mime'] ?? null],
+                'wp_getimagesize' => false === $wp ? false
+                    : ['width' => $wp[0], 'height' => $wp[1], 'mime' => $wp['mime'] ?? null],
+                'wp_get_image_mime' => wp_get_image_mime($path),
+                'webp_chunks' => qp_webp_chunks($path),
+            ];
+            if (extension_loaded('imagick')) {
+                try {
+                    $image = new Imagick($path);
+                    $frames = $image->getNumberImages();
+                    $image->setIteratorIndex(0);
+                    $mean = [];
+                    try {
+                        foreach (['red' => Imagick::CHANNEL_RED, 'green' => Imagick::CHANNEL_GREEN,
+                                     'blue' => Imagick::CHANNEL_BLUE] as $channel => $constant) {
+                            $mean[$channel] = round($image->getImageChannelMean($constant)['mean'], 1);
+                        }
+                        $mean['quantum_range'] = $image->getQuantumRange()['quantumRangeLong'] ?? null;
+                    } catch (Throwable $e) {
+                        $mean = ['error' => get_class($e) . ': ' . $e->getMessage()];
+                    }
+                    $entry['imagick'] = [
+                        'format' => $image->getImageFormat(),
+                        'frames' => $frames,
+                        'width' => $image->getImageWidth(),
+                        'height' => $image->getImageHeight(),
+                        'quality' => $image->getImageCompressionQuality(),
+                        'orientation' => $image->getImageOrientation(),
+                        'profiles' => $image->getImageProfiles('*', false),
+                        'mean' => $mean,
+                    ];
+                    $image->clear();
+                } catch (Throwable $e) {
+                    $entry['imagick'] = ['error' => get_class($e) . ': ' . $e->getMessage()];
+                }
+            }
+            $files[] = $entry;
+        }
+        return ['folder' => ltrim(substr($dir, strlen($base)), '/'), 'files' => qp_json_safe($files)];
+    } finally {
+        restore_current_blog();
+    }
+}
+
 function qp_network_option(array $input): array
 {
     return ['name' => $input['name'], 'value' => get_site_option((string) $input['name'], null)];
@@ -1290,6 +1458,8 @@ try {
         'options_like' => qp_options_like($qp_input),
         'fileupload_maxk' => qp_fileupload_maxk($qp_input),
         'write_upload' => qp_write_upload($qp_input),
+        'imagick_info' => qp_imagick_info(),
+        'image_files' => qp_image_files($qp_input),
         default => throw new InvalidArgumentException("unknown operation $qp_mode"),
     };
     qp_write($qp_output_file, ['out' => $qp_out]);
