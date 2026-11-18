@@ -57,8 +57,8 @@ jobs:
         run: |
           rm -rf ~/.m2/repository/org/sitenetsoft/quarkus-libvips*
           mvn -B -ntp install -DskipTests -f .quarkus-libvips/pom.xml -pl runtime,deployment -am
+      # PHP for WordPress, the parity runs' reference: GD is its image editor, Imagick is left out
       - uses: shivammathur/setup-php@2.37.2
-        if: matrix.java == 21
         with:
           php-version: '8.4'
           extensions: mbstring, intl, json, pcntl, iconv, xml, dom, simplexml, xmlreader, hash, sodium, mysqli, pdo_mysql, gd, exif, fileinfo, :imagick
@@ -85,6 +85,14 @@ jobs:
           bash .github/scripts/require-tests-ran.sh \
             integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkpress.it.restwp.RestParityDbTest.xml \
             integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
+      - name: WordPress libvips media parity
+        if: matrix.java == 25
+        # as the JDK 21 step above: the report, removed first (the build wrote a skipped one), must show the test ran
+        run: |
+          rm -f integration-tests/media-vips/target/surefire-reports/TEST-*ParityDbTest.xml
+          mvn -B -ntp -pl integration-tests/media-vips -am verify -Pwp-parity -Dtest=MediaVipsParityDbTest -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -Dvips.require-all-formats=true -DtestDb=${{ matrix.db }}
+          bash .github/scripts/require-tests-ran.sh \
+            integration-tests/media-vips/target/surefire-reports/TEST-org.quarkpress.it.mediavips.MediaVipsParityDbTest.xml
       - name: Check formatting
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check
