@@ -24,6 +24,7 @@ class MediaComparisonTest {
             "mt",
             "comparison test",
             false,
+            false,
             List.of(),
             List.of(new MediaScenario.Step.Upload(
                     "alice", new Fixture("jpeg", null), "x.jpg", "image/jpeg", Map.of())));
@@ -242,18 +243,22 @@ class MediaComparisonTest {
     }
 
     @Test
-    void theNineteenScenariosReadAndTheirFilesBuild() {
+    void theTwentyScenariosReadAndTheirFilesBuild() {
         List<MediaScenario> scenarios = MediaScenarios.all();
 
         assertThat(scenarios)
                 .extracting(MediaScenario::id)
                 .containsExactly(
                         "m01", "m02", "m03", "m04", "m05", "m06", "m07", "m08", "m09", "m10", "m11", "m12", "m13",
-                        "m14", "m15", "m16", "m17", "m18", "m19");
+                        "m14", "m15", "m16", "m17", "m18", "m19", "m20");
         assertThat(scenarios)
                 .filteredOn(MediaScenario::editor)
                 .extracting(MediaScenario::id)
                 .containsExactly("m07", "m12", "m13", "m14", "m15", "m16");
+        assertThat(scenarios)
+                .filteredOn(MediaScenario::vips)
+                .extracting(MediaScenario::id)
+                .containsExactly("m20");
         for (MediaScenario scenario : scenarios) {
             for (MediaScenario.Setup setup : scenario.setup()) {
                 if (setup instanceof MediaScenario.Setup.Folder folder) {
@@ -284,6 +289,48 @@ class MediaComparisonTest {
                         + " \"step1\", \"as\": \"mallory\"}]}"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("mallory");
+    }
+
+    @Test
+    void theVipsMarkIsReadAndDefaultsToFalse() {
+        String steps = ", \"steps\": [{\"upload\": \"png\", \"args\": [4, 4], \"name\": \"a.png\","
+                + " \"type\": \"image/png\"}]}";
+
+        assertThat(MediaScenarioJson.read("{\"id\": \"x\", \"rule\": \"r\", \"vips\": true" + steps)
+                        .vips())
+                .isTrue();
+        assertThat(MediaScenarioJson.read("{\"id\": \"x\", \"rule\": \"r\", \"vips\": false" + steps)
+                        .vips())
+                .isFalse();
+        assertThat(MediaScenarioJson.read("{\"id\": \"x\", \"rule\": \"r\"" + steps)
+                        .vips())
+                .isFalse();
+        assertThatThrownBy(() -> MediaScenarioJson.read("{\"id\": \"x\", \"rule\": \"r\", \"vips\": \"yes\"" + steps))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("vips");
+    }
+
+    @Test
+    void theLibvipsFormatFixturesAreTheCommittedFiles() {
+        assertThat(MediaScenarios.fixture(fixture("webpLossy", "[3000, 2000]")))
+                .isEqualTo(MediaFixtures.webpLossy(3000, 2000));
+        assertThat(MediaScenarios.fixture(fixture("webpLossless", "[3000, 2000]")))
+                .isEqualTo(MediaFixtures.webpLossless(3000, 2000));
+        assertThat(MediaScenarios.fixture(fixture("avif", "[2600, 1800]"))).isEqualTo(MediaFixtures.avif(2600, 1800));
+        assertThat(MediaScenarios.fixture(fixture("heic", "[4032, 3024]"))).isEqualTo(MediaFixtures.heic(4032, 3024));
+        assertThat(MediaScenarios.fixture(fixture("heicRotated", "[4032, 3024]")))
+                .isEqualTo(MediaFixtures.heicRotated(4032, 3024));
+        assertThat(MediaScenarios.fixture(fixture("heifMif1", "[4032, 3024]")))
+                .isEqualTo(MediaFixtures.heifMif1(4032, 3024));
+        assertThat(MediaScenarios.fixture(fixture("animatedWebp", null))).isEqualTo(MediaFixtures.animatedWebp());
+    }
+
+    private static Fixture fixture(String name, String args) {
+        try {
+            return new Fixture(name, args == null ? null : OracleJson.MAPPER.readTree(args));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     @Test

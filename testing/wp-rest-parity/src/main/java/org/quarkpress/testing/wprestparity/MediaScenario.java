@@ -12,13 +12,15 @@ import java.util.Optional;
  * One media parity scenario: what a fresh subdirectory site holds before the steps ({@link Setup}), then the media
  * operations run on it in order ({@link Step}). The same scenario runs on WordPress and on QuarkPress, and {@link
  * MediaComparison} compares what each stored. {@code editor} marks a scenario that needs an image editor on the
- * WordPress side (PHP's GD): without one it cannot run there.
+ * WordPress side (PHP's GD): without one it cannot run there. {@code vips} marks a scenario of the libvips image
+ * processor: its WordPress side is WordPress with Imagick, whose answers were recorded once (Imagick facts), so only
+ * the libvips media parity run plays it, against those answers; the ImageIO run leaves it out.
  *
  * <p>Refs name what the scenario creates, so both sides can be compared although their ids differ: a setup post's
  * {@code ref} ({@code p:...}), {@code step<n>} for the attachment upload step {@code n} (1-based) created, and
  * {@code u:<user>} for the five users.
  */
-public record MediaScenario(String id, String rule, boolean editor, List<Setup> setup, List<Step> steps) {
+public record MediaScenario(String id, String rule, boolean editor, boolean vips, List<Setup> setup, List<Step> steps) {
 
     public MediaScenario {
         Objects.requireNonNull(id, "id");

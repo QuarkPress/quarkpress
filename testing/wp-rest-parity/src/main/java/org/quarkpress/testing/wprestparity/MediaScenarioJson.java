@@ -18,7 +18,7 @@ import org.quarkpress.testing.wprestparity.MediaScenario.Step;
  * Reads the media scenario format:
  *
  * <pre>{@code
- * {"id": "m09", "rule": "...", "editor": false,
+ * {"id": "m09", "rule": "...", "editor": false, "vips": false,
  *  "setup": [{"post": "p:dated", "type": "post", "status": "publish", "date": "2019-03-14 12:00:00"},
  *            {"option": "qp_parity_no_unsupported_refusal", "value": "1"},
  *            {"folder": {"photo.jpg": {"fixture": "jpeg", "args": [16, 16]}}},
@@ -29,12 +29,12 @@ import org.quarkpress.testing.wprestparity.MediaScenario.Step;
  *            {"process": "step1"}, {"delete": "step1"}, {"query": ["image", "video"]}]}
  * }</pre>
  *
- * {@code editor} defaults to false, {@code as} to alice, {@code args} to none and {@code fields} to none; field values
- * are strings. Unknown keys are refused, so a typo never silently drops a step.
+ * {@code editor} and {@code vips} default to false, {@code as} to alice, {@code args} to none and {@code fields} to
+ * none; field values are strings. Unknown keys are refused, so a typo never silently drops a step.
  */
 public final class MediaScenarioJson {
 
-    private static final Set<String> SCENARIO_KEYS = Set.of("id", "rule", "editor", "setup", "steps");
+    private static final Set<String> SCENARIO_KEYS = Set.of("id", "rule", "editor", "vips", "setup", "steps");
     private static final Set<String> POST_KEYS = Set.of("post", "type", "status", "date");
     private static final Set<String> OPTION_KEYS = Set.of("option", "value");
     private static final Set<String> FOLDER_KEYS = Set.of("folder");
@@ -61,13 +61,8 @@ public final class MediaScenarioJson {
         }
         keys(root, SCENARIO_KEYS, "scenario");
         String id = text(root, "id");
-        boolean editor = false;
-        if (root.has("editor")) {
-            if (!root.get("editor").isBoolean()) {
-                throw new IllegalArgumentException(id + ": editor is true or false");
-            }
-            editor = root.get("editor").booleanValue();
-        }
+        boolean editor = flag(root, "editor", id);
+        boolean vips = flag(root, "vips", id);
         List<Setup> setup = new ArrayList<>();
         for (JsonNode entry : array(root, "setup", true)) {
             setup.add(setup(id, entry));
@@ -76,7 +71,18 @@ public final class MediaScenarioJson {
         for (JsonNode entry : array(root, "steps", false)) {
             steps.add(step(id, entry));
         }
-        return new MediaScenario(id, text(root, "rule"), editor, setup, steps);
+        return new MediaScenario(id, text(root, "rule"), editor, vips, setup, steps);
+    }
+
+    /** The scenario's mark {@code key}: false when absent. */
+    private static boolean flag(JsonNode root, String key, String id) {
+        if (!root.has(key)) {
+            return false;
+        }
+        if (!root.get(key).isBoolean()) {
+            throw new IllegalArgumentException(id + ": " + key + " is true or false");
+        }
+        return root.get(key).booleanValue();
     }
 
     private static Setup setup(String id, JsonNode entry) {

@@ -1,0 +1,111 @@
+{
+  "id": "m20",
+  "rule": "The formats the libvips image processor adds, against WordPress with Imagick (its recorded answers, facts v01-v07; the libvips media parity run only): a lossy and a lossless 3000x2000 WebP, a 2600x1800 AVIF, a 4032x3024 HEIC and its irot twin, the HEIC bytes and a major brand mif1 HEIF both named .heif and declared image/heif, an animated 800x600 GIF and WebP of three frames, a 400x300 TIFF, a HEIC sequence (refused) and a 400x300 BMP (MI10, MI11, MI12.6, MI13, MI14, MI16, MI20; one site, so the names are those of the facts run)",
+  "vips": true,
+  "steps": [
+    {
+      "upload": "webpLossy",
+      "args": [
+        3000,
+        2000
+      ],
+      "name": "v01-lossy.webp",
+      "type": "image/webp"
+    },
+    {
+      "upload": "webpLossless",
+      "args": [
+        3000,
+        2000
+      ],
+      "name": "v01-lossless.webp",
+      "type": "image/webp"
+    },
+    {
+      "upload": "avif",
+      "args": [
+        2600,
+        1800
+      ],
+      "name": "v02.avif",
+      "type": "image/avif"
+    },
+    {
+      "upload": "heic",
+      "args": [
+        4032,
+        3024
+      ],
+      "name": "v03.heic",
+      "type": "image/heic"
+    },
+    {
+      "upload": "heicRotated",
+      "args": [
+        4032,
+        3024
+      ],
+      "name": "v03-irot.heic",
+      "type": "image/heic"
+    },
+    {
+      "upload": "heic",
+      "args": [
+        4032,
+        3024
+      ],
+      "name": "v03-heic-bytes.heif",
+      "type": "image/heif"
+    },
+    {
+      "upload": "heifMif1",
+      "args": [
+        4032,
+        3024
+      ],
+      "name": "v03-mif1.heif",
+      "type": "image/heif"
+    },
+    {
+      "upload": "gif",
+      "args": [
+        800,
+        600,
+        3
+      ],
+      "name": "v04.gif",
+      "type": "image/gif"
+    },
+    {
+      "upload": "animatedWebp",
+      "name": "v04.webp",
+      "type": "image/webp"
+    },
+    {
+      "upload": "tiff",
+      "args": [
+        400,
+        300
+      ],
+      "name": "v05.tif",
+      "type": "image/tiff"
+    },
+    {
+      "upload": "heif",
+      "args": [
+        "msf1"
+      ],
+      "name": "v06.heics",
+      "type": "image/heic-sequence"
+    },
+    {
+      "upload": "bmp",
+      "args": [
+        400,
+        300
+      ],
+      "name": "v07.bmp",
+      "type": "image/bmp"
+    }
+  ]
+}

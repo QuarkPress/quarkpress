@@ -107,23 +107,49 @@ items never run here.
 
 `MediaParityDbTest` in `integration-tests/media` compares the media library below the REST layer with WordPress's
 (`mvn -pl integration-tests/media -am verify -Pwp-parity`). The 19 scenarios of `scenarios/media/index.txt`
-(`MediaScenarios`) each run on a fresh subdirectory site on both sides: WordPress is uploaded to through its REST media
-routes, QuarkPress through the test application's media resource, with the files of `MediaFixtures`. After each step
-`MediaComparison` compares, under WordPress's names, the outcome (accepted, or the refusal's code and message), the
-attachment's post columns, its meta, every pointer of its metadata, the files of its upload folder, a query's
-attachments and the setup posts' featured images. Ids become the scenario's refs, the site URL, a network site's
-`sites/<id>/` folder and the current `yyyy/MM` folder are normalised, and the byte size of every file a side wrote
-itself becomes `{bytes}` (pixels are never compared). Scenarios marked `editor` need GD on WordPress's side and are
-skipped with a message without it (QuarkPress still plays them); `-Dwp.media.require-editor=true`, as in CI, fails
-instead. Each scenario's observations go to `integration-tests/media/target/media-parity/<id>.json` and every
-difference to `differences.tsv` there; `-Dmedia.parity.only=m01,m04` narrows the run for local debugging (such a run
-never passes). CI runs it with QuarkPress on PostgreSQL and on MySQL.
+(`MediaScenarios`) not marked `vips` each run on a fresh subdirectory site on both sides: WordPress is uploaded to
+through its REST media routes, QuarkPress through the test application's media resource, with the files of
+`MediaFixtures`. After each step `MediaComparison` compares, under WordPress's names, the outcome (accepted, or the
+refusal's code and message), the attachment's post columns, its meta, every pointer of its metadata, the files of its
+upload folder, a query's attachments and the setup posts' featured images. Ids become the scenario's refs, the site
+URL, a network site's `sites/<id>/` folder and the current `yyyy/MM` folder are normalised, and the byte size of every
+file a side wrote itself becomes `{bytes}` (pixels are never compared). Scenarios marked `editor` need GD on
+WordPress's side and are skipped with a message without it (QuarkPress still plays them);
+`-Dwp.media.require-editor=true`, as in CI, fails instead. Each scenario's observations go to
+`integration-tests/media/target/media-parity/<id>.json` and every difference to `differences.tsv` there;
+`-Dmedia.parity.only=m01,m04` narrows the run for local debugging (such a run never passes). CI runs it with
+QuarkPress on PostgreSQL and on MySQL.
 
 Its known differences are `integration-tests/media/src/test/resources/wp-media-parity-known-differences.txt`, in the
 form of the REST run's below, labelled with the rows of the "Differences from WordPress" table of
 `extensions/media/README.md`; `MediaKnownDifferenceLabelsTest` checks that both name the same labels. Entries of a
 skipped scenario are left out of the run, and so are those whose reason says `(needs gd_webp)` or `(needs gd_avif)`
 when WordPress's GD does not write that format. The run needs at least 3,700 comparisons and one per scenario.
+
+### The libvips media parity run
+
+`MediaVipsParityDbTest` in `integration-tests/media-vips` (Java 25) plays all 20 scenarios against the application
+with the libvips image processor, with its own known-differences file and `MediaVipsKnownDifferenceLabelsTest`; CI
+runs it in the JDK 25 cells. m01–m19 are compared with WordPress with GD, as above. The scenario marked `vips` (m20:
+WebP, AVIF, HEIC and HEIF, animated GIF and WebP, TIFF, a HEIC sequence, BMP) is compared with WordPress with Imagick,
+whose answers `ImagickFactsSide` replays from `integration-tests/media-vips/src/test/resources/imagick-facts/m20.json`,
+so the host needs neither GD nor Imagick for it. It is compared like the others: everything but the byte sizes of the
+files each side wrote, which become `{bytes}`.
+
+`m20.json` is recorded WordPress output, committed as an exception to the rule that recorded answers stay under
+`target/`: it is small measured data (no WordPress code), and only a separate run with Imagick can make it again. It
+was extracted from GitHub Actions run 44250089682 (commit fbe3706) of `MediaImagickFactsDbTest` (ubuntu-24.04, PHP
+8.4, ImageMagick 6.9.12-98, php-imagick 3.8.1), items v01–v07: for each upload the declared type, byte count and
+SHA-256 of the request, then the stored attachment (post row, raw meta without the serialized metadata, the metadata,
+the folder listing's paths) or the refusal's body. To make it again, push a temporary branch with a workflow that, on
+ubuntu-24.04, installs `libheif-plugin-libde265` and `libheif-plugin-aomenc`, sets up PHP 8.4 with `gd` and `imagick`
+(setup-php), runs `mvn -pl testing/wp-rest-parity -am verify -Pwp-parity -Dtest=MediaImagickFactsDbTest
+-Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-imagick=true` and uploads
+`testing/wp-rest-parity/target/wp-rest-parity/` as an artifact (the facts run's workflow lived on such a branch and
+is not kept in the repository); then take the same fields from the artifact's `verification-facts.json`
+(`items.vNN[].request.body` for the type and hash, `notes.vNN["upload <name>"]` for the rest) and delete the branch.
+`ImagickFactsSide` refuses a step whose bytes or declared type differ from the recorded upload's, so a changed fixture
+fails the run instead of comparing against another file.
 
 ## The WordPress side
 

@@ -1,5 +1,6 @@
 # The media parity scenarios (MediaParityDbTest), in run order. "editor": true marks those that need GD on
-# WordPress's side.
+# WordPress's side; "vips": true those of the libvips processor, compared with WordPress's recorded Imagick answers by
+# integration-tests/media-vips's MediaVipsParityDbTest only.
 m01-plain-images.json
 m02-titles-and-captions.json
 m03-file-names.json
@@ -19,3 +20,4 @@ m16-post-process.json
 m17-audio-video.json
 m18-unprocessable-images.json
 m19-mime-queries.json
+m20-vips-formats.json

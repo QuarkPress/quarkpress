@@ -67,12 +67,14 @@ public final class MediaScenarios {
     /**
      * A test file's bytes. Names and arguments: {@code jpeg [w, h]} or {@code jpeg {"w", "h", "orientation",
      * "iptc": {"<dataset>": [values]}, "exif": {"<field>": "<value>"}}}; {@code png}, {@code bmp}, {@code tiff},
-     * {@code progressiveJpeg}, {@code pngHeaderOnly} {@code [w, h]}; {@code gif [w, h, frames]}; {@code
-     * pngExifOrientation [w, h, orientation]}; {@code heif [brand]}; {@code zipOoxml [content type]}; {@code mp3
-     * {"id3": {...}, "cover": true}}; {@code mp4 [w, h, seconds]}; {@code wav [seconds]}; {@code text [content]}; no
-     * arguments for {@code webp}, {@code ico}, {@code psd}, {@code pdf}, {@code odt}, {@code xls}, {@code m4a},
-     * {@code ogg}, {@code ogv}, {@code webm}; and two that are not {@link MediaFixtures}': {@code gzip [content]} (the
-     * text gzipped) and {@code hex [hex digits]} (the bytes as written).
+     * {@code progressiveJpeg}, {@code pngHeaderOnly} {@code [w, h]}; the committed coded images {@code webpLossy},
+     * {@code avif}, {@code heic}, {@code heicRotated}, {@code heifMif1} {@code [w, h]} (only the committed sizes exist)
+     * and {@code webpLossless [w, h]}; {@code gif [w, h, frames]}; {@code pngExifOrientation [w, h, orientation]};
+     * {@code heif [brand]}; {@code zipOoxml [content type]}; {@code mp3 {"id3": {...}, "cover": true}}; {@code mp4 [w,
+     * h, seconds]}; {@code wav [seconds]}; {@code text [content]}; no arguments for {@code webp}, {@code animatedWebp},
+     * {@code ico}, {@code psd}, {@code pdf}, {@code odt}, {@code xls}, {@code m4a}, {@code ogg}, {@code ogv}, {@code
+     * webm}; and two that are not {@link MediaFixtures}': {@code gzip [content]} (the text gzipped) and {@code hex [hex
+     * digits]} (the bytes as written).
      */
     public static byte[] fixture(Fixture fixture) {
         JsonNode args = fixture.args();
@@ -86,6 +88,13 @@ public final class MediaScenarios {
             case "gif" -> MediaFixtures.gif(arg(args, 0), arg(args, 1), arg(args, 2));
             case "pngExifOrientation" -> MediaFixtures.pngExifOrientation(arg(args, 0), arg(args, 1), arg(args, 2));
             case "heif" -> MediaFixtures.heif(text(args, 0));
+            case "webpLossy" -> MediaFixtures.webpLossy(arg(args, 0), arg(args, 1));
+            case "webpLossless" -> MediaFixtures.webpLossless(arg(args, 0), arg(args, 1));
+            case "avif" -> MediaFixtures.avif(arg(args, 0), arg(args, 1));
+            case "heic" -> MediaFixtures.heic(arg(args, 0), arg(args, 1));
+            case "heicRotated" -> MediaFixtures.heicRotated(arg(args, 0), arg(args, 1));
+            case "heifMif1" -> MediaFixtures.heifMif1(arg(args, 0), arg(args, 1));
+            case "animatedWebp" -> MediaFixtures.animatedWebp();
             case "zipOoxml" -> MediaFixtures.zipOoxml(text(args, 0));
             case "mp3" -> mp3(args);
             case "mp4" -> MediaFixtures.mp4(arg(args, 0), arg(args, 1), arg(args, 2));
