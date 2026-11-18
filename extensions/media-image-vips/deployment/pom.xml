@@ -47,6 +47,13 @@
       <artifactId>quarkus-jdbc-mysql-deployment</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- The fallback and the precedence tests: the vips module itself never depends on ImageIO. -->
+    <dependency>
+      <groupId>org.quarkpress</groupId>
+      <artifactId>quarkpress-media-image-imageio-deployment</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.quarkpress.testing</groupId>
       <artifactId>quarkpress-test-media-image-contract</artifactId>

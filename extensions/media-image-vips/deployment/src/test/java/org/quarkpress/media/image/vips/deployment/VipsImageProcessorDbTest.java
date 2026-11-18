@@ -202,7 +202,7 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
         assertThat(p.supports("image/heif")).isFalse();
         assertThatThrownBy(() -> p.decode(fixture("still.heic"), "image/heic"))
                 .isInstanceOf(ImageProcessingException.class)
-                .hasMessage("libvips does not read image/heic.");
+                .hasMessage("No image processor reads image/heic.");
         if (libvips.hasOperation("heifload") && !libvips.isBlocked("VipsForeignLoadHeifFile")) {
             // why the probe decodes rather than trusting the loader: a small HEIC such as the probe's own decodes
             // without an error, as black pixels
@@ -367,7 +367,7 @@ class VipsImageProcessorDbTest extends ImageProcessorContract {
         assertThat(p.read(tiff)).contains(new ImageInfo("image/tiff", 30, 20));
         assertThatThrownBy(() -> p.decode(tiff, "image/tiff"))
                 .isInstanceOf(ImageProcessingException.class)
-                .hasMessage("libvips does not read image/tiff.");
+                .hasMessage("No image processor reads image/tiff.");
         // a TIFF declared as a type that is decoded is refused by its real type
         assertThatThrownBy(() -> p.decode(tiff, "image/png").close())
                 .isInstanceOf(ImageProcessingException.class)

@@ -1,51 +1,89 @@
 package org.quarkpress.media.image.vips.deployment;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import org.quarkpress.core.SiteInfo;
+import org.quarkpress.media.KeyTakenException;
 import org.quarkpress.media.MediaStorage;
+import org.quarkpress.media.StoredKey;
 import org.quarkpress.media.WriteMode;
 
-/** The storage backend the media module needs to start; these tests store nothing. */
+/** The storage backend of the test applications: files held in memory. */
 @ApplicationScoped
 public class TestStorage implements MediaStorage {
 
-    @Override
-    public void put(String key, Path source, String mimeType, WriteMode mode) {
-        throw new UnsupportedOperationException("these tests store nothing");
+    private final Map<String, byte[]> files = new ConcurrentHashMap<>();
+
+    /** The bytes stored under {@code key}. */
+    public byte[] bytes(String key) throws NoSuchFileException {
+        byte[] bytes = files.get(key);
+        if (bytes == null) {
+            throw new NoSuchFileException(key);
+        }
+        return bytes;
     }
 
     @Override
-    public InputStream open(String key) throws NoSuchFileException {
-        throw new NoSuchFileException(key);
+    public void put(String key, Path source, String mimeType, WriteMode mode) throws IOException {
+        StoredKey.require(key);
+        byte[] bytes = Files.readAllBytes(source);
+        if (mode == WriteMode.CREATE_NEW) {
+            if (files.putIfAbsent(key, bytes) != null) {
+                throw new KeyTakenException(key);
+            }
+        } else {
+            files.put(key, bytes);
+        }
+    }
+
+    @Override
+    public InputStream open(String key) throws IOException {
+        return new ByteArrayInputStream(bytes(StoredKey.require(key)));
     }
 
     @Override
     public boolean exists(String key) {
-        return false;
+        return files.containsKey(StoredKey.require(key));
     }
 
     @Override
     public List<String> list(String folderKey) {
-        return List.of();
+        String prefix = StoredKey.require(folderKey) + "/";
+        TreeSet<String> names = new TreeSet<>();
+        for (String key : files.keySet()) {
+            if (key.startsWith(prefix)) {
+                String rest = key.substring(prefix.length());
+                int slash = rest.indexOf('/');
+                names.add(slash < 0 ? rest : rest.substring(0, slash));
+            }
+        }
+        return new ArrayList<>(names);
     }
 
     @Override
     public boolean delete(String key) {
-        return false;
+        return files.remove(StoredKey.require(key)) != null;
     }
 
     @Override
     public OptionalLong size(String key) {
-        return OptionalLong.empty();
+        byte[] bytes = files.get(StoredKey.require(key));
+        return bytes == null ? OptionalLong.empty() : OptionalLong.of(bytes.length);
     }
 
     @Override
     public String publicUrl(SiteInfo site, String key) {
-        return site.url("http") + "/media/" + key;
+        return site.url("http") + "/media/" + StoredKey.require(key);
     }
 }

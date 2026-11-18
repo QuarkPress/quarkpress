@@ -1,13 +1,21 @@
 package org.quarkpress.media.image.vips.runtime;
 
+import io.quarkus.arc.ClientProxy;
 import io.quarkus.runtime.StartupEvent;
+import io.quarkus.runtime.configuration.ConfigurationException;
+import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.enterprise.inject.Alternative;
+import jakarta.enterprise.inject.spi.BeanManager;
 import jakarta.inject.Inject;
+import jakarta.interceptor.Interceptor;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 import org.quarkpress.media.DecodedImage;
 import org.quarkpress.media.ImageInfo;
@@ -20,6 +28,7 @@ import org.sitenetsoft.quarkus.libvips.FailOn;
 import org.sitenetsoft.quarkus.libvips.Image;
 import org.sitenetsoft.quarkus.libvips.Intent;
 import org.sitenetsoft.quarkus.libvips.Libvips;
+import org.sitenetsoft.quarkus.libvips.LibvipsConfig;
 import org.sitenetsoft.quarkus.libvips.LibvipsException;
 import org.sitenetsoft.quarkus.libvips.LimitExceededException;
 import org.sitenetsoft.quarkus.libvips.LoadOptions;
@@ -30,7 +39,14 @@ import org.sitenetsoft.quarkus.libvips.SaveOptions;
  * are written in another type), and reads the header of TIFF files without making sizes, as far as the installed
  * libvips can; the types it handles are found by trying each at start-up. Images are never turned on decoding, and
  * copies keep the colour profile (none in PNG copies) and no other metadata.
+ *
+ * <p>It takes precedence over any other image processor bean. The other one, when there is one (ImageIO's), handles
+ * the types libvips does not, and every type when libvips is not available; a type libvips decodes is never handed to
+ * it, even when libvips fails on the file. At start-up, libvips's input limits are checked against the largest upload
+ * and the pixel limit QuarkPress accepts.
  */
+@Alternative
+@Priority(10)
 @ApplicationScoped
 public class VipsImageProcessor implements ImageProcessor {
 
@@ -56,54 +72,119 @@ public class VipsImageProcessor implements ImageProcessor {
 
     private final Libvips libvips;
     private final long maxPixels;
+    private final Optional<BeanManager> beans;
+    private final Optional<LibvipsConfig> libvipsConfig;
     private volatile VipsFormats formats;
+    private volatile Optional<ImageProcessor> fallback = Optional.empty();
 
     @Inject
-    VipsImageProcessor(Libvips libvips, MediaConfig config) {
-        this(libvips, config.maxImagePixels(), VipsFormats.NONE);
+    VipsImageProcessor(Libvips libvips, MediaConfig config, LibvipsConfig libvipsConfig, BeanManager beans) {
+        this.libvips = libvips;
+        this.maxPixels = config.maxImagePixels();
+        this.beans = Optional.of(beans);
+        this.libvipsConfig = Optional.of(libvipsConfig);
+        this.formats = VipsFormats.NONE;
     }
 
     /**
      * A processor of the types {@code formats} names, refusing to decode images of more than {@code maxPixels}
-     * pixels.
+     * pixels, without a fallback.
      */
     public VipsImageProcessor(Libvips libvips, long maxPixels, VipsFormats formats) {
         this.libvips = libvips;
         this.maxPixels = maxPixels;
+        this.beans = Optional.empty();
+        this.libvipsConfig = Optional.empty();
         this.formats = formats;
     }
 
-    /** Finds the types the installed libvips handles, once, at start-up. */
-    void probe(@Observes StartupEvent event) {
-        if (libvips.isAvailable()) {
-            formats = VipsFormats.probe(libvips);
-            LOG.info(formats.describe(libvips.version()));
+    /**
+     * At start-up, before the application's own start-up work (such as taking up uploads left pending): checks
+     * libvips's input limits, finds the fallback, and the types the installed libvips handles; says in one line what
+     * processes images.
+     */
+    void start(@Observes @Priority(Interceptor.Priority.PLATFORM_BEFORE) StartupEvent event) {
+        libvipsConfig.ifPresent(this::checkLimits);
+        fallback = beans.flatMap(Fallback::of);
+        Optional<String> other =
+                fallback.map(p -> ClientProxy.unwrap(p).getClass().getSimpleName());
+        if (!libvips.isAvailable()) {
+            formats = VipsFormats.NONE;
+            LOG.debugf("libvips: %s", libvips.status().error().orElse("not available"));
+            LOG.warn(other.map(name -> "libvips is not available; images are processed by " + name + " instead")
+                    .orElse("libvips is not available; images get no generated sizes"));
+            return;
+        }
+        formats = VipsFormats.probe(libvips);
+        LOG.info(formats.describe(libvips.version())
+                + other.map(name -> "; other types by " + name).orElse(""));
+    }
+
+    /**
+     * Fails the start when a configured libvips input limit would refuse an image QuarkPress accepts: unconfigured
+     * limits are raised by {@link VipsLimitDefaults}.
+     */
+    private void checkLimits(LibvipsConfig config) {
+        Config all = ConfigProvider.getConfig();
+        long accepted = VipsLimitDefaults.acceptedUploadSize(
+                key -> all.getOptionalValue(key, String.class).filter(text -> !text.isBlank()));
+        Optional<String> problem = VipsLimitDefaults.check(
+                config.limits().maxInputSize().asLongValue(), config.limits().maxInputPixels(), accepted, maxPixels);
+        if (problem.isPresent()) {
+            throw new ConfigurationException(problem.get());
         }
     }
 
-    /** The types this processor handles. */
+    /**
+     * The other image processor, which handles the types libvips does not; found at start-up, empty before and when
+     * there is none.
+     */
+    public Optional<ImageProcessor> fallback() {
+        return fallback;
+    }
+
+    /** The types libvips handles; none before start-up and when libvips is not available. */
     public VipsFormats formats() {
         return formats;
     }
 
-    /** Whether images of {@code mimeType} are written, read, or accepted without sizes. */
+    /**
+     * Whether images of {@code mimeType} are written, read, or accepted without sizes, by libvips or the fallback.
+     */
     @Override
     public boolean supports(String mimeType) {
-        return formats.supports(mimeType);
-    }
-
-    /** Whether copies are written as {@code mimeType}: never HEIC, HEIF or TIFF, which are only read. */
-    @Override
-    public boolean writes(String mimeType) {
-        return formats.writes(mimeType);
+        return formats.supports(mimeType)
+                || fallback.map(other -> other.supports(mimeType)).orElse(false);
     }
 
     /**
-     * The type and stored dimensions of {@code file} from its header, when it is of a type this processor handles. A
-     * header declaring more pixels than libvips loads is measured by the media module's own header reader.
+     * Whether copies are written as {@code mimeType}: while libvips is available, only the types libvips writes (never
+     * HEIC, HEIF or TIFF, which are only read), so that copies of an image the fallback decodes are written in JPEG
+     * when libvips does not write its type; without libvips, the fallback's answer.
+     */
+    @Override
+    public boolean writes(String mimeType) {
+        if (libvips.isAvailable()) {
+            return formats.writes(mimeType);
+        }
+        return fallback.map(other -> other.writes(mimeType)).orElse(false);
+    }
+
+    /**
+     * The type and stored dimensions of {@code file} from its header, when it is of a type libvips handles; else as
+     * the fallback reads it. A header declaring more pixels than libvips loads is measured by the media module's own
+     * header reader.
      */
     @Override
     public Optional<ImageInfo> read(Path file) {
+        Optional<ImageInfo> own = libvips.isAvailable() ? readHeader(file) : Optional.empty();
+        if (own.isPresent()) {
+            return own;
+        }
+        return fallback.flatMap(other -> other.read(file));
+    }
+
+    private Optional<ImageInfo> readHeader(Path file) {
         try (Image image = libvips.load(file, HEADER)) {
             Optional<String> type = VipsTypes.mimeOf(image).filter(formats::supports);
             if (type.isEmpty() || image.width() <= 0 || image.height() <= 0) {
@@ -119,17 +200,27 @@ public class VipsImageProcessor implements ImageProcessor {
     }
 
     /**
-     * Decodes the first page or frame of {@code file}. Its real type, told by its content, must be one this processor
+     * Decodes the first page or frame of {@code file}: with libvips when it decodes {@code mimeType}, else with the
+     * fallback when that handles it. With libvips, the real type of the file, told by its content, must be one it
      * decodes, and its pixels at most the limit; CMYK images are converted to sRGB. A JPEG whose data stops early is
      * decoded as far as it goes; any other file whose data stops early, and any damaged file, fails here, not when a
-     * copy is written.
+     * copy is written. A failure of libvips is never retried with the fallback.
      */
     @Override
     public DecodedImage decode(Path file, String mimeType) throws ImageProcessingException {
         VipsFormats known = formats;
-        if (!known.decodes(mimeType)) {
-            throw new ImageProcessingException("libvips does not read " + mimeType + ".");
+        if (known.decodes(mimeType)) {
+            return decodeWithLibvips(file, mimeType, known);
         }
+        Optional<ImageProcessor> other = fallback.filter(p -> p.supports(mimeType));
+        if (other.isPresent()) {
+            return other.get().decode(file, mimeType);
+        }
+        throw new ImageProcessingException("No image processor reads " + mimeType + ".");
+    }
+
+    private DecodedImage decodeWithLibvips(Path file, String mimeType, VipsFormats known)
+            throws ImageProcessingException {
         Image image;
         try {
             image = libvips.load(file, lenient(mimeType) ? DECODE_LENIENT : DECODE_STRICT);
