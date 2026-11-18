@@ -12,9 +12,10 @@ import org.quarkpress.core.UserId;
  * and its open preview tabs agree, and a token stays valid for the tick after the one it was issued in, so a link is
  * good for at least the lifetime and at most twice as long, as WordPress's nonces are.
  *
- * <p>The site's secret is 32 random bytes, created under the site's write lock the first time a token is issued and
- * kept in the site's options as {@code quarkpress_preview_secret}: not a registered setting, never exposed through
- * REST. Deleting the option revokes every preview link of the site; the next issue creates a new secret.
+ * <p>The site's secret is 32 random bytes, created with the site (or, on a site without one, under the site's write
+ * lock the first time a token is issued) and kept in the site's options as {@code quarkpress_preview_secret}: not a
+ * registered setting, never exposed through REST. Deleting the option revokes every preview link of the site; the
+ * next issue creates a new secret.
  */
 public interface PreviewTokens {
 

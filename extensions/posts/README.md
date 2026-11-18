@@ -65,7 +65,11 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   the lifetime and at most twice as long, 12–24 h by default, as WordPress's nonces are), compares in constant time and
   requires that `viewer` holds `edit_post` on the post now. The secret is 32 random bytes kept in the site's option
   `quarkpress_preview_secret` (base64, not autoloaded, not a registered setting, never exposed through REST), created
-  under the site's write lock the first time a token is issued; `verify` creates none. Deleting the option revokes every
+  with the site, in the transaction of `SiteCreated`; on a site without one (created before this module, or whose
+  option was deleted) the first issued token creates it under the site's write lock; `verify` creates none. The secret
+  per site is QuarkPress's own: WordPress's nonces use network-wide salts, constants its installer writes into
+  `wp-config.php`, with a network option that `wp_salt` creates when one is missing; creating a WordPress site writes
+  none. Deleting the option revokes every
   preview link of the site, and a malformed value refuses every preview with `IllegalStateException` until it is deleted.
 - `PreviewSessions` names the user of a preview page as WordPress's login cookie does: `open(user)` (the caller must be
   `user` and a member of the site, or a super admin) answers a random token (43 characters) and its lifetime,

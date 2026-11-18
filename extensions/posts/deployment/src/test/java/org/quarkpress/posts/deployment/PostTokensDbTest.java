@@ -7,6 +7,8 @@ import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.test.QuarkusExtensionTest;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -22,8 +24,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.quarkpress.core.PostId;
+import org.quarkpress.core.SiteCreated;
 import org.quarkpress.core.SiteId;
+import org.quarkpress.core.SiteInfo;
 import org.quarkpress.core.UserId;
+import org.quarkpress.persistence.NetworkScope;
+import org.quarkpress.persistence.NetworkScopePolicy;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.posts.LockReleaseTokens;
 import org.quarkpress.posts.PostException;
@@ -47,8 +53,46 @@ class PostTokensDbTest {
     /** Valid base64 of 31 bytes: one short of a secret. */
     private static final String SHORT_BASE64 = Base64.getEncoder().encodeToString(new byte[31]);
 
+    /** Announces a site as the multisite module does: inside a network transaction. */
+    @ApplicationScoped
+    public static class SiteCreator {
+        @Inject
+        NetworkScope network;
+
+        @Inject
+        Event<SiteCreated> created;
+
+        void announce(SiteId site) {
+            network.run(() -> created.fire(event(site)));
+        }
+
+        /** A site creation that fails after the announcement, so its transaction rolls back. */
+        void announceAndFail(SiteId site) {
+            network.run(() -> {
+                created.fire(event(site));
+                throw new IllegalStateException("the site creation failed");
+            });
+        }
+
+        private static SiteCreated event(SiteId site) {
+            return new SiteCreated(
+                    site,
+                    Instant.ofEpochSecond(NOW),
+                    new SiteInfo(site, "tokens.test", "/", "tokens", 1, false, false, false, false));
+        }
+    }
+
+    @ApplicationScoped
+    public static class AllowCreator implements NetworkScopePolicy {
+        @Override
+        public boolean allows(Class<?> caller) {
+            return caller == SiteCreator.class;
+        }
+    }
+
     @RegisterExtension
-    static final QuarkusExtensionTest app = PostsApp.multisite(PostTokensDbTest.class, TestClock.class);
+    static final QuarkusExtensionTest app =
+            PostsApp.multisite(PostTokensDbTest.class, TestClock.class, SiteCreator.class, AllowCreator.class);
 
     @Inject
     @DataSource("quarkpress")
@@ -68,6 +112,9 @@ class PostTokensDbTest {
 
     @Inject
     TestClock clock;
+
+    @Inject
+    SiteCreator creator;
 
     private SiteId site;
     private UserId bob;
@@ -132,6 +179,53 @@ class PostTokensDbTest {
         assertThatThrownBy(() -> as(bob, () -> tokens.issue(PostId.of(post.value() + 100_000), bob)))
                 .isInstanceOfSatisfying(
                         PostException.class, e -> assertThat(e.code()).isEqualTo("invalid_post"));
+    }
+
+    @Test
+    void aCreatedSiteGetsItsSecretInItsCreationTransaction() throws Exception {
+        assertThat(secretRows()).isZero();
+        creator.announce(site);
+        assertThat(secretRows()).isEqualTo(1);
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select count(*) from qp_option where site_id = ? and name = ? and autoload = false",
+                        site.value(),
+                        SECRET))
+                .isEqualTo(1);
+        String stored = storedSecret();
+        assertThat(Base64.getDecoder().decode(stored.substring(1, stored.length() - 1)))
+                .hasSize(32);
+        // announced again: the secret stays as it is
+        creator.announce(site);
+        assertThat(secretRows()).isEqualTo(1);
+        assertThat(storedSecret()).isEqualTo(stored);
+        // the first token is computed with that secret, which stays as it is
+        String token = as(carol, () -> tokens.issue(post, carol));
+        assertThat(token).isEqualTo(expectedPreview(site, post, carol, NOW / TICK_SECONDS));
+        assertThat(storedSecret()).isEqualTo(stored);
+        assertThat(secretRows()).isEqualTo(1);
+
+        SiteId other = TestData.site(dataSource);
+        creator.announce(other);
+        assertThat(Jdbc.strings(
+                        dataSource,
+                        "select value from qp_option where site_id = ? and name = ?",
+                        other.value(),
+                        SECRET))
+                .hasSize(1)
+                .doesNotContain(stored);
+
+        // a creation that rolls back leaves no secret
+        SiteId failed = TestData.site(dataSource);
+        assertThatThrownBy(() -> creator.announceAndFail(failed))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("the site creation failed");
+        assertThat(Jdbc.count(
+                        dataSource,
+                        "select count(*) from qp_option where site_id = ? and name = ?",
+                        failed.value(),
+                        SECRET))
+                .isZero();
     }
 
     @Test
@@ -486,6 +580,12 @@ class PostTokensDbTest {
         String message = "preview|" + site.value() + "|" + post.value() + "|" + user.value() + "|" + tick;
         byte[] full = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(Arrays.copyOf(full, 20));
+    }
+
+    private String storedSecret() {
+        return Jdbc.strings(
+                        dataSource, "select value from qp_option where site_id = ? and name = ?", site.value(), SECRET)
+                .get(0);
     }
 
     private long secretRows() {

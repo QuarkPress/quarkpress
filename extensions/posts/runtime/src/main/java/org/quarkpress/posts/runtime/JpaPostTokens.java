@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.security.UnauthorizedException;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -24,10 +25,12 @@ import javax.crypto.spec.SecretKeySpec;
 import org.quarkpress.core.PostId;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.SiteContext;
+import org.quarkpress.core.SiteCreated;
 import org.quarkpress.core.SiteId;
 import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.Options;
 import org.quarkpress.persistence.runtime.OptionRepository;
+import org.quarkpress.persistence.runtime.OptionWrites;
 import org.quarkpress.persistence.runtime.TenantIds;
 import org.quarkpress.posts.LockReleaseTokens;
 import org.quarkpress.posts.PostException;
@@ -38,14 +41,15 @@ import org.quarkpress.security.Memberships;
 
 /**
  * Preview tokens, preview sessions and lock release tokens. Preview tokens are HMAC-SHA256 values over the post, the
- * user and the current tick with the site's secret, an option created under the site's write lock (the site's post
- * lock) the first time a token is issued; nothing else is stored for them. Sessions and release tokens are rows of
- * {@code qp_post_token} holding the SHA-256 of a random token; every lookup names the site and the kind, and a release
- * token also its post and user, so a token of one kind is never found as another. A user keeps at most
- * {@code quarkpress.posts.preview-sessions} sessions on a site (opening one more closes the oldest ones) and one
- * release token per post. Expired rows of the site are deleted when a session is opened or a release token issued:
- * the ids of at most 500 expired rows are selected, then deleted by id, the same two statements on both databases.
- * Refusals come before any write, so they do not mark the caller's transaction.
+ * user and the current tick with the site's secret, an option created with the site (in the transaction of
+ * {@link SiteCreated}), or under the site's write lock (the site's post lock) the first time a token is issued on a
+ * site that has none; nothing else is stored for them. Sessions and
+ * release tokens are rows of {@code qp_post_token} holding the SHA-256 of a random token; every lookup names the site
+ * and the kind, and a release token also its post and user, so a token of one kind is never found as another. A user
+ * keeps at most {@code quarkpress.posts.preview-sessions} sessions on a site (opening one more closes the oldest ones)
+ * and one release token per post. Expired rows of the site are deleted when a session is opened or a release token
+ * issued: the ids of at most 500 expired rows are selected, then deleted by id, the same two statements on both
+ * databases. Refusals come before any write, so they do not mark the caller's transaction.
  */
 @ApplicationScoped
 public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleaseTokens {
@@ -93,6 +97,9 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
 
     @Inject
     OptionRepository optionRows;
+
+    @Inject
+    OptionWrites optionWrites;
 
     @Inject
     QuarkPressClock clock;
@@ -411,6 +418,24 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
     }
 
     /**
+     * A new site's secret, inside its creation transaction (bound to the network); nothing happens when the site has
+     * one. A secret per site is QuarkPress's own choice: WordPress's salts are network-wide, constants that its
+     * installer writes into {@code wp-config.php}, and {@code wp_salt} falls back to a network option that it creates
+     * when it is missing; a WordPress site creation writes none. Like that fallback, {@link #secretOrCreate} still
+     * creates the secret on first use, for a site created without this module or whose option was deleted.
+     */
+    void siteCreated(@Observes SiteCreated event) {
+        optionWrites.add(event.site(), SECRET_OPTION, TextNode.valueOf(newSecret()), false);
+    }
+
+    /** A new secret: {@value #TOKEN_BYTES} random bytes as base64 text. */
+    private String newSecret() {
+        byte[] secret = new byte[TOKEN_BYTES];
+        random.nextBytes(secret);
+        return Base64.getEncoder().encodeToString(secret);
+    }
+
+    /**
      * The site's secret, created under the site's write lock (the site's post lock) when the site has none: an
      * insert-if-absent, then the stored value read under the option's lock when another transaction inserted it first.
      */
@@ -420,11 +445,9 @@ public class JpaPostTokens implements PreviewTokens, PreviewSessions, LockReleas
             return stored.get();
         }
         siteLocks.lock(siteId);
-        byte[] secret = new byte[TOKEN_BYTES];
-        random.nextBytes(secret);
-        String encoded = Base64.getEncoder().encodeToString(secret);
+        String encoded = newSecret();
         if (options.add(SECRET_OPTION, TextNode.valueOf(encoded), false)) {
-            return secret;
+            return Base64.getDecoder().decode(encoded);
         }
         return optionRows
                 .findOptionForUpdate(siteId, SECRET_OPTION)
