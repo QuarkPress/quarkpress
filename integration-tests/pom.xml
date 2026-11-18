@@ -128,6 +128,21 @@
 
   <profiles>
     <profile>
+      <!-- Applications that need Java 25 (the libvips image processor: quarkus-libvips is built on Java 25's Foreign
+           Function and Memory API). A Java 21 build leaves them out; -Dquarkpress.skip-vips leaves them out on
+           Java 25 too. -->
+      <id>jdk25-modules</id>
+      <activation>
+        <jdk>[25,)</jdk>
+        <property>
+          <name>!quarkpress.skip-vips</name>
+        </property>
+      </activation>
+      <modules>
+        <module>media-vips</module>
+      </modules>
+    </profile>
+    <profile>
       <!-- Activated with -Dnative. The root POM's guard makes this fail unless CI=true. -->
       <id>native</id>
       <activation>
