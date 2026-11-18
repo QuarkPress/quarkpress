@@ -33,16 +33,16 @@ import org.quarkpress.testing.wpscenario.WordPressTree;
 
 /**
  * Records what WordPress 7.1.3 with Imagick answers for the libvips slice's facts {@code v01}-{@code v09} (ruling V7,
- * T3a): WebP quality and losslessness, AVIF, HEIC and HEIF, animated GIF and WebP, TIFF, the HEIC sequence refusal, BMP,
- * truncated JPEG/PNG/GIF and the metadata a JPEG and a PNG keep; v08 and v09 also with GD alone (the harness switch
- * {@code qp_parity_editor_gd}).
+ * T3a): WebP quality and losslessness, AVIF, HEIC and HEIF, animated GIF and WebP, TIFF, the HEIC sequence refusal,
+ * BMP, truncated JPEG/PNG/GIF and the metadata a JPEG and a PNG keep; v08 and v09 also with GD alone (the harness
+ * switch {@code qp_parity_editor_gd}).
  * Every item runs on a subdirectory site of its own, uploads through {@code POST /wp/v2/media} as alice and records,
  * for each upload, the exchange, the stored attachment (post row with {@code post_mime_type}, raw meta with
  * {@code _wp_attached_file} and {@code _wp_attachment_metadata}, the metadata, the folder's listing), every file of
  * the attachment as PHP, WordPress and Imagick read it (type, dimensions, frames, quality, WebP chunks, profile names,
  * channel means), and the quality log of the harness (the default quality WordPress asks per size, with the function
- * that asked, and the quality each written file was saved at). The run also notes the server's Imagick (version, formats and the policy lines for PDF and HEIC) and GD ({@code gd_info},
- * {@code gd.jpeg_ignore_warning}).
+ * that asked, and the quality each written file was saved at). The run also notes the server's Imagick (version,
+ * formats and the policy lines for PDF and HEIC) and GD ({@code gd_info}, {@code gd.jpeg_ignore_warning}).
  *
  * <p>Only what the images reference states firmly is asserted, after everything is recorded: the lossy WebP's sizes
  * are WebP; a HEIC's sizes are JPEG and its {@code post_mime_type} is {@code image/heic}; a declared
@@ -323,8 +323,8 @@ class MediaImagickFactsDbTest {
 
     /**
      * Notes under {@code upload <name>}: the status, the stored attachment (rest-setup.php {@code attachment}) of a 201
-     * answer or the refusal's body, the attachment's files ({@code image_files}) and the quality log. Answers the stored
-     * attachment, or {@code {exists: false}} for a refusal.
+     * answer or the refusal's body, the attachment's files ({@code image_files}) and the quality log. Answers the
+     * stored attachment, or {@code {exists: false}} for a refusal.
      */
     JsonNode noteUpload(String prefix, String name, Exchange uploaded) throws Exception {
         ObjectNode note = OracleJson.MAPPER.createObjectNode();

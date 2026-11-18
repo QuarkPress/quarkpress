@@ -39,10 +39,10 @@ import javax.imageio.stream.ImageOutputStream;
  * coded HEIC, AVIF and lossy or animated WebP images that an editor must decode, which the JDK cannot write: those are
  * committed files under {@code fixtures/} next to this class, each made by us with the commands its method names:
  * libvips 8.18.7 ({@code vips}) over libheif 1.23.6 with its x265 (x265 4.2) and aom (libaom 3.14.1) encoder plugins,
- * and ExifTool 13.55 ({@code exiftool}) for the HEIC fixtures' EXIF, from "the gradient" {@code rgb.v} that libvips draws
- * at the fixture's W&times;H: red rising from left to right, green from top to bottom, blue 128 ({@code vips xyz xy.v W
- * H; vips linear xy.v g.v "255/W 255/H" "0 0" --uchar; vips bandjoin_const g.v rgb.v 128}, the two factors written
- * out as decimals). No third-party image is used.
+ * and ExifTool 13.55 ({@code exiftool}) for the HEIC fixtures' EXIF, from "the gradient" {@code rgb.v} that libvips
+ * draws at the fixture's W&times;H: red rising from left to right, green from top to bottom, blue 128 ({@code vips xyz
+ * xy.v W H; vips linear xy.v g.v "255/W 255/H" "0 0" --uchar; vips bandjoin_const g.v rgb.v 128}, the two factors
+ * written out as decimals). No third-party image is used.
  */
 public final class MediaFixtures {
 

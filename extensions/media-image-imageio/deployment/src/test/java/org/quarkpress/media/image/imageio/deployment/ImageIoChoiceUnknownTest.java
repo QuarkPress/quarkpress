@@ -6,7 +6,9 @@ import io.quarkus.test.QuarkusExtensionTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-/** With the ImageIO module installed, choosing an image processor no module provides fails the build, naming ImageIO. */
+/**
+ * With the ImageIO module installed, choosing an image processor no module provides fails the build, naming ImageIO.
+ */
 class ImageIoChoiceUnknownTest {
 
     @RegisterExtension

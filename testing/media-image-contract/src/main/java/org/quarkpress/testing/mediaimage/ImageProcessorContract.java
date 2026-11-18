@@ -50,8 +50,8 @@ import org.quarkpress.testing.wprestparity.MediaFixtures.JpegMeta;
 /**
  * What every image processor owes the media image SPI, whatever library does the work: read headers, decode, orient,
  * cut and scale to exact sizes, write the asked type at the asked quality with the colour profile and no other
- * metadata, and refuse what it cannot do with an {@link ImageProcessingException}. A processor's test class extends this
- * one and adds what only that processor does.
+ * metadata, and refuse what it cannot do with an {@link ImageProcessingException}. A processor's test class extends
+ * this one and adds what only that processor does.
  *
  * <p>The working directory {@link #dir} is made before and deleted after each test by this class rather than by
  * JUnit's {@code @TempDir}, so the contract also runs in Quarkus extension tests, which call the test methods on
