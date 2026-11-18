@@ -53,7 +53,7 @@
          SiteNetSoft/quarkus-libvips at this commit and installs it; developers run `mvn install -DskipTests` once
          in a checkout of that commit. Change both properties together. -->
     <quarkus-libvips.version>0.1.0-SNAPSHOT</quarkus-libvips.version>
-    <quarkus-libvips.commit>b3e1deaa0d38d8a96393dcc438e900e509c38fa9</quarkus-libvips.commit>
+    <quarkus-libvips.commit>7137bc9863fd35ed6a2c1390429c8d86470bfcf7</quarkus-libvips.commit>
 
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>
