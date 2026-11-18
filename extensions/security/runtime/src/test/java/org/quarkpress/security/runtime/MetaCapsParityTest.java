@@ -45,18 +45,10 @@ import org.quarkpress.testing.wporacle.WordPressSources;
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
 class MetaCapsParityTest {
 
-    static final Path DRIVER = Path.of("src/test/php/security-driver.php");
+    static final Path DRIVER = SecurityDriver.PATH;
     static final Path SKIPS = Path.of("src/test/resources/wp-parity-caps-skip.txt");
     static final Path FAILURES = Path.of("target/wp-parity-caps-failures.json");
-    static final String[] WORDPRESS_FILES = {
-        "wp-includes/formatting.php",
-        "wp-includes/functions.php",
-        "wp-includes/capabilities.php",
-        "wp-includes/class-wp-role.php",
-        "wp-includes/class-wp-roles.php",
-        "wp-includes/post.php",
-        "wp-admin/includes/schema.php"
-    };
+    static final String[] WORDPRESS_FILES = SecurityDriver.WORDPRESS_FILES;
 
     /** About half of what a run compares (21,309 at the time of writing). */
     static final int MIN_COMPARISONS = 10_600;
