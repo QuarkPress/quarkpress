@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.zip.DataFormatException;
-import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.metadata.IIOMetadataNode;
@@ -98,23 +97,6 @@ final class IccProfiles {
             return Optional.of(ICC_Profile.getInstance(bytes));
         } catch (IllegalArgumentException e) {
             return Optional.empty();
-        }
-    }
-
-    /** The zlib data of {@code bytes}, as an {@code iCCP} chunk holds a profile. */
-    static byte[] deflate(byte[] bytes) {
-        Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
-        try {
-            deflater.setInput(bytes);
-            deflater.finish();
-            ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length / 2 + 64);
-            byte[] buffer = new byte[8192];
-            while (!deflater.finished()) {
-                out.write(buffer, 0, deflater.deflate(buffer));
-            }
-            return out.toByteArray();
-        } finally {
-            deflater.end();
         }
     }
 

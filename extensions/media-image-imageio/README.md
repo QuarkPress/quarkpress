@@ -36,10 +36,10 @@ the media module's keys.
   own JFIF segment; PNG losslessly, with its alpha; GIF with one transparent colour. BMP is never written.
 - Scaling is bilinear, pixel centres onto pixel centres, colours weighted by alpha so that transparent pixels lend no
   colour to their neighbours; cutting and turning move samples only.
-- Metadata kept: an RGB or grey ICC colour profile, in JPEG (APP2) and PNG (`iCCP`) output. The pixels stay in that
-  profile's colour space, never converted, so the kept profile still describes them. Any other image (CMYK, for one)
-  is converted to sRGB and written without a profile, and GIF output is sRGB. EXIF, IPTC and XMP are never
-  written (media README, D3).
+- Metadata kept: an RGB or grey ICC colour profile, in JPEG (APP2) output. The pixels stay in that profile's colour
+  space, never converted, so the kept profile still describes them. PNG output keeps the same pixels and no profile,
+  as WordPress's editors write PNG copies. Any other image (CMYK, for one) is converted to sRGB and written without a
+  profile, and GIF output is sRGB. EXIF, IPTC and XMP are never written (media README, D3).
 
 ## Memory
 

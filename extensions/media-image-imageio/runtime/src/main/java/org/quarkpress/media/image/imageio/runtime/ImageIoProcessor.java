@@ -32,9 +32,10 @@ import org.w3c.dom.Node;
 
 /**
  * The image processor of ImageIO and the TwelveMonkeys plugins: reads and writes JPEG, PNG and GIF, and reads BMP
- * (whose copies are written in JPEG, as WordPress with Imagick writes them), WebP and TIFF. Sub-sizes keep the
- * source's ICC colour profile, with the pixels left in its colour space, and nothing else of its metadata; JPEG is
- * written baseline at the asked quality; an animated GIF gives its first frame.
+ * (whose copies are written in JPEG, as WordPress with Imagick writes them), WebP and TIFF. JPEG sub-sizes keep the
+ * source's ICC colour profile, with the pixels left in its colour space, and nothing else of its metadata; PNG
+ * sub-sizes keep the same pixels and no metadata at all; JPEG is written baseline at the asked quality; an animated
+ * GIF gives its first frame.
  */
 @ApplicationScoped
 public class ImageIoProcessor implements ImageProcessor {

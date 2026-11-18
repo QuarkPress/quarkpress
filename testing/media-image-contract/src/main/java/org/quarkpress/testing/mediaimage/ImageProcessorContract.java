@@ -79,12 +79,12 @@ public abstract class ImageProcessorContract {
     }
 
     /**
-     * Whether PNG copies keep the source's colour profile. WordPress's editors write PNG copies without any profile; a
-     * processor answering true keeps it (and the pixels as stored), one answering false writes none (and the pixels
-     * still as stored).
+     * Whether PNG copies keep the source's colour profile. WordPress's editors write PNG copies without any profile,
+     * and so does a processor by default: it writes none (and the pixels still as stored); one answering true keeps it
+     * (and the pixels as stored).
      */
     protected boolean keepsPngProfile() {
-        return true;
+        return false;
     }
 
     /**

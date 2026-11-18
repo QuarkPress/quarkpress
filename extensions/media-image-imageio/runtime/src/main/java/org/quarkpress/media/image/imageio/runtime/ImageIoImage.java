@@ -21,11 +21,8 @@ import java.util.Iterator;
 import java.util.Optional;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageTypeSpecifier;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.metadata.IIOMetadataNode;
 import javax.imageio.stream.ImageOutputStream;
 import javax.imageio.stream.MemoryCacheImageOutputStream;
 import org.quarkpress.media.DecodedImage;
@@ -36,7 +33,7 @@ import org.quarkpress.media.ImageProcessingException;
  * A decoded image as 8-bit interleaved samples: grey or RGB, with or without alpha, in the colour space of
  * {@link #profile} when there is one (the samples as the source stored them, never converted) and sRGB (or plain grey)
  * otherwise. Every operation makes a new image; scaling and turning work on the samples alone, so a kept profile still
- * describes the written pixels.
+ * describes the written pixels of a JPEG; a PNG is written with the same samples and no profile.
  */
 final class ImageIoImage implements DecodedImage {
 
@@ -321,7 +318,7 @@ final class ImageIoImage implements DecodedImage {
      * source's metadata. (Handed explicit metadata, the JDK's writer drops a grey image's profile.)
      */
     private void writeJpeg(Path target, int quality) throws IOException {
-        BufferedImage image = image(false);
+        BufferedImage image = image(false, true);
         ImageWriter writer = writer("jpeg");
         try {
             write(target, writer, new IIOImage(image, null, null), ImageIoProcessor.jpegParam(writer, quality));
@@ -330,27 +327,12 @@ final class ImageIoImage implements DecodedImage {
         }
     }
 
-    /** A PNG of the samples, with alpha when there is some and an {@code iCCP} chunk for the kept profile. */
+    /**
+     * A PNG of the samples as stored, with alpha when there is some and without any colour profile, as WordPress's
+     * editors write PNG copies.
+     */
     private void writePng(Path target) throws IOException {
-        BufferedImage image = image(alpha);
-        ImageWriter writer = writer("png");
-        try {
-            IIOMetadata metadata = writer.getDefaultImageMetadata(new ImageTypeSpecifier(image), null);
-            if (profile.isPresent()) {
-                String format = metadata.getNativeMetadataFormatName();
-                IIOMetadataNode root = new IIOMetadataNode(format);
-                IIOMetadataNode iccp = new IIOMetadataNode(IccProfiles.PNG_NODE);
-                iccp.setAttribute("profileName", "ICC profile");
-                iccp.setAttribute("compressionMethod", "deflate");
-                // the JDK's writer stores the user object as the chunk's data, which is zlib-compressed
-                iccp.setUserObject(IccProfiles.deflate(profile.get().getData()));
-                root.appendChild(iccp);
-                metadata.mergeTree(format, root);
-            }
-            write(target, writer, new IIOImage(image, null, metadata), null);
-        } finally {
-            writer.dispose();
-        }
+        write(target, "png", image(alpha, false));
     }
 
     private static void write(Path target, String format, BufferedImage image) throws IOException {
@@ -381,16 +363,17 @@ final class ImageIoImage implements DecodedImage {
     }
 
     /**
-     * The samples as an image in their own colour space (the kept profile's, or sRGB, or plain grey), alpha dropped
-     * unless {@code withAlpha}; nothing is converted.
+     * The samples as an image in their own colour space (the kept profile's when {@code tagged}, else sRGB or plain
+     * grey), alpha dropped unless {@code withAlpha}; nothing is converted.
      */
-    private BufferedImage image(boolean withAlpha) {
+    private BufferedImage image(boolean withAlpha, boolean tagged) {
         byte[] source = samples();
         int colours = colours();
         boolean keepAlpha = withAlpha && alpha;
         int outBands = colours + (keepAlpha ? 1 : 0);
         byte[] data = outBands == bands ? source : dropAlpha(source, colours);
-        ColorSpace space = profile.<ColorSpace>map(ICC_ColorSpace::new)
+        ColorSpace space = profile.filter(p -> tagged)
+                .<ColorSpace>map(ICC_ColorSpace::new)
                 .orElseGet(() -> ColorSpace.getInstance(colours == 1 ? ColorSpace.CS_GRAY : ColorSpace.CS_sRGB));
         ComponentColorModel model = new ComponentColorModel(
                 space,
@@ -430,7 +413,7 @@ final class ImageIoImage implements DecodedImage {
         BufferedImage out =
                 new BufferedImage(width, height, keepAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
         boolean convert = profile.isPresent() && !isSrgb(profile.get());
-        BufferedImage source = convert ? image(keepAlpha) : null;
+        BufferedImage source = convert ? image(keepAlpha, true) : null;
         byte[] s = samples();
         int colours = colours();
         int[] row = new int[width];
