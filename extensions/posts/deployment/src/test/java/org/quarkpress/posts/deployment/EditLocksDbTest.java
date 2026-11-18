@@ -3,12 +3,15 @@ package org.quarkpress.posts.deployment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.agroal.api.AgroalDataSource;
 import io.quarkus.agroal.DataSource;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.test.QuarkusExtensionTest;
 import jakarta.inject.Inject;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,7 @@ import org.quarkpress.posts.PostException;
 import org.quarkpress.posts.PostLocks;
 import org.quarkpress.posts.PostLocks.Lock;
 import org.quarkpress.posts.PostLocks.Take;
+import org.quarkpress.posts.PostMeta;
 
 /** The editor's post lock ({@code _edit_lock}): WordPress's freshness and ownership rules, take, refresh, release. */
 class EditLocksDbTest {
@@ -36,6 +40,9 @@ class EditLocksDbTest {
 
     @Inject
     PostLocks locks;
+
+    @Inject
+    PostMeta postMeta;
 
     @Inject
     TestClock clock;
@@ -182,6 +189,33 @@ class EditLocksDbTest {
         assertThat(stored()).isEqualTo((NOW - 150 + 5) + ":" + carol.value());
     }
 
+    @Test
+    void postMetaReadsWhatTheLockWritesLeft() throws Exception {
+        String bobs = (NOW - 10) + ":" + bob.value();
+        Identities.onSite(site, Identities.system(), () -> postMeta.update(post, "_edit_lock", TextNode.valueOf(bobs)));
+        assertThat(metaLock()).isEqualTo(bobs);
+        Identities.onSite(site, Identities.user(carol), () -> locks.takeOver(post));
+        String held = NOW + ":" + carol.value();
+        assertThat(metaLock()).isEqualTo(held);
+        Identities.onSite(site, Identities.user(carol), () -> locks.release(post, held));
+        String released = (NOW - 150 + 5) + ":" + carol.value();
+        assertThat(metaLock()).isEqualTo(released);
+
+        // one transaction: a read before the lock writes does not leave the post's meta behind
+        clock.set(Instant.ofEpochSecond(NOW + 200));
+        String again = (NOW + 200) + ":" + carol.value();
+        List<String> seen = Identities.onSite(site, Identities.user(carol), () -> {
+            List<String> values = new ArrayList<>();
+            values.add(first(postMeta.get(post, "_edit_lock")));
+            locks.take(post);
+            values.add(first(postMeta.get(post, "_edit_lock")));
+            locks.release(post, again);
+            values.add(first(postMeta.get(post, "_edit_lock")));
+            return values;
+        });
+        assertThat(seen).containsExactly(released, again, (NOW + 200 - 150 + 5) + ":" + carol.value());
+    }
+
     private Optional<UserId> holder(UserId acting) throws Exception {
         return Identities.onSite(site, Identities.user(acting), () -> locks.holder(post, Optional.of(acting)));
     }
@@ -196,6 +230,15 @@ class EditLocksDbTest {
 
     private void meta(String json) {
         Jdbc.update(dataSource, "update qp_post set meta = " + TestDb.json() + " where id = ?", json, post.value());
+    }
+
+    /** The post's first {@code _edit_lock} value as {@link PostMeta} reads it, as the system; empty when none. */
+    private String metaLock() throws Exception {
+        return Identities.onSite(site, Identities.system(), () -> first(postMeta.get(post, "_edit_lock")));
+    }
+
+    private static String first(List<JsonNode> values) {
+        return values.isEmpty() ? "" : values.get(0).textValue();
     }
 
     private String stored() throws Exception {

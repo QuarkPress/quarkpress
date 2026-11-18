@@ -19,7 +19,9 @@ import org.quarkpress.posts.PageTemplates;
  * meta goes through its sanitizer and auth, never through here. The meta column alone is written, with an update
  * statement on the locked row that names no version, and the managed row is read again afterwards: the post's
  * modification date and its version stay as they are, so a lock refresh is never a change of the post. Callers hold
- * the site's post lock and the row lock; they have checked the caller already.
+ * the site's post lock and the row lock; they have checked the caller already. Since this write does not bump the
+ * {@code @Version}, optimistic locking never sees it: every other writer of the meta column must read the row again
+ * under the site's post lock and {@link PostRepository#lockPost} before it writes, never from a copy read earlier.
  */
 @ApplicationScoped
 public class ProtectedMeta {
