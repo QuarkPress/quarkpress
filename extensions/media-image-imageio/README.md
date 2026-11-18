@@ -18,6 +18,10 @@ replaces the media module's default processor, which handles no type. Everything
 `org.quarkpress.media.image.imageio.runtime` is implementation and may change; there is nothing to configure beyond
 the media module's keys.
 
+With the libvips module (`quarkpress-media-image-vips`, Java 25) installed, ImageIO handles only the types libvips does
+not decode (BMP), and takes over every type when libvips is missing and `quarkus.libvips.required` is false;
+`quarkpress.media.image-processor=imageio` makes it the processor again (see the libvips module's README).
+
 ## Formats
 
 - Read and written: JPEG, PNG and GIF. Read, with sizes written in JPEG (as WordPress with Imagick writes them): BMP.
@@ -27,7 +31,9 @@ the media module's keys.
   `quarkpress.media.accept-unprocessable-images` is set, then stored without sizes. For TIFF that is what WordPress
   with GD does; for WebP and AVIF see the media README, D16.
 - The reader is chosen by the file's content, never by its name or declared type. A file a reader reports as damaged
-  (a truncated file) fails to decode, and the media module keeps it without sizes.
+  (a truncated file) fails to decode, and the media module keeps it without sizes. For a PNG, and with Imagick a GIF,
+  that is what WordPress does; a JPEG whose data stops early is a known difference of this processor, since WordPress
+  makes its sizes with either editor, decoding as far as the data goes (the libvips module does too).
 - An animated GIF gives its first frame, drawn at its place on a transparent canvas of the GIF's logical screen.
 
 ## Writing

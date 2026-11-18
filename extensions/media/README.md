@@ -24,6 +24,10 @@ network. A storage backend is needed: add `quarkpress-media-storage-fs` (files i
 </dependency>
 ```
 
+On Java 25, `quarkpress-media-image-vips` (libvips) is an image processor module too: it takes precedence over the
+ImageIO module's, which then handles only the types libvips does not decode (BMP), and every image when libvips is
+missing (see [Processing](#processing)).
+
 The extension brings `quarkpress-core`, `quarkpress-persistence`, `quarkpress-security`, `quarkpress-posts`,
 `quarkpress-lib-wp-kses`, Apache Tika (`tika-core`) and metadata-extractor. Without an image processor module an
 upload that declares an image type (other than SVG, HEIC or HEIF) is refused with
@@ -160,7 +164,8 @@ Run time unless said; every key is checked at start-up with the other `quarkpres
 | `quarkpress.media.max-concurrent-decodes` | unset: half the available processors, at most one per 512 MiB of the maximum heap, at least 1 | How many images are decoded at once; further runs wait for their turn, at most `decode-wait`. |
 | `quarkpress.media.decode-wait` | `30s` | How long a processing run waits for a decode permit. A run that waits longer stops, logged: an attachment still `pending` is marked `failed` (a post-process starts it again), one already `done` or `partial` is left as it was. |
 | `quarkpress.media.async-runs` | unset: the number of concurrent decodes | How many background runs (the `async` mode) hold a temporary copy of their file at once; further runs wait for their turn, without a transaction and without a time limit, before they copy anything. |
-| `quarkpress.media.output-formats."<mime>"` | `image/heic`, `image/heif`, `image/heic-sequence`, `image/heif-sequence` → `image/jpeg` | The type sizes of an image type are written in, applied over the defaults; a mapping to a type the image processor does not write is ignored. |
+| `quarkpress.media.output-formats."<mime>"` | `image/heic`, `image/heif`, `image/heic-sequence`, `image/heif-sequence` → `image/jpeg` | The type sizes of an image type are written in, applied over the defaults; a mapping to a type the image processor does not write is ignored. When the image processor does not write the resulting type either, sizes are written in JPEG, as WordPress's editors fall back to it. |
+| `quarkpress.media.image-processor` (build time) | unset: libvips's when its module is installed | The image processor to use when several processor modules are installed: `vips` or `imageio`. A name no installed module provides fails the build, naming the installed ones. |
 | `quarkpress.media.storage` (build time) | unset | The storage backend to use when several are present: a backend module's name (`fs`, `s3`) or the `@Identifier` (else the class's simple name) of an application's `MediaStorage` bean. Needed only then. |
 
 The filesystem backend's keys (`quarkpress.media.fs.*`) and the S3 backend's (`quarkpress.media.s3.*`) are described
@@ -209,13 +214,18 @@ locking the media row and writing it whole: the base metadata (dimensions and `i
 when there is one) first, then one save per size, then the final state. A file is stored inside the save that names
 it, so a stored entry always names an existing file; two runs of one attachment at once agree on what is made.
 
-A new image whose type and dimensions are read from its header gets, when the image processor handles its type and
-it is within `max-image-pixels`: one main-file copy when one applies (scaled down above `big-image-threshold` and
-turned upright from its JPEG orientation, else converted to the output type, else turned upright), then its
-registered sizes, each cut from the upright original decoded once, encoded at quality 82. Audio and video get the
-metadata their container states; a box or chunk that declares more bytes than the file holds ends the reading there,
-and an MP4 or QuickTime file is read from a checked copy of at most 32 MB of its movie headers and sample tables, so
-reading the metadata never allocates more than the file holds. Any other file gets its size only.
+A new image whose type and dimensions are read from its header (a HEIC's are measured by the image processor when it
+reads HEIC, as WordPress measures a HEIC with the editor that decodes it) gets, when the image processor handles its
+type and it is within `max-image-pixels`: one main-file copy when one applies (scaled down above `big-image-threshold`
+and turned upright from its JPEG orientation, else converted to the output type, else turned upright), then its
+registered sizes, each cut from the upright original decoded once. Copies are encoded at WordPress's default quality
+for the type they are written in, 86 for WebP and 82 for every other type; every copy of a lossless WebP is encoded at
+100, and lossless when it is a WebP, as WordPress's editors write it. A copy is written in the output type when the
+image processor writes it, else in JPEG (a BMP's sizes, for one, as WordPress with Imagick writes them); an image
+processor that writes neither makes no copies. Audio and video get the metadata their container states; a box or
+chunk that declares more bytes than the file holds ends the reading there, and an MP4 or QuickTime file is read from a
+checked copy of at most 32 MB of its movie headers and sample tables, so reading the metadata never allocates more
+than the file holds. Any other file gets its size only.
 
 - In the `sync` mode `upload` answers the processed attachment. In the `async` mode it answers the stored one, still
   `pending`, and the run starts once the storing transaction has committed, on a thread of its own bound to the
@@ -240,12 +250,16 @@ reading the metadata never allocates more than the file holds. Any other file ge
 - Decodes wait for one of `max-concurrent-decodes` permits, handed out in arrival order and held from the decode to
   the run's last size, at most `decode-wait` (30 s by default): a run that gets none in time stops, logged, and a
   still `pending` attachment is marked `failed`. Memory: see the image processor's README (ImageIO: about 2–3× the
-  decoded raster of an image at peak); `max-image-pixels` bounds the largest raster, checked from the header before
-  any processor decodes.
+  decoded raster of an image at peak, on the heap; libvips: outside the heap, or in a temporary file);
+  `max-image-pixels` bounds the largest raster, checked from the header before any processor decodes.
 - In the `async` mode a background run first waits for one of `async-runs` run permits (by default as many as the
   decode permits), handed out in arrival order, so at most that many temporary copies exist at once. The wait has no
   time limit and holds a thread of the shared executor that runs asynchronous observers while it waits, so a burst of
   uploads larger than the permits can delay other asynchronous observers.
+- The image processor is the one module installed, or, with several, libvips's (`quarkpress-media-image-vips`), which
+  hands the types libvips does not decode (BMP) to the other one (ImageIO's), and every type when libvips cannot be
+  loaded and `quarkus.libvips.required` is false. `quarkpress.media.image-processor` (build time, `vips` or
+  `imageio`) chooses another; see each processor module's README.
 - A run copies the stored file to the JVM's temporary folder (`java.io.tmpdir`) and writes each copy and size there
   before storing it, outside any transaction; only the saves that name the stored files lock and write the media row.
   The copies are removed at the end of the run.
@@ -278,8 +292,9 @@ attachments the default terms of taxonomies registered for them on `AttachmentAd
   module produces a `MediaStorageBuildItem` with its name and one bean of this type with `@Identifier` of that name; an
   application may provide its own bean instead. A bean is named by its `@Identifier`, else by its class's simple name; a
   producer method's bean is named by the class that declares the method, so give produced beans an `@Identifier`.
-- `ImageProcessor`: decodes, turns, cuts, scales and encodes images (`supports` a type means it reads and writes it).
-  An image processor module provides one bean; without one, the module's default handles no type.
+- `ImageProcessor`: decodes, turns, cuts, scales and encodes images. `supports` a type means it accepts it as a
+  source, decoded or only measured; `writes` a type means copies can be written in it (by default, every type it
+  supports). An image processor module provides one bean; without one, the module's default handles no type.
 - `UploadFilter`: refuses an upload before it is stored, as WordPress's upload prefilter does; the message becomes an
   `upload_error`. Every bean runs, highest `@Priority` first, until one refuses. Filters run with the file work,
   outside any transaction of the upload's: in the caller's transaction when it has one, else in none, so a filter that
@@ -298,9 +313,9 @@ attachments the default terms of taxonomies registered for them on `AttachmentAd
 - There is no `unfiltered_upload`: no user may upload a file whose type the site does not allow, as in WordPress
   without its `ALLOW_UNFILTERED_UPLOADS` constant.
 - Uploads arrive as files: PHP's upload error codes (a partial upload, a missing temporary folder) do not exist.
-- HEIC and HEIF images are stored with their file size only (no dimensions, no sizes), whatever image processor is
-  installed: their dimensions are not read from their header, and no image processor module decodes them yet. PDFs
-  get no preview image, as in WordPress without Imagick.
+- HEIC and HEIF images are stored with their file size only (no dimensions, no sizes) unless the image processor
+  reads HEIC (the libvips module, with libheif's HEVC decoder installed): their dimensions are not read from their
+  header. PDFs get no preview image, as in WordPress without Imagick.
 - The block editor's `allowedMimeTypes` is not narrowed to what the image processor can handle, as WordPress does
   not narrow it; the module that serves the editor's settings gives it the user's upload types.
 - On a network, the quota is checked per upload against the space the site's committed attachments take: concurrent
@@ -323,22 +338,25 @@ attachments the default terms of taxonomies registered for them on `AttachmentAd
 - Configured upload types without a place in WordPress's list come after it sorted by pattern, so the lookup order is
   the same from one start to the next (the configuration hands its map over without an order).
 - An image's dimensions are read from its header, never from the image processor, as WordPress reads them without an
-  editor; `image_meta` is read only for images whose dimensions are read.
+  editor, except a HEIC's (see [Processing](#processing)); `image_meta` is read only for images whose dimensions are
+  read from their header, and a HEIC that gets sizes stores WordPress's default `image_meta` (empty values), as
+  WordPress with Imagick stores it.
 - A MIME filter of `MediaQuery` holds at most 1,000 values (comma pieces included); more are refused with
   `IllegalArgumentException`, so a query binds a bounded number of parameters.
 - Used space is the sum of the stored sizes of every file of the site's attachments, kept with each media row (D5).
 
 ## Differences from WordPress
 
-The media parity run (`MediaParityDbTest` in `integration-tests/media`) knows these differences by label; its known
-differences file names the scenarios that show each, or says why none can. The table covers the media, filesystem
-storage and ImageIO modules together.
+The media parity runs (`MediaParityDbTest` in `integration-tests/media`, with ImageIO, and `MediaVipsParityDbTest` in
+`integration-tests/media-vips`, with libvips and ImageIO as its fallback) know these differences by label; each run's
+known differences file names the scenarios that show each, or says why none can. The table covers the media,
+filesystem storage, ImageIO and libvips modules together.
 
 | Label | Difference |
 |---|---|
 | D1 | An existing file is never overwritten: where WordPress's sub-size listing check moves a name onto an existing non-JPEG file and writes over it, QuarkPress takes the next number. The numbering replaces only the name's end (WordPress replaces every occurrence of the extension). |
-| D2 | BMP images get sub-sizes in BMP, as WordPress with Imagick; WordPress with GD refuses BMP uploads that declare `image/bmp`. |
-| D3 | Sub-sizes and `-scaled`/`-rotated` files keep an RGB or grey colour profile (in JPEG and PNG output) and drop EXIF, IPTC and XMP (GD drops all four; Imagick keeps all four). Pixels, resampling and the byte sizes of files QuarkPress writes differ from WordPress's. |
+| D2 | BMP images get sub-sizes in JPEG, with either image processor, as WordPress with Imagick writes them; WordPress with GD refuses BMP uploads that declare `image/bmp`. A BMP above `big-image-threshold` gets a `-scaled.jpg` main-file copy, where WordPress with Imagick writes `-scaled.bmp` (only its sizes fall back to JPEG). |
+| D3 | JPEG sub-sizes (and, with libvips, WebP and AVIF ones) and `-scaled`/`-rotated` files keep the colour profile (RGB or grey) and drop EXIF, IPTC and XMP; WordPress with GD keeps none of them, the profile included, and WordPress with Imagick keeps all of them (in JPEG, as recorded, EXIF with its orientation reset to 1; its editor keeps the same profiles whatever the output type). PNG copies keep no profile, as with both of WordPress's editors. A CMYK image's copies are converted to sRGB, where WordPress with Imagick keeps CMYK and its profile; an indexed (palette) PNG's copies are written in truecolour, where Imagick writes a palette again. Pixels, resampling and the byte sizes of files QuarkPress writes differ from WordPress's. |
 | D4 | Audio and video metadata holds `filesize`, `mime_type`, `length`, `length_formatted` and, for video, `width` and `height` when the container gives them: `length` only for MP4, MOV and M4A, AVI and WAV; MP3, OGG, WebM, FLAC and other formats get `filesize` and `mime_type` only; no tags, bit rates, codecs or `created_timestamp`, and an embedded cover image does not become an attachment. `mime_type` is the attachment's type, where WordPress stores getID3's (an MP4 can read `video/quicktime`, an M4A `audio/mp4`). |
 | D5 | A site's used space is the sum of its attachments' stored file sizes, kept with each media row; WordPress walks the site's upload folder and sums the sizes of the files in it. The files live in a storage backend, which need not be a folder that can be walked. |
 | D6 | The options `upload_path` and `upload_url_path`, where WordPress places the files and their URLs, are not read; `quarkpress.media.fs.base-url` (or the S3 backend's `quarkpress.media.s3.public-base-url`) takes their place, since the storage backend decides where files live. Refusal messages name `wp-content/uploads` (WordPress names its real folder, which a backend does not have), and a folder the storage cannot list is refused with WordPress's "Unable to create directory …" message. |
@@ -347,14 +365,14 @@ storage and ImageIO modules together.
 | D9 | Files are deleted after the transaction that deletes the attachment commits, and a storage error is logged; `Media.delete` deletes for good, never into the trash (WordPress's `MEDIA_TRASH` off). |
 | D10 | Only the REST upload rules exist: WordPress's admin upload path, with its title from the sanitized name, its audio description and its "last refusal wins" multisite order, is not reproduced, as QuarkPress has no admin upload screens. |
 | D11 | `quarkpress.media.max-upload-size` refuses with "This file is too big. Files must be less than {n} KB in size."; WordPress leaves the limit to PHP. |
-| D13 | Encode quality is fixed at 82 and the output format mapping is configuration only; WordPress lets filters choose them per file and per size. QuarkPress has no per-file hooks for them. |
+| D13 | Encode quality is fixed per output type at WordPress's defaults (82; 86 for WebP; 100 for every copy of a lossless WebP, and lossless when it is a WebP, where WordPress's GD editor passes 101, GD's lossless value) and the output format mapping is configuration only; WordPress lets filters choose them per file and per size. QuarkPress has no per-file hooks for them. The REST `image_quality` field gives the quality of the upload's type, WordPress's that of its output type: they differ only for a type `output-formats` maps to another (a WebP mapped to JPEG: WordPress 82, QuarkPress 86). |
 | D14 | Images above `quarkpress.media.max-image-pixels` are stored without sizes; WordPress tries and may exhaust its memory. |
-| D16 | WebP and AVIF uploads that declare their type are refused unless `quarkpress.media.accept-unprocessable-images` is set (ImageIO cannot write them); WordPress with a GD or Imagick build that writes them accepts them and makes WebP/AVIF sub-sizes (until the libvips module). |
+| D16 | Without the libvips module (ImageIO alone, `quarkpress.media.image-processor=imageio`, or libvips not available at run time), WebP and AVIF uploads that declare their type are refused unless `quarkpress.media.accept-unprocessable-images` is set (ImageIO cannot write them); WordPress with a GD or Imagick build that writes them accepts them and makes WebP/AVIF sub-sizes. With libvips they are accepted, with WebP and AVIF sub-sizes (AVIF when libheif's AV1 encoder is installed). |
 | D19 | `image_meta` is read within bounds, so reading an untrusted upload takes bounded memory and time: an XMP packet holding a DOCTYPE, or nested deeper than 256 elements, gives an empty `alt` (the depth is libxml2's default limit, which PHP's DOM is taken to keep); only the first 1 MiB of a file is searched for XMP and at most 1,000 IPTC keywords are kept; only the first 8 MiB of a JPEG are read for its segments; dates are read only in EXIF's `YYYY:MM:DD HH:MM:SS` form and IPTC's date and time forms; EXIF comes from the first Exif APP1 segment's IFD0 and SubIFD only, with its embedded documents (XMP, IPTC, Photoshop, ICC, maker notes) skipped; IPTC only from the first Photoshop APP13 segment's `8BIM` resources; an ICO's dimensions are its first entry's. WordPress scans the whole file for XMP, keeps every keyword, reads the whole JPEG, takes the segments PHP's readers find and parses other date forms too. |
 | D20 | `Media.process` also makes again a `-scaled`, `-rotated` or converted main-file copy that an earlier run failed to make (a `partial` image without an original), so a copy a failed run could not make is not lost for good; WordPress's post-process makes only the missing sizes. |
 | D21 | Deleting an attachment skips a size, backup or other derived file whose name holds a `/`, and an attachment of the main site whose main file is under `sites/<n>/` keeps every file; WordPress deletes such files when they stay inside the uploads folder. A derived name is placed only as a single name in the main file's folder, and a main-site file under `sites/` belongs to another site's uploads. |
 | D22 | Attachments without a media row (created through `Posts.create`, or before the media module was installed) are left out of `Media.query`'s items and counts, since a library item needs its file data; WordPress lists every attachment. |
-| D23 | HEIC conversion and PDF previews behave as WordPress with GD as its image editor: a HEIC or HEIF upload keeps its file size only and a PDF gets no preview image. WordPress with Imagick reads HEIC images, makes their sizes (as JPEG by default, which is why `output-formats` maps HEIC and HEIF to JPEG) and renders a PDF's first page as its preview sizes. No image processor module decodes HEIC or renders PDFs yet. |
+| D23 | PDF previews behave as WordPress with GD as its image editor: a PDF gets no preview image, where WordPress with Imagick renders its first page as its preview sizes. HEIC conversion does too without the libvips module (ImageIO alone, `quarkpress.media.image-processor=imageio`, or libvips not available at run time) or when libvips cannot read HEIC (no HEVC decoder, or its HEIF loader blocked, as libvips 8.18.6 and later do when built against a libheif older than 1.23.2): a HEIC or HEIF upload keeps its file size only. With it, HEIC behaves as WordPress with Imagick: a JPEG main file, JPEG sizes (as `output-formats` maps HEIC and HEIF to JPEG), the type `image/heic` kept, and WordPress's default `image_meta`. No image processor module renders PDFs. |
 
 Labels D12, D15, D17 and D18 are not used: the differences they were kept for turned out not to exist once WordPress's
 answers were recorded (WordPress keeps an AVIF's header dimensions, refuses a real JPEG named `.webp` when WebP is not
