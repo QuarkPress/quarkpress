@@ -73,8 +73,12 @@ public class SizeGenerator {
 
     private static final Logger LOG = Logger.getLogger(SizeGenerator.class);
 
-    /** The encode quality of every lossy copy. */
-    static final int QUALITY = 82;
+    /** The encode quality of a copy of a lossless WebP, whatever type the copy is written in. */
+    static final int LOSSLESS_QUALITY = 100;
+
+    private static final String WEBP = "image/webp";
+
+    private static final String HEIC = "image/heic";
 
     /** How many numbered names are tried when a copy's name is taken by a file of something else. */
     static final int MAX_NAME_ATTEMPTS = 10;
@@ -286,7 +290,7 @@ public class SizeGenerator {
         Optional<ImageInfo> original = Optional.empty();
         if (media.originalImage().isPresent() && media.mimeType().startsWith("image/")) {
             original =
-                    headerOf(folder(media.storageKey()) + media.originalImage().get());
+                    headerOf(folder(media.storageKey()) + media.originalImage().get(), media.mimeType());
         }
         return MissingSizes.of(media, registered, original);
     }
@@ -304,17 +308,49 @@ public class SizeGenerator {
                         JpaMedia.snapshot(post, row, activeStorage.storage(), site.site(), runtimeConfig.mainSiteId()));
     }
 
-    /** The header of the stored file {@code key}; empty when it cannot be read. */
-    private Optional<ImageInfo> headerOf(String key) {
+    /**
+     * The encode quality of a copy written as {@code outputType}, as WordPress's editors ask by default: 86 for WebP,
+     * 82 for every other type.
+     */
+    static int quality(String outputType) {
+        return WEBP.equals(outputType) ? 86 : 82;
+    }
+
+    /**
+     * The header of the stored file {@code key} of an attachment of {@code attachmentType}; empty when it cannot be
+     * read.
+     */
+    private Optional<ImageInfo> headerOf(String key, String attachmentType) {
         Path copy = null;
         try {
             copy = copy(key, ImageHeaders.HEADER_LIMIT + ImageHeaders.PREFIX);
-            return header(copy);
+            return header(copy, attachmentType);
         } catch (IOException | UncheckedIOException failure) {
             LOG.debugf(failure, "the stored file %s could not be read", key);
             return Optional.empty();
         } finally {
             deleteQuietly(copy);
+        }
+    }
+
+    /**
+     * The dimensions and type of {@code file}, an attachment of {@code attachmentType}: from its header, else, for a
+     * HEIC attachment whose header gives nothing, from the image processor when it reads HEIC (as WordPress measures a
+     * HEIC with the editor that decodes it). Empty when neither gives a positive size.
+     */
+    private Optional<ImageInfo> header(Path file, String attachmentType) {
+        Optional<ImageInfo> header = header(file);
+        if (header.isPresent() || !HEIC.equals(attachmentType)) {
+            return header;
+        }
+        try {
+            if (!processor.supports(attachmentType)) {
+                return Optional.empty();
+            }
+            return processor.read(file).filter(info -> info.width() > 0 && info.height() > 0);
+        } catch (RuntimeException failure) {
+            LOG.debugf(failure, "the image processor could not read the header of a %s image", attachmentType);
+            return Optional.empty();
         }
     }
 
@@ -324,6 +360,19 @@ public class SizeGenerator {
         } catch (IOException | RuntimeException | StackOverflowError | OutOfMemoryError failure) {
             LOG.debugf("an image header could not be read: %s", failure);
             return Optional.empty();
+        }
+    }
+
+    /** Whether {@code file}, an image of {@code realType}, is a lossless WebP; false when it cannot be read. */
+    private static boolean losslessWebp(Path file, String realType) {
+        if (!WEBP.equals(realType)) {
+            return false;
+        }
+        try {
+            return ImageHeaders.losslessWebp(file);
+        } catch (IOException | RuntimeException failure) {
+            LOG.debugf("the WebP type of an image could not be read: %s", failure);
+            return false;
         }
     }
 
@@ -602,6 +651,9 @@ public class SizeGenerator {
         /** Whether this run took a failed attachment back to pending: its state before the run was failed. */
         private final boolean restarted;
 
+        /** Whether the image the copies are made from is a lossless WebP. */
+        private boolean losslessSource;
+
         Run(SiteId siteId, PostId post, MediaSnapshot media, boolean restarted) {
             this.siteId = siteId;
             this.post = post;
@@ -651,8 +703,8 @@ public class SizeGenerator {
                     return MediaEntity.DONE;
                 });
             }
-            Optional<ImageInfo> header = header(source);
-            boolean image = mimeType.equals("image/heic")
+            Optional<ImageInfo> header = header(source, mimeType);
+            boolean image = mimeType.equals(HEIC)
                     || (mimeType.startsWith("image/")
                             && header.map(info -> DISPLAYABLE.contains(info.mimeType()))
                                     .orElse(false));
@@ -664,6 +716,7 @@ public class SizeGenerator {
             int w0 = info.width();
             int h0 = info.height();
             String realType = info.mimeType();
+            losslessSource = losslessWebp(source, realType);
             if (!options.generateSubSizes() || !decodable(info)) {
                 return last(row -> {
                     row.width = w0;
@@ -800,7 +853,7 @@ public class SizeGenerator {
             }
             temporary.add(source);
             try {
-                Optional<ImageInfo> header = header(source);
+                Optional<ImageInfo> header = header(source, media.mimeType());
                 if (header.isEmpty() || !decodable(header.get())) {
                     return media;
                 }
@@ -808,6 +861,7 @@ public class SizeGenerator {
                 List<String> names = MissingSizes.of(media, registered, original);
                 ImageInfo info = header.get();
                 String realType = info.mimeType();
+                losslessSource = losslessWebp(source, realType);
                 Map<String, String> formats = options.convertFormat() ? config.effectiveOutputFormats() : Map.of();
                 String outputType = SizePlan.outputType(realType, formats, processor);
                 int orientation = realType.equals(JPEG) ? fileOrientation(source, realType) : 0;
@@ -977,8 +1031,17 @@ public class SizeGenerator {
         private MainCopy encodeMain(DecodedImage image, String name, String outputType, boolean rotated)
                 throws ImageProcessingException {
             Path file = temporaryFile();
-            Encoded encoded = image.encode(file, outputType, QUALITY);
+            Encoded encoded = encode(image, file, outputType);
             return new MainCopy(name, file, encoded, rotated);
+        }
+
+        /**
+         * Writes a copy as WordPress's editors do by default: at the quality of its type, or, from a lossless WebP,
+         * at quality 100 whatever its type, and lossless when it is a WebP too.
+         */
+        private Encoded encode(DecodedImage image, Path file, String outputType) throws ImageProcessingException {
+            int quality = losslessSource ? LOSSLESS_QUALITY : quality(outputType);
+            return image.encode(file, outputType, quality, losslessSource && WEBP.equals(outputType));
         }
 
         private Path temporaryFile() {
@@ -1035,7 +1098,7 @@ public class SizeGenerator {
                         Dimensions.Region r = size.region();
                         cut = upright.region(r.srcX(), r.srcY(), r.srcWidth(), r.srcHeight(), r.width(), r.height());
                         file = temporaryFile();
-                        encoded = cut.encode(file, outputType, QUALITY);
+                        encoded = encode(cut, file, outputType);
                     } catch (ImageProcessingException | RuntimeException | OutOfMemoryError failure) {
                         LOG.warnf(
                                 "the size %s of attachment %s could not be made: %s",

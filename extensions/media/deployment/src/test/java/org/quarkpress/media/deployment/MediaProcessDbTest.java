@@ -61,7 +61,9 @@ class MediaProcessDbTest {
     static final QuarkusExtensionTest app = MediaApp.withoutStorage(
                     MediaProcessDbTest.class, TestStorage.class, TestProcessor.class, Recorder.class)
             .overrideConfigKey("quarkpress.media.accept-unprocessable-images", "true")
-            .overrideConfigKey("quarkpress.media.max-concurrent-decodes", "1");
+            .overrideConfigKey("quarkpress.media.max-concurrent-decodes", "1")
+            // a WebP upload keeps its type only without format conversion, which the quality tests ask for
+            .overrideConfigKey("quarkpress.media.output-formats.\"image/webp\"", "image/jpeg");
 
     static final Instant NOW = Instant.parse("2026-11-05T10:00:00Z");
     static final List<String> SIX = List.of("thumbnail", "medium", "medium_large", "large", "1536x1536", "2048x2048");
@@ -461,6 +463,164 @@ class MediaProcessDbTest {
         long before = version(avif);
         assertThat(process(avif.post().id())).isEqualTo(find(avif.post().id()));
         assertThat(version(avif)).isEqualTo(before);
+        assertThat(processor.decodes()).isZero();
+    }
+
+    // ---- quality, lossless WebP and HEIC through the processor -----------------------------------------------------
+
+    private static TestProcessor.Encode encode(int w, int h, String type, int quality, boolean lossless) {
+        return new TestProcessor.Encode(w, h, type, quality, lossless);
+    }
+
+    /** The encodes of a 3000x2000 source: the scaled main-file copy, then its six sizes. */
+    private static List<TestProcessor.Encode> encodes3000x2000(String type, int quality, boolean lossless) {
+        return List.of(
+                encode(2560, 1707, type, quality, lossless),
+                encode(300, 200, type, quality, lossless),
+                encode(1024, 683, type, quality, lossless),
+                encode(150, 150, type, quality, lossless),
+                encode(768, 512, type, quality, lossless),
+                encode(1536, 1024, type, quality, lossless),
+                encode(2048, 1365, type, quality, lossless));
+    }
+
+    @Test
+    void webpCopiesAreAskedQuality86AndOthers82() throws Exception {
+        processor.extraFormats(true);
+        MediaSnapshot webp = upload(uploadOf("lossy.webp", MediaFixtures.webpLossyHeader(3000, 2000))
+                .convertFormat(false));
+        assertThat(webp.storageKey()).isEqualTo("2026/11/lossy-scaled.webp");
+        assertThat(webp.sizes()).hasSize(6);
+        assertThat(webp.sizes().values()).extracting(MediaSize::mimeType).containsOnly("image/webp");
+        assertThat(processor.encoded()).containsExactlyElementsOf(encodes3000x2000("image/webp", 86, false));
+
+        processor.reset();
+        MediaSnapshot jpeg = upload("photo.jpg", jpeg(3000, 2000));
+        assertThat(jpeg.storageKey()).isEqualTo("2026/11/photo-scaled.jpg");
+        assertThat(processor.encoded()).containsExactlyElementsOf(encodes3000x2000("image/jpeg", 82, false));
+    }
+
+    @Test
+    void aLosslessWebpGetsLosslessCopies() throws Exception {
+        processor.extraFormats(true);
+        MediaSnapshot m = upload(uploadOf("lossless.webp", MediaFixtures.webpLossless(3000, 2000))
+                .convertFormat(false));
+        assertThat(m.storageKey()).isEqualTo("2026/11/lossless-scaled.webp");
+        assertThat(m.sizes()).hasSize(6);
+        assertThat(processor.encoded()).containsExactlyElementsOf(encodes3000x2000("image/webp", 100, true));
+    }
+
+    /**
+     * As WordPress, a lossless WebP source asks quality 100 whatever type its copies are written in; only WebP copies
+     * are lossless. An extended WebP is never lossless (WordPress reads its type as animated-alpha).
+     */
+    @Test
+    void aWebpMappedToJpegIsNotLossless() throws Exception {
+        processor.extraFormats(true);
+        MediaSnapshot lossless = upload("mapped.webp", MediaFixtures.webpLossless(3000, 2000));
+        assertThat(lossless.storageKey()).isEqualTo("2026/11/mapped-scaled.jpg");
+        assertThat(lossless.originalImage()).contains("mapped.webp");
+        assertThat(lossless.sizes().values()).extracting(MediaSize::mimeType).containsOnly("image/jpeg");
+        assertThat(processor.encoded()).containsExactlyElementsOf(encodes3000x2000("image/jpeg", 100, false));
+
+        processor.reset();
+        processor.extraFormats(true);
+        upload("lossy.webp", MediaFixtures.webpLossyHeader(3000, 2000));
+        assertThat(processor.encoded()).containsExactlyElementsOf(encodes3000x2000("image/jpeg", 82, false));
+
+        processor.reset();
+        processor.extraFormats(true);
+        upload(uploadOf("extended.webp", MediaFixtures.webpExtendedLossless(3000, 2000))
+                .convertFormat(false));
+        assertThat(processor.encoded()).containsExactlyElementsOf(encodes3000x2000("image/webp", 86, false));
+    }
+
+    @Test
+    void aHeicIsMeasuredByTheProcessorThatReadsIt() throws Exception {
+        processor.extraFormats(true);
+        MediaSnapshot m = upload("IMG_5.heic", MediaFixtures.heif("heic"));
+        assertThat(m.mimeType()).isEqualTo("image/heic");
+        assertThat(m.storageKey()).isEqualTo("2026/11/IMG_5-scaled.jpg");
+        assertThat(m.originalImage()).contains("IMG_5.heic");
+        assertThat(m.width()).hasValue(2560);
+        assertThat(m.height()).hasValue(1920);
+        ObjectNode metadata = m.wordPressMetadata();
+        assertThat(metadata.get("file").textValue()).isEqualTo("2026/11/IMG_5-scaled.jpg");
+        assertThat(metadata.get("original_image").textValue()).isEqualTo("IMG_5.heic");
+        assertThat(metadata.get("width").intValue()).isEqualTo(2560);
+        assertThat(metadata.get("height").intValue()).isEqualTo(1920);
+        assertThat(m.sizes().values()).extracting(MediaSize::mimeType).containsOnly("image/jpeg");
+        assertThat(files(m))
+                .containsExactly(
+                        "IMG_5-300x225.jpg",
+                        "IMG_5-1024x768.jpg",
+                        "IMG_5-150x150.jpg",
+                        "IMG_5-768x576.jpg",
+                        "IMG_5-1536x1152.jpg",
+                        "IMG_5-2048x1536.jpg");
+        assertThat(m.processing()).isEqualTo(Processing.DONE);
+        assertThat(processor.encoded())
+                .extracting(TestProcessor.Encode::quality)
+                .containsOnly(82);
+        assertThat(missing(m.post().id())).isEmpty();
+    }
+
+    @Test
+    void aResumedLosslessWebpKeepsQuality100() throws Exception {
+        processor.extraFormats(true);
+        processor.failSize(768, 512);
+        MediaSnapshot m = upload(
+                uploadOf("resumed.webp", MediaFixtures.webpLossless(3000, 2000)).convertFormat(false));
+        assertThat(m.processing()).isEqualTo(Processing.PARTIAL);
+        assertThat(m.sizes()).doesNotContainKey("medium_large");
+        processor.reset();
+        processor.extraFormats(true);
+        MediaSnapshot resumed = process(m.post().id());
+        assertThat(resumed.processing()).isEqualTo(Processing.DONE);
+        // the resumed size is cut from the lossless original, so it is a lossless WebP like the others
+        assertThat(processor.encoded()).containsExactly(encode(768, 512, "image/webp", 100, true));
+    }
+
+    /** A HEIC's missing sizes are those its original's dimensions allow, which the processor reads. */
+    @Test
+    void theMissingSizesOfAHeicFollowItsOriginalsDimensions() throws Exception {
+        TestData.siteOption(dataSource, TestData.MAIN, "large_size_w", "\"3000\"");
+        TestData.siteOption(dataSource, TestData.MAIN, "large_size_h", "\"3000\"");
+        try {
+            processor.extraFormats(true);
+            processor.failSize(3000, 2250);
+            MediaSnapshot m = upload("IMG_7.heic", MediaFixtures.heif("heic"));
+            assertThat(m.processing()).isEqualTo(Processing.PARTIAL);
+            assertThat(m.width()).hasValue(2560);
+            assertThat(m.sizes()).doesNotContainKey("large");
+            // 3000x2250 fits the 4032x3024 original, not the 2560x1920 main file
+            assertThat(missing(m.post().id())).containsExactly("large");
+        } finally {
+            TestData.siteOption(dataSource, TestData.MAIN, "large_size_w", "\"1024\"");
+            TestData.siteOption(dataSource, TestData.MAIN, "large_size_h", "\"1024\"");
+        }
+    }
+
+    @Test
+    void aHeicStaysFilesizeOnlyWhenTheProcessorsReadThrows() throws Exception {
+        processor.extraFormats(true);
+        processor.throwOnRead(new IllegalStateException("the test processor cannot read this file"));
+        MediaSnapshot m = upload("IMG_8.heic", MediaFixtures.heif("heic"));
+        ObjectNode expected = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        expected.put("filesize", m.fileSize());
+        assertThat(m.wordPressMetadata()).isEqualTo(expected);
+        assertThat(m.processing()).isEqualTo(Processing.DONE);
+        assertThat(processor.decodes()).isZero();
+    }
+
+    @Test
+    void aHeicStaysFilesizeOnlyWhenTheProcessorCannotReadIt() throws Exception {
+        MediaSnapshot m = upload("IMG_6.heic", MediaFixtures.heif("heic"));
+        ObjectNode expected = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        expected.put("filesize", m.fileSize());
+        assertThat(m.wordPressMetadata()).isEqualTo(expected);
+        assertThat(m.storageKey()).isEqualTo("2026/11/IMG_6.heic");
+        assertThat(m.processing()).isEqualTo(Processing.DONE);
         assertThat(processor.decodes()).isZero();
     }
 

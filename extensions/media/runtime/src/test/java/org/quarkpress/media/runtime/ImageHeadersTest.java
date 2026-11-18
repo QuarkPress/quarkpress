@@ -50,6 +50,41 @@ class ImageHeadersTest {
     }
 
     @Test
+    void losslessWebpIsToldFromItsFirstImageChunk() throws IOException {
+        assertThat(ImageHeaders.losslessWebp(write(MediaFixtures.webpLossless(24, 16))))
+                .isTrue();
+        assertThat(ImageHeaders.losslessWebp(write(MediaFixtures.webp()))).isTrue();
+        assertThat(ImageHeaders.losslessWebp(write(MediaFixtures.webpLossyHeader(24, 16))))
+                .isFalse();
+        // WordPress reads an extended file's type as animated-alpha, whatever its image chunk holds
+        assertThat(ImageHeaders.losslessWebp(write(MediaFixtures.webpExtendedLossless(24, 16))))
+                .isFalse();
+        assertThat(ImageHeaders.losslessWebp(write(MediaFixtures.png(4, 4)))).isFalse();
+        // WordPress reads 40 bytes and gives no type for a shorter file
+        byte[] lossless = MediaFixtures.webpLossless(24, 16);
+        assertThat(ImageHeaders.losslessWebp(write(Arrays.copyOf(lossless, 40))))
+                .isTrue();
+        assertThat(ImageHeaders.losslessWebp(write(Arrays.copyOf(lossless, 39))))
+                .isFalse();
+    }
+
+    @Test
+    void onlyAWebpCanBeALosslessWebp() throws IOException {
+        // a RIFF file of another form (AVI here) with a VP8L chunk where a WebP has its first one
+        byte[] avi = MediaFixtures.webpLossless(24, 16);
+        System.arraycopy("AVI ".getBytes(StandardCharsets.US_ASCII), 0, avi, 8, 4);
+        assertThat(avi.length).isGreaterThanOrEqualTo(40);
+        assertThat(ImageHeaders.losslessWebp(write(avi))).isFalse();
+        assertThat(ImageHeaders.losslessWebp(write(new byte[0]))).isFalse();
+        // 64 bytes of no format
+        byte[] noise = new byte[64];
+        for (int i = 0; i < noise.length; i++) {
+            noise[i] = (byte) (i * 37 + 11);
+        }
+        assertThat(ImageHeaders.losslessWebp(write(noise))).isFalse();
+    }
+
+    @Test
     void aCutOffImageHasNoDimensions() throws IOException {
         byte[] jpeg = MediaFixtures.jpeg(64, 48);
         assertThat(ImageHeaders.read(write(Arrays.copyOf(jpeg, 12)))).isEmpty();

@@ -35,6 +35,9 @@ public final class ImageHeaders {
     /** Bytes read for the fixed headers of PNG, GIF, BMP, WebP and ICO. */
     static final int PREFIX = 64;
 
+    /** Bytes a WebP's type (lossy, lossless or extended) is read from; a shorter file has none. */
+    static final int WEBP_TYPE_BYTES = 40;
+
     /** Most bytes of an AVIF file searched for the {@code ispe} property, and most boxes visited. */
     static final int BOX_LIMIT = 1024 * 1024;
 
@@ -75,6 +78,24 @@ public final class ImageHeaders {
             return Optional.empty();
         }
         return Optional.of(new ImageInfo(type, (int) size[0], (int) size[1]));
+    }
+
+    /**
+     * Whether {@code file} is a lossless WebP, as WordPress tells one: a WebP of at least {@value #WEBP_TYPE_BYTES}
+     * bytes whose first chunk is {@code VP8L}. An extended file ({@code VP8X} first: animation, alpha or metadata) is
+     * never lossless, whatever its image chunks hold, and neither is any other file.
+     *
+     * @throws IOException when the file cannot be read
+     */
+    public static boolean losslessWebp(Path file) throws IOException {
+        if (!ImageSignatures.realType(file).map("image/webp"::equals).orElse(false)) {
+            return false;
+        }
+        byte[] head;
+        try (InputStream in = Files.newInputStream(file)) {
+            head = in.readNBytes(WEBP_TYPE_BYTES);
+        }
+        return head.length == WEBP_TYPE_BYTES && isType(head, 12, "VP8L");
     }
 
     private static boolean positive(long[] size) {

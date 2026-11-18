@@ -31,6 +31,17 @@ public interface DecodedImage extends AutoCloseable {
      */
     Encoded encode(Path target, String mimeType, int quality) throws ImageProcessingException;
 
+    /**
+     * Writes the image to {@code target} as {@code mimeType}, as {@link #encode(Path, String, int)} does; {@code
+     * lossless} asks a format that has a lossless mode (WebP) to use it; processors that cannot ignore it.
+     *
+     * @throws ImageProcessingException when the image cannot be written in that type
+     */
+    default Encoded encode(Path target, String mimeType, int quality, boolean lossless)
+            throws ImageProcessingException {
+        return encode(target, mimeType, quality);
+    }
+
     /** Releases the image's memory. */
     @Override
     void close();

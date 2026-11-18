@@ -15,4 +15,10 @@ public interface MediaBuildTimeConfig {
      * {@code @Identifier} (else the class simple name) of an application's {@code MediaStorage} bean. Needed only then.
      */
     Optional<String> storage();
+
+    /**
+     * The image processor to use when several are installed: {@code vips} or {@code imageio}. Unset: libvips's when
+     * installed.
+     */
+    Optional<String> imageProcessor();
 }

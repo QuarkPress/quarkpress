@@ -328,6 +328,76 @@ public final class MediaFixtures {
     }
 
     /**
+     * A {@code w}&times;{@code h} lossless WebP (a {@code VP8L} chunk first), hand-encoded as one opaque black colour:
+     * no transforms, no colour cache and one prefix-code group whose five codes each hold a single symbol, so that
+     * every pixel takes no bits and the stream stays a few bytes long whatever the size. The chunk is padded with zero
+     * bytes after the stream (decoders read no further than the stream), so that the file is more than the 40 bytes a
+     * WebP type read takes.
+     */
+    public static byte[] webpLossless(int w, int h) {
+        return riff(chunk("VP8L", vp8lSolid(w, h)));
+    }
+
+    /**
+     * A {@code w}&times;{@code h} extended WebP: a {@code VP8X} chunk (no feature flags, the canvas size) followed by
+     * the {@code VP8L} chunk of {@link #webpLossless}.
+     */
+    public static byte[] webpExtendedLossless(int w, int h) {
+        ByteBuffer vp8x = ByteBuffer.allocate(10).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        vp8x.putInt(0);
+        vp8x.put((byte) (w - 1)).put((byte) ((w - 1) >> 8)).put((byte) ((w - 1) >> 16));
+        vp8x.put((byte) (h - 1)).put((byte) ((h - 1) >> 8)).put((byte) ((h - 1) >> 16));
+        return riff(concat(chunk("VP8X", vp8x.array()), chunk("VP8L", vp8lSolid(w, h))));
+    }
+
+    /**
+     * The header of a {@code w}&times;{@code h} lossy WebP (a {@code VP8 } chunk first) without coded pixels: a key
+     * frame's tag, start code and 14-bit sizes, then zero bytes up to a file of more than 40 bytes. Readers of the
+     * header take its type and size; nothing can decode it.
+     */
+    public static byte[] webpLossyHeader(int w, int h) {
+        ByteBuffer frame = ByteBuffer.allocate(24).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        frame.put((byte) 0x10).put((byte) 0x02).put((byte) 0x00); // key frame, version 0, shown
+        frame.put((byte) 0x9D).put((byte) 0x01).put((byte) 0x2A);
+        frame.putShort((short) w).putShort((short) h);
+        return riff(chunk("VP8 ", frame.array()));
+    }
+
+    /** A VP8L stream of one opaque black colour: every prefix code holds one symbol, so pixels take no bits. */
+    private static byte[] vp8lSolid(int w, int h) {
+        BitWriter bits = new BitWriter();
+        bits.write(0x2F, 8); // VP8L signature
+        bits.write(w - 1, 14);
+        bits.write(h - 1, 14);
+        bits.write(0, 1); // alpha_is_used
+        bits.write(0, 3); // version
+        bits.write(0, 1); // no transform
+        bits.write(0, 1); // no colour cache
+        bits.write(0, 1); // no meta prefix codes
+        simpleCode(bits, 0); // green
+        simpleCode(bits, 0); // red
+        simpleCode(bits, 0); // blue
+        simpleCode(bits, 255); // alpha
+        simpleCode(bits, 0); // distance
+        return Arrays.copyOf(bits.toByteArray(), 24);
+    }
+
+    /** A RIFF chunk: its four-character type, little-endian size, data and a pad byte for an odd size. */
+    private static byte[] chunk(String type, byte[] data) {
+        ByteBuffer chunk =
+                ByteBuffer.allocate(8 + data.length + (data.length % 2)).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        chunk.put(ascii(type)).putInt(data.length).put(data);
+        return chunk.array();
+    }
+
+    /** A RIFF WebP file holding {@code chunks}. */
+    private static byte[] riff(byte[] chunks) {
+        ByteBuffer file = ByteBuffer.allocate(12 + chunks.length).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        file.put(ascii("RIFF")).putInt(4 + chunks.length).put(ascii("WEBP")).put(chunks);
+        return file.array();
+    }
+
+    /**
      * An ISO base media file with an {@code ftyp} box of major brand {@code brand} (compatible: the brand and
      * {@code mif1}), a {@code meta} box whose item properties hold an {@code ispe} of 3000&times;2000, a
      * {@code pixi} (three 8-bit channels) and an empty codec configuration ({@code av1C} or {@code hvcC}), and an empty

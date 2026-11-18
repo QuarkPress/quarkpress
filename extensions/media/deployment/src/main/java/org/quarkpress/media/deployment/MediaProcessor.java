@@ -189,6 +189,30 @@ class MediaProcessor {
         chosen.produce(new ChosenStorageBuildItem(name.get(), beanId));
     }
 
+    /**
+     * Fails the build when {@code quarkpress.media.image-processor} names an image processor that no installed module
+     * provides.
+     */
+    @BuildStep
+    void checkImageProcessor(
+            List<ImageProcessorBuildItem> processors,
+            MediaBuildTimeConfig config,
+            BuildProducer<ValidationErrorBuildItem> errors) {
+        Optional<String> chosen = config.imageProcessor();
+        if (chosen.isEmpty()) {
+            return;
+        }
+        TreeSet<String> installed = new TreeSet<>();
+        for (ImageProcessorBuildItem processor : processors) {
+            installed.add(processor.name());
+        }
+        if (!installed.contains(chosen.get())) {
+            errors.produce(new ValidationErrorBuildItem(new IllegalStateException("quarkpress.media.image-processor="
+                    + chosen.get() + " names no installed image processor module; installed: "
+                    + (installed.isEmpty() ? "none" : String.join(", ", installed)))));
+        }
+    }
+
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
     void recordStorage(

@@ -6,14 +6,17 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -31,19 +34,37 @@ import org.quarkpress.media.Encoded;
 import org.quarkpress.media.ImageInfo;
 import org.quarkpress.media.ImageProcessingException;
 import org.quarkpress.media.ImageProcessor;
+import org.quarkpress.media.runtime.ImageHeaders;
 
 /**
  * An image processor on the JDK's own ImageIO codecs that handles JPEG, PNG and GIF only, the types WordPress's GD
  * editor handles without WebP and AVIF support. Switches let a test make one output size fail to encode, make one cut
  * throw, make decoding throw (always or once), slow it down or hold it until a gate opens; counters tell how often it
  * decoded and how many decoded images were open at once (an image and every image made from it count as one until all
- * of them are closed).
+ * of them are closed). Every encode is recorded with the type, quality and lossless mode it was asked for. Switched to
+ * extra formats, it also supports WebP and HEIC: it reads a WebP's dimensions from its header and every HEIC as
+ * 4032&times;3024, and stands in for their pixels with images that hold none (their copies are placeholder bytes).
  */
 @ApplicationScoped
 public class TestProcessor implements ImageProcessor {
 
     private static final Map<String, String> FORMATS =
             Map.of("image/jpeg", "jpeg", "image/png", "png", "image/gif", "gif");
+
+    /** The types the extra formats switch adds. */
+    private static final Set<String> EXTRA = Set.of("image/webp", "image/heic");
+
+    /** The dimensions this processor reads for every HEIC file once the extra formats are on. */
+    public static final int HEIC_WIDTH = 4032;
+
+    public static final int HEIC_HEIGHT = 3024;
+
+    /** One encode: the image's size and what it was asked to be written as. */
+    public record Encode(int width, int height, String mimeType, int quality, boolean lossless) {}
+
+    private final List<Encode> encoded = new CopyOnWriteArrayList<>();
+    private volatile boolean extraFormats;
+    private volatile RuntimeException readFailure;
 
     private final Set<String> failingSizes = ConcurrentHashMap.newKeySet();
     private final Set<String> failingRegions = ConcurrentHashMap.newKeySet();
@@ -107,6 +128,21 @@ public class TestProcessor implements ImageProcessor {
         decodeMillis = millis;
     }
 
+    /** Whether WebP and HEIC are supported too (see the class description). */
+    public void extraFormats(boolean on) {
+        extraFormats = on;
+    }
+
+    /** {@link #read} throws {@code failure}; null to read again. */
+    public void throwOnRead(RuntimeException failure) {
+        readFailure = failure;
+    }
+
+    /** Every encode since the last {@link #reset}, in order. */
+    public List<Encode> encoded() {
+        return List.copyOf(encoded);
+    }
+
     /** How many times an image was encoded since the last {@link #reset}. */
     public int encodes() {
         return encodes.get();
@@ -161,6 +197,9 @@ public class TestProcessor implements ImageProcessor {
         duringDecode.set(null);
         decodeGate = null;
         maxOpen.set(open.get());
+        encoded.clear();
+        extraFormats = false;
+        readFailure = null;
     }
 
     @Override
@@ -172,11 +211,21 @@ public class TestProcessor implements ImageProcessor {
         if (failure instanceof Error error) {
             throw error;
         }
-        return FORMATS.containsKey(mimeType);
+        return FORMATS.containsKey(mimeType) || (extraFormats && EXTRA.contains(mimeType));
     }
 
     @Override
     public Optional<ImageInfo> read(Path file) {
+        RuntimeException failure = readFailure;
+        if (failure != null) {
+            throw failure;
+        }
+        if (extraFormats) {
+            Optional<ImageInfo> extra = readExtra(file);
+            if (extra.isPresent()) {
+                return extra;
+            }
+        }
         try (InputStream in = Files.newInputStream(file);
                 ImageInputStream stream = ImageIO.createImageInputStream(in)) {
             Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
@@ -232,6 +281,12 @@ public class TestProcessor implements ImageProcessor {
         if (once != null) {
             throw once;
         }
+        if (extraFormats && EXTRA.contains(mimeType)) {
+            ImageInfo info = readExtra(file)
+                    .filter(found -> found.mimeType().equals(mimeType))
+                    .orElseThrow(() -> new ImageProcessingException("The image could not be decoded."));
+            return new Placeholder(info.width(), info.height(), new Root());
+        }
         try {
             BufferedImage image = ImageIO.read(file.toFile());
             if (image == null) {
@@ -251,6 +306,45 @@ public class TestProcessor implements ImageProcessor {
         } catch (IOException unreadable) {
             throw new ImageProcessingException("The image could not be decoded.");
         }
+    }
+
+    /** A WebP's header dimensions, or the fixed size of a HEIC (an ISO file whose brand is {@code heic}). */
+    private static Optional<ImageInfo> readExtra(Path file) {
+        try {
+            byte[] head;
+            try (InputStream in = Files.newInputStream(file)) {
+                head = in.readNBytes(12);
+            }
+            String brand = head.length == 12 ? new String(head, 4, 8, StandardCharsets.US_ASCII) : "";
+            if (brand.equals("ftypheic")) {
+                return Optional.of(new ImageInfo("image/heic", HEIC_WIDTH, HEIC_HEIGHT));
+            }
+            return ImageHeaders.read(file).filter(info -> info.mimeType().equals("image/webp"));
+        } catch (IOException unreadable) {
+            return Optional.empty();
+        }
+    }
+
+    /** Counts an encode, waits at the encode barrier and fails a failing size, as every encode does. */
+    private void encoding(int width, int height, String mimeType, int quality, boolean lossless)
+            throws ImageProcessingException {
+        encodes.incrementAndGet();
+        encoded.add(new Encode(width, height, mimeType, quality, lossless));
+        CyclicBarrier barrier = encodeBarrier;
+        if (barrier != null && barrierParties.getAndDecrement() > 0) {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+            } catch (Exception broken) {
+                throw new IllegalStateException("the encode barrier broke", broken);
+            }
+        }
+        if (failingSizes.contains(width + "x" + height)) {
+            throw new ImageProcessingException("The image could not be written.");
+        }
+    }
+
+    private boolean writable(String mimeType) {
+        return FORMATS.containsKey(mimeType) || (extraFormats && EXTRA.contains(mimeType));
     }
 
     private static String mimeType(String formatName) {
@@ -353,22 +447,20 @@ public class TestProcessor implements ImageProcessor {
 
         @Override
         public Encoded encode(Path target, String mimeType, int quality) throws ImageProcessingException {
+            return encode(target, mimeType, quality, false);
+        }
+
+        @Override
+        public Encoded encode(Path target, String mimeType, int quality, boolean lossless)
+                throws ImageProcessingException {
             String format = FORMATS.get(mimeType);
             if (format == null) {
+                if (writable(mimeType)) {
+                    return placeholder(target, mimeType, pixels.getWidth(), pixels.getHeight(), quality, lossless);
+                }
                 throw new ImageProcessingException("The image cannot be written as " + mimeType + ".");
             }
-            encodes.incrementAndGet();
-            CyclicBarrier barrier = encodeBarrier;
-            if (barrier != null && barrierParties.getAndDecrement() > 0) {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception broken) {
-                    throw new IllegalStateException("the encode barrier broke", broken);
-                }
-            }
-            if (failingSizes.contains(pixels.getWidth() + "x" + pixels.getHeight())) {
-                throw new ImageProcessingException("The image could not be written.");
-            }
+            encoding(pixels.getWidth(), pixels.getHeight(), mimeType, quality, lossless);
             BufferedImage image = pixels;
             if (format.equals("jpeg") && pixels.getColorModel().hasAlpha()) {
                 image = new BufferedImage(pixels.getWidth(), pixels.getHeight(), BufferedImage.TYPE_INT_RGB);
@@ -405,6 +497,83 @@ public class TestProcessor implements ImageProcessor {
             if (!closed) {
                 closed = true;
                 pixels.flush();
+                root.closed();
+            }
+        }
+    }
+
+    /** Writes placeholder bytes for a copy of {@code width}&times;{@code height} in {@code mimeType}. */
+    private Encoded placeholder(Path target, String mimeType, int width, int height, int quality, boolean lossless)
+            throws ImageProcessingException {
+        encoding(width, height, mimeType, quality, lossless);
+        try {
+            Files.writeString(target, "placeholder " + mimeType + " " + width + "x" + height);
+            return new Encoded(mimeType, width, height, Files.size(target));
+        } catch (IOException failure) {
+            throw new ImageProcessingException("The image could not be written.");
+        }
+    }
+
+    /** An image of the extra formats: its size alone, no pixels. */
+    private final class Placeholder implements DecodedImage {
+
+        private final int width;
+        private final int height;
+        private final Root root;
+        private boolean closed;
+
+        Placeholder(int width, int height, Root root) {
+            this.width = width;
+            this.height = height;
+            this.root = root;
+            root.opened();
+        }
+
+        @Override
+        public int width() {
+            return width;
+        }
+
+        @Override
+        public int height() {
+            return height;
+        }
+
+        @Override
+        public DecodedImage oriented(int exifOrientation) {
+            if (exifOrientation < 2 || exifOrientation > 8) {
+                return this;
+            }
+            boolean swap = exifOrientation >= 5;
+            return new Placeholder(swap ? height : width, swap ? width : height, root);
+        }
+
+        @Override
+        public DecodedImage region(int x, int y, int w, int h, int targetWidth, int targetHeight) {
+            if (failingRegions.contains(targetWidth + "x" + targetHeight)) {
+                throw new IllegalStateException("the test processor cannot cut this region");
+            }
+            return new Placeholder(targetWidth, targetHeight, root);
+        }
+
+        @Override
+        public Encoded encode(Path target, String mimeType, int quality) throws ImageProcessingException {
+            return encode(target, mimeType, quality, false);
+        }
+
+        @Override
+        public Encoded encode(Path target, String mimeType, int quality, boolean lossless)
+                throws ImageProcessingException {
+            if (!writable(mimeType)) {
+                throw new ImageProcessingException("The image cannot be written as " + mimeType + ".");
+            }
+            return placeholder(target, mimeType, width, height, quality, lossless);
+        }
+
+        @Override
+        public synchronized void close() {
+            if (!closed) {
+                closed = true;
                 root.closed();
             }
         }
