@@ -50,3 +50,79 @@ jobs:
           mvn -B -ntp -T1 verify -fae -Dnative -Dquarkus.native.container-build=true
           -Dquarkus.native.builder-image=mandrel -DskipUnitTests=true
           -DtestDb=${{ matrix.db }} -pl "$IT_MODULES"
+
+  # The libvips image processor needs Java 25 (quarkus-libvips is built on its Foreign Function and Memory API), so its
+  # application is built natively here, by the Java 25 Mandrel builder, apart from the Java 21 job above. The executable
+  # opens the runner's libvips.so.42 at start-up (dlopen); libvips is never in the image.
+  native-vips:
+    name: Native (libvips) / ${{ matrix.db }}
+    # the libvips package names below are Ubuntu 24.04's
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [postgresql, mysql]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - name: Read the quarkus-libvips pin
+        run: |
+          pin="$(sed -n 's:.*<quarkus-libvips.commit>\(.*\)</quarkus-libvips.commit>.*:\1:p' pom.xml)"
+          [ "${#pin}" -eq 40 ] || { echo "::error::quarkus-libvips.commit not found in pom.xml"; exit 1; }
+          echo "QUARKUS_LIBVIPS_COMMIT=$pin" >> "$GITHUB_ENV"
+      # quarkus-libvips is not on Maven Central yet: built from the pinned commit, as in the CI workflow.
+      - uses: actions/checkout@v4
+        with:
+          repository: SiteNetSoft/quarkus-libvips
+          ref: ${{ env.QUARKUS_LIBVIPS_COMMIT }}
+          path: .quarkus-libvips
+      - name: Install libvips and the AWT runtime libraries
+        run: |
+          sudo apt-get update -q
+          # libheif-plugin-libde265 is only Suggested by noble's libheif1: without it HEIC decodes silently black.
+          # libheif-plugin-aomenc writes AVIF. libvips-tools carries the `vips` CLI used below. FreeType and fontconfig
+          # are for the AWT libraries the ImageIO fallback loads next to the executable.
+          sudo apt-get install -y -q libvips42t64 libvips-tools libheif-plugin-aomenc libheif-plugin-libde265 \
+            libfreetype6 fontconfig
+          lib="$(ldconfig -p | awk '/libvips\.so\.42 / { print $NF; exit }')"
+          [ -n "$lib" ] || { echo "::error::libvips.so.42 not found after install"; exit 1; }
+          dpkg -l | awk '/libvips42|libheif|libcgif/ { print $2, $3 }'
+          vips -l | grep -E 'gifsave_buffer|heifsave_buffer|heifload |webpsave_buffer|tiffsave_buffer' || true
+          echo "QUARKUS_LIBVIPS_LIBRARY=$lib" >> "$GITHUB_ENV"
+      - name: Install quarkus-libvips at the pinned commit
+        # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
+        run: |
+          rm -rf ~/.m2/repository/org/sitenetsoft/quarkus-libvips*
+          mvn -B -ntp install -DskipTests -f .quarkus-libvips/pom.xml -pl runtime,deployment -am
+      - name: Install the modules the integration tests use
+        run: mvn -B -ntp install -DskipTests -pl integration-tests/media-vips -am
+      # The media-vips image makes sizes with libvips and decodes BMP with ImageIO (its fallback), behind WordPress's
+      # REST API. The build is capped (C1 JIT for the builder, eight threads); no other native-image build argument is
+      # set for this application, so these are its whole list. The tests fail rather than skip when libvips lacks a
+      # format. `shell: bash` runs with -o pipefail, so tee keeps the build's exit status.
+      - name: Build the native executable and run the integration tests
+        shell: bash
+        run: >-
+          mvn -B -ntp -T1 verify -Dnative -Dquarkus.native.container-build=true
+          -Dquarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25
+          -Dquarkus.native.additional-build-args=-J-XX:TieredStopAtLevel=1,--parallelism=8
+          -DskipUnitTests=true -Dvips.require-all-formats=true
+          -DtestDb=${{ matrix.db }} -pl integration-tests/media-vips
+          2>&1 | tee native-build.log
+      - name: Upload the native build log and test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-vips-${{ matrix.db }}
+          path: |
+            native-build.log
+            integration-tests/media-vips/target/*-native-image-source-jar/reports/
+            integration-tests/media-vips/target/failsafe-reports/
+            integration-tests/media-vips/target/quarkus.log
+            **/hs_err_pid*.log
+          retention-days: 7
