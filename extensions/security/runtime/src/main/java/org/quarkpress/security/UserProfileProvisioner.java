@@ -2,7 +2,8 @@ package org.quarkpress.security;
 
 /**
  * Finds or creates the profile of an authenticated subject. The default implementation names a new profile as
- * WordPress names a new user; replace it with an {@code @Alternative @Priority} bean to provision differently.
+ * WordPress names a new user; replace it with an {@code @Alternative @Priority} bean to provision differently. Not to
+ * be confused with {@link UserProvisioner}, which creates the user in the identity provider when a user is imported.
  */
 public interface UserProfileProvisioner {
 

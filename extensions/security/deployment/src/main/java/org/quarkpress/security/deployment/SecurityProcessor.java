@@ -32,6 +32,7 @@ import org.quarkpress.security.Memberships;
 import org.quarkpress.security.Roles;
 import org.quarkpress.security.SiteRoles;
 import org.quarkpress.security.SystemIdentity;
+import org.quarkpress.security.UserImports;
 import org.quarkpress.security.UserProfileProvisioner;
 import org.quarkpress.security.UserProfiles;
 import org.quarkpress.security.runtime.BuiltInRoles;
@@ -79,7 +80,8 @@ class SecurityProcessor {
                 SystemIdentity.class,
                 SiteRoles.class,
                 CapabilityGuard.class,
-                Memberships.class);
+                Memberships.class,
+                UserImports.class);
     }
 
     /**

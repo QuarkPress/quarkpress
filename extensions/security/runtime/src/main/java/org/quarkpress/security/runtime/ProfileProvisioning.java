@@ -19,6 +19,7 @@ import java.util.UUID;
 import org.quarkpress.core.QuarkPressClock;
 import org.quarkpress.core.UserId;
 import org.quarkpress.persistence.runtime.OptionTransactions;
+import org.quarkpress.security.NewUser;
 import org.quarkpress.security.ProfileClaims;
 import org.quarkpress.security.UserProfile;
 import org.quarkpress.security.UserProfileCreated;
@@ -37,6 +38,11 @@ import org.quarkpress.security.UserProfileCreated;
  * <p>A profile created for {@link SuperAdminBootstrap} ({@link #provisionBootstrap}) has only its subject to be named
  * by, so it is marked ({@link #BOOTSTRAP_MARK} in its meta). Its first login names it from the token's claims as a new
  * profile is named and removes the mark; no other profile is ever renamed.
+ *
+ * <p>A profile created for an import ({@link #provisionImported}) is named from the imported user instead: nicename
+ * from the username as above, display name and e-mail as the {@link NewUser} holds them (an empty display name is
+ * derived from the first and last name, else the username, as WordPress derives it for a new user); no login is
+ * recorded, and a subject that already has a profile keeps it unchanged.
  *
  * <p>A profile is inserted only if neither its subject nor its nicename exists, so the usual races (one subject logging
  * in from several requests, colliding nicenames) never fail. The one race left, another profile taking a fallback
@@ -76,7 +82,7 @@ public class ProfileProvisioning {
      */
     @ActivateRequestContext
     public UserProfile provision(ProfileClaims claims, boolean login) {
-        return provision(claims, login, false);
+        return provision(claims, loginDisplayName(claims), login, false).profile();
     }
 
     /**
@@ -85,14 +91,49 @@ public class ProfileProvisioning {
      */
     @ActivateRequestContext
     public UserProfile provisionBootstrap(ProfileClaims claims) {
-        return provision(claims, false, true);
+        return provision(claims, loginDisplayName(claims), false, true).profile();
     }
 
-    private UserProfile provision(ProfileClaims claims, boolean login, boolean bootstrap) {
+    /**
+     * Finds or creates the profile of {@code subject}, which the identity provider gave the imported {@code user},
+     * recording no login. The same rule about the caller's transaction applies as for {@link #provision}.
+     */
+    @ActivateRequestContext
+    public UserProfile provisionImported(String subject, NewUser user) {
+        return importProfile(subject, user).profile();
+    }
+
+    /** {@link #provisionImported}, saying whether the profile was created. */
+    @ActivateRequestContext
+    Provisioned importProfile(String subject, NewUser user) {
+        ProfileClaims claims = new ProfileClaims(
+                subject, Optional.of(user.username()), user.firstName(), user.lastName(), user.email());
+        return provision(claims, importedDisplayName(user, subject), false, false);
+    }
+
+    /** A profile found or created, and whether this call created it. */
+    record Provisioned(UserProfile profile, boolean created) {}
+
+    private static String loginDisplayName(ProfileClaims claims) {
+        return UserNames.displayName(
+                claims.givenName(), claims.familyName(), claims.preferredUsername(), claims.subject());
+    }
+
+    /** The display name as the user holds it; when it is empty or {@code 0}, derived as for a login. */
+    private static String importedDisplayName(NewUser user, String subject) {
+        String given = user.displayName();
+        if (!given.isBlank() && !given.equals("0")) {
+            return given;
+        }
+        return UserNames.displayName(user.firstName(), user.lastName(), Optional.of(user.username()), subject);
+    }
+
+    private Provisioned provision(ProfileClaims claims, String displayName, boolean login, boolean bootstrap) {
         List<RuntimeException> failures = new ArrayList<>();
         for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
             try {
-                return QuarkusTransaction.requiringNew().call(() -> provisionOnce(claims, login, bootstrap));
+                return QuarkusTransaction.requiringNew()
+                        .call(() -> provisionOnce(claims, displayName, login, bootstrap));
             } catch (RuntimeException failed) {
                 if (!isRace(failed)) {
                     throw failed;
@@ -122,14 +163,16 @@ public class ProfileProvisioning {
         return false;
     }
 
-    private UserProfile provisionOnce(ProfileClaims claims, boolean login, boolean bootstrap) {
+    private Provisioned provisionOnce(ProfileClaims claims, String displayName, boolean login, boolean bootstrap) {
         Instant now = clock.now().truncatedTo(ChronoUnit.MICROS);
         Optional<UserProfileEntity> existing = profiles.findBySubject(claims.subject());
         if (existing.isPresent()) {
-            return login ? touched(existing.get(), claims, now) : existing.get().toProfile();
+            return new Provisioned(
+                    login
+                            ? touched(existing.get(), claims, now)
+                            : existing.get().toProfile(),
+                    false);
         }
-        String displayName = UserNames.displayName(
-                claims.givenName(), claims.familyName(), claims.preferredUsername(), claims.subject());
         Optional<String> base =
                 UserNames.nicenameBase(claims.preferredUsername().orElse(""));
         if (base.isPresent()) {
@@ -148,7 +191,8 @@ public class ProfileProvisioning {
                                 created,
                                 new UserProfileCreated(now, outcome.get().profile()));
                     }
-                    return outcome.get().profile();
+                    return new Provisioned(
+                            outcome.get().profile(), outcome.get().ours());
                 }
                 // nothing inserted and the subject has no profile: the candidate was taken meanwhile
             }
@@ -158,7 +202,7 @@ public class ProfileProvisioning {
                 .orElseThrow(() -> new IllegalStateException(
                         "a profile with the unique placeholder nicename " + placeholder + " exists"));
         if (!outcome.ours()) {
-            return outcome.profile();
+            return new Provisioned(outcome.profile(), false);
         }
         UserProfileEntity entity = profiles.findById(outcome.profile().id().value());
         String fallback = UserNames.fallbackNicename(UserId.of(entity.id));
@@ -173,7 +217,7 @@ public class ProfileProvisioning {
         profiles.flush();
         UserProfile profile = entity.toProfile();
         transactions.publish(created, new UserProfileCreated(now, profile));
-        return profile;
+        return new Provisioned(profile, true);
     }
 
     /** A profile this transaction inserted ({@code ours}), or the one a concurrent login of the same subject made. */

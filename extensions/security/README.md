@@ -72,6 +72,48 @@ otherwise.
   `wp_<name>` for site 1 and `wp_<site id>_<name>` for any other site, whichever site is the network's main one (the
   REST API keeps the editor's `persisted_preferences` there).
 
+## Provisioning users
+
+`UserImports.importUser(NewUser)` imports a user, as WordPress's importers create one: it creates the user in the
+identity provider through a `UserProvisioner`, then the user's profile. It is the API for importers and host
+applications; nothing in QuarkPress calls it on its own, and the REST API's `POST /wp/v2/users` still answers 501.
+
+- **Who may import.** The caller must hold `create_users` for the binding in effect, checked before the identity
+  provider is called; otherwise `CapabilityDeniedException` (anonymous or not). As WordPress maps `create_users`: on a
+  single site administrators hold it; in a network only network administrators do, unless the network option
+  `add_new_users` is on, which gives it to site administrators too. The system identity holds it.
+- **The user** (`NewUser`): username, e-mail, display name, first and last name, and optionally the stored password hash
+  (`PasswordHash.wordpress(user_pass)`). The username has 1 to 60 characters (WordPress's limit), is not `0` and does
+  not start or end with whitespace. Display, first and last name are plain text: tags (script and style elements with
+  their content) are removed, runs of spaces, tabs and line breaks become one space and the ends are trimmed, as
+  WordPress removes them on save; nothing is HTML-escaped or decoded, and an emptied first or last name is absent. The
+  display name then has at most 250 characters. The e-mail is trimmed (blank is absent), has at most 100 characters
+  and must pass WordPress's `is_email` (`Emails.isEmail` in lib-wp-kses); an address WordPress's `sanitize_email`
+  would change or empty is refused with a fixed message that does not repeat it. `PasswordHash` accepts the forms
+  WordPress's login checks (`$wp$` bcrypt, `$P$` phpass, `$2y$`/`$2a$`/`$2b$` bcrypt, 32-character MD5) when they are
+  well formed and within the bounds QuarkPress verifies (`WpPasswords.verifiable`), and refuses anything else (more
+  than 255 bytes, blank, `*`, phpBB's `$H$`, application passwords' `$generic$`, `$2x$` and other crypt forms, bcrypt
+  cost above 16, phpass counts above `I`) with "not a WordPress password hash". Its `toString` and every message leave
+  the hash out. Jackson skips it as a property (`@JsonIgnoreType`) and, where it writes one anyway (inside an
+  `Optional` or a collection, as `NewUser.password`), writes the redacted text `PasswordHash[wordpress, redacted]`.
+- **The identity provider.** An identity-provider module (`quarkpress-keycloak-provisioner`) implements
+  `UserProvisioner` with an `@ApplicationScoped` bean. It is called with any transaction of the caller suspended, and
+  is idempotent by username: an existing user of that username is returned as it is, credentials untouched. Without
+  such a module the default bean refuses with `UserProvisioningException` `NOT_CONFIGURED`. Its other reasons are
+  `EMAIL_TAKEN`, `INVALID_USER` (the identity provider refused the username or another field), `UNAUTHORIZED` and
+  `UNAVAILABLE`; messages are fixed texts. Not to be confused with `UserProfileProvisioner`, which shapes the profile
+  at login.
+- **The profile** is created in a transaction of its own for the subject the identity provider returned: nicename from
+  the username as at login (above), display name and e-mail as given (above), no login time, and `UserProfileCreated`
+  fired. When the identity provider already had the user, the profile gets no e-mail: the user's first login brings
+  the address the identity provider vouches for.
+  An empty display name (empty or `0`) is derived as WordPress derives it: "first last", else the first name,
+  else the last name, else the username. A subject that already has a profile keeps it unchanged, and its later
+  logins never rename it.
+- **Result and retries.** `ImportedUser` carries the profile and whether the identity-provider user and the profile were
+  created by this call. Nothing is retried automatically; a failure leaves no profile, and calling again finds the
+  identity-provider user already made and creates the profile.
+
 ## The identity
 
 Every identity authenticated with a token of the default OIDC tenant that carries a usable `sub` gets:
@@ -362,6 +404,8 @@ ignored. His token carries it; his identity never does (he is an editor on the m
 | D23 | On a single site, adding a user to the site gives them a primary site; WordPress has none there. |
 | D24 | What a membership or role-table change gives is checked: a caller who is not the system or a network administrator may give only roles and capabilities they hold, and never a network capability (on a single site, a user who can delete users may grant any name but a network one); D11 covers the checks of the change itself. WordPress's functions check nothing. |
 | D25 | A site's role table (`qp_user_roles`) cannot be written as an option: `Options` refuses names starting with `qp_`, so only `SiteRoles` changes it, with its checks. WordPress's `update_option` can replace `wp_user_roles`. |
+| D26 | An imported username is sent to the identity provider unchanged, which may refuse it; WordPress's `wp_insert_user` strict-sanitizes and trims the login first (`O'Brien` becomes `OBrien`). A padded username is refused instead of trimmed. Importing an existing username returns that user unchanged, as WordPress's importer maps an existing login to its user; `wp_insert_user` itself refuses it. |
+| D27 | An imported user's display, first and last name are plain text: tags, line breaks and padding are removed as WordPress removes them, but the name is not HTML-escaped (D8) and percent octets are kept (WordPress removes them). The display name has at most 250 characters (WordPress does not check). An e-mail WordPress's `is_email` refuses is refused; WordPress's `sanitize_email` silently changes or empties it. A local part ending in a line feed (`a\n@b.co`) is refused too, although WordPress's `is_email` accepts it (its `sanitize_email` then strips the line feed). An identity-provider user that already existed gets a profile without the importer's e-mail. |
 
 The parity tests (`-Pwp-parity`) compare the user-name rules (`sanitize_user`, `remove_accents`, the nicename),
 `map_meta_cap` on a matrix of capabilities, objects, users and both install types, the post-type capability names

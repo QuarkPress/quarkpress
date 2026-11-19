@@ -39,6 +39,12 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <!-- for PasswordHash: which stored hashes are WordPress password hashes -->
+      <groupId>org.quarkpress.lib</groupId>
+      <artifactId>quarkpress-lib-wp-password</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
