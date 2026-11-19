@@ -34,6 +34,19 @@ final class Bcrypt {
 
     /** Whether {@code stored} is a supported bcrypt hash of {@code password}; never throws for malformed input. */
     static boolean verify(byte[] password, byte[] stored) {
+        if (!supported(stored)) {
+            return false;
+        }
+        byte[] computed = hash(password, (char) stored[2], twoDigits(stored[4], stored[5]), decodeSalt(stored, 7))
+                .getBytes(US_ASCII);
+        return MessageDigest.isEqual(computed, stored);
+    }
+
+    /**
+     * Whether {@link #verify} computes a hash for {@code stored} at all: a {@code $2a$}, {@code $2b$} or {@code $2y$}
+     * hash of 60 bytes whose cost is within the supported bounds and whose salt and digest use bcrypt's alphabet.
+     */
+    static boolean supported(byte[] stored) {
         if (stored.length != HASH_LENGTH
                 || stored[0] != '$'
                 || stored[1] != '2'
@@ -49,12 +62,7 @@ final class Bcrypt {
         if (cost < MIN_COST || cost > FORMAT_MAX_COST) {
             return false;
         }
-        byte[] salt = decodeSalt(stored, 7);
-        if (salt == null || !inAlphabet(stored, 7 + SALT_CHARS, DIGEST_CHARS) || cost > MAX_COST) {
-            return false;
-        }
-        byte[] computed = hash(password, minor, cost, salt).getBytes(US_ASCII);
-        return MessageDigest.isEqual(computed, stored);
+        return decodeSalt(stored, 7) != null && inAlphabet(stored, 7 + SALT_CHARS, DIGEST_CHARS) && cost <= MAX_COST;
     }
 
     /** The 60-character bcrypt string of {@code password}; {@code minor} is {@code a}, {@code b} or {@code y}. */

@@ -42,6 +42,7 @@ if (WpPasswords.verify(password, userPass)) {
 }
 
 HashType type = WpPasswords.detect(userPass); // MD5, WP_BCRYPT, PHPASS, PHPASS_PHPBB, BCRYPT, WP_FAST_HASH, UNKNOWN
+boolean usable = WpPasswords.verifiable(userPass); // some password can pass check: refuse others on import
 
 // Application passwords (user meta _application_passwords):
 boolean ok = WpPasswords.checkFastHash(secret, storedHash);
@@ -59,7 +60,11 @@ boolean ok = WpPasswords.checkFastHash(secret, storedHash);
   `abcd EFGH …` form first, as WordPress's login does.
 - `detect` never throws. `needsRehash` is `false` only for a `$wp$2y$` hash of cost 12 (PHP 8.4's default); it reads
   the cost as PHP does.
-- `null` arguments throw `NullPointerException` (`detect(null)` is `UNKNOWN`); malformed hashes return `false`.
+- `verifiable` says, from the form alone and without hashing, whether some password can pass `check`: a 32-character
+  lowercase hex MD5, or a well-formed `$wp`, `$P$` or `$2a$`/`$2b$`/`$2y$` hash within the bounds (bcrypt cost 4–16,
+  phpass count `5`–`I`); `$2x$`, `$H$`, `$generic$`, other forms and `null` are `false`. Importers use it to refuse
+  hashes that would lock a user out.
+- Other `null` arguments throw `NullPointerException` (`detect(null)` is `UNKNOWN`); malformed hashes return `false`.
 - Text is encoded as UTF-8 and every length is in bytes, as in PHP. A `String` holding an unpaired surrogate is
   encoded with `?` in its place; pass bytes when the input is not text.
 - All methods are static, stateless and thread-safe.

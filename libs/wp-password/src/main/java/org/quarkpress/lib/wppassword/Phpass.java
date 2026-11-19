@@ -22,6 +22,26 @@ final class Phpass {
 
     private Phpass() {}
 
+    /**
+     * Whether {@link #verify} computes a hash for {@code stored} at all: 34 bytes, {@code $P$}, a count within the
+     * supported bounds, and a digest in the hash alphabet.
+     */
+    static boolean supported(byte[] stored) {
+        if (stored.length != LENGTH || stored[0] != '$' || stored[1] != 'P' || stored[2] != '$') {
+            return false;
+        }
+        int log2Rounds = ALPHABET.indexOf(stored[3] & 0xff);
+        if (log2Rounds < MIN_LOG2_ROUNDS || log2Rounds > MAX_LOG2_ROUNDS) {
+            return false;
+        }
+        for (int i = SETTING_BYTES; i < LENGTH; i++) {
+            if (ALPHABET.indexOf(stored[i] & 0xff) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Whether the 34-byte {@code stored} hash is the phpass hash of {@code password}, compared in constant time. */
     static boolean verify(byte[] password, byte[] stored) {
         if (stored.length != LENGTH) {

@@ -139,6 +139,28 @@ public final class WpPasswords {
     }
 
     /**
+     * Whether some password can pass {@link #check(String, String)} for {@code storedHash}, decided from its form
+     * alone, without computing a hash: a 32-character lowercase hex MD5, or a {@code $wp} bcrypt, {@code $P$} phpass
+     * or {@code $2a$}/{@code $2b$}/{@code $2y$} bcrypt hash that is well formed and within the bounds this library
+     * computes (bcrypt cost 4 to 16, phpass count {@code 5} to {@code I}). {@code false} for everything else, including
+     * {@code $2x$}, phpBB and {@code $generic$} hashes and {@code null}. A {@code true} answer does not promise that the
+     * last character carries only bits the hash can produce. Use it to refuse hashes on import.
+     */
+    public static boolean verifiable(String storedHash) {
+        if (storedHash == null) {
+            return false;
+        }
+        byte[] hash = PhpBytes.utf8(storedHash);
+        return switch (detect(storedHash)) {
+            case MD5 -> true;
+            case WP_BCRYPT -> Bcrypt.supported(Arrays.copyOfRange(hash, WP_PREFIX.length(), hash.length));
+            case PHPASS -> Phpass.supported(hash);
+            case BCRYPT -> Bcrypt.supported(hash);
+            default -> false;
+        };
+    }
+
+    /**
      * {@code wp_password_needs_rehash} with WordPress's default filters on PHP 8.4 (bcrypt, cost 12): {@code true}
      * for every hash except a {@code $wp} hash whose remaining 60 bytes are {@code $2y$} bcrypt of cost 12. The cost
      * is read as PHP reads it (leading whitespace and a sign are allowed; without digits PHP assumes 12). Call it
