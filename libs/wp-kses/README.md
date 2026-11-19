@@ -35,6 +35,7 @@ String text = Kses.stripAllTags(html, false);    // wp_strip_all_tags
 String norm = Kses.normalizeEntities(text);      // wp_kses_normalize_entities
 String one  = TextFields.textField(input);       // sanitize_text_field
 String many = TextFields.textareaField(input);   // sanitize_textarea_field
+boolean mail  = Emails.isEmail(address);         // is_email
 
 // lib-wp-shortcode: HtmlAttributeSanitizer sanitizer = kses::oneAttr;
 ```
