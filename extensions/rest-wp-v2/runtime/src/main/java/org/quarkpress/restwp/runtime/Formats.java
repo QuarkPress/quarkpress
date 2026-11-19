@@ -1,5 +1,7 @@
 package org.quarkpress.restwp.runtime;
 
+import org.quarkpress.lib.wpkses.Emails;
+
 /**
  * The string formats WordPress checks request values against, as hand-written scans: each looks at every character a
  * bounded number of times. A single line feed at the very end is accepted where WordPress's own check accepts it
@@ -74,40 +76,9 @@ public final class Formats {
         return at[0] == end && month <= 12 && day <= 31 && hour <= 24 && minute <= 59 && second <= 60;
     }
 
-    /**
-     * WordPress's e-mail check: at least 6 characters; an '@' after the first character; a local part of letters,
-     * digits and {@code !#$%&'*+/=?^_`{|}~.-}; a domain of at least two dot-separated labels, without "..", not
-     * starting or ending with a dot or whitespace, each label of letters, digits and '-' and not starting or ending
-     * with '-'.
-     */
+    /** WordPress's e-mail check ({@code is_email}); see {@link Emails#isEmail}. */
     public static boolean email(String text) {
-        if (text.length() < 6) {
-            return false;
-        }
-        int at = text.indexOf('@');
-        if (at < 1) {
-            return false;
-        }
-        for (int i = 0; i < at; i++) {
-            if (!localChar(text.charAt(i))) {
-                return false;
-            }
-        }
-        int start = at + 1;
-        int labels = 0;
-        int labelStart = start;
-        for (int i = start; i <= text.length(); i++) {
-            if (i == text.length() || text.charAt(i) == '.') {
-                if (!label(text, labelStart, i)) {
-                    return false;
-                }
-                labels++;
-                labelStart = i + 1;
-            } else if (!domainChar(text.charAt(i))) {
-                return false;
-            }
-        }
-        return labels >= 2;
+        return Emails.isEmail(text);
     }
 
     /** An IPv4 address (octets of one to three digits up to 255, leading zeros allowed) or an IPv6 address. */
@@ -269,21 +240,6 @@ public final class Formats {
             }
         }
         return octets == 4;
-    }
-
-    private static boolean label(String text, int start, int end) {
-        if (start == end) {
-            return false;
-        }
-        return text.charAt(start) != '-' && text.charAt(end - 1) != '-';
-    }
-
-    private static boolean localChar(char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || digit(c) || "!#$%&'*+/=?^_`{|}~.-".indexOf(c) >= 0;
-    }
-
-    private static boolean domainChar(char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || digit(c) || c == '-';
     }
 
     /** The length without one final line feed. */
