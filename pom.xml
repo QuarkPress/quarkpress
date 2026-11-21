@@ -54,6 +54,10 @@
          in a checkout of that commit. Change both properties together. -->
     <quarkus-libvips.version>0.1.0-SNAPSHOT</quarkus-libvips.version>
     <quarkus-libvips.commit>7137bc9863fd35ed6a2c1390429c8d86470bfcf7</quarkus-libvips.commit>
+    <!-- The Keycloak password-hash provider (QuarkPress/quarkpress-keycloak) that integration-tests/keycloak mounts
+         into Dev Services' Keycloak. CI checks it out at this commit and packages it; developers package a checkout
+         of it beside this repository (../quarkpress-keycloak) or point -DkeycloakProviderJar at the jar. -->
+    <quarkpress-keycloak.commit>8875ba968ef33cd8efc74bd7a47e41a40b4be1b5</quarkpress-keycloak.commit>
 
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>
