@@ -38,6 +38,7 @@
     <module>rest-wp-v2</module>
     <module>media</module>
     <module>media-s3</module>
+    <module>keycloak</module>
   </modules>
 
   <dependencyManagement>
