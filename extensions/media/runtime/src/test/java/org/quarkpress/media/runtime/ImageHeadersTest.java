@@ -11,8 +11,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
+import java.util.Random;
 import java.util.zip.CRC32;
 import java.util.zip.Deflater;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.media.ImageInfo;
 import org.quarkpress.testing.wprestparity.MediaFixtures;
@@ -94,14 +97,14 @@ class ImageHeadersTest {
 
     @Test
     void theIspeWalkReadsAnAvifHeader() {
-        assertThat(ImageHeaders.ispe(MediaFixtures.heif("avif"))).containsExactly(3000, 2000);
-        assertThat(ImageHeaders.ispe(new byte[0])).isNull();
+        assertThat(ImageHeaders.avifSize(MediaFixtures.heif("avif"))).containsExactly(3000, 2000);
+        assertThat(ImageHeaders.avifSize(new byte[0])).isNull();
         byte[] cut = Arrays.copyOf(MediaFixtures.heif("avif"), 60);
-        assertThat(ImageHeaders.ispe(cut)).isNull();
+        assertThat(ImageHeaders.avifSize(cut)).isNull();
         // a box claiming more bytes than its parent holds ends the walk
         byte[] broken = MediaFixtures.heif("avif");
         broken[0] = 0x7F;
-        assertThat(ImageHeaders.ispe(broken)).isNull();
+        assertThat(ImageHeaders.avifSize(broken)).isNull();
     }
 
     // ---- hostile and unusual headers -------------------------------------------------------------------------------
@@ -254,11 +257,11 @@ class ImageHeadersTest {
                         .array(),
                 Arrays.copyOfRange(meta, 8, metaSize),
                 Arrays.copyOfRange(meta, metaSize, meta.length));
-        assertThat(ImageHeaders.ispe(large)).containsExactly(3000, 2000);
+        assertThat(ImageHeaders.avifSize(large)).containsExactly(3000, 2000);
         // a meta box of size 0 runs to the end of the file
         byte[] open = concat(Arrays.copyOf(avif, ftyp), Arrays.copyOf(meta, metaSize));
         ByteBuffer.wrap(open).putInt(ftyp, 0);
-        assertThat(ImageHeaders.ispe(open)).containsExactly(3000, 2000);
+        assertThat(ImageHeaders.avifSize(open)).containsExactly(3000, 2000);
         // more boxes than the walk visits before the meta box
         byte[] free = ByteBuffer.allocate(8)
                 .putInt(8)
@@ -266,10 +269,102 @@ class ImageHeadersTest {
                 .array();
         byte[][] parts = new byte[ImageHeaders.MAX_BOXES + 2][];
         Arrays.fill(parts, free);
+        parts[0] = Arrays.copyOf(avif, ftyp);
         parts[parts.length - 1] = meta;
-        assertThat(ImageHeaders.ispe(concat(parts))).isNull();
+        assertThat(ImageHeaders.avifSize(concat(parts))).isNull();
         parts = Arrays.copyOfRange(parts, ImageHeaders.MAX_BOXES / 2, parts.length);
-        assertThat(ImageHeaders.ispe(concat(parts))).containsExactly(3000, 2000);
+        parts[0] = Arrays.copyOf(avif, ftyp);
+        assertThat(ImageHeaders.avifSize(concat(parts))).containsExactly(3000, 2000);
+    }
+
+    // ---- the primary item's size, as WordPress reads it ------------------------------------------------------------
+
+    @Test
+    void anAvifsSizeIsItsPrimaryItemsAsWordPressReadsIt() {
+        SoftAssertions softly = new SoftAssertions();
+        for (AvifPrimaryItemCases.Case c : AvifPrimaryItemCases.cases()) {
+            long[] size = ImageHeaders.avifSize(c.bytes());
+            if (c.sized()) {
+                softly.assertThat(size).as(c.name()).containsExactly(c.width(), c.height());
+            } else {
+                softly.assertThat(size).as(c.name()).isNull();
+            }
+        }
+        softly.assertAll();
+    }
+
+    @Test
+    void anAvifFileGetsItsPrimaryItemsSize() throws IOException {
+        SoftAssertions softly = new SoftAssertions();
+        for (AvifPrimaryItemCases.Case c : AvifPrimaryItemCases.cases()) {
+            Path file = write(c.bytes());
+            Optional<ImageInfo> info = ImageHeaders.read(file);
+            if (c.sized() && !AvifPrimaryItemCases.avifMajorBrand(c.bytes())) {
+                // D8: Tika calls a file AVIF by its major brand alone; WordPress's detector reads the compatible ones
+                softly.assertThat(ImageSignatures.realType(file)).as(c.name()).contains("image/heif");
+                softly.assertThat(info).as(c.name()).isEmpty();
+            } else if (c.sized()) {
+                softly.assertThat(info).as(c.name()).contains(new ImageInfo("image/avif", c.width(), c.height()));
+            } else {
+                softly.assertThat(info).as(c.name()).isEmpty();
+            }
+        }
+        softly.assertAll();
+    }
+
+    @Test
+    void hostileAvifHeadersEndTheReadQuickly() {
+        // counts far above what the reader keeps, and sizes far beyond the bytes there are
+        byte[] ftyp = AvifPrimaryItemCases.AVIF;
+        byte[] counts = concat(
+                ftyp,
+                ByteBuffer.allocate(48)
+                        .putInt(48)
+                        .put(ascii("meta"))
+                        .putInt(0)
+                        .putInt(36)
+                        .put(ascii("iprp"))
+                        .putInt(28)
+                        .put(ascii("ipma"))
+                        .putInt(0)
+                        .putInt(-1) // entries
+                        .putShort((short) 1)
+                        .put((byte) 0xFF) // associations
+                        .put(new byte[5])
+                        .array());
+        assertThat(assertTimeoutPreemptively(QUICK, () -> ImageHeaders.avifSize(counts)))
+                .isNull();
+        byte[] tiles = concat(
+                ftyp,
+                ByteBuffer.allocate(36)
+                        .putInt(36)
+                        .put(ascii("meta"))
+                        .putInt(0)
+                        .putInt(24)
+                        .put(ascii("iref"))
+                        .putInt(0)
+                        .putInt(12)
+                        .put(ascii("dimg"))
+                        .putShort((short) 1)
+                        .putShort((short) 0xFFFF) // references
+                        .array());
+        assertThat(assertTimeoutPreemptively(QUICK, () -> ImageHeaders.avifSize(tiles)))
+                .isNull();
+        Random random = new Random(42);
+        byte[] base = AvifPrimaryItemCases.cases().getFirst().bytes();
+        for (int i = 0; i < 20_000; i++) {
+            byte[] mutated = base.clone();
+            for (int j = random.nextInt(4); j >= 0; j--) {
+                mutated[random.nextInt(mutated.length)] = (byte) random.nextInt(256);
+            }
+            int cut = random.nextInt(4) == 0 ? random.nextInt(mutated.length) : mutated.length;
+            long[] size = ImageHeaders.avifSize(Arrays.copyOf(mutated, cut));
+            assertThat(size == null || (size[0] > 0 && size[1] > 0)).isTrue();
+        }
+    }
+
+    private static byte[] ascii(String text) {
+        return text.getBytes(StandardCharsets.US_ASCII);
     }
 
     @Test

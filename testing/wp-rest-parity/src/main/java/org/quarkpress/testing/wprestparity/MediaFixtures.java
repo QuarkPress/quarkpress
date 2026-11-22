@@ -462,6 +462,147 @@ public final class MediaFixtures {
         return concat(ftyp, meta, box("mdat"));
     }
 
+    /**
+     * The boxes of a hand-written AVIF header, for files whose items, properties and associations a test arranges
+     * itself: a file is {@link #file(byte[]...) file}{@code (ftyp(...), meta(0, pitm(...), iprp(ipco(...),
+     * ipma(...)), iref(...)), box("mdat"))}, in any order and with any of the parts left out. Only the boxes a header
+     * reader looks at, and the item information ({@code iinf}) that PHP's {@code getimagesize} also wants, are
+     * written: no {@code hdlr} and no coded pixels. {@link #box} and {@link #fullBox} write anything else, malformed
+     * boxes included.
+     */
+    public static final class AvifBoxes {
+
+        private AvifBoxes() {}
+
+        /** The boxes one after the other. */
+        public static byte[] file(byte[]... boxes) {
+            return concat(boxes);
+        }
+
+        /** A plain box. */
+        public static byte[] box(String type, byte[]... content) {
+            return MediaFixtures.box(type, content);
+        }
+
+        /** A box with a version byte and three flag bytes before its content. */
+        public static byte[] fullBox(String type, int version, int flags, byte[]... content) {
+            return MediaFixtures.fullBox(type, version, flags, content);
+        }
+
+        /** The file type box: the major brand, minor version 0, then the compatible brands. */
+        public static byte[] ftyp(String major, String... compatible) {
+            byte[][] brands = new byte[compatible.length][];
+            for (int i = 0; i < compatible.length; i++) {
+                brands[i] = ascii(compatible[i]);
+            }
+            return box("ftyp", ascii(major), u32(0), concat(brands));
+        }
+
+        public static byte[] meta(int version, byte[]... children) {
+            return fullBox("meta", version, 0, children);
+        }
+
+        /** The primary item: a 16-bit id in version 0, a 32-bit one in version 1. */
+        public static byte[] pitm(int version, long id) {
+            return fullBox("pitm", version, 0, version == 0 ? u16((int) id) : u32((int) id));
+        }
+
+        /** The item information: one version 2 {@code infe} per item, of type {@code av01} (or {@code grid}). */
+        public static byte[] iinf(int... items) {
+            byte[][] entries = new byte[items.length][];
+            for (int i = 0; i < items.length; i++) {
+                entries[i] = item(items[i], "av01");
+            }
+            return fullBox("iinf", 0, 0, u16(items.length), concat(entries));
+        }
+
+        /** One item's information entry (version 2): id, protection index 0, type and an empty name. */
+        public static byte[] item(int id, String type) {
+            return fullBox("infe", 2, 0, u16(id), u16(0), ascii(type), new byte[] {0});
+        }
+
+        /** The item information holding {@code entries}, each made by {@link #item(int, String)}. */
+        public static byte[] iinf(byte[]... entries) {
+            return fullBox("iinf", 0, 0, u16(entries.length), concat(entries));
+        }
+
+        public static byte[] iprp(byte[]... children) {
+            return box("iprp", children);
+        }
+
+        /** The item properties, numbered from 1 in this order. */
+        public static byte[] ipco(byte[]... properties) {
+            return box("ipco", properties);
+        }
+
+        /** The image spatial extents property. */
+        public static byte[] ispe(long width, long height) {
+            return fullBox("ispe", 0, 0, u32((int) width), u32((int) height));
+        }
+
+        /** The pixel information property: one bit depth per channel. */
+        public static byte[] pixi(int... depths) {
+            byte[] content = new byte[1 + depths.length];
+            content[0] = (byte) depths.length;
+            for (int i = 0; i < depths.length; i++) {
+                content[1 + i] = (byte) depths[i];
+            }
+            return fullBox("pixi", 0, 0, content);
+        }
+
+        /**
+         * An AV1 codec configuration: marker and version, profile and level, then {@code depthBits} (0x40 high bit
+         * depth, 0x20 twelve bit, 0x10 monochrome) with 4:2:0 chroma subsampling, and the delay byte.
+         */
+        public static byte[] av1C(int depthBits) {
+            return box("av1C", new byte[] {(byte) 0x81, 0x00, (byte) (depthBits | 0x0C), 0x00});
+        }
+
+        /**
+         * The item property associations, one entry per array: the item id, then its property numbers in order (a
+         * number with 0x8000 set is written as essential). Version 1 writes 32-bit item ids, flag bit 0 two-byte
+         * associations.
+         *
+         * @throws IllegalArgumentException for more than 255 associations in one entry, or a property number above 127
+         *     without flag bit 0 (a one-byte association holds 7 bits)
+         */
+        public static byte[] ipma(int version, int flags, int[]... entries) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            out.writeBytes(u32(entries.length));
+            boolean wide = (flags & 1) != 0;
+            for (int[] entry : entries) {
+                if (entry.length - 1 > 255) {
+                    throw new IllegalArgumentException("an entry holds at most 255 associations");
+                }
+                out.writeBytes(version == 0 ? u16(entry[0]) : u32(entry[0]));
+                out.write(entry.length - 1);
+                for (int i = 1; i < entry.length; i++) {
+                    int essential = (entry[i] & 0x8000) != 0 ? 1 : 0;
+                    int number = entry[i] & 0x7FFF;
+                    if (!wide && number > 0x7F) {
+                        throw new IllegalArgumentException("property " + number + " needs two-byte associations");
+                    }
+                    out.writeBytes(
+                            wide ? u16(essential << 15 | number) : new byte[] {(byte) (essential << 7 | number)});
+                }
+            }
+            return fullBox("ipma", version, flags, out.toByteArray());
+        }
+
+        public static byte[] iref(int version, byte[]... references) {
+            return fullBox("iref", version, 0, references);
+        }
+
+        /** A derived image's references: from item {@code from} to its tiles, 16-bit ids. */
+        public static byte[] dimg(int from, int... tiles) {
+            byte[][] ids = new byte[tiles.length][];
+            for (int i = 0; i < tiles.length; i++) {
+                ids[i] = u16(tiles[i]);
+            }
+            return box("dimg", u16(from), u16(tiles.length), concat(ids));
+        }
+    }
+
     // ---- committed coded images (fixtures/) ------------------------------------------------------------------
 
     /**

@@ -35,8 +35,9 @@ import org.quarkpress.testing.wporacle.WordPressSources;
 /**
  * Compares the media module's pure rules with WordPress's functions (testing/wp-oracle): the size arithmetic,
  * {@code wp_constrain_dimensions} and {@code image_resize_dimensions}, and file-name sanitizing, {@code
- * sanitize_file_name}, and the EXIF numbers, {@code wp_exif_frac2dec}, {@code wp_exif_date2ts} and {@code round}, over
- * the reference's examples and generated cases. WordPress's {@code media.php} is not among the files the oracle pins
+ * sanitize_file_name}, the EXIF numbers, {@code wp_exif_frac2dec}, {@code wp_exif_date2ts} and {@code round}, over
+ * the reference's examples and generated cases, and the AVIF header sizes of {@link AvifPrimaryItemCases}, {@code
+ * wp_getimagesize} and {@code wp_get_avif_info}. WordPress's {@code media.php} is not among the files the oracle pins
  * one by one, so the functions are taken
  * from the pinned (SHA-256 verified) release archive. Active only with {@code -Pwp-parity}.
  */
@@ -56,6 +57,7 @@ class MediaParityTest {
             "wp-includes/media.php",
             "wp-includes/formatting.php",
             "wp-includes/compat.php",
+            "wp-includes/class-avif-info.php",
             "wp-admin/includes/image.php");
 
     static final int GENERATED = 10_000;
@@ -528,6 +530,43 @@ class MediaParityTest {
         System.out.println("media exif parity: " + run.comparisons() + " comparisons, "
                 + run.mismatches().size() + " differences");
         run.assertParity(MIN_EXIF_COMPARISONS);
+    }
+
+    static final Path AVIF_FAILURES = Path.of("target/wp-parity-media-avif-failures.json");
+
+    @Test
+    void avifSizes() throws Exception {
+        PhpOracle oracle = PhpOracle.create(wordpress());
+        ParityRun run = new ParityRun("media-avif", skips("avif-"), AVIF_FAILURES);
+        Path dir = Path.of("target", "wp-parity-avif").toAbsolutePath();
+        Files.createDirectories(dir);
+        List<AvifPrimaryItemCases.Case> avifs = AvifPrimaryItemCases.cases();
+        List<PhpOracle.Case> cases = new ArrayList<>();
+        for (AvifPrimaryItemCases.Case avif : avifs) {
+            Path file = dir.resolve(avif.name() + ".avif");
+            Files.write(file, avif.bytes());
+            cases.add(new PhpOracle.Case(
+                    avif.name(),
+                    OracleJson.MAPPER.createObjectNode().put("op", "imagesize").put("file", file.toString())));
+        }
+        Map<String, JsonNode> out = oracle.run(DRIVER, cases);
+        for (AvifPrimaryItemCases.Case avif : avifs) {
+            String id = "avif-" + avif.name();
+            JsonNode theirs = out.get(avif.name());
+            String ours = ImageHeaders.read(dir.resolve(avif.name() + ".avif"))
+                    .map(info -> "[" + info.width() + "," + info.height() + ",\"" + info.mimeType() + "\"]")
+                    .orElse("false");
+            run.compare(id, "wp_getimagesize", theirs.get("size").toString(), ours);
+            long[] size = ImageHeaders.avifSize(avif.bytes());
+            run.compare(
+                    id,
+                    "wp_get_avif_info",
+                    theirs.get("reader").toString(),
+                    size == null ? "false" : "[" + size[0] + "," + size[1] + "]");
+        }
+        System.out.println("media avif parity: " + run.comparisons() + " comparisons, "
+                + run.mismatches().size() + " differences");
+        run.assertParity(avifs.size());
     }
 
     private static ObjectNode textOp(String op, String text) {
