@@ -75,6 +75,16 @@ The behaviour is WordPress's, including the parts that surprise:
 - kses is not idempotent: a second pass can change WordPress's own output (in bare mode `<!a<b>>` gains a
   `&gt;` on every pass; with `Kses.wordPress()` the output is stable).
 
+### E-mail addresses
+
+`Emails.isEmail` is WordPress's `is_email`: at least 6 characters, an `@` after the first character, a local part of
+ASCII letters, digits and ``!#$%&'*+/=?^_`{|}~.-``, and a domain of at least two dot-separated labels of ASCII
+letters, digits and `-` (no label empty or starting or ending with `-`). Nothing is trimmed, so a padded address is
+refused. It scans each character once. An address it accepts is one WordPress's `sanitize_email` leaves unchanged.
+One difference: WordPress's `is_email` accepts a local part that ends in a line feed (`"a\n@b.co"`), which its
+`sanitize_email` then turns into `a@b.co`; `Emails.isEmail` refuses it. The security module checks imported users'
+addresses with it, and the REST API its `email` format.
+
 ## Differences from WordPress
 
 Checked by the `wp-parity` profile; each row is an entry of `src/test/resources/wp-parity-skip.txt`. Rows that

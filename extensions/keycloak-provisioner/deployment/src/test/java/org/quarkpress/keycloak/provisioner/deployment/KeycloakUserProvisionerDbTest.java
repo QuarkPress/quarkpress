@@ -225,6 +225,8 @@ class KeycloakUserProvisionerDbTest {
         assertThat(retried.createdInIdentityProvider()).isFalse();
         assertThat(retried.profileCreated()).isTrue();
         assertThat(retried.profile().subject()).isEqualTo(created.subject());
+        // the Keycloak user existed for this call, so the profile waits for the e-mail of the first sign-in
+        assertThat(retried.profile().email()).isEmpty();
         assertThat(keycloak.byUsername(name)).hasSize(1);
         assertThat(credentials(created.subject())).hasSize(1);
 

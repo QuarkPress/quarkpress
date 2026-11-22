@@ -96,13 +96,13 @@ applications; nothing in QuarkPress calls it on its own, and the REST API's `POS
   cost above 16, phpass counts above `I`) with "not a WordPress password hash". Its `toString` and every message leave
   the hash out. Jackson skips it as a property (`@JsonIgnoreType`) and, where it writes one anyway (inside an
   `Optional` or a collection, as `NewUser.password`), writes the redacted text `PasswordHash[wordpress, redacted]`.
-- **The identity provider.** An identity-provider module (`quarkpress-keycloak-provisioner`) implements
-  `UserProvisioner` with an `@ApplicationScoped` bean. It is called with any transaction of the caller suspended, and
-  is idempotent by username: an existing user of that username is returned as it is, credentials untouched. Without
-  such a module the default bean refuses with `UserProvisioningException` `NOT_CONFIGURED`. Its other reasons are
-  `EMAIL_TAKEN`, `INVALID_USER` (the identity provider refused the username or another field), `UNAUTHORIZED` and
-  `UNAVAILABLE`; messages are fixed texts. Not to be confused with `UserProfileProvisioner`, which shapes the profile
-  at login.
+- **The identity provider.** An identity-provider module (`quarkpress-keycloak-provisioner`, see its README for
+  Keycloak's side) implements `UserProvisioner` with an `@ApplicationScoped` bean. It is called with any transaction
+  of the caller suspended, and is idempotent by username: an existing user of that username is returned as it is,
+  credentials untouched. Without such a module the default bean refuses with `UserProvisioningException`
+  `NOT_CONFIGURED`. Its other reasons are `EMAIL_TAKEN`, `INVALID_USER` (the identity provider refused the username or
+  another field), `UNAUTHORIZED` and `UNAVAILABLE`; messages are fixed texts. Not to be confused with
+  `UserProfileProvisioner`, which shapes the profile at login.
 - **The profile** is created in a transaction of its own for the subject the identity provider returned: nicename from
   the username as at login (above), display name and e-mail as given (above), no login time, and `UserProfileCreated`
   fired. When the identity provider already had the user, the profile gets no e-mail: the user's first login brings
@@ -113,6 +113,9 @@ applications; nothing in QuarkPress calls it on its own, and the REST API's `POS
 - **Result and retries.** `ImportedUser` carries the profile and whether the identity-provider user and the profile were
   created by this call. Nothing is retried automatically; a failure leaves no profile, and calling again finds the
   identity-provider user already made and creates the profile.
+- **Password hashes.** Only callers that read WordPress's `wp_users.user_pass` have a hash to pass. A WXR file
+  carries none (WordPress's exporter never writes hashes), so users imported from WXR have no password in the
+  identity provider until they set one there.
 
 ## The identity
 
