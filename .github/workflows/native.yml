@@ -8,6 +8,7 @@ on:
       - 'extensions/**'
       - 'libs/**'
       - 'integration-tests/**'
+      - 'testing/**'
       - 'bom/**'
       - 'pom.xml'
       - '.github/workflows/native.yml'
