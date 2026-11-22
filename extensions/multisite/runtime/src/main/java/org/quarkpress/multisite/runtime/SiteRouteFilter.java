@@ -32,6 +32,13 @@ public class SiteRouteFilter {
     /** Where the decision is stored on the routing context and in the duplicated context. */
     public static final String KEY = "org.quarkpress.multisite.routed-site";
 
+    /**
+     * Where the routing context keeps the request's {@link org.quarkpress.core.SiteId}, set only when
+     * {@link RoutedSite#site()} has one. Modules that use multisite optionally read this key: its value is a core type,
+     * so they never load a class of this module (a native image without multisite could not link one).
+     */
+    public static final String SITE_KEY = "org.quarkpress.multisite.routed-site-id";
+
     /** Filters with a higher priority run first; this one runs before authentication. */
     public static final int PRIORITY = 250;
 
@@ -76,6 +83,7 @@ public class SiteRouteFilter {
                     }
                     RoutedSite routed = result.result();
                     context.put(KEY, routed);
+                    routed.site().ifPresent(site -> context.put(SITE_KEY, site));
                     if (VertxContext.isOnDuplicatedContext()) {
                         ContextLocals.put(KEY, routed);
                     }

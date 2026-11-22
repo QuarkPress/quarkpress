@@ -76,8 +76,7 @@ public class FrontEndFilter {
             context.next();
             return;
         }
-        Object routed = context.get(SiteRouteFilter.KEY);
-        Optional<SiteId> site = routed == null ? Optional.empty() : RoutedSites.site(routed);
+        Optional<SiteId> site = Optional.ofNullable(context.get(SiteRouteFilter.SITE_KEY));
         if (site.isEmpty()) {
             decide(context, method, path, query, "/");
             return;
