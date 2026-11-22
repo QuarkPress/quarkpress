@@ -128,7 +128,12 @@ jobs:
           # Not exported as QUARKUS_LIBVIPS_LIBRARY: quarkus-libvips finds libvips.so.42 by its soname, and an
           # environment value would override the tests that point quarkus.libvips.library at a missing file.
       - name: Install quarkus-libvips at the pinned commit
-        # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
+        # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden.
+        # A build of that checkout reads its own .mvn/, not ours: the retry settings of ours are passed here.
+        env:
+          MAVEN_ARGS: >-
+            -Daether.connector.http.retryHandler.count=8 -Daether.connector.http.retryHandler.interval=10000
+            -Daether.connector.http.retryHandler.serviceUnavailable=429,503
         run: |
           rm -rf ~/.m2/repository/org/sitenetsoft/quarkus-libvips*
           mvn -B -ntp install -DskipTests -f .quarkus-libvips/pom.xml -pl runtime,deployment -am
