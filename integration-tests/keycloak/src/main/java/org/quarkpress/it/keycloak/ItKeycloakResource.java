@@ -2,6 +2,7 @@ package org.quarkpress.it.keycloak;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.ForbiddenException;
@@ -49,7 +50,11 @@ public class ItKeycloakResource {
     public record ImportRequest(
             String username, String email, String displayName, String firstName, String lastName, String hash) {}
 
-    /** The outcome of an import: the Keycloak subject and the QuarkPress profile. */
+    /**
+     * The outcome of an import: the Keycloak subject and the QuarkPress profile. Sent inside a {@link Response}, which
+     * hides the type from Quarkus, so it is registered for reflection (else the native image cannot serialize it).
+     */
+    @RegisterForReflection
     public record ImportResponse(
             String subject,
             long userId,
@@ -58,7 +63,8 @@ public class ItKeycloakResource {
             boolean createdInIdentityProvider,
             boolean profileCreated) {}
 
-    /** A refused import: the provisioner's reason and fixed message. */
+    /** A refused import: the provisioner's reason and fixed message; registered like {@link ImportResponse}. */
+    @RegisterForReflection
     public record ImportFailure(String reason, String message) {}
 
     /** A user Keycloak creates with a password it hashes itself, for comparison with a migrated one. */
