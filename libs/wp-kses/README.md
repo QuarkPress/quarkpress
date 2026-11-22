@@ -81,9 +81,8 @@ The behaviour is WordPress's, including the parts that surprise:
 ASCII letters, digits and ``!#$%&'*+/=?^_`{|}~.-``, and a domain of at least two dot-separated labels of ASCII
 letters, digits and `-` (no label empty or starting or ending with `-`). Nothing is trimmed, so a padded address is
 refused. It scans each character once. An address it accepts is one WordPress's `sanitize_email` leaves unchanged.
-One difference: WordPress's `is_email` accepts a local part that ends in a line feed (`"a\n@b.co"`), which its
-`sanitize_email` then turns into `a@b.co`; `Emails.isEmail` refuses it. The security module checks imported users'
-addresses with it, and the REST API its `email` format.
+It refuses a local part that ends in a line feed, which WordPress accepts (difference 15). The security module
+checks imported users' addresses with it, and the REST API its `email` format.
 
 ## Differences from WordPress
 
@@ -110,6 +109,7 @@ other change in them still fails.
 | 12 | above 32 `url()` or gradient removals in one declaration, matched spans are removed instead of every occurrence of each text, and the declaration is dropped if a removed text still occurs: some pathological style values that WordPress keeps are dropped | removes every occurrence with `str_replace` | linear time; fails closed |
 | 13 | a `pre_kses` filter (`preFilter`) always runs after the default pre-filters | the block-attribute filter re-adds itself at the end of priority 10, so from the second kses call on, a host filter at priority 10 runs before it | fixed order, no global hook state |
 | 14 | the attribute parser reads an unquoted value past `>` (`x=a>b c=d` gives `x` and `c`) | stops at `>` (`x=a` only) | unreachable: kses's tokenizer ends the attribute text at `>`, and `oneAttr` (whose text can contain `>`, as in `title=a>b c=d`) splits on `=` itself and never uses the parser |
+| 15 | `Emails.isEmail` refuses a local part that ends in a line feed (`"a\n@b.co"`) | `is_email` accepts it, and `sanitize_email` then turns it into `a@b.co` | an address that changes when sanitized is not a valid address; pinned by `EmailsTest` |
 
 ## Parity testing
 

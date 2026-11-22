@@ -20,3 +20,4 @@ gen/soup-*/wp kses:delimiters-neutralized #11 generated soup where the only chan
 ruling-12-* safecss #12 more than 32 url() or gradient removals in one declaration: span removal fails closed and drops it
 none - #13 a host pre_kses filter always runs after the default pre-filters; from WordPress's second kses call on, one at priority 10 runs before the block filter
 ruling-14-* hair #14 the attribute parser reads an unquoted value past ">" where WordPress stops (unreachable through kses and oneAttr)
+none - #15 is_email accepts a local part that ends in a line feed; Emails.isEmail refuses it (pinned by EmailsTest)
