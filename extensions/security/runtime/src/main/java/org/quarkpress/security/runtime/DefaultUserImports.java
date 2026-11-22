@@ -65,23 +65,34 @@ public class DefaultUserImports implements UserImports {
     }
 
     /** Calls the provisioner with the caller's transaction, if any, suspended; its exceptions pass unchanged. */
-    private ProvisionedIdentity outsideTransaction(NewUser user) {
+    ProvisionedIdentity outsideTransaction(NewUser user) {
         Transaction suspended;
         try {
             suspended = transactions.suspend();
         } catch (SystemException e) {
             throw new IllegalStateException("cannot suspend the caller's transaction", e);
         }
+        ProvisionedIdentity provisioned;
         try {
-            return Objects.requireNonNull(provisioner.provision(user), "the provisioner returned null");
-        } finally {
+            provisioned = Objects.requireNonNull(provisioner.provision(user), "the provisioner returned null");
+        } catch (RuntimeException | Error failure) {
             if (suspended != null) {
                 try {
                     transactions.resume(suspended);
-                } catch (InvalidTransactionException | SystemException e) {
-                    throw new IllegalStateException("cannot resume the caller's transaction", e);
+                } catch (InvalidTransactionException | SystemException | RuntimeException e) {
+                    // the provisioner's failure is the one the caller must see
+                    failure.addSuppressed(e);
                 }
             }
+            throw failure;
         }
+        if (suspended != null) {
+            try {
+                transactions.resume(suspended);
+            } catch (InvalidTransactionException | SystemException e) {
+                throw new IllegalStateException("cannot resume the caller's transaction", e);
+            }
+        }
+        return provisioned;
     }
 }
