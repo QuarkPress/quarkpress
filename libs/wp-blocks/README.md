@@ -184,7 +184,7 @@ than 300 fixtures are found.
 ## Parity testing
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 block
-parser files into `target/wp-source/` and compares the parse tree, `serializeCanonical`,
+parser files into `.cache/wp-source/` and compares the parse tree, `serializeCanonical`,
 `hasBlocks` and `hasBlock` with `parse_blocks`, `serialize_blocks`, `has_blocks` and `has_block` on
 hand-written cases (`src/test/resources/wp-parity-cases.json`), the corpus in
 `src/test/resources/wp/`, the Gutenberg fixtures when `-Pconformance` is active too, and a few

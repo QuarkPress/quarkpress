@@ -112,7 +112,7 @@ Each difference is exercised by the tests, and the `wp-parity` profile compares 
 
 `mvn verify -Pwp-parity` (needs `php` 8.4.28 or a later 8.4 release, with `hash` and `sodium`, and network for the first download) fetches the
 pinned WordPress 7.1.3 files (`pluggable.php`, `class-phpass.php`, `class-wp-application-passwords.php`, and
-`wp_fast_hash` from `functions.php`) into `target/wp-source/` and runs `WpPasswordsParityTest` in two oracle runs.
+`wp_fast_hash` from `functions.php`) into `.cache/wp-source/` and runs `WpPasswordsParityTest` in two oracle runs.
 
 The first run lets WordPress make hashes: `wp_hash_password` at cost 4 through the real `wp_hash_password_options`
 filter (for two generated passwords and for passwords of 4096 and 4097 bytes), `PasswordHash::crypt_private` for

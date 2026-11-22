@@ -30,8 +30,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 /**
- * Downloads WordPress source files of a pinned release into {@code target/wp-source/<version>/} of the project
- * root, verifies each against its SHA-256 pin, and reuses verified files on later runs. The files are a
+ * Downloads WordPress source files of a pinned release into {@code <version>/} of the source cache (see
+ * {@link #sourceRoot()}), verifies each against its SHA-256 pin, and reuses verified files on later runs. The files are a
  * test-time input only: never committed, never shipped. A file lock in that directory keeps modules that build
  * in parallel from downloading the same file at once.
  */
@@ -59,8 +59,21 @@ public final class WordPressSources {
      * present and verified, and returns the directory that holds them.
      */
     public static Path ensure(WordPressRelease release, String... files) throws IOException, InterruptedException {
-        Path dir = projectRoot().resolve("target").resolve("wp-source").resolve(release.version());
+        Path dir = sourceRoot().resolve(release.version());
         return ensure(release, dir, DEFAULT_BASE, List.of(files));
+    }
+
+    /**
+     * {@return the directory the pinned downloads are kept in} {@code -DwpSourceDir} when set, else
+     * {@code .cache/wp-source/} of the project root: outside {@code target/}, so {@code mvn clean} keeps the
+     * downloads. Ignored by git.
+     */
+    static Path sourceRoot() {
+        String dir = System.getProperty("wpSourceDir");
+        if (dir != null && !dir.isBlank()) {
+            return Path.of(dir);
+        }
+        return projectRoot().resolve(".cache").resolve("wp-source");
     }
 
     static Path projectRoot() {
@@ -73,10 +86,10 @@ public final class WordPressSources {
 
     /**
      * Makes sure {@code files} (paths relative to the repository root) of a pinned non-WordPress repository are
-     * present and verified in {@code target/wp-source/<name>/}, and returns that directory.
+     * present and verified in {@code <name>/} of the source cache, and returns that directory.
      */
     public static Path ensure(PinnedRepository repository, String... files) throws IOException, InterruptedException {
-        Path dir = projectRoot().resolve("target").resolve("wp-source").resolve(repository.name());
+        Path dir = sourceRoot().resolve(repository.name());
         return ensure(repository, dir, List.of(files));
     }
 
@@ -92,11 +105,10 @@ public final class WordPressSources {
     }
 
     /**
-     * Makes sure the pinned file is present and verified in {@code target/wp-source/<name>/} of the project root, and
-     * returns it.
+     * Makes sure the pinned file is present and verified in {@code <name>/} of the source cache, and returns it.
      */
     public static Path ensure(PinnedDownload download) throws IOException, InterruptedException {
-        Path dir = projectRoot().resolve("target").resolve("wp-source").resolve(download.name());
+        Path dir = sourceRoot().resolve(download.name());
         return ensure(download, dir);
     }
 

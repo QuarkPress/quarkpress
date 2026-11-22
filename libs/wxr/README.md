@@ -200,7 +200,7 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
 ## Parity testing
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files and the
-WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `target/wp-source/`, and runs the importer
+WordPress Importer 0.9.6 (commit `3ca8839`) into the repository's `.cache/wp-source/`, and runs the importer
 (`src/test/php/importer-driver.php`) and WordPress's own `export_wp()` (`src/test/php/export-driver.php`) through
 `testing/wp-oracle` on the same inputs as this library. The reader, the writer, a round trip and the meta values
 are compared.

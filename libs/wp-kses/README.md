@@ -114,7 +114,7 @@ other change in them still fails.
 ## Parity testing
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 with the `pcntl` extension, and network) downloads the
-pinned WordPress 7.1.3 files into the repository's `target/wp-source/` and compares, through
+pinned WordPress 7.1.3 files into the repository's `.cache/wp-source/` and compares, through
 `testing/wp-oracle`: the data tables (`WpKsesTablesParityTest`), every reference example in
 `src/test/resources/examples/` (WordPress must still give the recorded value), the ruling and edge cases
 (`wp-parity-cases.json`), the XSS corpus (`xss-corpus.json`) in three settings, and fixed-seed
@@ -130,7 +130,7 @@ Data that comes from WordPress is regenerated, then reviewed as a diff, after a 
 - `src/main/resources/org/quarkpress/lib/wpkses/html5-named-references.txt`:
   `php src/test/php/export-html5-references.php <wordpress-src-dir>` (needs `iconv`)
 
-`<wordpress-src-dir>` is the repository's `target/wp-source/7.1.3` after a parity run.
+`<wordpress-src-dir>` is the repository's `.cache/wp-source/7.1.3` after a parity run.
 
 ## Source policy
 

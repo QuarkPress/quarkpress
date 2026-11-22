@@ -154,6 +154,28 @@ class WordPressSourcesTest {
     }
 
     @Test
+    void downloadsAreKeptOutsideTargetUnlessWpSourceDirIsSet() {
+        String savedRoot = System.setProperty("quarkpressRoot", "/repo");
+        String savedDir = System.clearProperty("wpSourceDir");
+        try {
+            assertThat(WordPressSources.sourceRoot()).isEqualTo(Path.of("/repo/.cache/wp-source"));
+            System.setProperty("wpSourceDir", "/elsewhere/wp");
+            assertThat(WordPressSources.sourceRoot()).isEqualTo(Path.of("/elsewhere/wp"));
+        } finally {
+            restore("quarkpressRoot", savedRoot);
+            restore("wpSourceDir", savedDir);
+        }
+    }
+
+    private static void restore(String name, String value) {
+        if (value == null) {
+            System.clearProperty(name);
+        } else {
+            System.setProperty(name, value);
+        }
+    }
+
+    @Test
     void pinnedRepositoryFilesAreDownloadedAndVerified() throws Exception {
         String ref = "c".repeat(40);
         byte[] body = "<?php // parser\n".getBytes(StandardCharsets.UTF_8);

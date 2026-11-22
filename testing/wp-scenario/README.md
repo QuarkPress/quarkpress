@@ -21,7 +21,7 @@ agreed can be read too; the comparison itself reports only differences.
 ## How it works
 
 - **Release.** The WordPress 7.1.3 release archive is pinned by SHA-256 in testing/wp-oracle
-  (`wordpress-7.1.3-release.sha256`), downloaded into `target/wp-source/` and unpacked into `target/wp-scenario/`.
+  (`wordpress-7.1.3-release.sha256`), downloaded into `.cache/wp-source/` and unpacked into `target/wp-scenario/`.
   Neither is committed.
 - **Installation.** A PHP driver written for QuarkPress (`php/scenario-driver.php`) installs single-site WordPress into
   a template database of the `mysql:9.5` container and converts it into a network: subdirectory, subdirectory under

@@ -132,7 +132,7 @@ names around 1 MB of text take well under a second). Handler and hook exceptions
 ## Parity testing
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files into
-`target/wp-source/` and compares `apply` (both `ignoreHtml` values), `strip`, `has`, `tagsIn`, `unautop`,
+`.cache/wp-source/` and compares `apply` (both `ignoreHtml` values), `strip`, `has`, `tagsIn`, `unautop`,
 attribute parsing and `withDefaults` with WordPress on the behavior reference's examples
 (`src/test/resources/wp-parity-cases.json`) and a few thousand generated inputs, and checks the "post"
 allowlist table against `wp_kses_allowed_html('post')`. See `testing/wp-oracle`.

@@ -166,7 +166,7 @@ Checked by the `wp-parity` profile against PHP 8.4 and WordPress 7.1.3; each is 
 ## Parity testing
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files
-into `target/wp-source/`, runs PHP's `unserialize()`/`serialize()` and WordPress's four helpers on the
+into `.cache/wp-source/`, runs PHP's `unserialize()`/`serialize()` and WordPress's four helpers on the
 hand-written cases (`src/test/resources/wp-parity-cases.json`), the fixtures in `src/test/resources/wp/`
 and a few thousand generated inputs, and compares every result with this library. See
 `testing/wp-oracle`.

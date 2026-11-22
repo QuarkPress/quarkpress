@@ -208,12 +208,15 @@
   <profiles>
     <profile>
       <!-- Compares the standalone libraries with real WordPress PHP code (testing/wp-oracle): downloads pinned
-           WordPress files into target/wp-source and runs php 8.4. Needs network and php; without them the
-           parity tests fail rather than skip. Override with -Dwp.php=/path/to/php or -Dwp.version=... -->
+           WordPress files into .cache/wp-source and runs php 8.4. Needs network and php; without them the
+           parity tests fail rather than skip. Override with -Dwp.php=/path/to/php, -Dwp.version=... or
+           -DwpSourceDir=/path/to/cache (shared by several checkouts, for example). -->
       <id>wp-parity</id>
       <properties>
         <wp.version>7.1.3</wp.version>
         <wp.php>php</wp.php>
+        <!-- empty: .cache/wp-source of the project root -->
+        <wpSourceDir></wpSourceDir>
       </properties>
       <build>
         <pluginManagement>
@@ -226,6 +229,7 @@
                   <wp.version>${wp.version}</wp.version>
                   <wp.php>${wp.php}</wp.php>
                   <quarkpressRoot>${maven.multiModuleProjectDirectory}</quarkpressRoot>
+                  <wpSourceDir>${wpSourceDir}</wpSourceDir>
                 </systemPropertyVariables>
               </configuration>
             </plugin>
