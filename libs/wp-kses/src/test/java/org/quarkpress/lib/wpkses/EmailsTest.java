@@ -69,6 +69,11 @@ class EmailsTest {
     }
 
     @Test
+    void localPartEndingInALineFeedIsRefusedThoughWordPressAcceptsIt() {
+        assertThat(Emails.isEmail("a\n@b.co")).isFalse();
+    }
+
+    @Test
     void longInputIsScannedOnce() {
         assertThat(Emails.isEmail("a".repeat(1_000_000) + "@b.co")).isTrue();
     }
