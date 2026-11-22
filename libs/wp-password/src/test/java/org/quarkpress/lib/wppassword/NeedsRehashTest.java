@@ -57,21 +57,16 @@ class NeedsRehashTest {
     }
 
     @Test
-    void costIsReadLikeCScanf() {
-        assertThat(WpPasswords.needsRehash("$wp$2y$+12$" + TAIL)).isFalse();
-        assertThat(WpPasswords.needsRehash("$wp$2y$ 12$" + TAIL)).isFalse();
-        assertThat(WpPasswords.needsRehash("$wp$2y$\t12$" + TAIL)).isFalse();
-        assertThat(WpPasswords.needsRehash("$wp$2y$012$" + TAIL)).isFalse();
+    void costMustBeTwoDigitsAndADollar() {
+        // PHP 8.4.28 fixed password_needs_rehash accepting malformed bcrypt costs
+        assertThat(WpPasswords.needsRehash("$wp$2y$+12$" + TAIL)).isTrue();
+        assertThat(WpPasswords.needsRehash("$wp$2y$ 12$" + TAIL)).isTrue();
+        assertThat(WpPasswords.needsRehash("$wp$2y$\t12$" + TAIL)).isTrue();
+        assertThat(WpPasswords.needsRehash("$wp$2y$012$" + TAIL)).isTrue();
         assertThat(WpPasswords.needsRehash("$wp$2y$-12$" + TAIL)).isTrue();
-        assertThat(WpPasswords.needsRehash("$wp$2y$xx$" + TAIL + "W")).isFalse(); // no digits: PHP keeps 12
-        assertThat(WpPasswords.needsRehash("$wp$2y$12x" + TAIL + "W")).isFalse();
-        assertThat(WpPasswords.needsRehash("$wp$2y$+1$x" + TAIL)).isTrue();
-    }
-
-    @Test
-    void scannedCostSaturatesLongDigitRuns() {
-        byte[] digits = PhpBytes.utf8("$2y$" + "9".repeat(40));
-        assertThat(WpPasswords.scannedCost(digits, 4)).isGreaterThan(WpPasswords.TARGET_COST);
+        assertThat(WpPasswords.needsRehash("$wp$2y$xx$" + TAIL + "W")).isTrue();
+        assertThat(WpPasswords.needsRehash("$wp$2y$12x" + TAIL + "W")).isTrue();
+        assertThat(WpPasswords.needsRehash("$wp$2y$1x$" + TAIL + "W")).isTrue();
     }
 
     @Test

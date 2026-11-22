@@ -59,7 +59,8 @@ boolean ok = WpPasswords.checkFastHash(secret, storedHash);
   The secret is used as given: remove every character other than ASCII letters and digits from the displayed
   `abcd EFGH …` form first, as WordPress's login does.
 - `detect` never throws. `needsRehash` is `false` only for a `$wp$2y$` hash of cost 12 (PHP 8.4's default); it reads
-  the cost as PHP does.
+  the cost as PHP 8.4.28 and later do: exactly two digits, then `$`. Earlier releases read it as C's `sscanf` does,
+  so `+12`, ` 12`, `012` and a cost without digits answered `false` there.
 - `verifiable` says, from the form alone and without hashing, whether some password can pass `check`: a 32-character
   lowercase hex MD5, or a well-formed `$wp`, `$P$` or `$2a$`/`$2b$`/`$2y$` hash within the bounds (bcrypt cost 4–16,
   phpass count `5`–`I`); `$2x$`, `$H$`, `$generic$`, other forms and `null` are `false`. Importers use it to refuse
@@ -109,7 +110,7 @@ Each difference is exercised by the tests, and the `wp-parity` profile compares 
 
 ## Parity testing
 
-`mvn verify -Pwp-parity` (needs `php` 8.4 with `hash` and `sodium`, and network for the first download) fetches the
+`mvn verify -Pwp-parity` (needs `php` 8.4.28 or a later 8.4 release, with `hash` and `sodium`, and network for the first download) fetches the
 pinned WordPress 7.1.3 files (`pluggable.php`, `class-phpass.php`, `class-wp-application-passwords.php`, and
 `wp_fast_hash` from `functions.php`) into `target/wp-source/` and runs `WpPasswordsParityTest` in two oracle runs.
 

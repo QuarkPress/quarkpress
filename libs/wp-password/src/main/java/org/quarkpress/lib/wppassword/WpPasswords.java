@@ -162,8 +162,9 @@ public final class WpPasswords {
 
     /**
      * {@code wp_password_needs_rehash} with WordPress's default filters on PHP 8.4 (bcrypt, cost 12): {@code true}
-     * for every hash except a {@code $wp} hash whose remaining 60 bytes are {@code $2y$} bcrypt of cost 12. The cost
-     * is read as PHP reads it (leading whitespace and a sign are allowed; without digits PHP assumes 12). Call it
+     * for every hash except a {@code $wp} hash whose remaining 60 bytes start {@code $2y$12$}. The cost must be
+     * exactly two digits followed by {@code $}, as PHP 8.4.28 and later read it (earlier releases also accepted a
+     * sign, leading whitespace or no digits at all). Call it
      * after a successful {@link #verify}, and hash the password anew in the identity provider when it is
      * {@code true}.
      *
@@ -179,7 +180,11 @@ public final class WpPasswords {
         if (hash.length - rest != Bcrypt.HASH_LENGTH || !PhpBytes.startsWith(hash, rest, "$2y$")) {
             return true;
         }
-        return scannedCost(hash, rest + 4) != TARGET_COST;
+        int cost = rest + 4;
+        return !(isDigit(hash[cost])
+                && isDigit(hash[cost + 1])
+                && hash[cost + 2] == '$'
+                && (hash[cost] - '0') * 10 + (hash[cost + 1] - '0') == TARGET_COST);
     }
 
     /** The decision of {@code wp_check_password} on bytes, in WordPress's rule order. */
@@ -225,35 +230,8 @@ public final class WpPasswords {
         return WP_PREFIX + Bcrypt.hash(prehash(password), 'y', cost, salt);
     }
 
-    /**
-     * The number C's {@code sscanf("%ld")} reads at {@code from}: optional whitespace, an optional sign, then
-     * decimal digits (saturated; only the comparison with 12 matters). Without digits the result is
-     * {@link #TARGET_COST}, the value PHP keeps when the scan fails.
-     */
-    static long scannedCost(byte[] text, int from) {
-        int i = from;
-        while (i < text.length && isCSpace(text[i])) {
-            i++;
-        }
-        boolean negative = false;
-        if (i < text.length && (text[i] == '+' || text[i] == '-')) {
-            negative = text[i] == '-';
-            i++;
-        }
-        if (i >= text.length || text[i] < '0' || text[i] > '9') {
-            return TARGET_COST;
-        }
-        long value = 0;
-        while (i < text.length && text[i] >= '0' && text[i] <= '9') {
-            value = Math.min(value * 10 + (text[i] - '0'), Integer.MAX_VALUE);
-            i++;
-        }
-        return negative ? -value : value;
-    }
-
-    /** C's isspace() in the default locale: space, tab, line feed, vertical tab, form feed, carriage return. */
-    private static boolean isCSpace(byte b) {
-        return b == ' ' || (b >= '\t' && b <= '\r');
+    private static boolean isDigit(byte b) {
+        return b >= '0' && b <= '9';
     }
 
     private static boolean isBcryptId(byte[] hash) {
