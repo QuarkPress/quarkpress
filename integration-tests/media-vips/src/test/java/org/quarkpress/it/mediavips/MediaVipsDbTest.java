@@ -14,16 +14,21 @@ import io.restassured.specification.RequestSpecification;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.quarkpress.testing.wprestparity.MediaFixtures;
+import org.quarkpress.testing.wprestparity.MediaFixtures.AvifBoxes;
 
 /**
  * The media library with the libvips image processor, end to end with real Keycloak tokens: uploads through the test
@@ -311,7 +316,123 @@ class MediaVipsDbTest {
         assertThat(images.getLong("leaked")).isZero();
     }
 
-    /** The first half of {@code bytes}: the header intact, the pixels cut off. */
+    @Test
+    void aHeicWhoseIspeLiesGetsNoSizes() {
+        assumeTrue(
+                formats().getList("readable", String.class).contains("image/heic") || requireAllFormats(), HEIC_SKIP);
+        // above max-image-pixels (100 000 000): measured from the declared size, never decoded, stored without sizes
+        // (D14)
+        JsonPath huge = timed(() -> uploaded("ispe-huge.heic", "image/heic", heicDeclaring(12000, 12000)));
+        assertThat(huge.getString("processing")).isEqualTo("done");
+        assertThat(huge.getInt("width")).isEqualTo(12000);
+        assertThat(huge.getInt("height")).isEqualTo(12000);
+        assertThat(huge.getMap("sizes")).isEmpty();
+        assertThat(huge.getString("originalImage")).isNull();
+        assertThat(huge.getString("attachedFile")).endsWith("/ispe-huge.heic");
+        // within the limit but larger than the coded 4032x3024 frame: the decode fails, and the attachment is kept
+        // with the declared size and without sizes, as any image that fails to decode
+        JsonPath big = timed(() -> uploaded("ispe-big.heic", "image/heic", heicDeclaring(8000, 6000)));
+        assertThat(big.getString("processing")).isEqualTo("partial");
+        assertThat(big.getInt("width")).isEqualTo(8000);
+        assertThat(big.getInt("height")).isEqualTo(6000);
+        assertThat(big.getMap("sizes")).isEmpty();
+        assertThat(big.getString("originalImage")).isNull();
+        assertThat(big.getString("attachedFile")).endsWith("/ispe-big.heic");
+        // above libvips's own max-input-pixels (268 402 689): libvips does not measure it, so it keeps its file size
+        // only, as a HEIC no processor reads
+        JsonPath giant = timed(() -> uploaded("ispe-giant.heic", "image/heic", heicDeclaring(30000, 30000)));
+        assertThat(giant.getString("processing")).isEqualTo("done");
+        assertThat(giant.getString("width")).isNull();
+        assertThat(giant.getString("height")).isNull();
+        assertThat(giant.getMap("sizes")).isEmpty();
+        assertThat(giant.getString("originalImage")).isNull();
+        assertThat(giant.getString("attachedFile")).endsWith("/ispe-giant.heic");
+        assertNoImageOpen();
+    }
+
+    @Test
+    void anAvifGridOfManyTilesIsKeptWithoutSizes() {
+        assumeWrites("image/avif", AVIF_SKIP);
+        // a grid naming 60 000 tiles (beyond libheif's limit on items) and one naming 250 (within it), with no coded
+        // data: each fails to decode, quickly, and is kept with its declared size and no sizes
+        for (int tiles : new int[] {60_000, 250}) {
+            String name = "tiles-" + tiles + ".avif";
+            JsonPath media = timed(() -> uploaded(name, "image/avif", avifGrid(tiles, 4096, 4096)));
+            assertThat(media.getString("processing")).as(name).isEqualTo("partial");
+            assertThat(media.getInt("width")).as(name).isEqualTo(4096);
+            assertThat(media.getInt("height")).as(name).isEqualTo(4096);
+            assertThat(media.getMap("sizes")).as(name).isEmpty();
+            assertThat(media.getString("originalImage")).as(name).isNull();
+            assertThat(media.getString("attachedFile")).as(name).endsWith("/" + name);
+        }
+        assertNoImageOpen();
+    }
+
+    /** What {@code upload} answers, failing when it takes more than 30 seconds. */
+    static <T> T timed(Supplier<T> upload) {
+        long start = System.nanoTime();
+        T answer = upload.get();
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(30));
+        return answer;
+    }
+
+    void assertNoImageOpen() {
+        JsonPath images = as(null).get("/it/vips/open-images")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath();
+        assertThat(images.getLong("open")).isZero();
+        assertThat(images.getLong("leaked")).isZero();
+    }
+
+    /**
+     * The committed 4032&times;3024 HEIC with its image spatial extents ({@code ispe}, the size it declares) changed to
+     * {@code width}&times;{@code height}; its coded frame stays 4032&times;3024.
+     */
+    static byte[] heicDeclaring(int width, int height) {
+        byte[] bytes = MediaFixtures.heic(4032, 3024);
+        byte[] type = "ispe".getBytes(StandardCharsets.US_ASCII);
+        int changed = 0;
+        for (int at = 4; at + 16 <= bytes.length; at++) {
+            if (Arrays.equals(bytes, at, at + 4, type, 0, 4)) {
+                // the box type, then version and flags, then the width and height
+                ByteBuffer.wrap(bytes, at + 8, 8).putInt(width).putInt(height);
+                changed++;
+            }
+        }
+        if (changed != 1) {
+            throw new IllegalStateException("the HEIC fixture holds " + changed + " ispe boxes, not one");
+        }
+        return bytes;
+    }
+
+    /**
+     * An AVIF whose primary item is a grid of {@code tiles} AV1 tiles ({@code dimg} references), declared {@code
+     * width}&times;{@code height}, without any coded data (no item locations, an empty {@code mdat}).
+     */
+    static byte[] avifGrid(int tiles, int width, int height) {
+        byte[][] items = new byte[tiles + 1][];
+        int[] ids = new int[tiles];
+        items[0] = AvifBoxes.item(1, "grid");
+        for (int i = 0; i < tiles; i++) {
+            ids[i] = i + 2;
+            items[i + 1] = AvifBoxes.item(i + 2, "av01");
+        }
+        return AvifBoxes.file(
+                AvifBoxes.ftyp("avif", "avif", "mif1", "miaf"),
+                AvifBoxes.meta(
+                        0,
+                        AvifBoxes.pitm(0, 1),
+                        AvifBoxes.iprp(
+                                AvifBoxes.ipco(
+                                        AvifBoxes.ispe(width, height), AvifBoxes.pixi(8, 8, 8), AvifBoxes.av1C(0)),
+                                AvifBoxes.ipma(0, 0, new int[] {1, 1, 2})),
+                        AvifBoxes.iinf(items),
+                        AvifBoxes.iref(0, AvifBoxes.dimg(1, ids))),
+                AvifBoxes.box("mdat", new byte[4096]));
+    }
+
     /** {@code jpeg} with the width and height of its baseline frame header (SOF0) changed. */
     static byte[] jpegDeclaring(byte[] jpeg, int width, int height) {
         byte[] bytes = jpeg.clone();
@@ -332,6 +453,7 @@ class MediaVipsDbTest {
         throw new IllegalArgumentException("no baseline frame header");
     }
 
+    /** The first half of {@code bytes}: the header intact, the pixels cut off. */
     static byte[] half(byte[] bytes) {
         return Arrays.copyOf(bytes, bytes.length / 2);
     }
