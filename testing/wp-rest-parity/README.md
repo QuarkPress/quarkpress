@@ -103,6 +103,21 @@ instead of port 80, so the items that need a self-request (the oEmbed proxy on a
 on a second network served by four workers. Browser items and the outbound-network halves of the oEmbed and URL-mode
 items never run here.
 
+## The front facts run
+
+`FrontFactsDbTest` in `integration-tests/rest-wp-v2` (run with
+`mvn -pl integration-tests/rest-wp-v2 -am verify -Pwp-parity -Dfront.facts=true -Dtest=FrontFactsDbTest -Dsurefire.failIfNoSpecifiedTests=false`)
+records what WordPress answers on its front end for the routing reference's verification items (`G1`, `G2`, `G3`,
+`G14`, `G20`), for the rewrite table's example paths, and for the query reference's items on a plain-permalink site
+(`FQ-G1` to `FQ-G9`, `FQ-G14`, `FQ-G15`, `FQ-G22`, `FQ-G23`), into `target/wp-rest-parity/front-facts.json`: per
+request the status, `Location`, `Cache-Control`, `Expires`, `Content-Type`, `Link`, `X-Redirect-By`, `X-Robots-Tag`,
+the first 300 bytes of the body, the document title and the post titles the page lists, redirects not followed. The
+cast (the reference's posts, pages, attachments, terms and the `book` type) lives on subdirectory sites of the network,
+one per permalink structure (`/gdef/` dated, `/gplain/` plain, `/site2/` with `/%postname%/`, `/gq/` plain with the
+query reference's cast), created with the `create_site`, `option` and `post` setup operations. It asserts nothing about
+QuarkWord. It needs `-Dfront.facts=true` as well as the profile: without that property the class is skipped, which is
+what CI's `-Pwp-parity` cell relies on, so the parity run never records the front facts by itself.
+
 ## The media parity run
 
 `MediaParityDbTest` in `integration-tests/media` compares the media library below the REST layer with WordPress's
