@@ -207,6 +207,8 @@ class TaxonomyDefinitionTest {
                 kept.restBase(),
                 Optional.of(new TaxonomyDefinition.DefaultTerm("0", "zero", "")),
                 kept.sort(),
+                kept.queryVar(),
+                kept.rewrite(),
                 kept.builtIn());
         assertThat(direct.defaultTerm()).isEmpty();
     }
@@ -235,5 +237,70 @@ class TaxonomyDefinitionTest {
         assertThat(series.restBase()).isEqualTo(Optional.of("series-list"));
         assertThat(series.sort()).isTrue();
         assertThat(series.builtIn()).isTrue();
+    }
+
+    @Test
+    void publicTaxonomyDefaultsToItsKeyAsQueryVarAndRewrite() {
+        TaxonomyDefinition mood =
+                TaxonomyDefinition.builder("mood", List.of("post")).build();
+        assertThat(mood.queryVar()).isEqualTo(Optional.of("mood"));
+        assertThat(mood.rewrite()).contains(new TaxonomyDefinition.Rewrite("mood", true, false));
+    }
+
+    @Test
+    void hiddenTaxonomyHasNeither() {
+        TaxonomyDefinition hidden = TaxonomyDefinition.builder("hidden", List.of("post"))
+                .publicly(false)
+                .build();
+        assertThat(hidden.queryVar()).isEmpty();
+        assertThat(hidden.rewrite()).isEmpty();
+        TaxonomyDefinition off = TaxonomyDefinition.builder("off", List.of("post"))
+                .noQueryVar()
+                .rewrite(false)
+                .build();
+        assertThat(off.queryVar()).isEmpty();
+        assertThat(off.rewrite()).isEmpty();
+        TaxonomyDefinition notQueryable = TaxonomyDefinition.builder("quiet", List.of("post"))
+                .publiclyQueryable(false)
+                .queryVar("quiet_var")
+                .build();
+        assertThat(notQueryable.queryVar()).isEmpty();
+        assertThat(notQueryable.rewrite()).contains(new TaxonomyDefinition.Rewrite("quiet", true, false));
+    }
+
+    @Test
+    void hierarchicalRewrite() {
+        TaxonomyDefinition topic = TaxonomyDefinition.builder("topic", List.of("post"))
+                .hierarchical(true)
+                .rewrite("topics", false, true)
+                .build();
+        assertThat(topic.rewrite()).contains(new TaxonomyDefinition.Rewrite("topics", false, true));
+        TaxonomyDefinition defaults = TaxonomyDefinition.builder("topic", List.of("post"))
+                .hierarchical(true)
+                .build();
+        assertThat(defaults.rewrite()).contains(new TaxonomyDefinition.Rewrite("topic", true, false));
+        TaxonomyDefinition explicitDefaults = TaxonomyDefinition.builder("topic", List.of("post"))
+                .publicly(false)
+                .rewrite(true)
+                .build();
+        assertThat(explicitDefaults.rewrite()).contains(new TaxonomyDefinition.Rewrite("topic", true, false));
+        TaxonomyDefinition emptySlug = TaxonomyDefinition.builder("topic", List.of("post"))
+                .rewrite("", true, true)
+                .build();
+        assertThat(emptySlug.rewrite()).contains(new TaxonomyDefinition.Rewrite("topic", true, true));
+    }
+
+    @Test
+    void queryVarIsKeptAsGivenAndNeverEmpty() {
+        TaxonomyDefinition shelf = TaxonomyDefinition.builder("shelf", List.of("post"))
+                .queryVar("Book Shelf")
+                .build();
+        assertThat(shelf.queryVar()).isEqualTo(Optional.of("Book Shelf"));
+        assertThat(shelf.withQueryVar("book-shelf").queryVar()).isEqualTo(Optional.of("book-shelf"));
+        assertThat(shelf.withQueryVar("book-shelf").rewrite()).isEqualTo(shelf.rewrite());
+        assertThatThrownBy(() ->
+                        TaxonomyDefinition.builder("shelf", List.of("post")).queryVar(""))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> shelf.withQueryVar("")).isInstanceOf(IllegalArgumentException.class);
     }
 }

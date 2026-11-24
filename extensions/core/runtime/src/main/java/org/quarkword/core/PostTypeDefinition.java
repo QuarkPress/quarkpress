@@ -15,7 +15,10 @@ import java.util.Set;
  * with {@link #builder(String)}, which applies WordPress's defaults: flags not given follow {@code public}, the
  * meta-capability mapping defaults to on for the {@code post} and {@code page} capability types, {@code supports}
  * defaults to title, editor and autosave (also when given empty; {@link Builder#noSupports()} gives none), and labels
- * are derived from the names.
+ * are derived from the names. The query variable and the rewrite arguments follow WordPress's registration: a publicly
+ * queryable type is queried by its key unless told otherwise, a public type gets rewrite rules under its key unless
+ * told otherwise, and a type without an archive gets no feed rules. A given query variable is kept as given; the
+ * posts module slugifies it when it registers the type ({@link #withQueryVar(String)}).
  */
 public record PostTypeDefinition(
         String key,
@@ -36,6 +39,9 @@ public record PostTypeDefinition(
         boolean mapMetaCap,
         List<String> supports,
         boolean hasArchive,
+        Optional<String> archiveSlug,
+        Optional<String> queryVar,
+        Optional<Rewrite> rewrite,
         boolean showInRest,
         Optional<String> restBase,
         boolean builtIn) {
@@ -43,12 +49,32 @@ public record PostTypeDefinition(
     /** The longest post type key WordPress accepts. */
     public static final int MAX_KEY_LENGTH = 20;
 
+    /**
+     * WordPress's {@code rewrite} arguments: the slug the type's permalinks start with, whether they go under the
+     * permalink structure's front, whether paged and feed rules exist.
+     */
+    public record Rewrite(String slug, boolean withFront, boolean pages, boolean feeds) {
+        public Rewrite {
+            Objects.requireNonNull(slug, "slug");
+            if (slug.isEmpty()) {
+                throw new IllegalArgumentException("a rewrite slug is not empty");
+            }
+        }
+    }
+
     public PostTypeDefinition {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(description, "description");
         Objects.requireNonNull(capabilityType, "capabilityType");
         Objects.requireNonNull(capabilityTypePlural, "capabilityTypePlural");
         Objects.requireNonNull(restBase, "restBase");
+        Objects.requireNonNull(archiveSlug, "archiveSlug");
+        Objects.requireNonNull(queryVar, "queryVar");
+        Objects.requireNonNull(rewrite, "rewrite");
+        archiveSlug = archiveSlug.filter(slug -> !slug.isEmpty());
+        if (queryVar.filter(String::isEmpty).isPresent()) {
+            throw new IllegalArgumentException("post type '" + key + "': a query variable is not empty");
+        }
         if (key.isEmpty()
                 || key.length() > MAX_KEY_LENGTH
                 || !WordPressKeys.sanitize(key).equals(key)) {
@@ -58,6 +84,35 @@ public record PostTypeDefinition(
         capabilities =
                 Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(capabilities, "capabilities")));
         supports = List.copyOf(supports);
+    }
+
+    /** This definition with {@code queryVar} as its query variable (not empty). */
+    public PostTypeDefinition withQueryVar(String queryVar) {
+        return new PostTypeDefinition(
+                key,
+                labels,
+                description,
+                publicly,
+                hierarchical,
+                excludeFromSearch,
+                publiclyQueryable,
+                embeddable,
+                showUi,
+                showInMenu,
+                showInNavMenus,
+                showInAdminBar,
+                capabilityType,
+                capabilityTypePlural,
+                capabilities,
+                mapMetaCap,
+                supports,
+                hasArchive,
+                archiveSlug,
+                Optional.of(Objects.requireNonNull(queryVar, "queryVar")),
+                rewrite,
+                showInRest,
+                restBase,
+                builtIn);
     }
 
     /** Whether the type supports {@code feature} (WordPress's {@code post_type_supports}). */
@@ -93,6 +148,14 @@ public record PostTypeDefinition(
         private List<String> supports;
         private boolean noSupports;
         private boolean hasArchive;
+        private String archiveSlug;
+        private String queryVar;
+        private boolean noQueryVar;
+        private Boolean rewriteOn;
+        private String rewriteSlug;
+        private boolean rewriteWithFront;
+        private boolean rewritePages;
+        private boolean rewriteFeeds;
         private boolean showInRest;
         private String restBase;
         private boolean builtIn;
@@ -208,6 +271,56 @@ public record PostTypeDefinition(
 
         public Builder hasArchive(boolean value) {
             this.hasArchive = value;
+            this.archiveSlug = null;
+            return this;
+        }
+
+        /**
+         * An archive under {@code slug} (WordPress's {@code has_archive} given as text); "" is an archive under the
+         * default slug.
+         */
+        public Builder hasArchive(String slug) {
+            this.hasArchive = true;
+            this.archiveSlug = Objects.requireNonNull(slug, "slug");
+            return this;
+        }
+
+        /**
+         * The query variable, kept as given (not empty); not given, a publicly queryable type is queried by its key.
+         */
+        public Builder queryVar(String name) {
+            if (Objects.requireNonNull(name, "name").isEmpty()) {
+                throw new IllegalArgumentException("post type '" + this.name + "': a query variable is not empty");
+            }
+            this.queryVar = name;
+            this.noQueryVar = false;
+            return this;
+        }
+
+        /** No query variable (WordPress's {@code query_var => false}). */
+        public Builder noQueryVar() {
+            this.queryVar = null;
+            this.noQueryVar = true;
+            return this;
+        }
+
+        /**
+         * The rewrite arguments; an empty slug means the key, and {@code feeds} is forced off for a type without an
+         * archive.
+         */
+        public Builder rewrite(String slug, boolean withFront, boolean pages, boolean feeds) {
+            this.rewriteSlug = Objects.requireNonNull(slug, "slug");
+            this.rewriteWithFront = withFront;
+            this.rewritePages = pages;
+            this.rewriteFeeds = feeds;
+            this.rewriteOn = true;
+            return this;
+        }
+
+        /** Rewrite rules with WordPress's defaults (true), or none at all (false). */
+        public Builder rewrite(boolean on) {
+            this.rewriteSlug = null;
+            this.rewriteOn = on;
             return this;
         }
 
@@ -235,6 +348,7 @@ public record PostTypeDefinition(
             }
             boolean pub = Boolean.TRUE.equals(publicly);
             boolean hier = Boolean.TRUE.equals(hierarchical);
+            boolean queryable = publiclyQueryable != null ? publiclyQueryable : pub;
             boolean ui = showUi != null ? showUi : pub;
             boolean menu = showInMenu == null || !ui ? ui : showInMenu;
             boolean map = mapMetaCap != null
@@ -249,7 +363,7 @@ public record PostTypeDefinition(
                     pub,
                     hier,
                     excludeFromSearch != null ? excludeFromSearch : !pub,
-                    publiclyQueryable != null ? publiclyQueryable : pub,
+                    queryable,
                     embeddable != null ? embeddable : pub,
                     ui,
                     menu,
@@ -261,9 +375,33 @@ public record PostTypeDefinition(
                     map,
                     supportsList(),
                     hasArchive,
+                    Optional.ofNullable(archiveSlug),
+                    queryVar(key, queryable),
+                    rewrite(key, pub),
                     showInRest,
                     Optional.ofNullable(restBase),
                     builtIn);
+        }
+
+        private Optional<String> queryVar(String key, boolean queryable) {
+            if (noQueryVar || !queryable) {
+                return Optional.empty();
+            }
+            return Optional.of(queryVar != null ? queryVar : key);
+        }
+
+        private Optional<Rewrite> rewrite(String key, boolean pub) {
+            if (Boolean.FALSE.equals(rewriteOn)) {
+                return Optional.empty();
+            }
+            if (rewriteSlug != null) {
+                String slug = rewriteSlug.isEmpty() ? key : rewriteSlug;
+                return Optional.of(new Rewrite(slug, rewriteWithFront, rewritePages, hasArchive && rewriteFeeds));
+            }
+            if (Boolean.TRUE.equals(rewriteOn) || pub) {
+                return Optional.of(new Rewrite(key, true, true, hasArchive));
+            }
+            return Optional.empty();
         }
 
         private List<String> supportsList() {

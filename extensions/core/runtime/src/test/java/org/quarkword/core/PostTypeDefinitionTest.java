@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class PostTypeDefinitionTest {
@@ -350,5 +351,82 @@ class PostTypeDefinitionTest {
                 .containsEntry("name", "Movies")
                 .containsEntry("singular_name", "Movies")
                 .containsEntry("template_name", "Single item: Movies");
+    }
+
+    @Test
+    void publicTypeDefaultsToItsKeyAsQueryVarAndRewrite() {
+        PostTypeDefinition book = PostTypeDefinition.builder("book")
+                .publicly(true)
+                .hasArchive(true)
+                .build();
+        assertThat(book.queryVar()).isEqualTo(Optional.of("book"));
+        assertThat(book.rewrite()).contains(new PostTypeDefinition.Rewrite("book", true, true, true));
+        assertThat(book.archiveSlug()).isEmpty();
+        assertThat(book.hasArchive()).isTrue();
+    }
+
+    @Test
+    void hiddenTypeHasNeither() {
+        PostTypeDefinition hidden =
+                PostTypeDefinition.builder("hidden").publicly(false).build();
+        assertThat(hidden.queryVar()).isEmpty();
+        assertThat(hidden.rewrite()).isEmpty();
+        PostTypeDefinition off = PostTypeDefinition.builder("off")
+                .publicly(true)
+                .noQueryVar()
+                .rewrite(false)
+                .build();
+        assertThat(off.queryVar()).isEmpty();
+        assertThat(off.rewrite()).isEmpty();
+        PostTypeDefinition notQueryable = PostTypeDefinition.builder("quiet")
+                .publicly(true)
+                .publiclyQueryable(false)
+                .queryVar("quiet_var")
+                .build();
+        assertThat(notQueryable.queryVar()).isEmpty();
+        assertThat(notQueryable.rewrite()).contains(new PostTypeDefinition.Rewrite("quiet", true, true, false));
+    }
+
+    @Test
+    void archiveSlugAndFeedsOff() {
+        PostTypeDefinition library = PostTypeDefinition.builder("book")
+                .publicly(true)
+                .hasArchive("library")
+                .build();
+        assertThat(library.hasArchive()).isTrue();
+        assertThat(library.archiveSlug()).isEqualTo(Optional.of("library"));
+        assertThat(library.rewrite()).contains(new PostTypeDefinition.Rewrite("book", true, true, true));
+        PostTypeDefinition noFeeds = PostTypeDefinition.builder("book")
+                .publicly(true)
+                .rewrite("b", false, true, true)
+                .build();
+        assertThat(noFeeds.hasArchive()).isFalse();
+        assertThat(noFeeds.rewrite()).contains(new PostTypeDefinition.Rewrite("b", false, true, false));
+        PostTypeDefinition emptyArchiveSlug =
+                PostTypeDefinition.builder("book").publicly(true).hasArchive("").build();
+        assertThat(emptyArchiveSlug.hasArchive()).isTrue();
+        assertThat(emptyArchiveSlug.archiveSlug()).isEmpty();
+        PostTypeDefinition explicitDefaults =
+                PostTypeDefinition.builder("memo").rewrite(true).build();
+        assertThat(explicitDefaults.rewrite()).contains(new PostTypeDefinition.Rewrite("memo", true, true, false));
+        PostTypeDefinition emptySlug = PostTypeDefinition.builder("memo")
+                .publicly(true)
+                .rewrite("", true, false, false)
+                .build();
+        assertThat(emptySlug.rewrite()).contains(new PostTypeDefinition.Rewrite("memo", true, false, false));
+    }
+
+    @Test
+    void queryVarIsKeptAsGivenAndNeverEmpty() {
+        PostTypeDefinition shelf = PostTypeDefinition.builder("book")
+                .publicly(true)
+                .queryVar("Book Shelf")
+                .build();
+        assertThat(shelf.queryVar()).isEqualTo(Optional.of("Book Shelf"));
+        assertThat(shelf.withQueryVar("book-shelf").queryVar()).isEqualTo(Optional.of("book-shelf"));
+        assertThat(shelf.withQueryVar("book-shelf")).isEqualTo(shelf.withQueryVar("book-shelf"));
+        assertThatThrownBy(() -> PostTypeDefinition.builder("book").queryVar(""))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> shelf.withQueryVar("")).isInstanceOf(IllegalArgumentException.class);
     }
 }

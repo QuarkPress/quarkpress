@@ -209,9 +209,15 @@ its meta-capability mapping is on by default only for the `post` and `page` capa
 default to title, editor and autosave, and its labels are derived from its names and its hierarchical flag; a status
 given none of public, protected, private and internal is internal, and its other flags follow from those four. A type
 key and a status name each hold 1 to 20 characters of `a-z`, `0-9`, `_` and `-` (the builders sanitize them as keys
-first). An extension registers them with `PostTypeBuildItem` and `PostStatusBuildItem` (both in
-`quarkword-core-deployment-spi`); the posts module collects them and fails the build on a key registered twice.
-`WordPressKeys.sanitize` is WordPress's `sanitize_key`.
+first). A type also carries what WordPress's `query_var`, `rewrite` and `has_archive` arguments give: `queryVar` (the
+key when the type is publicly queryable and nothing else is given; `queryVar(name)` is kept as given and the posts module
+slugifies it as WordPress's `sanitize_title_with_dashes` when it registers the type, `noQueryVar()` gives none),
+`rewrite` (slug, `withFront`, `pages`, `feeds`; a public type defaults to its key with front and pages on and feeds
+following `hasArchive`; `rewrite(false)` gives none; `feeds` is off for a type without an archive) and
+`archiveSlug` (`hasArchive("library")` puts the archive under that slug; "" means the rewrite slug). An extension
+registers them with `PostTypeBuildItem` and `PostStatusBuildItem` (both in `quarkword-core-deployment-spi`); the posts
+module collects them and fails the build on a key registered twice. `WordPressKeys.sanitize` is WordPress's
+`sanitize_key`.
 
 ### Taxonomies
 
@@ -219,6 +225,9 @@ first). An extension registers them with `PostTypeBuildItem` and `PostStatusBuil
 defaults: a taxonomy is public unless told otherwise, its interface flags follow `public` and each other, its four
 capability names default to `manage_categories` (managing, editing, deleting terms) and `edit_posts` (assigning them),
 and its labels are derived from its names and its hierarchical flag. A key is used as given and holds 1 to 32 bytes.
+As for post types, a taxonomy carries its `queryVar` (the key when publicly queryable; `queryVar(name)` is kept as given
+and slugified by the taxonomy module at registration, `noQueryVar()` gives none) and its `rewrite` (slug, `withFront`,
+`hierarchical`; a public taxonomy defaults to its key with front on and hierarchical off; `rewrite(false)` gives none). Meta boxes are not kept.
 An extension registers taxonomies with `TaxonomyBuildItem` (in `quarkword-core-deployment-spi`); the taxonomy module
 collects them and fails the build on a key registered twice.
 

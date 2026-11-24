@@ -16,8 +16,11 @@ import java.util.Optional;
  * interface flags follow {@code public} and each other as WordPress derives them, the four capability names default to
  * {@code manage_categories} (managing, editing and deleting terms) and {@code edit_posts} (assigning them), and labels
  * are derived from the names. The key is not sanitized; it must be 1 to 32 bytes long and not "0" (which PHP reads as
- * empty). A default term whose name is "" or "0" is no default term, as WordPress ignores an empty one. Rewrite rules,
- * query variables and meta boxes are not kept.
+ * empty). A default term whose name is "" or "0" is no default term, as WordPress ignores an empty one. The query
+ * variable and the rewrite arguments follow WordPress's registration: a publicly queryable taxonomy is queried by its
+ * key unless told otherwise, and a public taxonomy gets rewrite rules under its key unless told otherwise. A given
+ * query variable is kept as given; the taxonomy module slugifies it when it registers the taxonomy
+ * ({@link #withQueryVar(String)}). Meta boxes are not kept.
  */
 public record TaxonomyDefinition(
         String key,
@@ -38,10 +41,25 @@ public record TaxonomyDefinition(
         Optional<String> restBase,
         Optional<DefaultTerm> defaultTerm,
         boolean sort,
+        Optional<String> queryVar,
+        Optional<Rewrite> rewrite,
         boolean builtIn) {
 
     /** The longest taxonomy name WordPress accepts, in bytes of UTF-8. */
     public static final int MAX_KEY_BYTES = 32;
+
+    /**
+     * WordPress's {@code rewrite} arguments: the slug term links start with, whether they go under the permalink
+     * structure's front, and whether a term's link holds its ancestors' slugs.
+     */
+    public record Rewrite(String slug, boolean withFront, boolean hierarchical) {
+        public Rewrite {
+            Objects.requireNonNull(slug, "slug");
+            if (slug.isEmpty()) {
+                throw new IllegalArgumentException("a rewrite slug is not empty");
+            }
+        }
+    }
 
     /** The four capability names every taxonomy has, in WordPress's order. */
     public static final List<String> CAPABILITY_KEYS =
@@ -61,7 +79,12 @@ public record TaxonomyDefinition(
         Objects.requireNonNull(description, "description");
         Objects.requireNonNull(restBase, "restBase");
         Objects.requireNonNull(defaultTerm, "defaultTerm");
+        Objects.requireNonNull(queryVar, "queryVar");
+        Objects.requireNonNull(rewrite, "rewrite");
         requireKey(key);
+        if (queryVar.filter(String::isEmpty).isPresent()) {
+            throw new IllegalArgumentException("taxonomy '" + key + "': a query variable is not empty");
+        }
         defaultTerm = defaultTerm.filter(term -> !empty(term.name()));
         objectTypes = List.copyOf(new LinkedHashSet<>(objectTypes));
         labels = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(labels, "labels")));
@@ -72,6 +95,32 @@ public record TaxonomyDefinition(
                 throw new IllegalArgumentException("taxonomy '" + key + "' lacks the capability name " + name);
             }
         }
+    }
+
+    /** This definition with {@code queryVar} as its query variable (not empty). */
+    public TaxonomyDefinition withQueryVar(String queryVar) {
+        return new TaxonomyDefinition(
+                key,
+                objectTypes,
+                labels,
+                description,
+                publicly,
+                publiclyQueryable,
+                hierarchical,
+                showUi,
+                showInMenu,
+                showInNavMenus,
+                showTagcloud,
+                showInQuickEdit,
+                showAdminColumn,
+                capabilities,
+                showInRest,
+                restBase,
+                defaultTerm,
+                sort,
+                Optional.of(Objects.requireNonNull(queryVar, "queryVar")),
+                rewrite,
+                builtIn);
     }
 
     /**
@@ -130,6 +179,12 @@ public record TaxonomyDefinition(
         private String restBase;
         private DefaultTerm defaultTerm;
         private boolean sort;
+        private String queryVar;
+        private boolean noQueryVar;
+        private Boolean rewriteOn;
+        private String rewriteSlug;
+        private boolean rewriteWithFront;
+        private boolean rewriteHierarchical;
         private boolean builtIn;
 
         private Builder(String key, List<String> objectTypes) {
@@ -243,6 +298,42 @@ public record TaxonomyDefinition(
             return this;
         }
 
+        /**
+         * The query variable, kept as given (not empty); not given, a publicly queryable taxonomy is queried by its
+         * key.
+         */
+        public Builder queryVar(String name) {
+            if (Objects.requireNonNull(name, "name").isEmpty()) {
+                throw new IllegalArgumentException("taxonomy '" + key + "': a query variable is not empty");
+            }
+            this.queryVar = name;
+            this.noQueryVar = false;
+            return this;
+        }
+
+        /** No query variable (WordPress's {@code query_var => false}). */
+        public Builder noQueryVar() {
+            this.queryVar = null;
+            this.noQueryVar = true;
+            return this;
+        }
+
+        /** The rewrite arguments; an empty slug means the key. */
+        public Builder rewrite(String slug, boolean withFront, boolean hierarchical) {
+            this.rewriteSlug = Objects.requireNonNull(slug, "slug");
+            this.rewriteWithFront = withFront;
+            this.rewriteHierarchical = hierarchical;
+            this.rewriteOn = true;
+            return this;
+        }
+
+        /** Rewrite rules with WordPress's defaults (true), or none at all (false). */
+        public Builder rewrite(boolean on) {
+            this.rewriteSlug = null;
+            this.rewriteOn = on;
+            return this;
+        }
+
         /** Marks a taxonomy the taxonomy module registers itself. */
         public Builder builtIn() {
             this.builtIn = true;
@@ -279,7 +370,30 @@ public record TaxonomyDefinition(
                     Optional.ofNullable(restBase),
                     Optional.ofNullable(defaultTerm),
                     sort,
+                    queryVar(queryable),
+                    rewrite(),
                     builtIn);
+        }
+
+        private Optional<String> queryVar(boolean queryable) {
+            if (noQueryVar || !queryable) {
+                return Optional.empty();
+            }
+            return Optional.of(queryVar != null ? queryVar : key);
+        }
+
+        private Optional<Rewrite> rewrite() {
+            if (Boolean.FALSE.equals(rewriteOn)) {
+                return Optional.empty();
+            }
+            if (rewriteSlug != null) {
+                return Optional.of(
+                        new Rewrite(rewriteSlug.isEmpty() ? key : rewriteSlug, rewriteWithFront, rewriteHierarchical));
+            }
+            if (Boolean.TRUE.equals(rewriteOn) || publicly) {
+                return Optional.of(new Rewrite(key, true, false));
+            }
+            return Optional.empty();
         }
     }
 }
