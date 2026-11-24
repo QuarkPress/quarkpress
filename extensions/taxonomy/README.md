@@ -1,6 +1,6 @@
-# QuarkPress Taxonomy
+# QuarkWord Taxonomy
 
-WordPress taxonomies for QuarkPress: categories, tags and custom taxonomies, terms saved with WordPress's rules
+WordPress taxonomies for QuarkWord: categories, tags and custom taxonomies, terms saved with WordPress's rules
 (sanitizing, duplicate names, unique slugs, hierarchy), terms assigned to posts with their counts, every site's
 default category, and term queries. It requires the posts module and works on a single site and in a network.
 
@@ -8,13 +8,13 @@ default category, and term queries. It requires the posts module and works on a 
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-taxonomy</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-taxonomy</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-posts` (and through it persistence, security, lib-wp-kses and lib-wp-blocks). Public
-API lives in `org.quarkpress.taxonomy`; `org.quarkpress.taxonomy.runtime` is implementation and may change.
+The extension brings `quarkword-posts` (and through it persistence, security, lib-wp-kses and lib-wp-blocks). Public
+API lives in `org.quarkword.taxonomy`; `org.quarkword.taxonomy.runtime` is implementation and may change.
 
 ## Using it
 
@@ -75,7 +75,7 @@ status) nor readable (`read_post`), else `ALLOWED`.
 - **Names** go through WordPress's save filters for every caller alike: `sanitize_text_field`, kses with the tag set of
   term names, then `&`, `<` and `>` as entities (so "Rock & Roll" is stored as `Rock &amp; Roll`). A blank name is
   `empty_term_name`; a name the filters empty is `invalid_term_name` on create and `empty_term_name` on update.
-  Descriptions go through kses with the tag set of term descriptions. A backslash is kept (QuarkPress takes plain
+  Descriptions go through kses with the tag set of term descriptions. A backslash is kept (QuarkWord takes plain
   text, as a correctly slashed WordPress call).
 - **Duplicate names.** On create, a name equal to a term's with the same parent, ignoring the case of A to Z only
   (accents and other letters count), is refused with `term_exists`, unless a slug that neither that term nor any other
@@ -155,7 +155,7 @@ the post's format slug and checks nothing (the caller has read the post first), 
 `assign_terms`) and refuses a slug outside `PostFormats.SLUGS`; `exists` says whether the site has the term.
 `post_format` is registered as WordPress registers it (public, flat, no admin screens, outside REST, labelled
 `Formats`/`Format`, managed with `manage_categories` and assigned with `edit_posts`). The REST API module reads and
-writes a post's `format` field through `PostFormats` (the auto-draft of `POST /quarkpress/v1/drafts` gets the site's
+writes a post's `format` field through `PostFormats` (the auto-draft of `POST /quarkword/v1/drafts` gets the site's
 `default_post_format`), and its search lists the formats whose term `exists` on the site.
 
 ### Post term filters
@@ -194,9 +194,9 @@ observers once it has committed:
 
 ## Storage
 
-`qp_term` holds every term of every site (ids are unique across the network; a term's id is also its term-taxonomy
+`qw_term` holds every term of every site (ids are unique across the network; a term's id is also its term-taxonomy
 id), with a unique key on site, taxonomy and slug, and its parent as the composite key `(site_id, parent_id)`.
-`qp_term_assignment` holds the assignments (`term_order` for sorted taxonomies). The module's migrations are the `V5_*`
+`qw_term_assignment` holds the assignments (`term_order` for sorted taxonomies). The module's migrations are the `V5_*`
 band.
 
 ### Locks
@@ -236,7 +236,7 @@ user's profile, a membership, the site's post lock, post rows, term rows, option
 | Label | Difference |
 |---|---|
 | D1 | Capabilities are checked as WordPress's REST API checks them; its `wp_insert_term` and friends check nothing. Deleting a taxonomy's default term is refused for everyone, the system identity included (WordPress's API answers 0 and keeps it). Assignments need `edit_post`, `assign_term` on each term named (removals included) and the create capability for terms created by name. A query or count with `posts` needs each post to exist on the site (`invalid_post`) and be readable by the caller, as the REST API's `post` parameter does; WordPress's `get_terms` takes any object id. |
-| D2 | A parent must be a term of the same taxonomy and site, and only hierarchical taxonomies take one; WordPress's API stores any existing term id as parent, in a flat taxonomy or across taxonomies. A missing parent is `missing_parent`, where WordPress's REST controller answers `rest_term_invalid`; a parent of 0 is accepted in a flat taxonomy, where the REST controller refuses any parent parameter there. Deleting a term leaves all children of a flat term, and children of other taxonomies, without parent (both possible only with rows written outside QuarkPress); WordPress hands a hierarchical term's parent down only to children of its taxonomy, and leaves every other child (all of a flat term's) naming the deleted term. |
+| D2 | A parent must be a term of the same taxonomy and site, and only hierarchical taxonomies take one; WordPress's API stores any existing term id as parent, in a flat taxonomy or across taxonomies. A missing parent is `missing_parent`, where WordPress's REST controller answers `rest_term_invalid`; a parent of 0 is accepted in a flat taxonomy, where the REST controller refuses any parent parameter there. Deleting a term leaves all children of a flat term, and children of other taxonomies, without parent (both possible only with rows written outside QuarkWord); WordPress hands a hierarchical term's parent down only to children of its taxonomy, and leaves every other child (all of a flat term's) naming the deleted term. |
 | D3 | Lookups by name, `exists`, `search`, `nameLike`, `descriptionLike` and name order ignore case through `lower()` and do not ignore accents; names and slugs order by code point. WordPress follows its MySQL collation, which also ignores accents and orders by Unicode rules. Duplicate names behave alike (both fold only A to Z). On PostgreSQL, `lower()` follows the database's locale: under the `C` locale only ASCII capitals are lowered. |
 | D4 | Term ids are unique across the network, one row holds a term and its taxonomy (no shared terms), and a term's id is also its term-taxonomy id; WordPress numbers terms and term-taxonomy rows per site in two sequences, where every site's Uncategorized is term 1; here it is not. |
 | D5 | A name or slug longer than 200 characters is refused on both databases alike: with `db_insert_error` on create, as WordPress's failed insert reports it, and with `db_update_error` on update, where WordPress ignores the failed write of its terms row, keeps the old name and slug, saves the rest (description, parent) and reports success. A NUL that a `TermWriteFilter` puts back in a name, slug or description is refused the same way, where WordPress's MySQL stores it (the save filters remove it otherwise, as in WordPress: kses for names and descriptions, the slug sanitizer for slugs). |

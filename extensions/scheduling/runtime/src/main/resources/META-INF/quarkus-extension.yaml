@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Scheduling"
+name: "QuarkWord Scheduling"
 description: "Scheduled publishing of posts and the cron-driven post housekeeping of WordPress: a polling job, the trash and auto-draft purges, a per-site switch"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "scheduling"
     - "cron"

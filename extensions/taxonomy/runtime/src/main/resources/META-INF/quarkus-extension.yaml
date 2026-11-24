@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Taxonomy"
+name: "QuarkWord Taxonomy"
 description: "Categories, tags and custom taxonomies with WordPress's sanitizing, slug, hierarchy, assignment and count rules"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "taxonomy"
   categories:

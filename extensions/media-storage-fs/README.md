@@ -1,29 +1,29 @@
-# QuarkPress Media Storage FS
+# QuarkWord Media Storage FS
 
-A storage backend for QuarkPress media: it keeps the uploaded files in a directory on the server
-(`quarkpress.media.fs.directory`) and serves them under WordPress's uploads path (`/wp-content/uploads` by default),
+A storage backend for QuarkWord media: it keeps the uploaded files in a directory on the server
+(`quarkword.media.fs.directory`) and serves them under WordPress's uploads path (`/wp-content/uploads` by default),
 or publishes their URLs under a configured base URL such as a CDN's. It requires the media module.
 
 ## Installation
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-media-storage-fs</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-media-storage-fs</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-media` and `quarkus-vertx-http`. Its bean is the media module's `MediaStorage` named
-`fs` (`@Identifier("fs")`); with another backend present, `quarkpress.media.storage=fs` chooses it (see the media
-README). Everything in `org.quarkpress.media.storage.fs.runtime` is implementation and may change.
+The extension brings `quarkword-media` and `quarkus-vertx-http`. Its bean is the media module's `MediaStorage` named
+`fs` (`@Identifier("fs")`); with another backend present, `quarkword.media.storage=fs` chooses it (see the media
+README). Everything in `org.quarkword.media.storage.fs.runtime` is implementation and may change.
 
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.media.fs.directory` | none | The directory that holds the files. Required when this backend is the one in use: without it the start fails ("quarkpress.media.fs.directory is required by quarkpress-media-storage-fs"). It is created on the first write when missing. |
-| `quarkpress.media.fs.base-url` | unset | The URL the files are published under, such as a CDN's. Set, the application does not serve the files itself. |
-| `quarkpress.media.fs.path` | `/wp-content/uploads` | The URL path the files are served under, after the site's address. Without a base URL it must have a segment: `/` fails the start ("quarkpress.media.fs.path must name a path below the site's root, such as /wp-content/uploads: /"), since the route would take every request. |
+| `quarkword.media.fs.directory` | none | The directory that holds the files. Required when this backend is the one in use: without it the start fails ("quarkword.media.fs.directory is required by quarkword-media-storage-fs"). It is created on the first write when missing. |
+| `quarkword.media.fs.base-url` | unset | The URL the files are published under, such as a CDN's. Set, the application does not serve the files itself. |
+| `quarkword.media.fs.path` | `/wp-content/uploads` | The URL path the files are served under, after the site's address. Without a base URL it must have a segment: `/` fails the start ("quarkword.media.fs.path must name a path below the site's root, such as /wp-content/uploads: /"), since the route would take every request. |
 
 When another backend is the one in use, the directory is not required, nothing is checked at start-up and no route is
 registered.
@@ -91,6 +91,6 @@ folder:
 
 - Files are served with `X-Content-Type-Options: nosniff` only, as WordPress's web server serves them: HTML uploads
   need `unfiltered_html` and SVG is off by default, so no `Content-Security-Policy` or `Content-Disposition` is added.
-- WordPress's `upload_path` and `upload_url_path` options are not read; `quarkpress.media.fs.directory` and
-  `quarkpress.media.fs.base-url` take their place (media README, D6). The differences of this module are in the media
+- WordPress's `upload_path` and `upload_url_path` options are not read; `quarkword.media.fs.directory` and
+  `quarkword.media.fs.base-url` take their place (media README, D6). The differences of this module are in the media
   README's table, which covers the media modules together.

@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Test driver for the oracle itself: builds each case's value in PHP, then returns its typed tree,
@@ -9,18 +9,18 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
 
-qp_run(function (array $in): array {
+qw_run(function (array $in): array {
     if (isset($in['env'])) {
         return ['env' => getenv($in['env'])];
     }
     if (isset($in['fail'])) {
         throw new RuntimeException($in['fail']);
     }
-    $value = qp_untree($in['value']);
+    $value = qw_untree($in['value']);
     return [
-        'tree' => qp_tree($value),
+        'tree' => qw_tree($value),
         'serialize' => base64_encode(serialize($value)),
         'hooks' => function_exists('apply_filters') && function_exists('add_filter'),
     ];

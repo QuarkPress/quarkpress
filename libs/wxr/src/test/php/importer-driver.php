@@ -1,9 +1,9 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
- * Oracle driver for lib-wxr. Runs the WordPress Importer 0.9.6 (its checkout is in QP_WXR_IMPORTER):
+ * Oracle driver for lib-wxr. Runs the WordPress Importer 0.9.6 (its checkout is in QW_WXR_IMPORTER):
  *   {"kind":"parse","file":path} -> {"available":…,"parser":…,"result":{…}} or {…,"error":code,"message":…}
  *     "available": the parser the importer's auto-selection tries first on this PHP (simplexml, xml or
  *     xmlprocessor); "parser": the parser whose result is returned (xmlprocessor after a fallback).
@@ -13,14 +13,14 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
 
-$importer = getenv('QP_WXR_IMPORTER');
+$importer = getenv('QW_WXR_IMPORTER');
 if (!is_string($importer) || '' === $importer) {
-    fwrite(STDERR, "QP_WXR_IMPORTER is not set\n");
+    fwrite(STDERR, "QW_WXR_IMPORTER is not set\n");
     exit(5);
 }
-define('QP_IMPORTER', rtrim($importer, '/') . '/');
+define('QW_IMPORTER', rtrim($importer, '/') . '/');
 
 /** The part of WordPress's error object the importer uses. */
 class WP_Error
@@ -60,17 +60,17 @@ class WP_Importer
 {
 }
 
-require QP_WP . 'html-api/class-wp-html-span.php';
-require QP_IMPORTER . 'src/php-toolkit/load.php';
+require QW_WP . 'html-api/class-wp-html-span.php';
+require QW_IMPORTER . 'src/php-toolkit/load.php';
 foreach (['class-wxr-parser', 'class-wxr-parser-simplexml', 'class-wxr-parser-xml', 'class-wxr-parser-regex',
     'class-wxr-parser-xml-processor'] as $file) {
-    require QP_IMPORTER . 'src/parsers/' . $file . '.php';
+    require QW_IMPORTER . 'src/parsers/' . $file . '.php';
 }
-qp_load_functions(QP_WP . 'functions.php', ['is_serialized', 'maybe_unserialize']);
-require QP_IMPORTER . 'src/class-wp-import.php';
+qw_load_functions(QW_WP . 'functions.php', ['is_serialized', 'maybe_unserialize']);
+require QW_IMPORTER . 'src/class-wp-import.php';
 
 /** Makes the importer's protected meta helper callable. */
-final class QpImport extends WP_Import
+final class QwImport extends WP_Import
 {
     public function meta(string $value): mixed
     {
@@ -78,7 +78,7 @@ final class QpImport extends WP_Import
     }
 }
 
-function qp_available_parser(): string
+function qw_available_parser(): string
 {
     if (extension_loaded('simplexml') && extension_loaded('dom')) {
         return 'simplexml';
@@ -86,12 +86,12 @@ function qp_available_parser(): string
     return extension_loaded('xml') ? 'xml' : 'xmlprocessor';
 }
 
-qp_run(function (array $in): array {
+qw_run(function (array $in): array {
     if ('meta' === $in['kind']) {
-        return ['tree' => qp_safe_tree(@(new QpImport())->meta(base64_decode($in['b64'], true)))];
+        return ['tree' => qw_safe_tree(@(new QwImport())->meta(base64_decode($in['b64'], true)))];
     }
     $file = $in['file'];
-    $available = qp_available_parser();
+    $available = qw_available_parser();
     $used = $available;
     if ('simplexml' === $available) {
         $probe = (new WXR_Parser_SimpleXML())->parse($file);

@@ -2,7 +2,7 @@
 # Format: <case-id-or-glob> <aspect-or-glob> <audit-item> <reason>. Audit items are the labels of the
 # "Differences from WordPress" table in libs/wp-blocks/README.md. An entry whose comparisons all match
 # WordPress fails the build: delete it.
-audit-D5-zero-chunks tree D5 WordPress drops a text chunk equal to "0" (PHP empty()); QuarkPress keeps the text
+audit-D5-zero-chunks tree D5 WordPress drops a text chunk equal to "0" (PHP empty()); QuarkWord keeps the text
 audit-D5-zero-chunks serialize D5 same as above
 audit-D5-zero-only tree D5 same as above
 audit-D5-zero-only serialize D5 same as above; WordPress then writes the block in void form
@@ -17,4 +17,4 @@ audit-D12-numeric-keys serialize D12 same as above
 audit-D12-numeric-keys-nested tree D12 same as above
 audit-D12-numeric-keys-nested serialize D12 same as above
 audit-D13-nested-empty serialize D13 an empty object stays {}; PHP writes []
-audit-D20-backtrack tree D20 WordPress's delimiter regex hits PCRE's limits and the whole document becomes freeform; QuarkPress scans linearly
+audit-D20-backtrack tree D20 WordPress's delimiter regex hits PCRE's limits and the whole document becomes freeform; QuarkWord scans linearly

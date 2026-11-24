@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-multisite-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-multisite-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-multisite</artifactId>
+  <artifactId>quarkword-multisite</artifactId>
 
-  <name>QuarkPress :: Multisite :: Runtime</name>
-  <description>Several sites on one QuarkPress network: site resolution by domain, subdomain and path, domain aliases and network administration</description>
+  <name>QuarkWord :: Multisite :: Runtime</name>
+  <description>Several sites on one QuarkWord network: site resolution by domain, subdomain and path, domain aliases and network administration</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.multisite</automatic.module.name>
+    <automatic.module.name>org.quarkword.multisite</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -38,14 +38,14 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -58,7 +58,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.multisite</provides>
+            <provides>org.quarkword.multisite</provides>
           </capabilities>
         </configuration>
       </plugin>

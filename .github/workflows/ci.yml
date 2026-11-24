@@ -67,28 +67,28 @@ jobs:
       # Keep in step with native.yml's keycloak steps: the same pin, checkout, installs and package. The JDK 21 cells
       # run integration-tests/keycloak's end-to-end sign-in against Dev Services' Keycloak with the provider mounted;
       # on JDK 25 it is skipped (no checkout, requireKeycloakProvider unset).
-      - name: Read the quarkpress-keycloak pin
+      - name: Read the quarkword-keycloak pin
         if: matrix.java == 21
         run: |
-          pin="$(sed -n 's:.*<quarkpress-keycloak.commit>\(.*\)</quarkpress-keycloak.commit>.*:\1:p' pom.xml)"
-          [ "${#pin}" -eq 40 ] || { echo "::error::quarkpress-keycloak.commit not found in pom.xml"; exit 1; }
-          echo "QUARKPRESS_KEYCLOAK_COMMIT=$pin" >> "$GITHUB_ENV"
+          pin="$(sed -n 's:.*<quarkword-keycloak.commit>\(.*\)</quarkword-keycloak.commit>.*:\1:p' pom.xml)"
+          [ "${#pin}" -eq 40 ] || { echo "::error::quarkword-keycloak.commit not found in pom.xml"; exit 1; }
+          echo "QUARKWORD_KEYCLOAK_COMMIT=$pin" >> "$GITHUB_ENV"
       # The provider is not on Maven Central: packaged from the pinned commit. The checkout stays inside the workspace
-      # (.quarkpress-keycloak/ is ignored by git and is no module of this build).
+      # (.quarkword-keycloak/ is ignored by git and is no module of this build).
       - uses: actions/checkout@v4
         if: matrix.java == 21
         with:
-          repository: QuarkPress/quarkpress-keycloak
-          ref: ${{ env.QUARKPRESS_KEYCLOAK_COMMIT }}
-          path: .quarkpress-keycloak
+          repository: QuarkWord/quarkword-keycloak
+          ref: ${{ env.QUARKWORD_KEYCLOAK_COMMIT }}
+          path: .quarkword-keycloak
       - name: Package the Keycloak provider at the pinned commit
         if: matrix.java == 21
         # the provider shades lib-wp-password: installed first from this checkout (the main build only verifies).
         # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
         run: |
-          rm -rf ~/.m2/repository/org/quarkpress/keycloak
+          rm -rf ~/.m2/repository/org/quarkword/keycloak
           mvn -B -ntp install -DskipTests -pl libs/wp-password,testing/test-gen -am
-          mvn -B -ntp package -DskipTests -f .quarkpress-keycloak/pom.xml
+          mvn -B -ntp package -DskipTests -f .quarkword-keycloak/pom.xml
       # PHP for WordPress, the parity runs' reference: GD is its image editor, Imagick is left out
       - uses: shivammathur/setup-php@2.37.2
         with:
@@ -99,10 +99,10 @@ jobs:
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: |
           mvn -B -ntp verify -Pconformance,wp-parity -Dwp.media.require-editor=true -DtestDb=${{ matrix.db }} \
-            -DquarkpressKeycloakDir=$GITHUB_WORKSPACE/.quarkpress-keycloak -DrequireKeycloakProvider=true
+            -DquarkwordKeycloakDir=$GITHUB_WORKSPACE/.quarkword-keycloak -DrequireKeycloakProvider=true
           bash .github/scripts/require-tests-ran.sh \
-            integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkpress.it.restwp.RestParityDbTest.xml \
-            integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
+            integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkword.it.restwp.RestParityDbTest.xml \
+            integration-tests/media/target/surefire-reports/TEST-org.quarkword.it.media.MediaParityDbTest.xml
       - name: Build and test
         if: matrix.java != 21 || matrix.db != 'postgresql'
         # on JDK 25 the vips module is built, and its tests fail rather than skip when libvips lacks a format; on JDK 21
@@ -110,7 +110,7 @@ jobs:
         run: >-
           mvn -B -ntp verify -DtestDb=${{ matrix.db }}
           ${{ matrix.java == 25 && '-Dvips.require-all-formats=true' || '' }}
-          ${{ matrix.java == 21 && '-DquarkpressKeycloakDir=$GITHUB_WORKSPACE/.quarkpress-keycloak -DrequireKeycloakProvider=true' || '' }}
+          ${{ matrix.java == 21 && '-DquarkwordKeycloakDir=$GITHUB_WORKSPACE/.quarkword-keycloak -DrequireKeycloakProvider=true' || '' }}
       - name: WordPress parity on MySQL
         if: matrix.java == 21 && matrix.db == 'mysql'
         # the upstream modules have none of the named tests, hence failIfNoSpecifiedTests=false; the reports, removed
@@ -120,8 +120,8 @@ jobs:
             integration-tests/media/target/surefire-reports/TEST-*ParityDbTest.xml
           mvn -B -ntp -pl integration-tests/rest-wp-v2,integration-tests/media -am verify -Pwp-parity -Dtest='RestParityDbTest,MediaParityDbTest' -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -DtestDb=mysql
           bash .github/scripts/require-tests-ran.sh \
-            integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkpress.it.restwp.RestParityDbTest.xml \
-            integration-tests/media/target/surefire-reports/TEST-org.quarkpress.it.media.MediaParityDbTest.xml
+            integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkword.it.restwp.RestParityDbTest.xml \
+            integration-tests/media/target/surefire-reports/TEST-org.quarkword.it.media.MediaParityDbTest.xml
       - name: WordPress libvips media parity
         if: matrix.java == 25
         # as the JDK 21 step above: the report, removed first (the build wrote a skipped one), must show the test ran;
@@ -130,15 +130,15 @@ jobs:
           rm -f integration-tests/media-vips/target/surefire-reports/TEST-*ParityDbTest.xml
           mvn -B -ntp -pl integration-tests/media-vips -am verify -DskipITs -Pwp-parity -Dtest=MediaVipsParityDbTest -Dsurefire.failIfNoSpecifiedTests=false -Dwp.media.require-editor=true -Dvips.require-all-formats=true -DtestDb=${{ matrix.db }}
           bash .github/scripts/require-tests-ran.sh \
-            integration-tests/media-vips/target/surefire-reports/TEST-org.quarkpress.it.mediavips.MediaVipsParityDbTest.xml
+            integration-tests/media-vips/target/surefire-reports/TEST-org.quarkword.it.mediavips.MediaVipsParityDbTest.xml
       - name: Check that the Keycloak end-to-end tests ran
         if: matrix.java == 21
         # a renamed, filtered-out or skipped end-to-end test must not let the build pass
         run: |
           reports=integration-tests/keycloak/target
           bash .github/scripts/require-tests-ran.sh \
-            "$reports/surefire-reports/TEST-org.quarkpress.it.keycloak.KeycloakE2EDbTest.xml" \
-            "$reports/failsafe-reports/TEST-org.quarkpress.it.keycloak.KeycloakE2EIT.xml"
+            "$reports/surefire-reports/TEST-org.quarkword.it.keycloak.KeycloakE2EDbTest.xml" \
+            "$reports/failsafe-reports/TEST-org.quarkword.it.keycloak.KeycloakE2EIT.xml"
       - name: Check formatting
         if: matrix.java == 21 && matrix.db == 'postgresql'
         run: mvn -B -ntp spotless:check

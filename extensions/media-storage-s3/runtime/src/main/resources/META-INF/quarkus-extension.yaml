@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Media Storage S3"
-description: "Stores QuarkPress media files in an S3 bucket"
+name: "QuarkWord Media Storage S3"
+description: "Stores QuarkWord media files in an S3 bucket"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "media"
     - "storage"

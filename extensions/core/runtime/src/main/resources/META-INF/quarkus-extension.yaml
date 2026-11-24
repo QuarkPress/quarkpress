@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Core"
-description: "Site context, typed ids, events, filter interfaces and per-site features for QuarkPress"
+name: "QuarkWord Core"
+description: "Site context, typed ids, events, filter interfaces and per-site features for QuarkWord"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "wordpress"
   categories:

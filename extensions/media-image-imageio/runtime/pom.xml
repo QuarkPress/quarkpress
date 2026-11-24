@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-image-imageio-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-image-imageio-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-image-imageio</artifactId>
+  <artifactId>quarkword-media-image-imageio</artifactId>
 
-  <name>QuarkPress :: Media Image ImageIO :: Runtime</name>
-  <description>Reads, orients, crops, scales and writes QuarkPress images with ImageIO and the TwelveMonkeys plugins</description>
+  <name>QuarkWord :: Media Image ImageIO :: Runtime</name>
+  <description>Reads, orients, crops, scales and writes QuarkWord images with ImageIO and the TwelveMonkeys plugins</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.image.imageio</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.image.imageio</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -46,14 +46,14 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-rest-parity</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-media-image-contract</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-media-image-contract</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -66,7 +66,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.mediaimageimageio</provides>
+            <provides>org.quarkword.mediaimageimageio</provides>
           </capabilities>
         </configuration>
       </plugin>

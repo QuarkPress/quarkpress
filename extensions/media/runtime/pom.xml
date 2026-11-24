@@ -3,44 +3,44 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media</artifactId>
+  <artifactId>quarkword-media</artifactId>
 
-  <name>QuarkPress :: Media :: Runtime</name>
+  <name>QuarkWord :: Media :: Runtime</name>
   <description>Uploads, image sizes and the media library with WordPress's file, type and attachment rules</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media</automatic.module.name>
+    <automatic.module.name>org.quarkword.media</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.lib</groupId>
-      <artifactId>quarkpress-lib-wp-kses</artifactId>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-kses</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -62,20 +62,20 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-rest-parity</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -88,7 +88,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.media</provides>
+            <provides>org.quarkword.media</provides>
           </capabilities>
         </configuration>
       </plugin>
@@ -109,7 +109,7 @@
             </goals>
             <configuration>
               <includes>
-                <include>org/quarkpress/media/MediaStorageContract*.class</include>
+                <include>org/quarkword/media/MediaStorageContract*.class</include>
               </includes>
             </configuration>
           </execution>

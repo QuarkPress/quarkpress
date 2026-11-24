@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for the media module's pure rules. WordPress's own functions are loaded from media.php,
@@ -23,38 +23,38 @@
  * Harness rules, not WordPress behaviour: current_user_can answers only unfiltered_html, from the case; get_locale
  * returns the case's locale (en_US when absent); wp_is_valid_utf8 is the oracle bootstrap's; the default time zone
  * is UTC, as WordPress sets it when it loads; no image editor is available (wp_get_image_editor gives an error), as
- * QuarkPress reads sizes without one.
+ * QuarkWord reads sizes without one.
  */
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
-qp_load_functions(QP_WP . 'functions.php', [
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
+qw_load_functions(QW_WP . 'functions.php', [
     'wp_fuzzy_number_match', 'wp_check_filetype', 'wp_get_mime_types', 'get_allowed_mime_types',
     'mbstring_binary_safe_encoding', 'reset_mbstring_encoding', 'wp_get_image_mime', 'wp_is_heic_image_mime_type',
 ]);
-qp_load_functions(QP_WP . 'media.php', [
+qw_load_functions(QW_WP . 'media.php', [
     'image_resize_dimensions', 'wp_constrain_dimensions', 'wp_getimagesize', 'wp_get_avif_info', 'wp_get_webp_info',
 ]);
-qp_load_functions(QP_WP . 'formatting.php', ['sanitize_file_name', 'remove_accents', 'seems_utf8']);
-qp_load_functions(QP_WP . 'compat.php', ['_wp_can_use_pcre_u']);
-qp_load_functions(ABSPATH . 'wp-admin/includes/image.php', ['wp_exif_frac2dec', 'wp_exif_date2ts']);
+qw_load_functions(QW_WP . 'formatting.php', ['sanitize_file_name', 'remove_accents', 'seems_utf8']);
+qw_load_functions(QW_WP . 'compat.php', ['_wp_can_use_pcre_u']);
+qw_load_functions(ABSPATH . 'wp-admin/includes/image.php', ['wp_exif_frac2dec', 'wp_exif_date2ts']);
 
 // Harness rule, not WordPress behaviour: WordPress sets the default time zone to UTC when it loads.
 date_default_timezone_set('UTC');
 
-$GLOBALS['qp_case'] = [];
+$GLOBALS['qw_case'] = [];
 
 /** Harness rule: the acting user's unfiltered_html capability comes from the case; nothing else is granted. */
 function current_user_can($capability, ...$args)
 {
-    return 'unfiltered_html' === $capability && true === ($GLOBALS['qp_case']['unfiltered_html'] ?? false);
+    return 'unfiltered_html' === $capability && true === ($GLOBALS['qw_case']['unfiltered_html'] ?? false);
 }
 
 /** Harness rule: the site locale comes from the case. */
 function get_locale()
 {
-    return $GLOBALS['qp_case']['locale'] ?? 'en_US';
+    return $GLOBALS['qw_case']['locale'] ?? 'en_US';
 }
 
 /** Harness rule: the error WordPress's editor lookup gives when no editor can open a file. */
@@ -74,13 +74,13 @@ function wp_get_image_editor($path, $args = [])
 }
 
 /** The width, height and type of a getimagesize-shaped answer, or false. */
-function qp_size($info): array|false
+function qw_size($info): array|false
 {
     return is_array($info) ? [$info[0], $info[1], $info['mime']] : false;
 }
 
-qp_run(function (array $in): array {
-    $GLOBALS['qp_case'] = $in;
+qw_run(function (array $in): array {
+    $GLOBALS['qw_case'] = $in;
     switch ($in['op']) {
         case 'constrain':
             return ['size' => wp_constrain_dimensions($in['w0'], $in['h0'], $in['width'], $in['height'])];
@@ -98,8 +98,8 @@ qp_run(function (array $in): array {
         case 'imagesize':
             $reader = wp_get_avif_info($in['file']);
             return [
-                'size' => qp_size(wp_getimagesize($in['file'])),
-                'php' => qp_size(@getimagesize($in['file'])),
+                'size' => qw_size(wp_getimagesize($in['file'])),
+                'php' => qw_size(@getimagesize($in['file'])),
                 'reader' => $reader['width'] && $reader['height'] ? [$reader['width'], $reader['height']] : false,
             ];
         default:

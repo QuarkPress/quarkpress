@@ -3,16 +3,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-integration-tests-parent</artifactId>
+  <artifactId>quarkword-integration-tests-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: Integration tests</name>
-  <description>Applications that test the QuarkPress extensions end to end: JVM mode locally, also native in CI. Never published.</description>
+  <name>QuarkWord :: Integration tests</name>
+  <description>Applications that test the QuarkWord extensions end to end: JVM mode locally, also native in CI. Never published.</description>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>
@@ -90,9 +90,9 @@
               <maven.home>${maven.home}</maven.home>
             </systemPropertyVariables>
             <!-- The test database reaches tests and the application under test as an environment variable: a
-                 quarkpress.* system property would be rejected by the QuarkPress configuration root. -->
+                 quarkword.* system property would be rejected by the QuarkWord configuration root. -->
             <environmentVariables>
-              <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
+              <QUARKWORD_TEST_DB>${testDb}</QUARKWORD_TEST_DB>
             </environmentVariables>
           </configuration>
         </plugin>
@@ -117,9 +117,9 @@
               <quarkus.test.arg-line>${it.app.argLine}</quarkus.test.arg-line>
             </systemPropertyVariables>
             <!-- The test database reaches tests and the application under test as an environment variable: a
-                 quarkpress.* system property would be rejected by the QuarkPress configuration root. -->
+                 quarkword.* system property would be rejected by the QuarkWord configuration root. -->
             <environmentVariables>
-              <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
+              <QUARKWORD_TEST_DB>${testDb}</QUARKWORD_TEST_DB>
             </environmentVariables>
           </configuration>
         </plugin>
@@ -130,13 +130,13 @@
   <profiles>
     <profile>
       <!-- Applications that need Java 25 (the libvips image processor: quarkus-libvips is built on Java 25's Foreign
-           Function and Memory API). A Java 21 build leaves them out; -Dquarkpress.skip-vips leaves them out on
+           Function and Memory API). A Java 21 build leaves them out; -Dquarkword.skip-vips leaves them out on
            Java 25 too. -->
       <id>jdk25-modules</id>
       <activation>
         <jdk>[25,)</jdk>
         <property>
-          <name>!quarkpress.skip-vips</name>
+          <name>!quarkword.skip-vips</name>
         </property>
       </activation>
       <modules>

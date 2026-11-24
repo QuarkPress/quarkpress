@@ -3,39 +3,39 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-posts-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-posts-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-posts</artifactId>
+  <artifactId>quarkword-posts</artifactId>
 
-  <name>QuarkPress :: Posts :: Runtime</name>
+  <name>QuarkWord :: Posts :: Runtime</name>
   <description>Posts and pages with WordPress's types, statuses, dates, slugs, sticky and hierarchy rules</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.posts</automatic.module.name>
+    <automatic.module.name>org.quarkword.posts</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.lib</groupId>
-      <artifactId>quarkpress-lib-wp-kses</artifactId>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-kses</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.lib</groupId>
-      <artifactId>quarkpress-lib-wp-blocks</artifactId>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-blocks</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -49,14 +49,14 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -69,7 +69,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.posts</provides>
+            <provides>org.quarkword.posts</provides>
           </capabilities>
         </configuration>
       </plugin>

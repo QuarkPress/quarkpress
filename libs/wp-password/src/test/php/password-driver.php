@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for lib-wp-password. Passwords travel as hex so NUL bytes and invalid UTF-8 survive.
@@ -15,14 +15,14 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
-qp_load_functions(QP_WP . 'functions.php', ['wp_fast_hash', 'wp_verify_fast_hash']);
-require QP_WP . 'pluggable.php';
-require QP_WP . 'class-phpass.php';
-require QP_WP . 'class-wp-application-passwords.php';
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
+qw_load_functions(QW_WP . 'functions.php', ['wp_fast_hash', 'wp_verify_fast_hash']);
+require QW_WP . 'pluggable.php';
+require QW_WP . 'class-phpass.php';
+require QW_WP . 'class-wp-application-passwords.php';
 
 /** Which verifier wp_check_password uses for this stored hash. */
-function qp_branch(string $hash): string
+function qw_branch(string $hash): string
 {
     return match (true) {
         strlen($hash) <= 32 => 'md5',
@@ -32,7 +32,7 @@ function qp_branch(string $hash): string
     };
 }
 
-qp_run(function (array $in): array {
+qw_run(function (array $in): array {
     $password = hex2bin($in['pw']);
     switch ($in['op']) {
         case 'check':
@@ -44,7 +44,7 @@ qp_run(function (array $in): array {
                 'check_slashed' => $slashed === $password ? $check : wp_check_password($slashed, $hash),
                 'rehash' => wp_password_needs_rehash($hash),
                 'app_check' => WP_Application_Passwords::check_password($password, $hash),
-                'branch' => qp_branch($hash),
+                'branch' => qw_branch($hash),
             ];
         case 'hash':
             $cost = (int) $in['cost'];

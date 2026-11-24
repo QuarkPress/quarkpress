@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-keycloak-provisioner-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-keycloak-provisioner-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-keycloak-provisioner</artifactId>
+  <artifactId>quarkword-keycloak-provisioner</artifactId>
 
-  <name>QuarkPress :: Keycloak Provisioner :: Runtime</name>
-  <description>Creates QuarkPress users in Keycloak through its Admin REST API, with their WordPress password hashes</description>
+  <name>QuarkWord :: Keycloak Provisioner :: Runtime</name>
+  <description>Creates QuarkWord users in Keycloak through its Admin REST API, with their WordPress password hashes</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.keycloak.provisioner</automatic.module.name>
+    <automatic.module.name>org.quarkword.keycloak.provisioner</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -46,7 +46,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.keycloakprovisioner</provides>
+            <provides>org.quarkword.keycloakprovisioner</provides>
           </capabilities>
         </configuration>
       </plugin>

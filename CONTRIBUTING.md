@@ -1,4 +1,4 @@
-# Contributing to QuarkPress
+# Contributing to QuarkWord
 
 ## Prerequisites
 
@@ -6,24 +6,24 @@
 - Maven 3.9 or newer
 - Docker or Podman, for the database tests of the extensions (see the README)
 - For `integration-tests/keycloak`'s end-to-end test: a packaged checkout of
-  [quarkpress-keycloak](https://github.com/QuarkPress/quarkpress-keycloak), else that test is skipped (see below)
+  [quarkword-keycloak](https://github.com/QuarkWord/quarkword-keycloak), else that test is skipped (see below)
 - On JDK 25 only: [quarkus-libvips](https://github.com/SiteNetSoft/quarkus-libvips) installed at the pinned
-  commit, or `-Dquarkpress.skip-vips` (see the README's "Building")
+  commit, or `-Dquarkword.skip-vips` (see the README's "Building")
 
 Build everything with `mvn verify`. Format with `mvn spotless:apply`; CI runs `spotless:check`.
 
 ### The Keycloak provider for the end-to-end test
 
 `integration-tests/keycloak` signs imported WordPress users in through Dev Services' Keycloak with the password-hash
-provider of [quarkpress-keycloak](https://github.com/QuarkPress/quarkpress-keycloak) mounted, and reads that
+provider of [quarkword-keycloak](https://github.com/QuarkWord/quarkword-keycloak) mounted, and reads that
 repository's WordPress-made hashes as its fixtures. The provider is not on Maven Central yet, so the test takes a
 checkout of it:
 
-- **Where.** By default the directory `quarkpress-keycloak` beside this repository; elsewhere, pass
-  `-DquarkpressKeycloakDir=<checkout>`. The test uses
-  `<checkout>/wp-password/target/quarkpress-keycloak-wp-password.jar` and
+- **Where.** By default the directory `quarkword-keycloak` beside this repository; elsewhere, pass
+  `-DquarkwordKeycloakDir=<checkout>`. The test uses
+  `<checkout>/wp-password/target/quarkword-keycloak-wp-password.jar` and
   `<checkout>/wp-password/src/test/resources/wordpress-7.1.3-hashes.txt`.
-- **Which commit.** The root `pom.xml` pins it as `quarkpress-keycloak.commit`; CI checks out exactly that commit. A
+- **Which commit.** The root `pom.xml` pins it as `quarkword-keycloak.commit`; CI checks out exactly that commit. A
   checkout at another commit is used, with a warning in the test log. The pin moves only in a `ci(workflows):` commit,
   after the provider commit is pushed.
 - **Packaging it.** The provider shades this repository's `lib-wp-password`, so install that first, then package the
@@ -31,9 +31,9 @@ checkout of it:
 
   ```bash
   mvn install -DskipTests -pl libs/wp-password,testing/test-gen -am
-  git clone https://github.com/QuarkPress/quarkpress-keycloak.git ../quarkpress-keycloak
-  git -C ../quarkpress-keycloak checkout <quarkpress-keycloak.commit>
-  mvn package -DskipTests -f ../quarkpress-keycloak/pom.xml
+  git clone https://github.com/QuarkWord/quarkword-keycloak.git ../quarkword-keycloak
+  git -C ../quarkword-keycloak checkout <quarkword-keycloak.commit>
+  mvn package -DskipTests -f ../quarkword-keycloak/pom.xml
   ```
 
   Package it again after changing the checkout: a jar older than the checkout's main sources or POMs counts as
@@ -51,7 +51,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:
 
 ## Design rules
 
-The specification in `QUARKPRESS-SPEC.md` is binding. In short:
+The specification in `QUARKWORD-SPEC.md` is binding. In short:
 
 1. Quarkus and Java best practices first: build-time over runtime, CDI over globals, typed APIs over strings.
 2. Everything is optional; each feature is its own module.
@@ -62,7 +62,7 @@ The specification in `QUARKPRESS-SPEC.md` is binding. In short:
 
 ## Source policy
 
-QuarkPress reproduces what WordPress does for its users with an original Java and Quarkus
+QuarkWord reproduces what WordPress does for its users with an original Java and Quarkus
 design. It is never a port of WordPress.
 
 Allowed sources:

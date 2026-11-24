@@ -1,6 +1,6 @@
-# QuarkPress Blocks
+# QuarkWord Blocks
 
-The block types, block renderers, block patterns and pattern categories a QuarkPress application registers, as
+The block types, block renderers, block patterns and pattern categories a QuarkWord application registers, as
 WordPress's block type and pattern registries hold them: plain Java and CDI, no database, no REST. The REST API
 module serves what is registered here on `/wp/v2/block-types`, `/wp/v2/block-renderer/<name>`,
 `/wp/v2/block-patterns/{patterns,categories}` and in the block editor's settings; later modules (block rendering,
@@ -10,15 +10,15 @@ themes) read the same registries.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-blocks</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-blocks</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-core` (for its configuration keys only), `quarkus-arc`, Jackson and the libraries
-`quarkpress-lib-wp-blocks` (the block parser and serializer) and `quarkpress-lib-wp-kses` (WordPress's text-field
+The extension brings `quarkword-core` (for its configuration keys only), `quarkus-arc`, Jackson and the libraries
+`quarkword-lib-wp-blocks` (the block parser and serializer) and `quarkword-lib-wp-kses` (WordPress's text-field
 sanitizing). It needs no database and reads no site: a renderer is told the post it renders for as an id, if any.
-Public API lives in `org.quarkpress.blocks`; `org.quarkpress.blocks.runtime` is implementation and may change.
+Public API lives in `org.quarkword.blocks`; `org.quarkword.blocks.runtime` is implementation and may change.
 
 ## Using it
 
@@ -44,7 +44,7 @@ public class ShopBlocks implements BlockTypeProvider {
 
 - A name is `<namespace>/<name>`, each part starting with a lower-case ASCII letter and holding only lower-case ASCII
   letters, digits and dashes (`acme/notice`); anything else is refused with `IllegalArgumentException`
-  ("QuarkPress: a block type name is <namespace>/<name> in lower-case letters, digits and dashes: ...").
+  ("QuarkWord: a block type name is <namespace>/<name> in lower-case letters, digits and dashes: ...").
 - `fromBlockJson` reads WordPress's `block.json` keys `apiVersion`, `name`, `title`, `category`, `parent`,
   `ancestor`, `allowedBlocks`, `icon`, `description`, `keywords`, `textdomain`, `attributes`, `providesContext`,
   `usesContext`, `selectors`, `supports`, `styles`, `example`, `variations` and `blockHooks`; other keys (the asset
@@ -59,7 +59,7 @@ public class ShopBlocks implements BlockTypeProvider {
   The registries read the providers once, when the application starts; a `@Dependent` provider is destroyed right
   after.
 - **Start-up refusals** (`IllegalStateException`, the application does not start): a type registered twice
-  ("QuarkPress: the block type <name> is registered more than once"), as WordPress's `register_block_type` refuses
+  ("QuarkWord: the block type <name> is registered more than once"), as WordPress's `register_block_type` refuses
   it.
 
 ### Renderers
@@ -86,7 +86,7 @@ public class PriceRenderer implements BlockRenderer {
 copied in and out, so a renderer cannot change the caller's node) and the post the block is rendered for as an
 `OptionalLong`. A renderer answering `null` counts as the empty string. The renderer's HTML is served as it is: the
 registered type's supports add no classes or styles to it (rest-wp-v2 D51). Start-up refusals: two renderers for one
-type ("QuarkPress: two block renderers for <name>") and a renderer whose type no provider registers ("QuarkPress: the
+type ("QuarkWord: two block renderers for <name>") and a renderer whose type no provider registers ("QuarkWord: the
 block renderer for <name> names no registered block type").
 
 ### The attributes supports add
@@ -104,11 +104,11 @@ when no other support wants it. `border`, `shadow`, `background`'s other keys an
 whose supports turn `autoRegister` on marks each declared attribute of a simple type (string, number, integer,
 boolean) without `source` and whose `role` is not `local` with `autoGenerateControl: true`. A support is on when it is
 `true`, an object or a list (WordPress's test for most supports; its colour and typography checks also count other
-truthy values such as `1`, which QuarkPress does not). WordPress's shadow support replaces a declared `style` or
-`shadow` attribute's schema with its bare one; QuarkPress keeps the declared schema.
+truthy values such as `1`, which QuarkWord does not). WordPress's shadow support replaces a declared `style` or
+`shadow` attribute's schema with its bare one; QuarkWord keeps the declared schema.
 
 What each support adds is data, `block-support-attributes.json` beside `BlockSupports`, recorded from WordPress 7.1.3
-and registered as a native-image resource. Every QuarkPress type is registered at start-up, so every type gets the
+and registered as a native-image resource. Every QuarkWord type is registered at start-up, so every type gets the
 attributes of its supports (WordPress gives them to the types registered before its block supports are set up and
 only `lock` and `metadata` to a later one; rest-wp-v2 D50).
 
@@ -123,9 +123,9 @@ where it stood, as WordPress's pattern and category registries do (types refuse 
 `BlockPatternRegistry.all()`/`find(name)` and `BlockPatternCategoryRegistry.all()` answer what is registered, in
 registration order.
 
-QuarkPress ships no pattern (rest-wp-v2 D52). It ships WordPress's 21 core pattern categories
+QuarkWord ships no pattern (rest-wp-v2 D52). It ships WordPress's 21 core pattern categories
 (`CoreBlockPatternCategories`, order 0, so they come first), by name and label in WordPress's order, with
-descriptions written by QuarkPress (rest-wp-v2 D53):
+descriptions written by QuarkWord (rest-wp-v2 D53):
 
 | Name | Label | Description |
 |---|---|---|
@@ -172,9 +172,9 @@ set.
 
 Unlike WordPress, the work is bounded, in two ways, each logged once at WARN naming the pattern:
 
-- once `quarkpress.blocks.max-resolved-blocks` blocks have been inserted into one pattern's content (10 000 by
+- once `quarkword.blocks.max-resolved-blocks` blocks have been inserted into one pattern's content (10 000 by
   default), the remaining references are left as they are ("Block pattern <name>: nested patterns are left
-  unresolved after <n> inserted blocks (quarkpress.blocks.max-resolved-blocks)"); nested references fan out, so a
+  unresolved after <n> inserted blocks (quarkword.blocks.max-resolved-blocks)"); nested references fan out, so a
   pattern holding 500 references to a pattern of 500 paragraphs stops at the bound instead of inserting 250 000
   blocks;
 - wherever the patterns and blocks would nest deeper than the block parser reads (1024 levels, the chain of patterns
@@ -187,12 +187,12 @@ length is removed without a stack overflow.
 
 ## Configuration
 
-Run time; checked at start-up with the other `quarkpress.*` keys (an unknown `quarkpress.blocks.*` key fails the
+Run time; checked at start-up with the other `quarkword.*` keys (an unknown `quarkword.blocks.*` key fails the
 start).
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.blocks.max-resolved-blocks` | `10000` | How many blocks the nested patterns of one pattern may insert when its content is resolved; the later references are left unresolved and one warning is logged. WordPress has no such bound. A negative value fails the start. |
+| `quarkword.blocks.max-resolved-blocks` | `10000` | How many blocks the nested patterns of one pattern may insert when its content is resolved; the later references are left unresolved and one warning is logged. WordPress has no such bound. A negative value fails the start. |
 
 ## Limits
 

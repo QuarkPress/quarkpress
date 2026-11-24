@@ -1,6 +1,6 @@
-# QuarkPress Media Storage S3
+# QuarkWord Media Storage S3
 
-A storage backend for QuarkPress media: it keeps the uploaded files in an S3 bucket, on AWS or on an S3-compatible
+A storage backend for QuarkWord media: it keeps the uploaded files in an S3 bucket, on AWS or on an S3-compatible
 store, through the Quarkus Amazon S3 extension (`quarkus-amazon-s3`) and its synchronous client on the JDK's URL
 connection. The files are served by S3 or by a CDN in front of it, never by the application. It requires the media
 module.
@@ -9,27 +9,27 @@ module.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-media-storage-s3</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-media-storage-s3</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-media`, `quarkus-amazon-s3` and the AWS SDK's URL connection client
+The extension brings `quarkword-media`, `quarkus-amazon-s3` and the AWS SDK's URL connection client
 (`software.amazon.awssdk:url-connection-client`), which is the client `quarkus.s3.sync-client.type` uses by default:
 nothing else is needed. Its bean is the media module's `MediaStorage` named `s3` (`@Identifier("s3")`); with another
-backend present, `quarkpress.media.storage=s3` chooses it (see the media README). Everything in
-`org.quarkpress.media.storage.s3.runtime` is implementation and may change. The module works in a native image; CI
+backend present, `quarkword.media.storage=s3` chooses it (see the media README). Everything in
+`org.quarkword.media.storage.s3.runtime` is implementation and may change. The module works in a native image; CI
 builds and tests it natively.
 
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.media.s3.bucket` | none | The bucket that holds the files. Required when this backend is the one in use: without it the start fails ("quarkpress.media.s3.bucket is required by quarkpress-media-storage-s3"). The bucket must exist; it is not created. |
-| `quarkpress.media.s3.key-prefix` | unset | A prefix every object key starts with, such as `media` for `media/2026/11/photo.jpg`, so the bucket can hold other things. Without a leading or trailing `/`, and a valid key itself (see the media README's "Storage"), else the start fails naming the setting. Unset, the keys start at the bucket's root. |
-| `quarkpress.media.s3.public-base-url` | unset | The URL the files are published under, such as a CDN's or the bucket's website; its trailing slashes are removed. See [URLs](#urls). |
-| `quarkpress.media.s3.presigned-url-ttl` | unset | How long presigned URLs are valid, for a private bucket without a public base URL: a duration longer than 0 and at most 7 days (`P7D`, S3's limit), else the start fails naming the setting. See [URLs](#urls) before using it. |
-| `quarkpress.media.s3.conditional-writes` | `true` | Whether new files are written with a conditional request. See [Conditional writes](#conditional-writes). |
+| `quarkword.media.s3.bucket` | none | The bucket that holds the files. Required when this backend is the one in use: without it the start fails ("quarkword.media.s3.bucket is required by quarkword-media-storage-s3"). The bucket must exist; it is not created. |
+| `quarkword.media.s3.key-prefix` | unset | A prefix every object key starts with, such as `media` for `media/2026/11/photo.jpg`, so the bucket can hold other things. Without a leading or trailing `/`, and a valid key itself (see the media README's "Storage"), else the start fails naming the setting. Unset, the keys start at the bucket's root. |
+| `quarkword.media.s3.public-base-url` | unset | The URL the files are published under, such as a CDN's or the bucket's website; its trailing slashes are removed. See [URLs](#urls). |
+| `quarkword.media.s3.presigned-url-ttl` | unset | How long presigned URLs are valid, for a private bucket without a public base URL: a duration longer than 0 and at most 7 days (`P7D`, S3's limit), else the start fails naming the setting. See [URLs](#urls) before using it. |
+| `quarkword.media.s3.conditional-writes` | `true` | Whether new files are written with a conditional request. See [Conditional writes](#conditional-writes). |
 
 The settings are checked at start-up, without a request to the store: a missing bucket or wrong credentials show on
 the first upload or read, as an error naming the S3 status and error code. When another backend is the one in use,
@@ -48,8 +48,8 @@ An S3-compatible store, as an example (the endpoint, region and addressing each 
 documentation):
 
 ```properties
-quarkpress.media.s3.bucket=media
-quarkpress.media.s3.public-base-url=https://media.example.com
+quarkword.media.s3.bucket=media
+quarkword.media.s3.public-base-url=https://media.example.com
 quarkus.s3.endpoint-override=https://s3.store.example.com
 quarkus.s3.aws.region=us-east-1
 quarkus.s3.path-style-access=true
@@ -108,7 +108,7 @@ a name taken on the filesystem. A conflict with a concurrent write (409) is retr
 document this header; whether other S3-compatible stores honour it has not been checked here.
 
 A store that ignores the header would silently replace an existing file. For such a store, set
-`quarkpress.media.s3.conditional-writes=false`: a new file is then written after a request that asks whether the key
+`quarkword.media.s3.conditional-writes=false`: a new file is then written after a request that asks whether the key
 holds an object. That leaves a race: a concurrent upload of the same name can store its file between the two requests
 and see it replaced. Files written to replace (`WriteMode.REPLACE`, such as an edited image) are plain uploads either
 way, which readers see whole or not at all.
@@ -127,7 +127,7 @@ way, which readers see whole or not at all.
 - A missing object answers as missing whatever 404 the store gives (S3's `NoSuchKey`, or a bare 404 from an
   S3-compatible store). Any other error (403 `AccessDenied`, 500, 503 `SlowDown`) is an error naming the operation,
   the object, the status and the error code, never a missing file.
-- A missing bucket (a misspelt `quarkpress.media.s3.bucket`; start-up sends no request) is an error naming
+- A missing bucket (a misspelt `quarkword.media.s3.bucket`; start-up sends no request) is an error naming
   `NoSuchBucket` only for the requests whose answer has a body: uploads (`put`), reads (`open`) and listings (`list`).
   A `HEAD` answer has no body, and the AWS SDK turns every 404 answer to one into `NoSuchKey`, so the operations that
   ask with a `HEAD` cannot tell a missing bucket from a missing file and answer missing: `exists` answers false,
@@ -147,8 +147,8 @@ each object was stored with (the upload's type, as the media module checked it).
 
 ## Switching from the filesystem backend
 
-The media rows hold storage keys, not locations, so switching from `quarkpress-media-storage-fs` is a copy of the
-files: copy every file below `quarkpress.media.fs.directory` to the object of the same key below the key prefix (the
+The media rows hold storage keys, not locations, so switching from `quarkword-media-storage-fs` is a copy of the
+files: copy every file below `quarkword.media.fs.directory` to the object of the same key below the key prefix (the
 directory's `2026/11/photo.jpg` to `<key-prefix>/2026/11/photo.jpg`, `sites/<id>/…` alike; leave out the `.tmp`
 folder), then choose the S3 backend. No database change is needed. The guids of existing attachments keep the URLs
 they were stored with, as in WordPress; the URLs the media module answers come from the new backend.

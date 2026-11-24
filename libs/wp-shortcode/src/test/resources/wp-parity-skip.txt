@@ -5,7 +5,7 @@ none none D1 an invalid shortcode name throws IllegalArgumentException; WordPres
 none none D2 handlers are typed, so an uncallable callback cannot exist
 none none D3 handlers return String; PHP's casts of other results do not apply and null renders as ""
 html-style-* apply D4 a style attribute in an expanded quoted value is rejected until lib-wp-kses provides safecss
-r15-jit-limit apply D5 WordPress's regex hits PCRE's JIT stack limit and returns ""; QuarkPress scans in linear time
+r15-jit-limit apply D5 WordPress's regex hits PCRE's JIT stack limit and returns ""; QuarkWord scans in linear time
 r15-jit-limit apply_ignore_html D5 same as above
 r15-jit-limit strip D5 same as above
 none none D6 ShortcodeContext.expand stops at maxDepth (default 64); WordPress recurses until PHP runs out of stack

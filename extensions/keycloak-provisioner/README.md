@@ -1,37 +1,37 @@
-# QuarkPress Keycloak Provisioner
+# QuarkWord Keycloak Provisioner
 
-Creates QuarkPress users in Keycloak through Keycloak's Admin REST API (Quarkus's `quarkus-keycloak-admin-rest-client`).
+Creates QuarkWord users in Keycloak through Keycloak's Admin REST API (Quarkus's `quarkus-keycloak-admin-rest-client`).
 It is the security module's `UserProvisioner` for Keycloak: `UserImports.importUser` (see the security README,
 "Provisioning users") checks `create_users`, calls it, then creates the user's profile. A user's WordPress password
 hash is stored in Keycloak as a `wordpress` password credential. The
-[`quarkpress-keycloak`](https://github.com/QuarkPress/quarkpress-keycloak) hash provider, installed in Keycloak,
+[`quarkword-keycloak`](https://github.com/QuarkWord/quarkword-keycloak) hash provider, installed in Keycloak,
 verifies that credential at sign-in, and Keycloak then re-hashes the password with the realm's algorithm. Users keep
 their WordPress password and leave the WordPress format at their first sign-in.
 
-Nothing in QuarkPress imports users on its own: importers and host applications call `UserImports`.
+Nothing in QuarkWord imports users on its own: importers and host applications call `UserImports`.
 
 ## Installation
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-keycloak-provisioner</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-keycloak-provisioner</artifactId>
 </dependency>
 ```
 
-The version comes from `quarkpress-bom`. The module needs `quarkpress-security`, which it brings. Users imported with a
+The version comes from `quarkword-bom`. The module needs `quarkword-security`, which it brings. Users imported with a
 password hash can sign in only once Keycloak has the hash provider: see
-[the provider's README](https://github.com/QuarkPress/quarkpress-keycloak#readme) for the jar, its installation and
+[the provider's README](https://github.com/QuarkWord/quarkword-keycloak#readme) for the jar, its installation and
 the Keycloak versions it is tested on. Users imported without a hash need no provider.
 
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.keycloak-provisioner.realm` | dev and test: Dev Services' realm (`${quarkus.keycloak.devservices.realm-name:quarkpress}`); otherwise none | The realm users are created in, the one QuarkPress signs users in through. Required in production: without it the start fails. |
-| `quarkpress.keycloak-provisioner.email-verified` | `true` | Whether a created user's e-mail address counts as verified (only set when the user has an address). WordPress trusted the addresses it kept, and QuarkPress reads only verified addresses from tokens. |
+| `quarkword.keycloak-provisioner.realm` | dev and test: Dev Services' realm (`${quarkus.keycloak.devservices.realm-name:quarkword}`); otherwise none | The realm users are created in, the one QuarkWord signs users in through. Required in production: without it the start fails. |
+| `quarkword.keycloak-provisioner.email-verified` | `true` | Whether a created user's e-mail address counts as verified (only set when the user has an address). WordPress trusted the addresses it kept, and QuarkWord reads only verified addresses from tokens. |
 
-Both keys are declared to QuarkPress's core, so a misspelt `quarkpress.keycloak-provisioner.*` key fails the start
+Both keys are declared to QuarkWord's core, so a misspelt `quarkword.keycloak-provisioner.*` key fails the start
 and names the key.
 
 ### The admin client
@@ -52,9 +52,9 @@ With `kcadm.sh` (the same representations the end-to-end test sends through the 
 are not run by the tests):
 
 ```sh
-kcadm.sh create clients -r <realm> -s clientId=quarkpress-provisioner -s publicClient=false \
+kcadm.sh create clients -r <realm> -s clientId=quarkword-provisioner -s publicClient=false \
   -s serviceAccountsEnabled=true -s standardFlowEnabled=false -s directAccessGrantsEnabled=false
-kcadm.sh add-roles -r <realm> --uusername service-account-quarkpress-provisioner \
+kcadm.sh add-roles -r <realm> --uusername service-account-quarkword-provisioner \
   --cclientid realm-management --rolename manage-users --rolename view-users
 kcadm.sh get clients/<client uuid>/client-secret -r <realm>
 ```
@@ -65,9 +65,9 @@ Then:
 quarkus.keycloak.admin-client.server-url=https://keycloak.example.com
 quarkus.keycloak.admin-client.realm=<realm>
 quarkus.keycloak.admin-client.grant-type=CLIENT_CREDENTIALS
-quarkus.keycloak.admin-client.client-id=quarkpress-provisioner
-quarkus.keycloak.admin-client.client-secret=${QUARKPRESS_PROVISIONER_SECRET}
-quarkpress.keycloak-provisioner.realm=<realm>
+quarkus.keycloak.admin-client.client-id=quarkword-provisioner
+quarkus.keycloak.admin-client.client-secret=${QUARKWORD_PROVISIONER_SECRET}
+quarkword.keycloak-provisioner.realm=<realm>
 ```
 
 ### The start check
@@ -77,7 +77,7 @@ In production (not in dev or test) the provisioner checks these settings when th
 - The start fails while the password grant (the default) still uses the default credentials, username `admin` with
   password `admin`, whether they are left unset or set explicitly. The grant type is read in every form Quarkus
   accepts (`PASSWORD`, `password`, …).
-- The start fails without `quarkpress.keycloak-provisioner.realm`. Both failures are reported together.
+- The start fails without `quarkword.keycloak-provisioner.realm`. Both failures are reported together.
 - The username `admin` with another password under the password grant only logs a warning: the provisioner then
   signs in as Keycloak's administrator.
 - A `server-url` that does not start with `https://` only logs a warning: the provisioner sends password hashes and
@@ -92,7 +92,7 @@ The messages name the settings, never their values.
 refusal of the user, then posts the user to `POST /admin/realms/<realm>/users`:
 
 - `username` as given (Keycloak stores it lower-cased); `email`, with `emailVerified` from
-  `quarkpress.keycloak-provisioner.email-verified`, when the user has one; `firstName` and `lastName` when the user has
+  `quarkword.keycloak-provisioner.email-verified`, when the user has one; `firstName` and `lastName` when the user has
   them. Absent names stay absent: none is invented.
 - `enabled` true and no required actions.
 - With a password hash, one credential: see [The hash import](#the-hash-import).
@@ -124,8 +124,8 @@ request, the user's fields, the hash or Keycloak's answer:
 
 | Reason | When | Message |
 |---|---|---|
-| `NOT_CONFIGURED` | the realm key is unset or blank | `quarkpress.keycloak-provisioner.realm is not set: the Keycloak realm users are created in.` |
-| `NOT_CONFIGURED` | 404 to the creation | `Keycloak has no realm of the name quarkpress.keycloak-provisioner.realm sets.` |
+| `NOT_CONFIGURED` | the realm key is unset or blank | `quarkword.keycloak-provisioner.realm is not set: the Keycloak realm users are created in.` |
+| `NOT_CONFIGURED` | 404 to the creation | `Keycloak has no realm of the name quarkword.keycloak-provisioner.realm sets.` |
 | `UNAUTHORIZED` | the token request is refused (a 4xx), or a 401/403 to any other call | `Keycloak refused the admin client's credentials (quarkus.keycloak.admin-client.*).` |
 | `UNAUTHORIZED` | 401 or 403 to the creation | `Keycloak refused to create the user with the admin client's credentials: the client needs the realm-management roles manage-users and view-users.` |
 | `EMAIL_TAKEN` | 409, and no user of that username | `Another Keycloak user has the user's e-mail address.` |
@@ -142,13 +142,13 @@ left out.
 `Keycloak cannot be reached.` keeps the network error as its cause (refused or timed-out connection, unknown host, no
 route, TLS failure), which names the address only; any other cause is dropped, as it could quote Keycloak's answer.
 
-A `NewUser` QuarkPress itself refuses (an empty or padded username, an invalid e-mail, a hash that is not a WordPress
+A `NewUser` QuarkWord itself refuses (an empty or padded username, an invalid e-mail, a hash that is not a WordPress
 one) never reaches Keycloak: see the security README.
 
 ## The hash import
 
 A `NewUser` with `PasswordHash.wordpress(user_pass)` gets one credential, written exactly as the provider's README asks
-([Import users with their WordPress hash](https://github.com/QuarkPress/quarkpress-keycloak#import-users-with-their-wordpress-hash)):
+([Import users with their WordPress hash](https://github.com/QuarkWord/quarkword-keycloak#import-users-with-their-wordpress-hash)):
 type `password`, `temporary` false, `credentialData` `{"hashIterations":0,"algorithm":"wordpress","algorithmData":{}}`
 and `secretData` `{"value":"<user_pass>","algorithmData":{}}`, without salt. Hash iterations 0 and empty algorithm
 data make Keycloak re-hash the password with the realm's algorithm after the first successful sign-in. The end-to-end
@@ -167,7 +167,7 @@ WordPress's exporter never writes password hashes: a WXR file's authors (`WxrAut
 display, first and last name only. Users imported from WXR are therefore created without a credential, and set a
 password through Keycloak (a reset e-mail, or a temporary password an administrator sets). The hash path is for
 callers that read WordPress's `wp_users.user_pass` themselves, such as a host application with access to the
-WordPress database. QuarkPress's WXR importer (a later milestone) calls `UserImports` once per author, without a hash;
+WordPress database. QuarkWord's WXR importer (a later milestone) calls `UserImports` once per author, without a hash;
 how such a user's first sign-in goes is decided there.
 
 ## Keycloak's user profile
@@ -203,7 +203,7 @@ settings would record it anyway:
 
 - `quarkus.rest-client.logging.scope=request-response` logs the admin client's request bodies, hash included. Leave
   it off for the admin client.
-- A proxy, or anything else that logs request bodies between QuarkPress and Keycloak.
+- A proxy, or anything else that logs request bodies between QuarkWord and Keycloak.
 
 Keycloak's admin events do not store the hash, even with "Include representation": Keycloak strips `credentials`
 from user representations (checked by the provider's tests). Keycloak's database, and realm exports with users, do
@@ -226,7 +226,7 @@ run in CI only.
 
 ## Differences from WordPress
 
-| | WordPress | QuarkPress |
+| | WordPress | QuarkWord |
 |---|---|---|
 | K1 | `wp_insert_user` checks no capability; WordPress's screens and importers check their own | `UserImports` requires `create_users` (in a network, by default only network administrators hold it), before Keycloak is called |
 | K2 | `wp_insert_user` refuses an existing login | importing an existing username returns that Keycloak user unchanged, as WordPress's importers map an existing login to its user; usernames compare ignoring case |

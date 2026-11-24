@@ -1,4 +1,4 @@
-# quarkpress-lib-wp-password
+# quarkword-lib-wp-password
 
 A plain-Java verifier for the passwords WordPress stores in `wp_users.user_pass` and for application
 passwords. `WpPasswords.check` gives the answer WordPress 7.1.3's `wp_check_password` gives for every format
@@ -16,9 +16,9 @@ format or identity provider instead.
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-bom</artifactId>
-      <version>${quarkpress.version}</version>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-bom</artifactId>
+      <version>${quarkword.version}</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -26,8 +26,8 @@ format or identity provider instead.
 </dependencyManagement>
 
 <dependency>
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-lib-wp-password</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-lib-wp-password</artifactId>
 </dependency>
 ```
 
@@ -96,14 +96,14 @@ boolean ok = WpPasswords.checkFastHash(secret, storedHash);
 
 Each difference is exercised by the tests, and the `wp-parity` profile compares everything else with a real WordPress.
 
-| Item | QuarkPress | WordPress | Reason |
+| Item | QuarkWord | WordPress | Reason |
 |---|---|---|---|
 | D1 | `$2x$` hashes (also after `$wp`) fail | verified by `password_verify` | the id of an old 8-bit bug; WordPress never writes it |
 | D2 | `$1$`, `$5$`, `$6$`, `$argon2i$` and `$argon2id$` hashes fail; `detect` says `UNKNOWN` | verified by `password_verify` | WordPress core never writes them; support can be added later |
 | D3 | bcrypt costs 17 to 31 in a stored hash fail without computing | computed (cost 31 takes days) | bounded work on hostile input; WordPress writes cost 12 |
 | D4 | the `$wp_hasher` global and the `check_password`, `password_needs_rehash`, `wp_hash_password_algorithm` and `wp_hash_password_options` filters are not modeled; `needsRehash` assumes PHP 8.4's default cost 12 | plugins can change every answer | plugin territory |
 | D5 | `verify` also tries the `addslashes()` form | no such step: WordPress's own screens and REST API pass the slashed form to the hash functions | the identity provider receives raw passwords |
-| D6 | `checkFastHash` sends non-`$generic$` hashes to `check`, as `WP_Application_Passwords::check_password` does | `wp_verify_fast_hash` (reset and activation keys) sends them to phpass, which accepts `$H$` and rejects MD5 | application passwords are the case QuarkPress needs |
+| D6 | `checkFastHash` sends non-`$generic$` hashes to `check`, as `WP_Application_Passwords::check_password` does | `wp_verify_fast_hash` (reset and activation keys) sends them to phpass, which accepts `$H$` and rejects MD5 | application passwords are the case QuarkWord needs |
 | D7 | `String` arguments are UTF-8 encoded; unpaired surrogates become `?` | PHP sees the bytes it received | Java strings are UTF-16; use `check(byte[], String)` for exact bytes |
 | D8 | `$P$` hashes with a count character above `I` (more than 2^20 rounds) fail without computing | computed, up to 2^30 rounds | the bound keeps a hostile stored hash to seconds, not minutes (a 2^20-round hash with a 4096-byte password takes several seconds); WordPress writes `B` (2^13) |
 | D9 | hashing in WordPress's formats is not public | `wp_hash_password` and `wp_fast_hash` write them | the library only verifies; new hashes belong to the identity provider |

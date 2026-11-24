@@ -3,29 +3,29 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-integration-tests-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-it-multisite</artifactId>
+  <artifactId>quarkword-it-multisite</artifactId>
 
-  <name>QuarkPress :: Integration tests :: Multisite</name>
-  <description>An application serving several QuarkPress sites, tested over HTTP in JVM mode and as a native executable.</description>
+  <name>QuarkWord :: Integration tests :: Multisite</name>
+  <description>An application serving several QuarkWord sites, tested over HTTP in JVM mode and as a native executable.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.it.multisite</automatic.module.name>
+    <automatic.module.name>org.quarkword.it.multisite</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-it-feature-extension</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-it-feature-extension</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -57,8 +57,8 @@
     </dependency>
     <!-- Make the reactor build the deployment modules before this application. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -70,8 +70,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -83,8 +83,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -96,8 +96,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-it-feature-extension-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-it-feature-extension-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>

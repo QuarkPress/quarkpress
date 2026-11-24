@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Prelude for the command-line helpers (export-tables.php, kses-examples.php): defines the same
@@ -16,7 +16,7 @@ if ($argc < 2) {
 }
 define('ABSPATH', rtrim($argv[1], '/') . '/');
 define('WPINC', 'wp-includes');
-define('QP_WP', ABSPATH . WPINC . '/');
+define('QW_WP', ABSPATH . WPINC . '/');
 
 function __($text, $domain = 'default')
 {
@@ -53,5 +53,5 @@ function wp_allowed_protocols()
         'telnet', 'mms', 'rtsp', 'sms', 'svn', 'tel', 'fax', 'xmpp', 'webcal', 'urn'];
 }
 
-require QP_WP . 'plugin.php';
+require QW_WP . 'plugin.php';
 require __DIR__ . '/kses-env.php';

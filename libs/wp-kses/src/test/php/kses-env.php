@@ -1,15 +1,15 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Loads WordPress's kses.php with what it needs (formatting.php, the HTML API, the block parser)
  * on top of the oracle bootstrap (or export-tables.php, which defines the same functions), plus the
- * remaining environment functions as fixed stubs. qp_kses_mode() switches WordPress's default
+ * remaining environment functions as fixed stubs. qw_kses_mode() switches WordPress's default
  * kses-related filters on ('wp') or off ('bare').
  */
 
-const QP_KSES_UPLOAD_URL = 'https://example.org/wp-content/uploads/2026/10';
+const QW_KSES_UPLOAD_URL = 'https://example.org/wp-content/uploads/2026/10';
 
 function _deprecated_argument($function_name, $version, $message = '')
 {
@@ -37,7 +37,7 @@ function get_post($post = null)
 
 function wp_upload_dir($time = null, $create_dir = true, $refresh_cache = false)
 {
-    return ['url' => QP_KSES_UPLOAD_URL];
+    return ['url' => QW_KSES_UPLOAD_URL];
 }
 
 function wp_parse_url($url, $component = -1)
@@ -50,21 +50,21 @@ function current_user_can($capability, ...$args)
     return false;
 }
 
-require QP_WP . 'compat.php';
-require QP_WP . 'formatting.php';
-require QP_WP . 'class-wp-token-map.php';
+require QW_WP . 'compat.php';
+require QW_WP . 'formatting.php';
+require QW_WP . 'class-wp-token-map.php';
 foreach (['class-wp-html-attribute-token', 'class-wp-html-span', 'class-wp-html-text-replacement',
     'class-wp-html-decoder', 'class-wp-html-doctype-info', 'class-wp-html-unsupported-exception',
-    'class-wp-html-tag-processor'] as $qp_file) {
-    require QP_WP . 'html-api/' . $qp_file . '.php';
+    'class-wp-html-tag-processor'] as $qw_file) {
+    require QW_WP . 'html-api/' . $qw_file . '.php';
 }
-require QP_WP . 'html-api/html5-named-character-references.php';
-require QP_WP . 'kses.php';
-require QP_WP . 'class-wp-block-parser.php';
-require QP_WP . 'blocks.php';
+require QW_WP . 'html-api/html5-named-character-references.php';
+require QW_WP . 'kses.php';
+require QW_WP . 'class-wp-block-parser.php';
+require QW_WP . 'blocks.php';
 
 /** 'wp' registers WordPress's default kses-related filters (default-filters.php); 'bare' removes them. */
-function qp_kses_mode(string $mode): void
+function qw_kses_mode(string $mode): void
 {
     remove_filter('pre_kses', 'wp_pre_kses_less_than');
     remove_filter('pre_kses', 'wp_pre_kses_block_attributes', 10);
@@ -79,13 +79,13 @@ function qp_kses_mode(string $mode): void
 }
 
 /** The safe_style_css list of the current case, or null for WordPress's own list. */
-$GLOBALS['qp_css_properties'] = null;
+$GLOBALS['qw_css_properties'] = null;
 add_filter('safe_style_css', function ($properties) {
-    return $GLOBALS['qp_css_properties'] ?? $properties;
+    return $GLOBALS['qw_css_properties'] ?? $properties;
 }, PHP_INT_MAX);
 
 /** WordPress's data tables, for comparing with the Java ones. */
-function qp_tables(): array
+function qw_tables(): array
 {
     global $allowedentitynames, $allowedxmlentitynames;
     $css = null;
@@ -110,10 +110,10 @@ function qp_tables(): array
 }
 
 /** Runs one case: {"fn": ..., plus that function's arguments}. Field names match the Java Examples runner. */
-function qp_kses_case(array $in): mixed
+function qw_kses_case(array $in): mixed
 {
-    qp_kses_mode($in['mode'] ?? 'bare');
-    $GLOBALS['qp_css_properties'] = $in['properties'] ?? null;
+    qw_kses_mode($in['mode'] ?? 'bare');
+    $GLOBALS['qw_css_properties'] = $in['properties'] ?? null;
     $protocols = $in['protocols'] ?? [];
     $text = $in['text'] ?? '';
     return match ($in['fn']) {
@@ -129,7 +129,7 @@ function qp_kses_case(array $in): mixed
         'kses' => wp_kses($text, $in['allowed'] ?? $in['context'], $protocols),
         'one_attr' => wp_kses_one_attr($text, $in['element']),
         'strip_all_tags' => wp_strip_all_tags($text, $in['remove_breaks']),
-        'tables' => qp_tables(),
+        'tables' => qw_tables(),
         default => throw new InvalidArgumentException('unknown fn ' . $in['fn']),
     };
 }

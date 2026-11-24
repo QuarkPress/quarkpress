@@ -3,43 +3,43 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-deployment</artifactId>
+  <artifactId>quarkword-media-deployment</artifactId>
 
-  <name>QuarkPress :: Media :: Deployment</name>
+  <name>QuarkWord :: Media :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -71,15 +71,15 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <!-- the media fixtures only (JDK-only code): the module's scenario dependencies would add extensions to the test apps -->
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-rest-parity</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
       <exclusions>

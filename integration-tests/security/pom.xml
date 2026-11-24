@@ -3,29 +3,29 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-integration-tests-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-it-security</artifactId>
+  <artifactId>quarkword-it-security</artifactId>
 
-  <name>QuarkPress :: Integration tests :: Security</name>
+  <name>QuarkWord :: Integration tests :: Security</name>
   <description>A multisite application with WordPress roles and capabilities, tested over HTTP with Keycloak tokens in JVM mode and as a native executable.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.it.security</automatic.module.name>
+    <automatic.module.name>org.quarkword.it.security</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -62,8 +62,8 @@
     </dependency>
     <!-- Make the reactor build the deployment modules before this application. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -75,8 +75,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -88,8 +88,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -101,8 +101,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>

@@ -1,0 +1,136 @@
+package org.quarkword.scheduling.runtime;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.quarkword.core.PostId;
+import org.quarkword.core.SiteId;
+import org.quarkword.persistence.runtime.TenantIds;
+import org.quarkword.posts.runtime.PostEntity;
+import org.quarkword.posts.runtime.PostRepository;
+import org.quarkword.scheduling.ScheduledPosts;
+
+/**
+ * The reads of the scheduling jobs: which sites have due posts, which posts of a site are due, which sites exist,
+ * the pages of a site's trashed posts and stale auto-drafts the housekeeping purges, and the next scheduled posts of
+ * every site.
+ */
+@ApplicationScoped
+public class DuePosts {
+
+    @Inject
+    PostRepository posts;
+
+    /**
+     * The sites with at least one scheduled post due at {@code now} or earlier, in id order. Run it inside the
+     * network scope, where the site filter sees every site: it names no site on purpose.
+     */
+    public List<SiteId> sitesWithDuePosts(Instant now) {
+        return posts.getEntityManager()
+                .createQuery(
+                        "select distinct p.siteId from PostEntity p where p.status = 'future' and p.publishedAt <= :now"
+                                + " order by p.siteId",
+                        Long.class)
+                .setParameter("now", now)
+                .getResultStream()
+                .map(SiteId::of)
+                .toList();
+    }
+
+    /**
+     * At most {@code limit} due scheduled posts of {@code site}, the earliest first and in id order within a second.
+     */
+    public List<PostId> duePosts(SiteId site, Instant now, int limit) {
+        return posts.getEntityManager()
+                .createQuery(
+                        "select p.id from PostEntity p where p.siteId = :site and p.status = 'future'"
+                                + " and p.publishedAt <= :now order by p.publishedAt, p.id",
+                        Long.class)
+                .setParameter("site", TenantIds.param(site))
+                .setParameter("now", now)
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(PostId::of)
+                .toList();
+    }
+
+    /**
+     * At most {@code limit} scheduled posts with a GMT date, of every site, soonest first, then by site id, then by
+     * post id; due or not. Run it inside the network scope, where the site filter sees every site: it names no site
+     * on purpose.
+     */
+    public List<ScheduledPosts.Upcoming> nextScheduled(int limit) {
+        return posts.getEntityManager()
+                .createQuery(
+                        "select p.siteId, p.id, p.type, p.title, p.publishedAt from PostEntity p where p.status ="
+                                + " 'future' and p.publishedAt is not null order by p.publishedAt, p.siteId, p.id",
+                        Object[].class)
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(row -> new ScheduledPosts.Upcoming(
+                        SiteId.of((Long) row[0]), PostId.of((Long) row[1]), (String) row[2], (String) row[3], (Instant)
+                                row[4]))
+                .toList();
+    }
+
+    /** Every site of the network, in id order. */
+    public List<SiteId> allSites() {
+        return posts.getEntityManager()
+                .createQuery("select s.id from SiteEntity s order by s.id", Long.class)
+                .getResultStream()
+                .map(SiteId::of)
+                .toList();
+    }
+
+    /** A trashed post as the trash purge selects it: its id and its meta, where the trash time is kept. */
+    public record Trashed(PostId id, JsonNode meta) {}
+
+    /**
+     * At most {@code limit} trashed posts of {@code site}, of any type, with an id above {@code afterId}, in id
+     * order: one page of the trash, as ids and metas only, so a large trash is not loaded whole.
+     */
+    public List<Trashed> trashedAfter(SiteId site, long afterId, int limit) {
+        return posts.getEntityManager()
+                .createQuery(
+                        "select p.id, p.meta from PostEntity p where p.siteId = :site and p.status = 'trash'"
+                                + " and p.id > :after order by p.id",
+                        Object[].class)
+                .setParameter("site", TenantIds.param(site))
+                .setParameter("after", afterId)
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(row -> new Trashed(PostId.of((Long) row[0]), (JsonNode) row[1]))
+                .toList();
+    }
+
+    /**
+     * The post of {@code site} with {@code id}, read fresh under its row lock, held until the transaction ends; empty
+     * when it is gone. Take the site's post lock first ({@code PostLocks.lock}): the posts module locks the site
+     * before any post row, and the delete that follows takes both again.
+     */
+    public Optional<PostEntity> post(SiteId site, PostId id) {
+        return posts.lockPost(site, id);
+    }
+
+    /**
+     * At most {@code limit} auto-drafts of {@code site}, of any type, last modified before {@code before}, with an
+     * id above {@code afterId}, in id order: one page of the stale auto-drafts.
+     */
+    public List<PostId> autoDraftsModifiedBefore(SiteId site, Instant before, long afterId, int limit) {
+        return posts.getEntityManager()
+                .createQuery(
+                        "select p.id from PostEntity p where p.siteId = :site and p.status = 'auto-draft'"
+                                + " and p.modifiedAt < :before and p.id > :after order by p.id",
+                        Long.class)
+                .setParameter("site", TenantIds.param(site))
+                .setParameter("before", before)
+                .setParameter("after", afterId)
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(PostId::of)
+                .toList();
+    }
+}

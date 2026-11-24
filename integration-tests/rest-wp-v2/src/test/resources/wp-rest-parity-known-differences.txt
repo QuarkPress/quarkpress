@@ -1,21 +1,21 @@
-# Known differences between QuarkPress's REST API and WordPress 7.1.3 (RestParityDbTest, -Pwp-parity).
+# Known differences between QuarkWord's REST API and WordPress 7.1.3 (RestParityDbTest, -Pwp-parity).
 # One per line: <scenario-id> <aspect> <label> <reason>. Globs know * and ?. The label is the row of the "Differences
 # from WordPress" table in extensions/rest-wp-v2/README.md. Every entry is asserted: an entry whose comparisons all
 # match WordPress now, or that covers no comparison, fails the run. A scenario of "none" documents a difference no
 # scenario can show.
 # Aspects: req<n>:status, req<n>:header:<name>, req<n>:body (equal bodies), req<n>:body:<JSON pointer> (a differing
-# leaf), req<n>:body:wp-only:<pointer> (one of the namespaces, routes and index links QuarkPress does not serve yet,
-# RestComparison.NOT_SERVED_*), req<n>:body:qp-only:<pointer> (a namespace only QuarkPress serves,
-# RestComparison.QUARKPRESS_ONLY_NAMESPACES), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing; WordPress's
+# leaf), req<n>:body:wp-only:<pointer> (one of the namespaces, routes and index links QuarkWord does not serve yet,
+# RestComparison.NOT_SERVED_*), req<n>:body:qw-only:<pointer> (a namespace only QuarkWord serves,
+# RestComparison.QUARKWORD_ONLY_NAMESPACES), req<n>:body:link-form:<pointer> (a front-end link both sides have, differing; WordPress's
 # pretty form is then compared in its plain form), req<n>:body:raw (the bytes of a body equal once parsed, for the
 # scenarios RestComparison.RAW_SCENARIOS names). Entries name the aspects that differ, never a whole request.
 
 # D1: front-end links use plain permalinks; REST hrefs always use /wp-json/, which is served whatever the permalinks.
 * req*:body:link-form:* D1 front-end link fields are plain permalinks (?cat=, ?tag=, ?author=); WordPress's follow the site's permalinks (compared where both sides have a link)
-d01 req1:status D1 with plain permalinks WordPress redirects /wp-json/... (301); QuarkPress serves it (the posts collection)
-d01 req1:header:allow D1 WordPress's redirect has no Allow; QuarkPress serves the posts collection
-d01 req1:header:x-wp-total D1 WordPress's redirect has no totals; QuarkPress serves the posts collection
-d01 req1:header:x-wp-totalpages D1 WordPress's redirect has no totals; QuarkPress serves the posts collection
+d01 req1:status D1 with plain permalinks WordPress redirects /wp-json/... (301); QuarkWord serves it (the posts collection)
+d01 req1:header:allow D1 WordPress's redirect has no Allow; QuarkWord serves the posts collection
+d01 req1:header:x-wp-total D1 WordPress's redirect has no totals; QuarkWord serves the posts collection
+d01 req1:header:x-wp-totalpages D1 WordPress's redirect has no totals; QuarkWord serves the posts collection
 d01 req1:header:location D1 WordPress's redirect of /wp-json/... with plain permalinks
 d01 req1:header:link D1 WordPress's redirect has no API root link
 d01 req1:header:content-type D1 WordPress's redirect is text/html
@@ -24,8 +24,8 @@ d01 req1:header:x-content-type-options D1 WordPress's redirect has no REST heade
 d01 req1:header:vary D1 WordPress's redirect has no REST headers
 d01 req1:header:access-control-expose-headers D1 WordPress's redirect has no REST headers
 d01 req1:header:access-control-allow-headers D1 WordPress's redirect has no REST headers
-d01 req1:body* D1 WordPress's redirect body; QuarkPress's posts collection
-d01 req2:header:allow D1 with plain permalinks WordPress answers /wp-json/ with the front page; QuarkPress serves the index
+d01 req1:body* D1 WordPress's redirect body; QuarkWord's posts collection
+d01 req2:header:allow D1 with plain permalinks WordPress answers /wp-json/ with the front page; QuarkWord serves the index
 d01 req2:header:link D1 the front page's API root link uses index.php?rest_route=
 d01 req2:header:content-type D1 the front page is text/html
 d01 req2:header:x-robots-tag D1 the front page has no REST headers
@@ -33,7 +33,7 @@ d01 req2:header:x-content-type-options D1 the front page has no REST headers
 d01 req2:header:vary D1 the front page has no REST headers
 d01 req2:header:access-control-expose-headers D1 the front page has no REST headers
 d01 req2:header:access-control-allow-headers D1 the front page has no REST headers
-d01 req2:body* D1 the front page's HTML; QuarkPress's index
+d01 req2:body* D1 the front page's HTML; QuarkWord's index
 d01 req3:body:/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
 d01 req4:body:/routes/*/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
 d01 req4:header:link D1 plain permalinks: the API root link uses index.php?rest_route=
@@ -44,91 +44,91 @@ d01 req5:body:/0/_links/* D1 plain permalinks: WordPress's hrefs use index.php?r
 d01 req6:body:/0/_links/* D1 plain permalinks: WordPress's hrefs use index.php?rest_route=
 
 # D2: an invalid Bearer token answers 401 rest_invalid_token before matching; WordPress serves a failed application password as anonymous.
-d06 req1:header:allow D2 users/me with a refused credential: WordPress 401 rest_not_logged_in with Allow, QuarkPress 401 rest_invalid_token without
-d06 req1:body* D2 users/me with a refused credential: WordPress rest_not_logged_in, QuarkPress rest_invalid_token
-d06 req2:status D2 types with a refused credential: WordPress 200 (anonymous), QuarkPress 401 rest_invalid_token
-d06 req2:header:allow D2 types with a refused credential: WordPress answers with Allow, QuarkPress's refusal has none
-d06 req2:body* D2 types with a refused credential: WordPress's types, QuarkPress's rest_invalid_token
-d06 req3:status D2 an unknown route with a refused credential: WordPress 404 rest_no_route, QuarkPress 401 rest_invalid_token
-d06 req3:body* D2 an unknown route with a refused credential: WordPress rest_no_route, QuarkPress rest_invalid_token
+d06 req1:header:allow D2 users/me with a refused credential: WordPress 401 rest_not_logged_in with Allow, QuarkWord 401 rest_invalid_token without
+d06 req1:body* D2 users/me with a refused credential: WordPress rest_not_logged_in, QuarkWord rest_invalid_token
+d06 req2:status D2 types with a refused credential: WordPress 200 (anonymous), QuarkWord 401 rest_invalid_token
+d06 req2:header:allow D2 types with a refused credential: WordPress answers with Allow, QuarkWord's refusal has none
+d06 req2:body* D2 types with a refused credential: WordPress's types, QuarkWord's rest_invalid_token
+d06 req3:status D2 an unknown route with a refused credential: WordPress 404 rest_no_route, QuarkWord 401 rest_invalid_token
+d06 req3:body* D2 an unknown route with a refused credential: WordPress rest_no_route, QuarkWord rest_invalid_token
 
 # D4: CORS only for configured origins.
-d11 req4:header:vary D4 a preflight with an Origin: WordPress reflects it (Vary: Origin); QuarkPress has no configured origin
-d11 req3:header:access-control-allow-origin D4 WordPress reflects any Origin; QuarkPress none it was not configured with
-d11 req4:header:access-control-allow-origin D4 WordPress reflects any Origin; QuarkPress none it was not configured with
-d11 req3:header:access-control-allow-credentials D4 WordPress allows credentials for any Origin; QuarkPress has no configured origin
-d11 req4:header:access-control-allow-credentials D4 WordPress allows credentials for any Origin; QuarkPress has no configured origin
-d11 req3:header:access-control-allow-methods D4 WordPress lists the methods for any Origin; QuarkPress has no configured origin
-d11 req4:header:access-control-allow-methods D4 WordPress lists the methods for any Origin; QuarkPress has no configured origin
+d11 req4:header:vary D4 a preflight with an Origin: WordPress reflects it (Vary: Origin); QuarkWord has no configured origin
+d11 req3:header:access-control-allow-origin D4 WordPress reflects any Origin; QuarkWord none it was not configured with
+d11 req4:header:access-control-allow-origin D4 WordPress reflects any Origin; QuarkWord none it was not configured with
+d11 req3:header:access-control-allow-credentials D4 WordPress allows credentials for any Origin; QuarkWord has no configured origin
+d11 req4:header:access-control-allow-credentials D4 WordPress allows credentials for any Origin; QuarkWord has no configured origin
+d11 req3:header:access-control-allow-methods D4 WordPress lists the methods for any Origin; QuarkWord has no configured origin
+d11 req4:header:access-control-allow-methods D4 WordPress lists the methods for any Origin; QuarkWord has no configured origin
 
 # D5: _jsonp is always refused with rest_callback_disabled.
-d15 req4:status D5 _jsonp=cb: WordPress serves JSONP (200); QuarkPress refuses it (400)
+d15 req4:status D5 _jsonp=cb: WordPress serves JSONP (200); QuarkWord refuses it (400)
 d15 req4:header:content-type D5 _jsonp=cb: WordPress's JSONP is application/javascript
-d15 req4:header:allow D5 _jsonp=cb: WordPress's JSONP answer has Allow; QuarkPress's refusal comes before matching
-d15 req4:header:vary D5 _jsonp=cb: WordPress's anonymous JSONP GET has Vary; QuarkPress's refusal has the refusal's headers only
-d15 req4:header:access-control-expose-headers D5 _jsonp=cb: QuarkPress's refusal has the refusal's headers only
-d15 req4:header:access-control-allow-headers D5 _jsonp=cb: QuarkPress's refusal has the refusal's headers only
-d15 req4:body* D5 _jsonp=cb: WordPress's JSONP; QuarkPress's rest_callback_disabled
-d15 req5:header:content-type D5 _jsonp=a-b: WordPress refuses the callback name with the javascript type; QuarkPress refuses JSONP (application/json)
-d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkPress rest_callback_disabled
+d15 req4:header:allow D5 _jsonp=cb: WordPress's JSONP answer has Allow; QuarkWord's refusal comes before matching
+d15 req4:header:vary D5 _jsonp=cb: WordPress's anonymous JSONP GET has Vary; QuarkWord's refusal has the refusal's headers only
+d15 req4:header:access-control-expose-headers D5 _jsonp=cb: QuarkWord's refusal has the refusal's headers only
+d15 req4:header:access-control-allow-headers D5 _jsonp=cb: QuarkWord's refusal has the refusal's headers only
+d15 req4:body* D5 _jsonp=cb: WordPress's JSONP; QuarkWord's rest_callback_disabled
+d15 req5:header:content-type D5 _jsonp=a-b: WordPress refuses the callback name with the javascript type; QuarkWord refuses JSONP (application/json)
+d15 req5:body* D5 _jsonp=a-b: WordPress rest_callback_invalid, QuarkWord rest_callback_disabled
 
-# D6: the index and a namespace's index list only the namespaces and routes QuarkPress serves.
-* req*:body:wp-only:*/namespaces/wp-site-health~1v1 D6 a namespace QuarkPress does not serve yet
-* req*:body:wp-only:*/namespaces/wp-block-editor~1v1 D6 a namespace QuarkPress does not serve yet
-* req*:body:wp-only:*/namespaces/wp-abilities~1v1 D6 a namespace QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1batch~1v1* D6 routes QuarkPress does not serve yet
+# D6: the index and a namespace's index list only the namespaces and routes QuarkWord serves.
+* req*:body:wp-only:*/namespaces/wp-site-health~1v1 D6 a namespace QuarkWord does not serve yet
+* req*:body:wp-only:*/namespaces/wp-block-editor~1v1 D6 a namespace QuarkWord does not serve yet
+* req*:body:wp-only:*/namespaces/wp-abilities~1v1 D6 a namespace QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1batch~1v1* D6 routes QuarkWord does not serve yet
 * req*:body:wp-only:*/routes/~1oembed~11.0~1embed* D6 the oEmbed embed route (the local embed of a post) is not served yet
-* req*:body:wp-only:*/routes/~1wp-site-health~1v1* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp-block-editor~1v1* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkPress does not serve yet
+* req*:body:wp-only:*/routes/~1wp-site-health~1v1* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp-block-editor~1v1* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp-abilities~1v1* D6 routes QuarkWord does not serve yet
 * req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1edit D38 the media edit route is not served
 * req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1sideload D38 the sideload route WordPress registers in client-side mode (a localhost site) is not served
 * req*:body:wp-only:*/routes/~1wp~1v2~1media~1(?P<id>[\d]+)~1finalize D38 the finalize route WordPress registers in client-side mode (a localhost site) is not served
-* req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1template-parts* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1global-styles* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1navigation* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1font-families* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1font-collections* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1menus* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1menu-locations* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1comments* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1block-directory* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1pattern-directory* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1plugins* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1sidebars* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1widget-types* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1widgets* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1icons* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkPress does not serve yet
-* req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkPress authenticates with tokens only
+* req*:body:wp-only:*/routes/~1wp~1v2~1menu-items* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1templates* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1template-parts* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1global-styles* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1navigation* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1font-families* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1font-collections* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1menus* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1menu-locations* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1comments* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1block-directory* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1pattern-directory* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1plugins* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1sidebars* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1widget-types* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1widgets* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1icons* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1icon-collections* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1view-config* D6 routes QuarkWord does not serve yet
+* req*:body:wp-only:*/routes/~1wp~1v2~1users~1(?P<user_id>(?:[\d]+|me))~1application-passwords* D6 application passwords: QuarkWord authenticates with tokens only
 
-# D7: the index links the synthetic theme quarkpress; WordPress links its own active theme (Twenty Twenty-Five on a
+# D7: the index links the synthetic theme quarkword; WordPress links its own active theme (Twenty Twenty-Five on a
 # site without the harness theme switch).
-* req*:body:*/_links/wp:active-theme/0/href D7 WordPress's index links the active theme twentytwentyfive; QuarkPress's its synthetic theme quarkpress
+* req*:body:*/_links/wp:active-theme/0/href D7 WordPress's index links the active theme twentytwentyfive; QuarkWord's its synthetic theme quarkword
 
 # D8: only registered types and taxonomies.
-* req*:body:*/nav_menu_item D8 type not registered in QuarkPress (lists and the has_published_posts enum)
-* req*:body:*/wp_template D8 type not registered in QuarkPress
-* req*:body:*/wp_template_part D8 type not registered in QuarkPress
-* req*:body:*/wp_global_styles D8 type not registered in QuarkPress
-* req*:body:*/wp_navigation D8 type not registered in QuarkPress
-* req*:body:*/wp_font_family D8 type not registered in QuarkPress
-* req*:body:*/wp_font_face D8 type not registered in QuarkPress
-* req*:body:*/nav_menu D8 taxonomy not registered in QuarkPress
-d20 req6:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
-d20 req7:status D8 the revision type is not registered in QuarkPress: 404 where WordPress refuses 403 or 401
-d20 req6:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
-d20 req7:body* D8 the revision type: QuarkPress rest_type_invalid, WordPress rest_cannot_read_type
+* req*:body:*/nav_menu_item D8 type not registered in QuarkWord (lists and the has_published_posts enum)
+* req*:body:*/wp_template D8 type not registered in QuarkWord
+* req*:body:*/wp_template_part D8 type not registered in QuarkWord
+* req*:body:*/wp_global_styles D8 type not registered in QuarkWord
+* req*:body:*/wp_navigation D8 type not registered in QuarkWord
+* req*:body:*/wp_font_family D8 type not registered in QuarkWord
+* req*:body:*/wp_font_face D8 type not registered in QuarkWord
+* req*:body:*/nav_menu D8 taxonomy not registered in QuarkWord
+d20 req6:status D8 the revision type is not registered in QuarkWord: 404 where WordPress refuses 403 or 401
+d20 req7:status D8 the revision type is not registered in QuarkWord: 404 where WordPress refuses 403 or 401
+d20 req6:body* D8 the revision type: QuarkWord rest_type_invalid, WordPress rest_cannot_read_type
+d20 req7:body* D8 the revision type: QuarkWord rest_type_invalid, WordPress rest_cannot_read_type
 
 # D10: users are managed by the identity provider.
-d27 req1:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkPress 501
-d27 req3:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkPress 501
-d27 req1:header:location D10 WordPress's created user's address; QuarkPress creates none
-d27 req1:body* D10 WordPress's user; QuarkPress's quarkpress_users_managed_externally
-d27 req3:body* D10 WordPress's user; QuarkPress's quarkpress_users_managed_externally
+d27 req1:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkWord 501
+d27 req3:status D10 a super admin creates a user or changes a user's roles: WordPress 201 or 200, QuarkWord 501
+d27 req1:header:location D10 WordPress's created user's address; QuarkWord creates none
+d27 req1:body* D10 WordPress's user; QuarkWord's quarkword_users_managed_externally
+d27 req3:body* D10 WordPress's user; QuarkWord's quarkword_users_managed_externally
 
 # D13: wp_die answers in HTML are a minimal page (WordPress's page has more markup and styles).
 d02 req1:body D13 the refusal of a non-string rest_route as HTML: the same message in a minimal page
@@ -141,40 +141,40 @@ d02 req2:body D13 the refusal of a non-string rest_route as HTML: the same messa
 * req*:body:*/image_max_bit_depth D15 WordPress adds them to an editor's index in a secure context (localhost)
 
 # D16: a route longer than 2048 bytes matches nothing (README Limits); WordPress has no cap.
-x01 req1:header:allow D16 a 2053-byte types route: WordPress matches it and answers with Allow, QuarkPress matches nothing
-x01 req1:body* D16 a 2053-byte types route: WordPress 404 rest_type_invalid, QuarkPress 404 rest_no_route
+x01 req1:header:allow D16 a 2053-byte types route: WordPress matches it and answers with Allow, QuarkWord matches nothing
+x01 req1:body* D16 a 2053-byte types route: WordPress 404 rest_type_invalid, QuarkWord 404 rest_no_route
 
 # D22: list arguments hold at most 1000 entries.
-x06 req1:status D22 1001 include ids: WordPress 200, QuarkPress 400 rest_invalid_param
-x06 req2:status D22 1001 include ids: WordPress 200, QuarkPress 400 rest_invalid_param
-x06 req1:header:x-wp-total D22 WordPress's list has totals; QuarkPress's refusal none
-x06 req2:header:x-wp-total D22 WordPress's list has totals; QuarkPress's refusal none
-x06 req1:header:x-wp-totalpages D22 WordPress's list has totals; QuarkPress's refusal none
-x06 req2:header:x-wp-totalpages D22 WordPress's list has totals; QuarkPress's refusal none
-x06 req1:body* D22 WordPress's list; QuarkPress's "include must contain at most 1000 items."
-x06 req2:body* D22 WordPress's list; QuarkPress's "include must contain at most 1000 items."
+x06 req1:status D22 1001 include ids: WordPress 200, QuarkWord 400 rest_invalid_param
+x06 req2:status D22 1001 include ids: WordPress 200, QuarkWord 400 rest_invalid_param
+x06 req1:header:x-wp-total D22 WordPress's list has totals; QuarkWord's refusal none
+x06 req2:header:x-wp-total D22 WordPress's list has totals; QuarkWord's refusal none
+x06 req1:header:x-wp-totalpages D22 WordPress's list has totals; QuarkWord's refusal none
+x06 req2:header:x-wp-totalpages D22 WordPress's list has totals; QuarkWord's refusal none
+x06 req1:body* D22 WordPress's list; QuarkWord's "include must contain at most 1000 items."
+x06 req2:body* D22 WordPress's list; QuarkWord's "include must contain at most 1000 items."
 
 # D26: the rendered title, content and excerpt of a post run only the registered filters.
-p02 req51:body:/0/title/rendered D26 the title "p02 it's a": WordPress's the_title filters texturize the apostrophe; QuarkPress renders the stored title through the registered filters only
-p02 req51:body:/0/content/rendered D26 the content "Text here": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p02 req51:body:/0/excerpt/rendered D26 the generated excerpt: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p02 req54:body:/0/excerpt/rendered D26 the generated excerpt cut to one word: WordPress wraps it in a paragraph; QuarkPress runs the registered filters only
+p02 req51:body:/0/title/rendered D26 the title "p02 it's a": WordPress's the_title filters texturize the apostrophe; QuarkWord renders the stored title through the registered filters only
+p02 req51:body:/0/content/rendered D26 the content "Text here": WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p02 req51:body:/0/excerpt/rendered D26 the generated excerpt: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p02 req54:body:/0/excerpt/rendered D26 the generated excerpt cut to one word: WordPress wraps it in a paragraph; QuarkWord runs the registered filters only
 
 # D25: a negative offset is made positive for the pagination headers too.
 rest-a-031 req1:body:/headers/Link D25 offset=-1 (in an envelope): WordPress's headers use the raw offset and link no prev page
 
 # D27: the totals of post collections count only the posts the caller may read.
-p01 req23:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req24:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req25:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req26:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req27:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req28:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req43:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
-p01 req46:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkPress counts the one she reads
+p01 req23:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req24:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req25:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req26:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req27:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req28:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req43:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
+p01 req46:header:x-wp-total D27 carol's request for a status of her own and bob's posts: WordPress counts both rows and drops bob's, QuarkWord counts the one she reads
 
 # Differences no scenario can show: listed so the table stays complete.
-none * D3 the index's authentication is normalised to {auth} (QuarkPress advertises its OIDC issuer)
+none * D3 the index's authentication is normalised to {auth} (QuarkWord advertises its OIDC issuer)
 none * D9 the harness gives WordPress's users the dev realm's names, so the user name fields agree
 none * D11 user deletion answers 501 on a single site too; the scenarios run on a network, where WordPress agrees
 none * D12 unexpected failures (500) and stale-version conflicts (409) are not provoked by scenarios
@@ -187,176 +187,176 @@ none * D21 answers that make WordPress fail with a PHP error (a 500) are not pro
 none * D23 no scenario sends a control byte in a query parameter's name or malformed UTF-8, which WordPress writes raw into a header
 none * D24 the harness has no session cookie mechanism: every caller authenticates with a Bearer token or an application password
 
-# D36: the QuarkPress-only namespace quarkpress/v1 (the editor's lock routes) appears in the index bodies; WordPress has no such routes.
-* req*:body:qp-only:*/namespaces/quarkpress~1v1 D36 the namespaces list holds quarkpress/v1, which WordPress does not have
-* req*:body:*/routes/~1quarkpress~1v1* D36 the index describes /quarkpress/v1 and its lock routes, which WordPress does not have
+# D36: the QuarkWord-only namespace quarkword/v1 (the editor's lock routes) appears in the index bodies; WordPress has no such routes.
+* req*:body:qw-only:*/namespaces/quarkword~1v1 D36 the namespaces list holds quarkword/v1, which WordPress does not have
+* req*:body:*/routes/~1quarkword~1v1* D36 the index describes /quarkword/v1 and its lock routes, which WordPress does not have
 
 # D26: the rendered content and excerpt of a post whose protection the request lifted.
-p03 req2:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req2:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req12:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req12:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req22:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req22:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req32:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req32:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req42:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req42:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req52:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req52:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req14:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req14:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req24:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req24:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req34:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req34:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req64:body:/0/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req64:body:/1/content/rendered D26 the content "p03 open content" of a post without password: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p03 req67:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p03 req2:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req2:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req12:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req12:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req22:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req22:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req32:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req32:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req42:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req42:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req52:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req52:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req14:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req14:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req24:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req24:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req34:body:/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req34:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req64:body:/0/content/rendered D26 the content "p03 secret content" once the password lifted it: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req64:body:/1/content/rendered D26 the content "p03 open content" of a post without password: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p03 req67:body:/excerpt/rendered D26 the excerpt "p03 secret excerpt" once the password lifted it: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
 
 # D35: the minimal front-end page instead of the theme's template (p14, anonymous).
 p14 req1:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
-p14 req1:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
-p14 req2:body D13 the 403 "Sorry, you are not allowed to preview drafts." page is WordPress's wp_die page with its styles and title; QuarkPress's is the minimal error page with the same sentence
+p14 req1:body D35 WordPress's 404 page is the theme's template; QuarkWord's is the minimal page with the same title
+p14 req2:body D13 the 403 "Sorry, you are not allowed to preview drafts." page is WordPress's wp_die page with its styles and title; QuarkWord's is the minimal error page with the same sentence
 p14 req5:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
-p14 req5:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req5:body D35 WordPress's post page is the theme's template; QuarkWord's is the minimal page with the same title and content
 p14 req6:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
-p14 req6:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req6:body D35 WordPress's 404 page is the theme's template; QuarkWord's is the minimal page with the same title
 p14 req7:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
-p14 req7:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req7:body D35 WordPress's 404 page is the theme's template; QuarkWord's is the minimal page with the same title
 p14 req14:header:link D35 WordPress's 404 page sends the API root Link header; the minimal page sends no Link
-p14 req14:body D35 WordPress's 404 page is the theme's template; QuarkPress's is the minimal page with the same title
+p14 req14:body D35 WordPress's 404 page is the theme's template; QuarkWord's is the minimal page with the same title
 p14 req8:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
-p14 req8:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req8:body D35 WordPress's post page is the theme's template; QuarkWord's is the minimal page with the same title and content
 p14 req9:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
-p14 req9:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req9:body D35 WordPress's post page is the theme's template; QuarkWord's is the minimal page with the same title and content
 p14 req10:header:link D35 WordPress's post page sends the API root, alternate JSON and shortlink Link headers; the minimal page sends no Link
-p14 req10:body D35 WordPress's post page is the theme's template; QuarkPress's is the minimal page with the same title and content
+p14 req10:body D35 WordPress's post page is the theme's template; QuarkWord's is the minimal page with the same title and content
 
 # D1: the guid is the plain permalink; WordPress keeps the pretty permalink a post was published with, and names a custom type's post ?p=<id>.
-p04 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req6:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req10:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req11:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req13:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req14:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req15:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req16:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req20:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req2:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req4:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req5:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req6:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req9:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req10:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req11:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req12:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p04 req7:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p04 req8:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p04 req17:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p04 req7:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p04 req8:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
+p04 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req6:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req10:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req11:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req13:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req14:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req15:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req16:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req20:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req2:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req4:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req5:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req6:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req9:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req10:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req11:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req12:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p04 req7:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p04 req8:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p04 req17:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p04 req7:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p04 req8:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
 
 # p05 (links and embeds): target hints and Allow of callers who may edit (D6), the guid of posts and pages published with pretty permalinks (D1), the embedded replies of a route not served yet (D28).
-p05 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req7:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req8:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req13:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req15:body:/0/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req17:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req18:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req19:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req4:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req5:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req9:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req13:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p05 req10:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p05 req11:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p05 req11:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkPress the type's plain link ?post_type=book&p=<id>
-p05 req2:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
-p05 req13:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
-p05 req15:body:/0/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
+p05 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req7:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req8:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req13:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req15:body:/0/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req17:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req18:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req19:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req4:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req5:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req9:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req13:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p05 req10:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p05 req11:body:/guid/rendered D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p05 req11:body:/guid/raw D1 the guid of a book: WordPress stores ?p=<id> whatever the type, QuarkWord the type's plain link ?post_type=book&p=<id>
+p05 req2:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
+p05 req13:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
+p05 req15:body:/0/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
 
 # D26: the rendered content of a revision runs only the registered filters (p11).
-p11 req30:body:/content/rendered D26 the revision's content "p11 first words": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p11 req31:body:/content/rendered D26 the autosave's content "p11 alice's words": WordPress's the_content filters wrap it in a paragraph and texturize the apostrophe; QuarkPress runs the registered filters only
-p11 req36:body:/content/rendered D26 the page revision's content "p11 page words": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p11 req37:body:/content/rendered D26 the page revision's content "p11 page words" in the edit context: WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p11 req38:body:/content/rendered D26 the book revision's content "p11 book words": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p11 req30:body:/content/rendered D26 the revision's content "p11 first words": WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p11 req31:body:/content/rendered D26 the autosave's content "p11 alice's words": WordPress's the_content filters wrap it in a paragraph and texturize the apostrophe; QuarkWord runs the registered filters only
+p11 req36:body:/content/rendered D26 the page revision's content "p11 page words": WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p11 req37:body:/content/rendered D26 the page revision's content "p11 page words" in the edit context: WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p11 req38:body:/content/rendered D26 the book revision's content "p11 book words": WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
 
 # D31: revisions have their own ids and one time; the harness normalises both sides' ids to refs (a revision's guid and slug included), and a zero GMT date cannot be provoked, so no scenario shows it.
 none * D31 revision ids live in their own space and their four dates come from one time; ids compare as refs and the dates as {now}, and WordPress's null dates need a zero GMT date no scenario can make
-none * D30 the harness WordPress has theme templates while QuarkPress has none, and REST requests in the scenarios carry no preview_id/preview_nonce pair
+none * D30 the harness WordPress has theme templates while QuarkWord has none, and REST requests in the scenarios carry no preview_id/preview_nonce pair
 
 # D33, D34, D37: differences no scenario can show.
-none * D33 a preview needs WordPress's login cookie on one side and a QuarkPress preview session on the other, which no scenario gives both sides; preview_nonce values compare as {nonce}
-none * D34 the lock routes are QuarkPress-only (WordPress keeps locks through its edit screen, heartbeat and admin-ajax), so no request reaches both sides
+none * D33 a preview needs WordPress's login cookie on one side and a QuarkWord preview session on the other, which no scenario gives both sides; preview_nonce values compare as {nonce}
+none * D34 the lock routes are QuarkWord-only (WordPress keeps locks through its edit screen, heartbeat and admin-ajax), so no request reaches both sides
 none * D37 a floating draft's modified_gmt differs only when the site's UTC offset at its date is not today's; the scenarios' sites keep UTC
 
-# D31: the revision an update saved has QuarkPress's own id (p08).
-p08 req1:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-p08 req1:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+# D31: the revision an update saved has QuarkWord's own id (p08).
+p08 req1:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+p08 req1:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
 
 # D26: the rendered content of the revisions an update saved (p08).
-p08 req23:body:/0/content/rendered D26 the revision's content "p08 changed": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
-p08 req26:body:/0/content/rendered D26 the revision's content "p08 changed": WordPress's the_content filters wrap it in a paragraph; QuarkPress runs the registered filters only
+p08 req23:body:/0/content/rendered D26 the revision's content "p08 changed": WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
+p08 req26:body:/0/content/rendered D26 the revision's content "p08 changed": WordPress's the_content filters wrap it in a paragraph; QuarkWord runs the registered filters only
 
 # D32: an autosave whose fields fail preparation answers the error (p12).
-p12 req34:status D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
-p12 req34:body:/author D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
-p12 req34:body:/code D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
-p12 req34:body:/message D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
-p12 req34:body:/data D32 an editor's autosave naming an unknown author: QuarkPress answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:status D32 an editor's autosave naming an unknown author: QuarkWord answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/author D32 an editor's autosave naming an unknown author: QuarkWord answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/code D32 an editor's autosave naming an unknown author: QuarkWord answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/message D32 an editor's autosave naming an unknown author: QuarkWord answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
+p12 req34:body:/data D32 an editor's autosave naming an unknown author: QuarkWord answers the preparation's 400 rest_invalid_author; WordPress saves the autosave without the fields and answers it (200)
 
-# D29: what WordPress keeps of a write whose meta step fails (p10); QuarkPress rolls the whole write back.
-p10 req25:body:/title/raw D29 the title of the update whose book_rating failed: WordPress kept it (and the book_tags of the same update), QuarkPress rolled the write back
-p10 req25:body:/meta/book_tags/* D29 the book_tags of the update whose book_rating failed: WordPress wrote them anyway, QuarkPress rolled the write back
-p10 req27:header:x-wp-total D29 the post whose create failed in its meta step: WordPress kept it (without answering its id), QuarkPress created none
-p10 req27:header:x-wp-totalpages D29 the post whose create failed in its meta step: WordPress kept it (without answering its id), QuarkPress created none
-p10 req27:body:/0 D29 the post whose create failed in its meta step: WordPress kept it (without answering its id), QuarkPress created none
-p10 req28:header:location D29 the id of the next created post: WordPress's failed create kept a post and used an id, QuarkPress's rolled back
-p10 req33:body:/title/raw D29 the title of the update whose footnotes failed: WordPress kept it (no revision either way), QuarkPress rolled the write back
+# D29: what WordPress keeps of a write whose meta step fails (p10); QuarkWord rolls the whole write back.
+p10 req25:body:/title/raw D29 the title of the update whose book_rating failed: WordPress kept it (and the book_tags of the same update), QuarkWord rolled the write back
+p10 req25:body:/meta/book_tags/* D29 the book_tags of the update whose book_rating failed: WordPress wrote them anyway, QuarkWord rolled the write back
+p10 req27:header:x-wp-total D29 the post whose create failed in its meta step: WordPress kept it (without answering its id), QuarkWord created none
+p10 req27:header:x-wp-totalpages D29 the post whose create failed in its meta step: WordPress kept it (without answering its id), QuarkWord created none
+p10 req27:body:/0 D29 the post whose create failed in its meta step: WordPress kept it (without answering its id), QuarkWord created none
+p10 req28:header:location D29 the id of the next created post: WordPress's failed create kept a post and used an id, QuarkWord's rolled back
+p10 req33:body:/title/raw D29 the title of the update whose footnotes failed: WordPress kept it (no revision either way), QuarkWord rolled the write back
 
-# D31 and D1 (p09): the revision a trash saved has QuarkPress's own id; the guid of a post published with pretty permalinks in a forced delete's previous.
-p09 req5:body:/_links/predecessor-version/0/id D31 the revision the trash saved: revisions have their own ids in QuarkPress
-p09 req5:body:/_links/predecessor-version/0/href D31 the revision the trash saved: revisions have their own ids in QuarkPress
-p09 req19:body:/_links/predecessor-version/0/id D31 the revision the page's trash saved: revisions have their own ids in QuarkPress
-p09 req19:body:/_links/predecessor-version/0/href D31 the revision the page's trash saved: revisions have their own ids in QuarkPress
-p09 req11:body:/previous/guid/rendered D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p09 req11:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p09 req15:body:/previous/guid/rendered D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-p09 req15:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
+# D31 and D1 (p09): the revision a trash saved has QuarkWord's own id; the guid of a post published with pretty permalinks in a forced delete's previous.
+p09 req5:body:/_links/predecessor-version/0/id D31 the revision the trash saved: revisions have their own ids in QuarkWord
+p09 req5:body:/_links/predecessor-version/0/href D31 the revision the trash saved: revisions have their own ids in QuarkWord
+p09 req19:body:/_links/predecessor-version/0/id D31 the revision the page's trash saved: revisions have their own ids in QuarkWord
+p09 req19:body:/_links/predecessor-version/0/href D31 the revision the page's trash saved: revisions have their own ids in QuarkWord
+p09 req11:body:/previous/guid/rendered D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p09 req11:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p09 req15:body:/previous/guid/rendered D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+p09 req15:body:/previous/guid/raw D1 the guid of a post published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
 
 # D38, D6 (e01) and D40-D45: the media routes. The image editing route is not served; the batch route is not served (D6).
-# Neither of the two has an Allow header on QuarkPress's side.
-e01 req11:body:/code D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
-e01 req11:body:/message D38 the media edit route is not served: QuarkPress answers no route, WordPress refuses the src
-e01 req11:header:allow D38 the media edit route is not served: QuarkPress's no-route answer has no Allow, WordPress's lists POST
+# Neither of the two has an Allow header on QuarkWord's side.
+e01 req11:body:/code D38 the media edit route is not served: QuarkWord answers no route, WordPress refuses the src
+e01 req11:body:/message D38 the media edit route is not served: QuarkWord answers no route, WordPress refuses the src
+e01 req11:header:allow D38 the media edit route is not served: QuarkWord's no-route answer has no Allow, WordPress's lists POST
 e01 req12:status D6 the batch route is not served: WordPress answers 207 with the media route's batch refusal
 e01 req12:body:/responses D6 the batch route is not served: WordPress answers 207 with the media route's batch refusal
-e01 req12:body:/code D6 the batch route is not served: QuarkPress answers no route
-e01 req12:body:/message D6 the batch route is not served: QuarkPress answers no route
-e01 req12:body:/data D6 the batch route is not served: QuarkPress answers no route
-e01 req12:header:allow D6 the batch route is not served: QuarkPress's no-route answer has no Allow, WordPress's lists POST
+e01 req12:body:/code D6 the batch route is not served: QuarkWord answers no route
+e01 req12:body:/message D6 the batch route is not served: QuarkWord answers no route
+e01 req12:body:/data D6 the batch route is not served: QuarkWord answers no route
+e01 req12:header:allow D6 the batch route is not served: QuarkWord's no-route answer has no Allow, WordPress's lists POST
 none * D40 the scenarios run in the default sync mode, where an upload answers with its sizes made
 none * D41 no scenario sends a body above the size limits (64M on both sides)
 # D42, D46 (e02): the attachment item. A stored caption or description runs only the registered filters after the
 # markup; audio metadata holds what the media module reads.
-e02 req4:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
-e02 req5:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
-e02 req4:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-e02 req5:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-e02 req6:body:/caption/rendered D42 the PNG's stored caption "e02 caption" (embed): WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+e02 req4:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkWord runs the registered filters only
+e02 req5:body:/description/rendered D42 the PNG's stored description "e02 description": WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkWord runs the registered filters only
+e02 req4:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+e02 req5:body:/caption/rendered D42 the PNG's stored caption "e02 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+e02 req6:body:/caption/rendered D42 the PNG's stored caption "e02 caption" (embed): WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
 e02 req10:body:/media_details/dataformat D46 the MP3's getID3 key dataformat, which the media module does not read
 e02 req10:body:/media_details/channels D46 the MP3's getID3 key channels, which the media module does not read
 e02 req10:body:/media_details/sample_rate D46 the MP3's getID3 key sample_rate, which the media module does not read
@@ -395,32 +395,32 @@ e02 req12:body:/media_details/length D46 the MP3's getID3 key length, which the 
 e02 req12:body:/media_details/length_formatted D46 the MP3's getID3 key length_formatted, which the media module does not read
 # D46 (e03): the attachment's links. An MP3's cover art, which becomes an attachment on WordPress's side only (D46,
 # media D4).
-e03 req21:body:/featured_media D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress names no cover
-e03 req21:body:/_links/wp:featuredmedia D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkPress links no cover
-e03 req21:body:/_links/curies D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4): without the cover link QuarkPress's links have no wp: relation, hence no curies
-e06 req1:body:/caption/rendered D42 the JPEG's stored caption "e06 caption" (an upload): WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
+e03 req21:body:/featured_media D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkWord names no cover
+e03 req21:body:/_links/wp:featuredmedia D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4), so QuarkWord links no cover
+e03 req21:body:/_links/curies D46 the MP3's embedded cover image becomes an attachment on WordPress's side only (media D4): without the cover link QuarkWord's links have no wp: relation, hence no curies
+e06 req1:body:/caption/rendered D42 the JPEG's stored caption "e06 caption" (an upload): WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
 none * D39 the own-host refusal, the pinned address and the abort at the cap need a reachable host, which the offline scenarios never name (f08 shows only the refusals both sides answer alike); MediaUrlUploadDbTest and MediaUrlRefusalsDbTest show them
-none * D44 a crash after the attachment is stored cannot be provoked on QuarkPress's side of the parity run (its WordPress switch has no QuarkPress counterpart); MediaCreateDbTest shows the 500 with the header
+none * D44 a crash after the attachment is stored cannot be provoked on QuarkWord's side of the parity run (its WordPress switch has no QuarkWord counterpart); MediaCreateDbTest shows the 500 with the header
 # D31, D42, D45 (e07, e07e): attachment updates. A stored caption or description runs only the registered filters
 # after the markup; a parent the site does not have is refused (r14's recorded WordPress answer, 200 with post 999999,
-# stays a fact). r14's revision parent is not sent: a revision cannot be named as a post on QuarkPress's side (D31:
+# stays a fact). r14's revision parent is not sent: a revision cannot be named as a post on QuarkWord's side (D31:
 # revisions have their own ids), so MediaUpdateDbTest shows its "Invalid parent type." with a revision row instead.
-e07 req10:status D45 an attachment's post must name a post of the site: WordPress stores 999999 and answers 200, QuarkPress answers 400 rest_post_invalid_id
-e07 req10:body:/id D45 an attachment's post must name a post of the site: WordPress answers the updated attachment, QuarkPress its refusal
-e07 req10:body:/post D45 an attachment's post must name a post of the site: WordPress answers the stored post 999999, QuarkPress its refusal
-e07 req10:body:/code D45 an attachment's post must name a post of the site: QuarkPress answers rest_post_invalid_id
-e07 req10:body:/message D45 an attachment's post must name a post of the site: QuarkPress answers "Invalid post parent ID."
-e07 req10:body:/data D45 an attachment's post must name a post of the site: QuarkPress answers status 400
-e07 req25:body:/description/rendered D42 the JPEG's stored description "Hello world" (S3): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
-e07 req30:body:/caption/rendered D42 the JPEG's stored caption "e07 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-e07e req3:body:/description/rendered D42 the sized JPEG's stored description "Hello world" (S3's sized half): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkPress runs the registered filters only
+e07 req10:status D45 an attachment's post must name a post of the site: WordPress stores 999999 and answers 200, QuarkWord answers 400 rest_post_invalid_id
+e07 req10:body:/id D45 an attachment's post must name a post of the site: WordPress answers the updated attachment, QuarkWord its refusal
+e07 req10:body:/post D45 an attachment's post must name a post of the site: WordPress answers the stored post 999999, QuarkWord its refusal
+e07 req10:body:/code D45 an attachment's post must name a post of the site: QuarkWord answers rest_post_invalid_id
+e07 req10:body:/message D45 an attachment's post must name a post of the site: QuarkWord answers "Invalid post parent ID."
+e07 req10:body:/data D45 an attachment's post must name a post of the site: QuarkWord answers status 400
+e07 req25:body:/description/rendered D42 the JPEG's stored description "Hello world" (S3): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkWord runs the registered filters only
+e07 req30:body:/caption/rendered D42 the JPEG's stored caption "e07 caption": WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+e07e req3:body:/description/rendered D42 the sized JPEG's stored description "Hello world" (S3's sized half): WordPress's the_content filters wrap it in a paragraph after the attachment markup; QuarkWord runs the registered filters only
 # D47-D49: no scenario can show them.
 none * D47 the parity network's upload types are WordPress's default list on both sides, so the enum declared at start-up and the one WordPress declares per request agree
-none * D48 the scenarios' only attachment post written past the media module (e03 p:carolsdraft, fileless on QuarkPress's side) is read by id, never listed, updated or deleted; every other attachment is an upload
-none * D49 WordPress's trash answers need its qp_parity_media_trashable switch, which has no QuarkPress counterpart; without it both sides answer 501 alike (e08)
+none * D48 the scenarios' only attachment post written past the media module (e03 p:carolsdraft, fileless on QuarkWord's side) is read by id, never listed, updated or deleted; every other attachment is an upload
+none * D49 WordPress's trash answers need its qw_parity_media_trashable switch, which has no QuarkWord counterpart; without it both sides answer 501 alike (e08)
 # D46 (e08): deletes and post-process. An MP3's post-process answer holds what the media module reads from the file.
-# WordPress's trash answers (r18 with qp_parity_media_trashable) are not played: that switch has no QuarkPress
-# counterpart, as QuarkPress never trashes media (media D9) and WordPress's default (media trash off) answers 501 alike.
+# WordPress's trash answers (r18 with qw_parity_media_trashable) are not played: that switch has no QuarkWord
+# counterpart, as QuarkWord never trashes media (media D9) and WordPress's default (media trash off) answers 501 alike.
 e08 req18:body:/media_details/dataformat D46 the MP3's getID3 key dataformat, which the media module does not read
 e08 req18:body:/media_details/channels D46 the MP3's getID3 key channels, which the media module does not read
 e08 req18:body:/media_details/sample_rate D46 the MP3's getID3 key sample_rate, which the media module does not read
@@ -436,65 +436,65 @@ e08 req18:body:/media_details/length_formatted D46 the MP3's getID3 key length_f
 # e09 (featured media on posts): the guid of posts and pages published with pretty permalinks (D1), the embedded
 # replies of a route not served yet (D28), the revisions the updates saved (D31). The featured image's links and
 # embeds themselves match WordPress.
-e09 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req6:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req7:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req8:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req18:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req10:body:/0/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req10:body:/1/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req10:body:/2/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req12:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkPress the plain one
-e09 req1:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
-e09 req3:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
-e09 req5:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
-e09 req12:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkPress embeds the rest_no_route error of the comments route it does not serve yet
-e09 req13:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req13:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req14:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req14:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req15:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req15:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req16:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req16:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req17:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req17:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req18:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkPress
-e09 req18:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkPress
+e09 req1:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req2:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req3:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req4:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req5:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req6:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req7:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req8:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req9:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req18:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req10:body:/0/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req10:body:/1/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req10:body:/2/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req12:body:/guid/rendered D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req12:body:/guid/raw D1 the guid of a post or page published with pretty permalinks: WordPress stores the pretty permalink, QuarkWord the plain one
+e09 req1:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
+e09 req3:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
+e09 req5:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
+e09 req12:body:/_embedded/replies D28 WordPress embeds the post's comments (none, so the relation is left out); QuarkWord embeds the rest_no_route error of the comments route it does not serve yet
+e09 req13:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req13:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req14:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req14:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req15:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req15:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req16:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req16:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req17:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req17:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req18:body:/_links/predecessor-version/0/id D31 the revision the update saved: revisions have their own ids in QuarkWord
+e09 req18:body:/_links/predecessor-version/0/href D31 the revision the update saved: revisions have their own ids in QuarkWord
 # D1, D26 (f01): synced patterns. The pattern's link and guid are the plain ?post_type=wp_block&p=<id> form (WordPress's
 # pretty /<slug>/ form, which names no type, cannot be compared in its plain form); the generated excerpt runs the
 # registered filters only.
 f01 req*:body:*/link D1 a synced pattern's link is the plain ?post_type=wp_block&p=<id> form; WordPress's follows the site's permalinks
 f01 req*:body:*/guid/rendered D1 a synced pattern's guid is the plain link it was created with; WordPress's is its pretty permalink
 f01 req*:body:*/guid/raw D1 a synced pattern's guid is the plain link it was created with; WordPress's is its pretty permalink
-f01 req*:body:*/excerpt/rendered D26 the generated excerpt of a synced pattern: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-# D50 (f03): QuarkPress registers none of WordPress's core block types.
-f03 req7:status D50 core/paragraph: WordPress registers its core block types (200); QuarkPress registers none (404 rest_block_type_invalid)
-f03 req7:header:allow D50 core/paragraph: WordPress's type answers with Allow; QuarkPress's 404 comes from the permission check, without it
-f03 req7:body* D50 core/paragraph: WordPress's core type; QuarkPress's rest_block_type_invalid
-f03 req8:body* D50 the whole collection: WordPress lists its core block types too; QuarkPress lists the test type only
+f01 req*:body:*/excerpt/rendered D26 the generated excerpt of a synced pattern: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+# D50 (f03): QuarkWord registers none of WordPress's core block types.
+f03 req7:status D50 core/paragraph: WordPress registers its core block types (200); QuarkWord registers none (404 rest_block_type_invalid)
+f03 req7:header:allow D50 core/paragraph: WordPress's type answers with Allow; QuarkWord's 404 comes from the permission check, without it
+f03 req7:body* D50 core/paragraph: WordPress's core type; QuarkWord's rest_block_type_invalid
+f03 req8:body* D50 the whole collection: WordPress lists its core block types too; QuarkWord lists the test type only
 # D51 (f04): no renderer for the core blocks WordPress renders on the server.
-f04 req26:status D51 core/archives: WordPress renders it on the server (200); QuarkPress registers no core block type (404 block_invalid)
-f04 req26:body* D51 core/archives: WordPress's archives list; QuarkPress's block_invalid
-# D52, D53 (f05): no core, theme or wordpress.org patterns; the core pattern categories with QuarkPress's descriptions.
+f04 req26:status D51 core/archives: WordPress renders it on the server (200); QuarkWord registers no core block type (404 block_invalid)
+f04 req26:body* D51 core/archives: WordPress's archives list; QuarkWord's block_invalid
+# D52, D53 (f05): no core, theme or wordpress.org patterns; the core pattern categories with QuarkWord's descriptions.
 none * D52 f05 turns WordPress's core patterns off and uses a theme without patterns, and the harness has no network for wordpress.org's, so both sides list the test patterns only
-f05 req8:body:/*/description D53 the core pattern categories: WordPress's descriptions; QuarkPress's own
-# D54 (f06): one theme only, the synthetic quarkpress: alice's lists of every installed theme and the items of the
+f05 req8:body:/*/description D53 the core pattern categories: WordPress's descriptions; QuarkWord's own
+# D54 (f06): one theme only, the synthetic quarkword: alice's lists of every installed theme and the items of the
 # others, and the user global styles link WordPress adds to the active theme.
-f06 req14:header:x-wp-total D54 alice's full list: WordPress counts every installed theme (4); QuarkPress has the synthetic theme only
-f06 req14:body* D54 alice's full list: WordPress lists every installed theme; QuarkPress the synthetic theme only
-f06 req15:header:x-wp-total D54 alice's inactive themes: WordPress has three; QuarkPress none
-f06 req15:body* D54 alice's inactive themes: WordPress lists three; QuarkPress none
-f06 req21:status D54 twentytwentyfour: installed on WordPress (200); unknown to QuarkPress (404 rest_theme_not_found)
-f06 req21:body* D54 twentytwentyfour: WordPress's inactive theme; QuarkPress's rest_theme_not_found
-f06 req*:body:*/_links/wp:user-global-styles D54 WordPress links (and creates) the active theme's user global styles; QuarkPress has no global styles routes
-f06 req*:body:*/_links/curies D54 WordPress's curie comes with its wp:user-global-styles link; QuarkPress's theme record has no wp: link and so no curie
+f06 req14:header:x-wp-total D54 alice's full list: WordPress counts every installed theme (4); QuarkWord has the synthetic theme only
+f06 req14:body* D54 alice's full list: WordPress lists every installed theme; QuarkWord the synthetic theme only
+f06 req15:header:x-wp-total D54 alice's inactive themes: WordPress has three; QuarkWord none
+f06 req15:body* D54 alice's inactive themes: WordPress lists three; QuarkWord none
+f06 req21:status D54 twentytwentyfour: installed on WordPress (200); unknown to QuarkWord (404 rest_theme_not_found)
+f06 req21:body* D54 twentytwentyfour: WordPress's inactive theme; QuarkWord's rest_theme_not_found
+f06 req*:body:*/_links/wp:user-global-styles D54 WordPress links (and creates) the active theme's user global styles; QuarkWord has no global styles routes
+f06 req*:body:*/_links/curies D54 WordPress's curie comes with its wp:user-global-styles link; QuarkWord's theme record has no wp: link and so no curie
 
 # D55: the oEmbed proxy asks allow-listed providers only, filters every provider's html, refuses the site's own URLs
 # and sends 600/750 for a zero size; offline scenarios cannot show it (a site URL cannot be written into a target, and
@@ -504,16 +504,16 @@ none * D55 the proxy's allow-list, untrusted filter, own-site refusal and defaul
 # D1, D26, D53, D54 (f09): inside the preload map, the entries show the differences their routes show elsewhere: the
 # post item's guid and alternate Link header (pretty permalinks), its rendered title, content and excerpt (filters),
 # the pattern category descriptions and the active theme's user global styles link with its curie.
-f09 req*:body:*?context=edit/body/guid/rendered D1 the preloaded post item's guid: WordPress stores the pretty permalink, QuarkPress the plain one
-f09 req*:body:*?context=edit/body/guid/raw D1 the preloaded post item's guid: WordPress stores the pretty permalink, QuarkPress the plain one
-f09 req*:body:*?context=edit/headers/Link D1 the preloaded post item's alternate Link header: WordPress's follows the site's permalinks, QuarkPress's is the plain ?p= form
-f09 req*:body:*?context=edit/body/title/rendered D26 the preloaded post item's title with an apostrophe: WordPress's the_title filters texturize it; QuarkPress runs the registered filters only
-f09 req*:body:*?context=edit/body/content/rendered D26 the preloaded post item's content: WordPress's the_content filters render the paragraph block; QuarkPress runs the registered filters only
-f09 req*:body:*?context=edit/body/excerpt/rendered D26 the preloaded post item's generated excerpt: WordPress's the_excerpt filters wrap it in a paragraph; QuarkPress runs the registered filters only
-f09 req*:body:/~1wp~1v2~1block-patterns~1categories/body/*/description D53 the preloaded core pattern categories: WordPress's descriptions; QuarkPress's own
-f09 req*:body:/~1wp~1v2~1themes*/body/0/_links/wp:user-global-styles D54 the preloaded active theme: WordPress links (and creates) its user global styles; QuarkPress has no global styles routes
-f09 req*:body:/~1wp~1v2~1themes*/body/0/_links/curies D54 the preloaded active theme: WordPress's curie comes with its wp:user-global-styles link; QuarkPress's theme record has no wp: link and so no curie
+f09 req*:body:*?context=edit/body/guid/rendered D1 the preloaded post item's guid: WordPress stores the pretty permalink, QuarkWord the plain one
+f09 req*:body:*?context=edit/body/guid/raw D1 the preloaded post item's guid: WordPress stores the pretty permalink, QuarkWord the plain one
+f09 req*:body:*?context=edit/headers/Link D1 the preloaded post item's alternate Link header: WordPress's follows the site's permalinks, QuarkWord's is the plain ?p= form
+f09 req*:body:*?context=edit/body/title/rendered D26 the preloaded post item's title with an apostrophe: WordPress's the_title filters texturize it; QuarkWord runs the registered filters only
+f09 req*:body:*?context=edit/body/content/rendered D26 the preloaded post item's content: WordPress's the_content filters render the paragraph block; QuarkWord runs the registered filters only
+f09 req*:body:*?context=edit/body/excerpt/rendered D26 the preloaded post item's generated excerpt: WordPress's the_excerpt filters wrap it in a paragraph; QuarkWord runs the registered filters only
+f09 req*:body:/~1wp~1v2~1block-patterns~1categories/body/*/description D53 the preloaded core pattern categories: WordPress's descriptions; QuarkWord's own
+f09 req*:body:/~1wp~1v2~1themes*/body/0/_links/wp:user-global-styles D54 the preloaded active theme: WordPress links (and creates) its user global styles; QuarkWord has no global styles routes
+f09 req*:body:/~1wp~1v2~1themes*/body/0/_links/curies D54 the preloaded active theme: WordPress's curie comes with its wp:user-global-styles link; QuarkWord's theme record has no wp: link and so no curie
 
-# D58 (f09): the preload map holds only the routes QuarkPress serves. WordPress's side builds its map from the same
+# D58 (f09): the preload map holds only the routes QuarkWord serves. WordPress's side builds its map from the same
 # served list (the seven omitted routes are not sent), so the omission itself shows in no comparison.
-none * D58 WordPress's side of the preload comparison sends only the routes QuarkPress serves, so the templates OPTIONS, the global-styles reads and the template lookups WordPress preloads never appear on either side
+none * D58 WordPress's side of the preload comparison sends only the routes QuarkWord serves, so the templates OPTIONS, the global-styles reads and the template lookups WordPress preloads never appear on either side

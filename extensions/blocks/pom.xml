@@ -3,15 +3,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-extensions-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-extensions-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-blocks-parent</artifactId>
+  <artifactId>quarkword-blocks-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: Blocks :: Parent</name>
+  <name>QuarkWord :: Blocks :: Parent</name>
 
   <modules>
     <module>runtime</module>

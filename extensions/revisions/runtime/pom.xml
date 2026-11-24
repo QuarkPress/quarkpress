@@ -3,29 +3,29 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-revisions-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-revisions-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-revisions</artifactId>
+  <artifactId>quarkword-revisions</artifactId>
 
-  <name>QuarkPress :: Revisions :: Runtime</name>
+  <name>QuarkWord :: Revisions :: Runtime</name>
   <description>Revisions and autosaves of posts with WordPress's change check, limits, restore and capability rules</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.revisions</automatic.module.name>
+    <automatic.module.name>org.quarkword.revisions</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -39,14 +39,14 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -59,7 +59,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.revisions</provides>
+            <provides>org.quarkword.revisions</provides>
           </capabilities>
         </configuration>
       </plugin>

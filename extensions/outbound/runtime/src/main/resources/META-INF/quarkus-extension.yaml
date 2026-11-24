@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Outbound"
-description: "Safe outbound HTTP GET for QuarkPress"
+name: "QuarkWord Outbound"
+description: "Safe outbound HTTP GET for QuarkWord"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "http"
     - "ssrf"

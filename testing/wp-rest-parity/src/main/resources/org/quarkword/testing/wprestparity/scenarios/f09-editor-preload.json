@@ -1,0 +1,18 @@
+{
+  "id": "f09",
+  "rule": "the editor route's preload map (GET /quarkword/v1/editor/<type>/<id>, Part G fact v08) against WordPress's live answers: bob on his published post, dave on his own draft and alice on a page; each side's map holds, under WordPress's paths verbatim, the caller's own answers of the types, taxonomies (view and edit), the post item (its alternate Link then Allow), the type, users/me, the autosaves, the active theme (the totals as numbers), the pattern categories, the site index fields and the author, the settings for administrators only, and under OPTIONS the media, pages, blocks, settings (headers [] for non-administrators) and the type's routes; the harness theme stands for the synthetic theme. WordPress's side sends the same requests as the caller and keeps the 200s (the seven routes QuarkWord does not serve are not sent, D58).",
+  "setup": [
+    {"option": "qw_parity_quarkword_theme", "value": "1"},
+    {"post": "p:bobs", "as": "bob", "type": "post", "status": "publish", "title": "f09 Bob's post",
+     "fields": {"content": "<!-- wp:paragraph --><p>Preloaded.</p><!-- /wp:paragraph -->", "slug": "f09-bobs-post"}},
+    {"post": "p:daves", "as": "dave", "type": "post", "status": "draft", "title": "f09 Dave's draft",
+     "fields": {"content": "<!-- wp:paragraph --><p>Drafted.</p><!-- /wp:paragraph -->"}},
+    {"post": "p:page", "as": "alice", "type": "page", "status": "publish", "title": "f09 Page",
+     "fields": {"content": "<!-- wp:paragraph --><p>A page.</p><!-- /wp:paragraph -->", "slug": "f09-page"}}
+  ],
+  "requests": [
+    {"as": "bob", "preload": {"type": "post", "post": "{p:bobs}"}},
+    {"as": "dave", "preload": {"type": "post", "post": "{p:daves}"}},
+    {"as": "alice", "preload": {"type": "page", "post": "{p:page}"}}
+  ]
+}

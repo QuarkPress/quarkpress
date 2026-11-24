@@ -3,16 +3,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-libs-parent</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-libs-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: Libraries</name>
+  <name>QuarkWord :: Libraries</name>
   <description>Plain Java libraries with zero Quarkus dependency</description>
 
   <modules>
@@ -36,8 +36,8 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

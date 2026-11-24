@@ -3,18 +3,18 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-core-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-core-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-core</artifactId>
+  <artifactId>quarkword-core</artifactId>
 
-  <name>QuarkPress :: Core :: Runtime</name>
+  <name>QuarkWord :: Core :: Runtime</name>
   <description>Site context, typed ids, events, filter interfaces and per-site features</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.core</automatic.module.name>
+    <automatic.module.name>org.quarkword.core</automatic.module.name>
   </properties>
 
   <dependencies>
@@ -42,8 +42,8 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -56,7 +56,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.core</provides>
+            <provides>org.quarkword.core</provides>
           </capabilities>
         </configuration>
       </plugin>

@@ -1,0 +1,61 @@
+package org.quarkword.posts.runtime;
+
+import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.quarkword.core.SiteContext;
+import org.quarkword.core.SiteOptions;
+import org.quarkword.persistence.Options;
+import org.quarkword.posts.PostSnapshot;
+
+/**
+ * The reading settings of the current site that name a page: when that page is trashed or deleted, a front page
+ * setting falls back to the latest posts and a posts page setting to none; deleting also clears the privacy policy
+ * page setting. The options are written after the post rows, as the lock order requires.
+ */
+@ApplicationScoped
+public class FrontPages {
+
+    @Inject
+    SiteContext site;
+
+    @Inject
+    Options options;
+
+    /**
+     * Forgets {@code page} in the reading settings that name it (WordPress's {@code
+     * _reset_front_page_settings_for_post}, without the unstick); a post of another type changes nothing.
+     */
+    void forget(PostSnapshot page) {
+        if (!page.type().equals("page")) {
+            return;
+        }
+        long id = page.id().value();
+        SiteOptions current = site.options();
+        if (phpInt(current, "page_on_front") == id) {
+            options.set("show_on_front", TextNode.valueOf("posts"));
+            options.set("page_on_front", IntNode.valueOf(0));
+        }
+        if (phpInt(current, "page_for_posts") == id) {
+            options.set("page_for_posts", IntNode.valueOf(0));
+        }
+    }
+
+    /**
+     * Forgets a deleted {@code page} in the privacy policy page setting (WordPress's {@code
+     * _reset_privacy_policy_page_for_post}); a post of another type changes nothing.
+     */
+    void forgetPrivacyPolicyPage(PostSnapshot page) {
+        if (page.type().equals("page")
+                && phpInt(site.options(), "wp_page_for_privacy_policy")
+                        == page.id().value()) {
+            options.set("wp_page_for_privacy_policy", IntNode.valueOf(0));
+        }
+    }
+
+    /** The option cast to an integer as WordPress's {@code (int) get_option(...)} does; 0 when it is missing. */
+    private static long phpInt(SiteOptions options, String name) {
+        return options.get(name).map(PhpInts::of).orElse(0L);
+    }
+}

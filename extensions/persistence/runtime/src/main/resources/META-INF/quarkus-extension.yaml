@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Persistence"
-description: "QuarkPress's own datasource and persistence unit, sites, options and site isolation on PostgreSQL and MySQL"
+name: "QuarkWord Persistence"
+description: "QuarkWord's own datasource and persistence unit, sites, options and site isolation on PostgreSQL and MySQL"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "hibernate"
     - "flyway"

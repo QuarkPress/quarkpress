@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Blocks"
-description: "Block types, block renderers, patterns and pattern categories for QuarkPress"
+name: "QuarkWord Blocks"
+description: "Block types, block renderers, patterns and pattern categories for QuarkWord"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "blocks"
     - "patterns"

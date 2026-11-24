@@ -12,7 +12,7 @@ import org.hibernate.type.format.jackson.JacksonJsonFormatMapper;
 
 /**
  * The host's JSON columns use the application's own, customized ObjectMapper. Quarkus asks a host that customizes its
- * ObjectMapper to say so with a FormatMapper for its default persistence unit; QuarkPress's unit has another one.
+ * ObjectMapper to say so with a FormatMapper for its default persistence unit; QuarkWord's unit has another one.
  */
 @JsonFormat
 @PersistenceUnitExtension

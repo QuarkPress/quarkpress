@@ -3,15 +3,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-extensions-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-extensions-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-rest-wp-v2-parent</artifactId>
+  <artifactId>quarkword-rest-wp-v2-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: REST API (WordPress v2) :: Parent</name>
+  <name>QuarkWord :: REST API (WordPress v2) :: Parent</name>
 
   <modules>
     <module>runtime</module>

@@ -1,0 +1,55 @@
+package org.quarkword.scheduling.runtime;
+
+import com.fasterxml.jackson.databind.node.TextNode;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.Instant;
+import org.quarkword.core.runtime.Binding;
+import org.quarkword.core.runtime.SiteBinding;
+import org.quarkword.persistence.NetworkScope;
+import org.quarkword.persistence.runtime.OptionEntity;
+import org.quarkword.persistence.runtime.OptionRepository;
+
+/** Stands in for code of a trusted module in tests. */
+@ApplicationScoped
+public class ScopeProbe {
+
+    @Inject
+    NetworkScope network;
+
+    @Inject
+    OptionRepository options;
+
+    @Inject
+    SiteBinding binding;
+
+    public Binding bindingInNetworkScope() throws Exception {
+        return network.call(() -> binding.current());
+    }
+
+    /** Runs {@code work} in the network scope, as trusted module code would. */
+    public <T> T inNetwork(java.util.concurrent.Callable<T> work) throws Exception {
+        return network.call(work);
+    }
+
+    public long countOptionsNamed(String name) throws Exception {
+        return network.call(() -> options.count("name", name));
+    }
+
+    public Throwable insertWithoutSite(String name) {
+        try {
+            network.run(() -> {
+                OptionEntity option = new OptionEntity();
+                option.name = name;
+                option.value = TextNode.valueOf(name);
+                option.autoload = true;
+                option.updatedAt = Instant.parse("2026-10-17T12:00:00Z");
+                options.persist(option);
+                options.flush();
+            });
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
+    }
+}

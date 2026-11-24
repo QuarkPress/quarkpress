@@ -1,6 +1,6 @@
 ---
-name: "QuarkPress test features"
-description: "Declares per-site features for the QuarkPress integration tests"
+name: "QuarkWord test features"
+description: "Declares per-site features for the QuarkWord integration tests"
 metadata:
   status: "experimental"
   unlisted: true

@@ -1,6 +1,6 @@
-# QuarkPress Media Image Vips
+# QuarkWord Media Image Vips
 
-An image processor for QuarkPress media built on [libvips](https://www.libvips.org/), through the
+An image processor for QuarkWord media built on [libvips](https://www.libvips.org/), through the
 [quarkus-libvips](https://github.com/SiteNetSoft/quarkus-libvips) extension: it reads, turns, crops, scales and writes
 images with the native library, as WordPress does with Imagick when that is installed. It makes JPEG, PNG, WebP, AVIF
 and GIF sizes, reads HEIC, and leaves the types libvips does not handle (BMP) to the ImageIO module when that is
@@ -10,23 +10,23 @@ installed. It requires the media module and Java 25.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-media-image-vips</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-media-image-vips</artifactId>
 </dependency>
 <!-- optional: BMP sizes, and every image when libvips is missing (see below) -->
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-media-image-imageio</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-media-image-imageio</artifactId>
 </dependency>
 ```
 
-- Java 25 only: quarkus-libvips calls libvips through the Foreign Function and Memory API. QuarkPress builds this module
+- Java 25 only: quarkus-libvips calls libvips through the Foreign Function and Memory API. QuarkWord builds this module
   (and `integration-tests/media-vips`) on JDK 25 and leaves both out of a Java 21 build, or of any build given
-  `-Dquarkpress.skip-vips`.
+  `-Dquarkword.skip-vips`.
 - quarkus-libvips is not on Maven Central yet. Install it once from
   [SiteNetSoft/quarkus-libvips](https://github.com/SiteNetSoft/quarkus-libvips), at the commit named by
-  `quarkus-libvips.commit` in QuarkPress's root `pom.xml`: clone it, check out that commit and run,
-  with JDK 25, `mvn install -DskipTests -pl runtime,deployment -am`. The version QuarkPress uses is
+  `quarkus-libvips.commit` in QuarkWord's root `pom.xml`: clone it, check out that commit and run,
+  with JDK 25, `mvn install -DskipTests -pl runtime,deployment -am`. The version QuarkWord uses is
   `quarkus-libvips.version` in the same file.
 - libvips 8.15 or later on every host that runs the application (and on the build host, for the tests). On Debian 13,
   Ubuntu 24.04 and later:
@@ -43,9 +43,9 @@ installed. It requires the media module and Java 25.
     handled and the start-up line says `image/avif is not written: install libheif-plugin-aomenc`.
   - Other systems: see quarkus-libvips's installation guide.
 
-The extension brings `quarkpress-media` and `quarkus-libvips`; libvips's own settings are quarkus-libvips's
+The extension brings `quarkword-media` and `quarkus-libvips`; libvips's own settings are quarkus-libvips's
 `quarkus.libvips.*` keys, and this module adds no key of its own. Everything in
-`org.quarkpress.media.image.vips.runtime` is implementation and may change.
+`org.quarkword.media.image.vips.runtime` is implementation and may change.
 
 ## Formats
 
@@ -77,7 +77,7 @@ bundled HEIC is decoded (and must not come out black), and TIFF's loader and sav
 ## Precedence and fallback
 
 - With the module installed, its processor takes precedence over ImageIO's: there is nothing to configure.
-- `quarkpress.media.image-processor` (media module, build time) chooses when several processor modules are
+- `quarkword.media.image-processor` (media module, build time) chooses when several processor modules are
   installed: `vips` (the default when this module is present) or `imageio`. A name no installed module provides fails
   the build, naming the installed ones.
 - `image-processor=imageio` leaves this processor out of the application, but quarkus-libvips still loads libvips at
@@ -93,7 +93,7 @@ bundled HEIC is decoded (and must not come out black), and TIFF's loader and sav
   the application's own is only found when it is kept (`@Unremovable`): nothing injects it, since this processor takes
   precedence.
 - While libvips is loaded, sizes are only written in the types libvips writes, so the sizes of an image ImageIO decodes
-  are JPEG. ImageIO encodes those sizes itself and writes neither WebP nor AVIF, so a `quarkpress.media.output-formats`
+  are JPEG. ImageIO encodes those sizes itself and writes neither WebP nor AVIF, so a `quarkword.media.output-formats`
   mapping of such a type (BMP) to WebP or AVIF stores that image without sizes. Map it to JPEG, PNG or GIF, or leave it
   unmapped.
 
@@ -127,25 +127,25 @@ throws Quarkus's `BlockingOperationNotAllowedException`, rather than failing as 
 ## Limits and settings
 
 - Input limits: quarkus-libvips refuses inputs above `quarkus.libvips.limits.max-input-size` (128M by default) and
-  `quarkus.libvips.limits.max-input-pixels` (268402689). Left unset, they rise to what QuarkPress accepts:
-  `max-input-size` to the larger of 128M and the largest upload (`quarkpress.media.max-upload-size`, else
+  `quarkus.libvips.limits.max-input-pixels` (268402689). Left unset, they rise to what QuarkWord accepts:
+  `max-input-size` to the larger of 128M and the largest upload (`quarkword.media.max-upload-size`, else
   `quarkus.http.limits.max-body-size`, else 10240K), `max-input-pixels` to the larger of its default and
-  `quarkpress.media.max-image-pixels`. Set lower (other than `0`, no limit), they fail the start with
-  `quarkus.libvips.limits.max-input-size (…) is below the largest upload QuarkPress accepts (…): raise it or set it to 0`
+  `quarkword.media.max-image-pixels`. Set lower (other than `0`, no limit), they fail the start with
+  `quarkus.libvips.limits.max-input-size (…) is below the largest upload QuarkWord accepts (…): raise it or set it to 0`
   (and the same for the pixels). With `max-upload-size` unset, a file uploaded through the Java API with no size limit
   can still be larger than libvips's limit: it is stored with its dimensions and without sizes.
 - `quarkus.libvips.concurrency`: libvips's worker threads per image, by default `VIPS_CONCURRENCY` or one per
   processor. On an upload server, 2 to 4 leave room for the requests that decode at the same time
-  (`quarkpress.media.max-concurrent-decodes`).
+  (`quarkword.media.max-concurrent-decodes`).
 - Memory and temporary files: a decoded image is held outside the Java heap. An image larger than libvips's
   `VIPS_DISC_THRESHOLD` (an environment variable, 100 MB of pixels by default, about 33 million RGB pixels) is decoded
   to a temporary file in `TMPDIR` instead, and the media module's own copies go to `java.io.tmpdir`. Where that folder
   is a tmpfs, those files are memory too: point `TMPDIR` at a disc folder, or plan the memory for it.
-- `quarkpress.media.max-concurrent-decodes` defaults to half the processors and at most one decode per 512 MiB of
+- `quarkword.media.max-concurrent-decodes` defaults to half the processors and at most one decode per 512 MiB of
   Java heap. That heap sizing fits ImageIO; libvips decodes outside the heap, so a small heap does not lower its
   memory and a large one does not make room for it. On a libvips host, set it explicitly from the memory left beside
-  the heap (a decoded RGB image takes about 3 bytes per pixel, up to `quarkpress.media.max-image-pixels`).
-- HEIC and AVIF frames: `quarkpress.media.max-image-pixels` and `max-input-pixels` check the size the file declares
+  the heap (a decoded RGB image takes about 3 bytes per pixel, up to `quarkword.media.max-image-pixels`).
+- HEIC and AVIF frames: `quarkword.media.max-image-pixels` and `max-input-pixels` check the size the file declares
   (its `ispe`). libheif decodes the coded frame first and only then finds a frame larger than declared, so that frame
   is bounded by libheif's own security limits (its largest image size), not by these settings. WordPress with Imagick
   has the same exposure. Keep libheif up to date (below).

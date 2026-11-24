@@ -3,34 +3,34 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-scheduling-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-scheduling-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-scheduling</artifactId>
+  <artifactId>quarkword-scheduling</artifactId>
 
-  <name>QuarkPress :: Scheduling :: Runtime</name>
+  <name>QuarkWord :: Scheduling :: Runtime</name>
   <description>Scheduled publishing of posts and the cron-driven post housekeeping of WordPress: a polling job, the trash and auto-draft purges, a per-site switch</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.scheduling</automatic.module.name>
+    <automatic.module.name>org.quarkword.scheduling</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -48,8 +48,8 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -62,7 +62,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.scheduling</provides>
+            <provides>org.quarkword.scheduling</provides>
           </capabilities>
         </configuration>
       </plugin>

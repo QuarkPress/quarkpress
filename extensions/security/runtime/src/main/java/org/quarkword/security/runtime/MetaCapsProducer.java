@@ -1,0 +1,22 @@
+package org.quarkword.security.runtime;
+
+import io.quarkus.arc.All;
+import io.quarkus.arc.InstanceHandle;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Singleton;
+import java.util.List;
+import org.quarkword.core.Filters;
+import org.quarkword.security.MetaCapabilityFilter;
+import org.quarkword.security.MetaCapabilityNames;
+
+/** The application's mapping: every {@link MetaCapabilityFilter} in order and every {@link MetaCapabilityNames}. */
+@ApplicationScoped
+public class MetaCapsProducer {
+
+    @Produces
+    @Singleton
+    MetaCaps metaCaps(@All List<InstanceHandle<MetaCapabilityFilter>> filters, @All List<MetaCapabilityNames> names) {
+        return new MetaCaps(Filters.ordered(filters), names);
+    }
+}

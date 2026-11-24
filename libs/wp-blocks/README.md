@@ -1,4 +1,4 @@
-# quarkpress-lib-wp-blocks
+# quarkword-lib-wp-blocks
 
 A plain-Java parser and serializer for Gutenberg block markup, the `<!-- wp:name {json} -->`
 comments WordPress stores in `post_content`, plus WordPress's block helpers (`has_blocks`,
@@ -15,9 +15,9 @@ content serializes back **byte for byte**; `serializeCanonical` writes exactly w
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-bom</artifactId>
-      <version>${quarkpress.version}</version>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-bom</artifactId>
+      <version>${quarkword.version}</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -25,15 +25,15 @@ content serializes back **byte for byte**; `serializeCanonical` writes exactly w
 </dependencyManagement>
 
 <dependency>
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-lib-wp-blocks</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-lib-wp-blocks</artifactId>
 </dependency>
 ```
 
 ## Usage
 
 ```java
-import org.quarkpress.lib.wpblocks.*;
+import org.quarkword.lib.wpblocks.*;
 
 List<Block> blocks = WpBlocks.parse(postContent);
 for (Block b : blocks) {
@@ -156,7 +156,7 @@ compare equal.
 Checked by the `wp-parity` profile; each is listed in `src/test/resources/wp-parity-skip.txt` with
 its audit item.
 
-| Item | QuarkPress | WordPress | Reason |
+| Item | QuarkWord | WordPress | Reason |
 |---|---|---|---|
 | D5 | a text chunk `"0"` is kept | dropped (PHP's `empty("0")`); a block whose content is `"0"` is written void | that is data loss |
 | D9 | a number whose integer, fraction or exponent part exceeds 1000 characters (floats included) makes the attributes invalid | parsed | bounded parsing (Jackson's limit is kept) |
@@ -194,4 +194,4 @@ thousand generated documents. CI runs both profiles. See `testing/wp-oracle`.
 
 Written from the block grammar documentation, the published fixtures and WordPress's observed
 behaviour. WordPress PHP was read to understand that behaviour and runs as a test oracle; no
-WordPress code is copied (QUARKPRESS-SPEC.md §13).
+WordPress code is copied (QUARKWORD-SPEC.md §13).

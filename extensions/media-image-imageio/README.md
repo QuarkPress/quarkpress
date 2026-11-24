@@ -1,6 +1,6 @@
-# QuarkPress Media Image ImageIO
+# QuarkWord Media Image ImageIO
 
-An image processor for QuarkPress media: it reads, orients, crops, scales and writes images with the JDK's ImageIO and
+An image processor for QuarkWord media: it reads, orients, crops, scales and writes images with the JDK's ImageIO and
 the TwelveMonkeys JPEG and WebP plugins, in the JVM and in a native image, with no native library to install beyond
 what quarkus-awt needs. It requires the media module.
 
@@ -8,19 +8,19 @@ what quarkus-awt needs. It requires the media module.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-media-image-imageio</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-media-image-imageio</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-media`, `quarkus-awt` and TwelveMonkeys' `imageio-jpeg` and `imageio-webp`. Its bean
+The extension brings `quarkword-media`, `quarkus-awt` and TwelveMonkeys' `imageio-jpeg` and `imageio-webp`. Its bean
 replaces the media module's default processor, which handles no type. Everything in
-`org.quarkpress.media.image.imageio.runtime` is implementation and may change; there is nothing to configure beyond
+`org.quarkword.media.image.imageio.runtime` is implementation and may change; there is nothing to configure beyond
 the media module's keys.
 
-With the libvips module (`quarkpress-media-image-vips`, Java 25) installed, ImageIO handles only the types libvips does
+With the libvips module (`quarkword-media-image-vips`, Java 25) installed, ImageIO handles only the types libvips does
 not decode (BMP), and takes over every type when libvips is missing and `quarkus.libvips.required` is false;
-`quarkpress.media.image-processor=imageio` makes it the processor again (see the libvips module's README).
+`quarkword.media.image-processor=imageio` makes it the processor again (see the libvips module's README).
 
 ## Formats
 
@@ -28,7 +28,7 @@ not decode (BMP), and takes over every type when libvips is missing and `quarkus
   These are the types it `supports`, so the media module makes sizes for them and accepts their uploads.
 - Read only: WebP (TwelveMonkeys) and TIFF (the JDK's reader). The media module never decodes them, since the
   processor cannot write them: WebP, AVIF and TIFF uploads that declare their type are refused unless
-  `quarkpress.media.accept-unprocessable-images` is set, then stored without sizes. For TIFF that is what WordPress
+  `quarkword.media.accept-unprocessable-images` is set, then stored without sizes. For TIFF that is what WordPress
   with GD does; for WebP and AVIF see the media README, D16.
 - The reader is chosen by the file's content, never by its name or declared type. A file a reader reports as damaged
   (a truncated file) fails to decode, and the media module keeps it without sizes. For a PNG, and with Imagick a GIF,
@@ -52,7 +52,7 @@ not decode (BMP), and takes over every type when libvips is missing and `quarkus
 A decoded image is held as 8-bit samples, up to 4 bytes per pixel. For a run's whole length, while its sizes are
 made, it holds the decoded original and its upright copy (about 8 bytes per pixel); while an image is decoded or a size
 is cut and encoded, further rasters exist for a moment, so processing one image needs about 2–3× its decoded raster
-(width × height × 4 bytes, so 8–12 bytes per pixel) of heap at peak. `quarkpress.media.max-image-pixels`
+(width × height × 4 bytes, so 8–12 bytes per pixel) of heap at peak. `quarkword.media.max-image-pixels`
 bounds the largest raster: the media module checks it from the file's header before any decode, and this processor
 checks it again from the reader's dimensions (for a GIF, the logical screen's too) before reading any pixel. It also
 refuses an image with a side longer than 65535 pixels, whatever the pixel limit, since the row buffers of a decode and

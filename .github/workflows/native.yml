@@ -42,24 +42,24 @@ jobs:
       - name: Install the modules the integration tests use
         run: mvn -B -ntp install -DskipTests -pl "$IT_MODULES" -am
       # Keep in step with ci.yml's keycloak steps (its JDK 21 cells): the same pin, checkout, installs and package.
-      - name: Read the quarkpress-keycloak pin
+      - name: Read the quarkword-keycloak pin
         run: |
-          pin="$(sed -n 's:.*<quarkpress-keycloak.commit>\(.*\)</quarkpress-keycloak.commit>.*:\1:p' pom.xml)"
-          [ "${#pin}" -eq 40 ] || { echo "::error::quarkpress-keycloak.commit not found in pom.xml"; exit 1; }
-          echo "QUARKPRESS_KEYCLOAK_COMMIT=$pin" >> "$GITHUB_ENV"
+          pin="$(sed -n 's:.*<quarkword-keycloak.commit>\(.*\)</quarkword-keycloak.commit>.*:\1:p' pom.xml)"
+          [ "${#pin}" -eq 40 ] || { echo "::error::quarkword-keycloak.commit not found in pom.xml"; exit 1; }
+          echo "QUARKWORD_KEYCLOAK_COMMIT=$pin" >> "$GITHUB_ENV"
       # The Keycloak password-hash provider is not on Maven Central: packaged from the pinned commit, as in the CI workflow.
       - uses: actions/checkout@v4
         with:
-          repository: QuarkPress/quarkpress-keycloak
-          ref: ${{ env.QUARKPRESS_KEYCLOAK_COMMIT }}
-          path: .quarkpress-keycloak
+          repository: QuarkWord/quarkword-keycloak
+          ref: ${{ env.QUARKWORD_KEYCLOAK_COMMIT }}
+          path: .quarkword-keycloak
       - name: Package the Keycloak provider at the pinned commit
         # the provider shades lib-wp-password: installed first from this checkout.
         # setup-java's Maven cache restores ~/.m2 with any earlier install: remove it so a changed pin is never hidden
         run: |
-          rm -rf ~/.m2/repository/org/quarkpress/keycloak
+          rm -rf ~/.m2/repository/org/quarkword/keycloak
           mvn -B -ntp install -DskipTests -pl libs/wp-password,testing/test-gen -am
-          mvn -B -ntp package -DskipTests -f .quarkpress-keycloak/pom.xml
+          mvn -B -ntp package -DskipTests -f .quarkword-keycloak/pom.xml
       # The posts image carries the taxonomy, revisions and scheduling modules too; its multi-node test launches the same executable a second time.
       # The rest-wp-v2 image serves WordPress's REST API (wp/v2) on a network with the same content modules.
       # One native image at a time: .mvn/maven.config's -T4 would build all ten at once, which exhausts the runner.
@@ -74,13 +74,13 @@ jobs:
           mvn -B -ntp -T1 verify -fae -Dnative -Dquarkus.native.container-build=true
           -Dquarkus.native.builder-image=mandrel -DskipUnitTests=true
           -Dquarkus.native.additional-build-args=-J-XX:TieredStopAtLevel=1,--parallelism=8
-          -DquarkpressKeycloakDir=$GITHUB_WORKSPACE/.quarkpress-keycloak -DrequireKeycloakProvider=true
+          -DquarkwordKeycloakDir=$GITHUB_WORKSPACE/.quarkword-keycloak -DrequireKeycloakProvider=true
           -DtestDb=${{ matrix.db }} -pl "$IT_MODULES"
       - name: Check that the Keycloak end-to-end tests ran
         # a renamed, filtered-out or skipped end-to-end test must not let the build pass
         run: >-
           bash .github/scripts/require-tests-ran.sh
-          integration-tests/keycloak/target/failsafe-reports/TEST-org.quarkpress.it.keycloak.KeycloakE2EIT.xml
+          integration-tests/keycloak/target/failsafe-reports/TEST-org.quarkword.it.keycloak.KeycloakE2EIT.xml
 
   # The libvips image processor needs Java 25 (quarkus-libvips is built on its Foreign Function and Memory API), so its
   # application is built natively here, by the Java 25 Mandrel builder, apart from the Java 21 job above. The executable

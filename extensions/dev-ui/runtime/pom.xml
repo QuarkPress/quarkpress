@@ -3,65 +3,65 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-dev-ui-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-dev-ui-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-dev-ui</artifactId>
+  <artifactId>quarkword-dev-ui</artifactId>
 
-  <name>QuarkPress :: Dev UI :: Runtime</name>
-  <description>Quarkus Dev UI pages for QuarkPress in dev mode: installed modules, sites, feature toggles, registries, content counts, scheduler, persistence and dev users</description>
+  <name>QuarkWord :: Dev UI :: Runtime</name>
+  <description>Quarkus Dev UI pages for QuarkWord in dev mode: installed modules, sites, feature toggles, registries, content counts, scheduler, persistence and dev users</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.devui</automatic.module.name>
+    <automatic.module.name>org.quarkword.devui</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
-      <version>${project.version}</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-taxonomy</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-revisions</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-taxonomy</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-scheduling</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-revisions</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-scheduling</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
@@ -84,7 +84,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.devui</provides>
+            <provides>org.quarkword.devui</provides>
           </capabilities>
         </configuration>
       </plugin>

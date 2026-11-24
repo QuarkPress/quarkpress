@@ -1,0 +1,665 @@
+package org.quarkword.testing.wprestparity;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.quarkword.testing.wporacle.OracleJson;
+import org.quarkword.testing.wpscenario.NetworkVariant;
+import org.quarkword.testing.wpscenario.ScenarioDatabase;
+import org.quarkword.testing.wpscenario.WordPressScenarioOracle;
+
+/**
+ * WordPress 7.1.3 served over HTTP for REST comparisons: a copy of the scenario harness's subdirectory network in its
+ * own database, with pretty permalinks ({@code /%postname%/}), {@code WP_ENVIRONMENT_TYPE} {@code local} and the dev
+ * realm's five users with one application password each, served by {@code php -S} on the loopback address. Every
+ * request reaches WordPress as one to {@code localhost} on port 80 (a WordPress network cannot run on a port), so
+ * WordPress's hrefs read {@code http://localhost/...}. The run's files and the server's log are kept in the module's
+ * {@code target/wp-rest-parity/<database>/}. The harness's must-use plugin ({@code qw-parity-mu.php}: the custom type
+ * {@code book} and the per-site switches of the parity run) is written into the tree's {@code wp-content/mu-plugins/}
+ * before the server starts and removed in {@link #close()} whatever happened; its {@code qw-} prefix marks a leftover.
+ * The harness's classic theme {@code quarkword} (resources {@code php/qw-theme/}, selected per site by the switch
+ * {@code qw_parity_quarkword_theme}) is written into {@code wp-content/themes/quarkword/} beside it and removed with
+ * it. {@code php -S} runs one worker unless {@link #start(Path, ScenarioDatabase, String, int)} asks for more; with
+ * two or more, a request WordPress makes to its own host reaches the server (the plugin's loopback rule) instead of
+ * blocking the only worker. Because the plugin, the theme and the uploads folders live in the shared tree, one process
+ * at a time serves a tree: a site waits for the tree's lock file ({@code wp-content/qw-rest-site.lock}) while another
+ * process's sites are open, as in a parallel Maven build where two modules' parity tests run at once.
+ */
+public final class WordPressRestSite implements AutoCloseable {
+
+    /** The dev realm's users, mirrored on WordPress with the same roles, e-mails and display names. */
+    public static final List<String> USERS = List.of("alice", "bob", "carol", "dave", "erin");
+
+    static final String RESOURCES = "php/";
+    static final String MU_PLUGIN = "qw-parity-mu.php";
+    /** The harness theme's resource folder (under {@link #RESOURCES}) and its files. */
+    static final String THEME_RESOURCES = "qw-theme/";
+
+    static final List<String> THEME_FILES = List.of("style.css", "index.php", "functions.php");
+    /** The harness theme's directory name under {@code wp-content/themes/}. */
+    static final String THEME = "quarkword";
+
+    static final Duration STARTUP = Duration.ofSeconds(30);
+    static final long SETUP_TIMEOUT_MINUTES = 5;
+
+    private static final AtomicInteger RUNS = new AtomicInteger();
+    /**
+     * One oracle per database server, WordPress tree and PHP binary, so each server gets the template network installed
+     * once.
+     */
+    private static final Map<OracleKey, WordPressScenarioOracle> ORACLES = new HashMap<>();
+
+    /** The database is compared by identity: one container, one template installation. */
+    private record OracleKey(ScenarioDatabase database, Path tree, String php) {}
+
+    private final Path wordpress;
+    private final ScenarioDatabase database;
+    private final String php;
+    private final String databaseName;
+    private final Path runDir;
+    private final int workers;
+    private final Map<String, Long> ids = new HashMap<>();
+    private final Map<String, String> passwords = new ConcurrentHashMap<>();
+    private Process server;
+    private URI root;
+    private int operations;
+    private boolean closed;
+    /** The must-use plugin written into the tree, removed in {@link #close()}; null until written. */
+    private Path muPlugin;
+
+    /** The harness theme's directory written into the tree, removed in {@link #close()}; null until written. */
+    private Path theme;
+
+    private boolean createdMuPlugins;
+
+    /** Whether this site holds a lease of its tree ({@link #lease}); released in {@link #close()}. */
+    private boolean leased;
+
+    /**
+     * The tree's exclusive use by this JVM: a file lock on {@value #TREE_LOCK} (other processes, such as another
+     * module's tests in a parallel Maven build, wait for it) and the number of this JVM's open sites using the tree.
+     */
+    private static final class TreeLease {
+        final FileChannel channel;
+        final FileLock lock;
+        int users;
+
+        TreeLease(FileChannel channel, FileLock lock) {
+            this.channel = channel;
+            this.lock = lock;
+        }
+    }
+
+    /** The lock file, in the tree's {@code wp-content/} (the {@code qw-} prefix marks a harness file). */
+    static final String TREE_LOCK = "qw-rest-site.lock";
+
+    private static final Map<Path, TreeLease> LEASES = new HashMap<>();
+
+    private WordPressRestSite(
+            Path wordpress, ScenarioDatabase database, String php, String databaseName, Path runDir, int workers) {
+        this.wordpress = wordpress;
+        this.database = database;
+        this.php = php;
+        this.databaseName = databaseName;
+        this.runDir = runDir;
+        this.workers = workers;
+    }
+
+    /** Clones the template network, prepares it (rest-setup.php "prepare") and starts php -S on a free port. */
+    public static WordPressRestSite start(Path wordpress, ScenarioDatabase database, String php)
+            throws IOException, InterruptedException {
+        return start(wordpress, database, php, 1);
+    }
+
+    /**
+     * {@link #start(Path, ScenarioDatabase, String)} with {@code workers} {@code php -S} workers (the environment
+     * variable {@code PHP_CLI_SERVER_WORKERS}). Harness rule: with two or more, the must-use plugin sends WordPress's
+     * requests to its own host ({@code http://localhost/...}) to the server's port (environment variable {@code
+     * QW_PARITY_LOOPBACK}), so a self-request is answered by another worker instead of failing on port 80.
+     */
+    public static WordPressRestSite start(Path wordpress, ScenarioDatabase database, String php, int workers)
+            throws IOException, InterruptedException {
+        if (workers < 1) {
+            throw new IllegalArgumentException("php -S needs at least one worker: " + workers);
+        }
+        Objects.requireNonNull(wordpress, "wordpress");
+        Objects.requireNonNull(database, "database");
+        Objects.requireNonNull(php, "php");
+        Path tree = wordpress.toAbsolutePath().normalize();
+        oracle(tree, database, php).install(NetworkVariant.SUBDIRECTORY);
+        String name = "rest_" + RUNS.incrementAndGet();
+        Path runDir = Path.of("target", "wp-rest-parity", name).toAbsolutePath();
+        Files.createDirectories(runDir);
+        WordPressRestSite site = new WordPressRestSite(tree, database, php, name, runDir, workers);
+        try {
+            lease(tree);
+            site.leased = true;
+            site.writeConfiguration();
+            site.installMuPlugin();
+            site.installTheme();
+            ObjectNode input = OracleJson.MAPPER.createObjectNode();
+            input.put("template", NetworkVariant.SUBDIRECTORY.templateDatabase());
+            input.put("database", name);
+            site.readUsers(site.exec("prepare", input));
+            site.serve();
+        } catch (IOException | InterruptedException | RuntimeException | Error e) {
+            try {
+                site.close();
+            } catch (RuntimeException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw e;
+        }
+        return site;
+    }
+
+    /**
+     * The oracle that installed (or will install) the template network on {@code database}. The template database has
+     * one name per variant, so a server that already holds it for another tree or PHP binary is refused.
+     */
+    private static WordPressScenarioOracle oracle(Path tree, ScenarioDatabase database, String php) {
+        OracleKey key = new OracleKey(database, tree, php);
+        synchronized (ORACLES) {
+            for (OracleKey other : ORACLES.keySet()) {
+                if (other.database() == database && !other.equals(key)) {
+                    throw new IllegalStateException("the database server already holds the template network of "
+                            + other.tree() + " with PHP '" + other.php() + "'; start another server for " + tree
+                            + " with PHP '" + php + "'");
+                }
+            }
+            return ORACLES.computeIfAbsent(
+                    key,
+                    k -> new WordPressScenarioOracle(
+                            php,
+                            tree,
+                            database,
+                            Path.of("target", "wp-scenario-runs").toAbsolutePath()));
+        }
+    }
+
+    /** {@code http://127.0.0.1:<port>/}. */
+    public URI root() {
+        return root;
+    }
+
+    /** WordPress's id of a {@link #USERS} entry. */
+    public long userId(String user) {
+        Long id = ids.get(user);
+        if (id == null) {
+            throw new IllegalArgumentException("not a site user: " + user);
+        }
+        return id;
+    }
+
+    /** The user's current application password (the one {@link #renewApplicationPassword} made last, if any). */
+    public String applicationPassword(String user) {
+        String password = passwords.get(user);
+        if (password == null) {
+            throw new IllegalArgumentException("not a site user: " + user);
+        }
+        return password;
+    }
+
+    /**
+     * Creates a new application password for the user (rest-setup.php "app_password") and uses it from then on: {@link
+     * #applicationPassword} and {@link RestClient#applicationPasswords} answer the new one.
+     */
+    public String renewApplicationPassword(String user) throws IOException, InterruptedException {
+        userId(user);
+        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+        args.put("user", user);
+        JsonNode answer = operation("app_password", args);
+        if (!answer.path("password").isTextual()) {
+            throw new IllegalStateException("rest-setup.php app_password did not answer a password: " + answer);
+        }
+        String password = answer.get("password").textValue();
+        passwords.put(user, password);
+        return password;
+    }
+
+    /**
+     * Runs one rest-setup.php operation on the site's database (CLI, not HTTP); returns its JSON answer. The answer of
+     * {@code role} (and of {@code site_admin}) names the user it gave the role to, with that user's id and a new
+     * application password; the user is registered as a caller from then on ({@link #userId}, {@link
+     * #applicationPassword}, {@link #knows}).
+     */
+    public JsonNode operation(String op, ObjectNode args) throws IOException, InterruptedException {
+        Objects.requireNonNull(op, "op");
+        Objects.requireNonNull(args, "args");
+        JsonNode answer = exec(op, args);
+        if ("role".equals(op) || "site_admin".equals(op)) {
+            if (!answer.path("user").isTextual()
+                    || !answer.path("id").isIntegralNumber()
+                    || !answer.path("password").isTextual()) {
+                throw new IllegalStateException(
+                        "rest-setup.php " + op + " did not answer a user and a password: " + answer);
+            }
+            String user = answer.get("user").textValue();
+            ids.put(user, answer.get("id").longValue());
+            passwords.put(user, answer.get("password").textValue());
+        }
+        return answer;
+    }
+
+    /** Whether {@code user} is a caller of the site: a {@link #USERS} entry or a user a {@code role} operation made. */
+    public boolean knows(String user) {
+        return passwords.containsKey(user);
+    }
+
+    /** Sets an option of the main site (operation {@code option}). */
+    public void option(String name, JsonNode value) throws IOException, InterruptedException {
+        ObjectNode args = OracleJson.MAPPER.createObjectNode();
+        args.put("name", Objects.requireNonNull(name, "name"));
+        args.set("value", Objects.requireNonNull(value, "value"));
+        operation("option", args);
+    }
+
+    /** Stops php -S, drops the site's database and removes the must-use plugin from the tree. */
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        try {
+            if (server != null) {
+                destroyTree(server);
+            }
+            try (Connection connection = database.connect("");
+                    Statement statement = connection.createStatement()) {
+                statement.execute("DROP DATABASE IF EXISTS `" + databaseName + "`");
+            } catch (SQLException e) {
+                throw new IllegalStateException("cannot drop the REST site's database " + databaseName, e);
+            }
+        } finally {
+            if (leased) {
+                leased = false;
+                release(wordpress, () -> {
+                    try {
+                        removeMuPlugin();
+                    } finally {
+                        removeTheme();
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Harness rule: takes the tree for this JVM's sites. The must-use plugin and the uploads folders are the tree's
+     * own files, shared by every process serving it; a site of another process that closed would remove the plugin
+     * (and clear its sites' uploads) under this one's requests. So the first site of a JVM waits for the tree's file
+     * lock and holds it until the JVM's last site on the tree has closed; sites of one JVM share it.
+     */
+    private static void lease(Path tree) throws IOException {
+        synchronized (LEASES) {
+            TreeLease lease = LEASES.get(tree);
+            if (lease == null) {
+                Path file = tree.resolve("wp-content").resolve(TREE_LOCK);
+                FileChannel channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                try {
+                    FileLock lock = channel.tryLock();
+                    if (lock == null) {
+                        System.out.println("wp-rest-parity: waiting for " + file
+                                + " (another process serves this WordPress tree)");
+                        lock = channel.lock();
+                    }
+                    lease = new TreeLease(channel, lock);
+                } catch (IOException | RuntimeException e) {
+                    channel.close();
+                    throw e;
+                }
+                LEASES.put(tree, lease);
+            }
+            lease.users++;
+        }
+    }
+
+    /** Ends one site's use of the tree; the last one runs {@code lastOut} (removing the plugin) and frees the lock. */
+    private static void release(Path tree, Runnable lastOut) {
+        synchronized (LEASES) {
+            TreeLease lease = LEASES.get(tree);
+            if (lease == null || --lease.users > 0) {
+                return;
+            }
+            LEASES.remove(tree);
+            try {
+                lastOut.run();
+            } finally {
+                try {
+                    lease.lock.release();
+                    lease.channel.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("cannot release the WordPress tree's lock", e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Harness rule: writes {@value #MU_PLUGIN} (resource {@code php/qw-parity-mu.php}) into the shared tree's
+     * {@code wp-content/mu-plugins/} so that every request, and every setup operation, loads it; the directory is
+     * created when the tree has none and removed again with the file when this site made it.
+     */
+    private void installMuPlugin() throws IOException {
+        Path dir = wordpress.resolve("wp-content").resolve("mu-plugins");
+        if (!Files.isDirectory(dir)) {
+            Files.createDirectories(dir);
+            createdMuPlugins = true;
+        }
+        Path target = dir.resolve(MU_PLUGIN);
+        Files.writeString(target, resource(MU_PLUGIN), StandardCharsets.UTF_8);
+        muPlugin = target;
+    }
+
+    private void removeMuPlugin() {
+        if (muPlugin == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(muPlugin);
+            if (createdMuPlugins) {
+                try (var entries = Files.list(muPlugin.getParent())) {
+                    if (entries.findAny().isEmpty()) {
+                        Files.deleteIfExists(muPlugin.getParent());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot remove " + muPlugin, e);
+        } finally {
+            muPlugin = null;
+        }
+    }
+
+    /**
+     * Harness rule: writes the classic theme {@value #THEME} (resources {@code php/qw-theme/}) into the shared tree's
+     * {@code wp-content/themes/}, replacing a leftover of an earlier run; removed again with the must-use plugin.
+     */
+    private void installTheme() throws IOException {
+        Path dir = wordpress.resolve("wp-content").resolve("themes").resolve(THEME);
+        Files.createDirectories(dir);
+        theme = dir;
+        for (String file : THEME_FILES) {
+            Files.writeString(dir.resolve(file), resource(THEME_RESOURCES + file), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void removeTheme() {
+        if (theme == null) {
+            return;
+        }
+        try {
+            for (String file : THEME_FILES) {
+                Files.deleteIfExists(theme.resolve(file));
+            }
+            Files.deleteIfExists(theme);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot remove " + theme, e);
+        } finally {
+            theme = null;
+        }
+    }
+
+    private Path config() {
+        return runDir.resolve("rest-config.php");
+    }
+
+    private Map<String, String> environment() {
+        Map<String, String> environment = new LinkedHashMap<>(database.environment());
+        environment.put("QW_REST_CONFIG", config().toString());
+        return environment;
+    }
+
+    /**
+     * Writes the site's configuration into the run directory, and next to the WordPress directory the wp-config.php
+     * WordPress looks for there, which only loads the configuration named by {@code QW_REST_CONFIG}.
+     */
+    private void writeConfiguration() throws IOException {
+        String template = resource("rest-config.php");
+        String config = template.replace("{{ABSPATH}}", phpString(wordpress + "/"))
+                .replace("{{DB_NAME}}", phpString(databaseName));
+        Files.writeString(config(), config, StandardCharsets.UTF_8);
+        Path wpConfig = wordpress.getParent().resolve("wp-config.php");
+        String loader = "<?php\n// Written by the REST parity harness; regenerated, never committed.\n"
+                + "require getenv('QW_REST_CONFIG');\n";
+        if (!Files.isRegularFile(wpConfig)
+                || !Files.readString(wpConfig, StandardCharsets.UTF_8).equals(loader)) {
+            Path temporary = Files.createTempFile(wordpress.getParent(), "wp-config", ".tmp");
+            Files.writeString(temporary, loader, StandardCharsets.UTF_8);
+            Files.move(temporary, wpConfig, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        }
+    }
+
+    /** The text inside a single-quoted PHP string. */
+    static String phpString(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '\\' || c == '\'') {
+                out.append('\\');
+            }
+            out.append(c);
+        }
+        return out.toString();
+    }
+
+    private void readUsers(JsonNode answer) {
+        JsonNode users = answer.path("users");
+        for (String user : USERS) {
+            JsonNode entry = users.path(user);
+            if (!entry.path("id").isIntegralNumber() || !entry.path("password").isTextual()) {
+                throw new IllegalStateException("rest-setup.php prepare did not answer user " + user + ": " + answer);
+            }
+            ids.put(user, entry.get("id").longValue());
+            passwords.put(user, entry.get("password").textValue());
+        }
+    }
+
+    private void serve() throws IOException, InterruptedException {
+        Path router = install("rest-router.php");
+        int port;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            port = socket.getLocalPort();
+        }
+        Path log = runDir.resolve("php-server.log");
+        // Harness rule: PHP's default upload_max_filesize (2M) and post_max_size (8M) would refuse the larger media
+        // fixtures before WordPress runs. Errors go to php-errors.log beside the server log, never into a response
+        // body (under php -S, display_errors=stderr would print them into the page), as on a production server with
+        // display_errors off.
+        ProcessBuilder builder = new ProcessBuilder(
+                        php,
+                        "-d",
+                        "memory_limit=512M",
+                        "-d",
+                        "upload_max_filesize=64M",
+                        "-d",
+                        "post_max_size=64M",
+                        "-d",
+                        "display_errors=0",
+                        "-d",
+                        "html_errors=0",
+                        "-d",
+                        "log_errors=1",
+                        "-d",
+                        "error_log=" + runDir.resolve("php-errors.log"),
+                        "-d",
+                        "error_reporting=E_ALL & ~E_DEPRECATED",
+                        "-S",
+                        "127.0.0.1:" + port,
+                        "-t",
+                        wordpress.toString(),
+                        router.toString())
+                .redirectErrorStream(true)
+                .redirectOutput(log.toFile());
+        builder.environment().putAll(environment());
+        if (workers > 1) {
+            builder.environment().put("PHP_CLI_SERVER_WORKERS", String.valueOf(workers));
+            builder.environment().put("QW_PARITY_LOOPBACK", String.valueOf(port));
+        }
+        try {
+            server = builder.start();
+        } catch (IOException e) {
+            throw new AssertionError(
+                    "cannot start PHP '" + php + "'; install PHP 8.4 with mysqli or pass -Dwp.php=<path>: "
+                            + e.getMessage(),
+                    e);
+        }
+        root = URI.create("http://127.0.0.1:" + port + "/");
+        awaitServing(log);
+    }
+
+    /** Waits until {@code GET /wp-json/} gets any answer; fails with the server's log when it never does. */
+    private void awaitServing(Path log) throws IOException, InterruptedException {
+        long deadline = System.nanoTime() + STARTUP.toNanos();
+        try (HttpClient http = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofSeconds(2))
+                .build()) {
+            HttpRequest probe = HttpRequest.newBuilder(root.resolve("wp-json/"))
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+            while (true) {
+                if (!server.isAlive()) {
+                    throw failure("php -S exited with status " + server.exitValue(), log);
+                }
+                try {
+                    http.send(probe, HttpResponse.BodyHandlers.discarding());
+                    return;
+                } catch (IOException notYet) {
+                    if (System.nanoTime() > deadline) {
+                        throw failure("php -S did not answer GET /wp-json/ within " + STARTUP.toSeconds() + " s", log);
+                    }
+                    Thread.sleep(100);
+                }
+            }
+        }
+    }
+
+    private JsonNode exec(String op, ObjectNode input) throws IOException, InterruptedException {
+        Path script = install("rest-setup.php");
+        String label = op + "-" + ++operations;
+        Path in = runDir.resolve(label + "-in.json");
+        Path out = runDir.resolve(label + "-out.json");
+        Path log = runDir.resolve(label + ".log");
+        OracleJson.MAPPER.writeValue(in.toFile(), input);
+        Files.deleteIfExists(out);
+        ProcessBuilder builder = new ProcessBuilder(
+                        php,
+                        "-d",
+                        "memory_limit=512M",
+                        "-d",
+                        "display_errors=stderr",
+                        "-d",
+                        "error_reporting=E_ALL & ~E_DEPRECATED",
+                        script.toString(),
+                        op,
+                        wordpress.toString(),
+                        in.toString(),
+                        out.toString())
+                .redirectErrorStream(true)
+                .redirectOutput(log.toFile());
+        builder.environment().putAll(environment());
+        Process process;
+        try {
+            process = builder.start();
+        } catch (IOException e) {
+            throw new AssertionError(
+                    "cannot start PHP '" + php + "'; install PHP 8.4 with mysqli or pass -Dwp.php=<path>: "
+                            + e.getMessage(),
+                    e);
+        }
+        try {
+            if (!process.waitFor(SETUP_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                destroyTree(process);
+                throw failure(label + " timed out after " + SETUP_TIMEOUT_MINUTES + " minutes", log);
+            }
+        } catch (InterruptedException e) {
+            destroyTree(process);
+            throw e;
+        }
+        if (!Files.exists(out)) {
+            throw failure(label + " wrote no output (exit status " + process.exitValue() + ")", log);
+        }
+        JsonNode result;
+        try {
+            result = OracleJson.MAPPER.readTree(out.toFile());
+        } catch (IOException e) {
+            throw failure(label + " wrote unparsable output: " + e.getMessage(), log);
+        }
+        if (result == null || !result.isObject()) {
+            throw failure(label + " wrote no JSON object (exit status " + process.exitValue() + ")", log);
+        }
+        if (result.has("error")) {
+            throw failure(label + " failed: " + result.get("error").asText(), log);
+        }
+        if (process.exitValue() != 0 || !result.has("out")) {
+            throw failure(label + " exited with status " + process.exitValue() + " without an answer", log);
+        }
+        return result.get("out");
+    }
+
+    private Path install(String name) throws IOException {
+        Path target = runDir.resolve(name);
+        Files.writeString(target, resource(name), StandardCharsets.UTF_8);
+        return target;
+    }
+
+    private static String resource(String name) throws IOException {
+        try (InputStream in = WordPressRestSite.class.getResourceAsStream(RESOURCES + name)) {
+            if (in == null) {
+                throw new IllegalStateException("missing resource " + RESOURCES + name);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static void destroyTree(Process process) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
+        try {
+            process.waitFor(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static AssertionError failure(String what, Path log) {
+        String tail;
+        try {
+            String text = Files.readString(log, StandardCharsets.UTF_8);
+            tail = text.length() <= 4000 ? text : text.substring(text.length() - 4000);
+        } catch (IOException e) {
+            tail = "(log unreadable: " + e.getMessage() + ")";
+        }
+        return new AssertionError("WordPress REST site: " + what + "; log: " + log + "\n" + tail);
+    }
+}

@@ -3,28 +3,28 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-image-imageio-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-image-imageio-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-image-imageio-deployment</artifactId>
+  <artifactId>quarkword-media-image-imageio-deployment</artifactId>
 
-  <name>QuarkPress :: Media Image ImageIO :: Deployment</name>
+  <name>QuarkWord :: Media Image ImageIO :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.image.imageio.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.image.imageio.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-image-imageio</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-image-imageio</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

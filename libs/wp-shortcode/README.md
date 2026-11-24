@@ -1,4 +1,4 @@
-# quarkpress-lib-wp-shortcode
+# quarkword-lib-wp-shortcode
 
 WordPress shortcodes for plain Java: register handlers, then expand, strip, find and parse `[shortcodes]`
 exactly as WordPress 7.1.3 does — same matches, same attributes, same output, same edge cases. Immutable,
@@ -10,9 +10,9 @@ thread-safe, no global registry, typed hooks instead of string-named filters. Ze
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-bom</artifactId>
-      <version>${quarkpress.version}</version>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-bom</artifactId>
+      <version>${quarkword.version}</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -20,8 +20,8 @@ thread-safe, no global registry, typed hooks instead of string-named filters. Ze
 </dependencyManagement>
 
 <dependency>
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-lib-wp-shortcode</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-lib-wp-shortcode</artifactId>
 </dependency>
 ```
 
@@ -29,7 +29,7 @@ thread-safe, no global registry, typed hooks instead of string-named filters. Ze
 
 ```java
 import java.util.*;
-import org.quarkpress.lib.wpshortcode.*;
+import org.quarkword.lib.wpshortcode.*;
 
 ShortcodeRegistry registry = ShortcodeRegistry.builder()
         .add("caption", (shortcode, context) -> {
@@ -59,7 +59,7 @@ ShortcodeAttributes atts = ShortcodeAttributes.parse(" id=\"5\" size=large");  /
 
 ## WordPress mapping
 
-| QuarkPress | WordPress |
+| QuarkWord | WordPress |
 |---|---|
 | `ShortcodeRegistry.Builder.add` / `remove` / `clear`, `ShortcodeRegistry.contains` | `add_shortcode`, `remove_shortcode`, `remove_all_shortcodes`, `shortcode_exists` |
 | `Shortcodes.apply(content)` / `apply(content, ignoreHtml)` | `do_shortcode`, `apply_shortcodes` |
@@ -102,7 +102,7 @@ All of it is WordPress's behavior, reproduced on purpose:
 
 Each is listed in `src/test/resources/wp-parity-skip.txt`.
 
-| Item | WordPress | QuarkPress | Why |
+| Item | WordPress | QuarkWord | Why |
 |---|---|---|---|
 | D1 invalid name | notice, call ignored | `IllegalArgumentException` | fail fast |
 | D2 uncallable callback | notice, text unchanged | impossible | typed handlers |
@@ -141,4 +141,4 @@ allowlist table against `wp_kses_allowed_html('post')`. See `testing/wp-oracle`.
 
 Written from a prose description of WordPress's observable behavior and from WordPress's output. WordPress PHP
 was read to understand that behavior and runs as a test oracle; no WordPress code, regular expression or
-comment is copied (QUARKPRESS-SPEC.md §13).
+comment is copied (QUARKWORD-SPEC.md §13).

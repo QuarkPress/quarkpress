@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Security"
+name: "QuarkWord Security"
 description: "User profiles from OIDC, site memberships, network administrators, WordPress roles and capabilities"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "security"
     - "oidc"

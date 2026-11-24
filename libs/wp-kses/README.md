@@ -1,27 +1,27 @@
-# quarkpress-lib-wp-kses
+# quarkword-lib-wp-kses
 
 A plain-Java version of WordPress's kses HTML sanitizer: the same allowlists, URL-protocol handling,
 inline-CSS filtering and output bytes as WordPress 7.1.3, so content saved or rendered through
-QuarkPress is as safe as, and identical to, what WordPress produces. It also provides the attribute
-sanitizer that `lib-wp-shortcode` needs. One dependency (`quarkpress-lib-wp-blocks`, for WordPress's
+QuarkWord is as safe as, and identical to, what WordPress produces. It also provides the attribute
+sanitizer that `lib-wp-shortcode` needs. One dependency (`quarkword-lib-wp-blocks`, for WordPress's
 block-attribute pre-filter, which brings Jackson), no reflection, no Quarkus.
 
 ## Coordinates
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-lib-wp-kses</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-lib-wp-kses</artifactId>
 </dependency>
 ```
 
-The version comes from `quarkpress-bom`.
+The version comes from `quarkword-bom`.
 
 ## Usage
 
 ```java
 import java.util.Optional;
-import org.quarkpress.lib.wpkses.*;
+import org.quarkword.lib.wpkses.*;
 
 Kses kses = Kses.wordPress();                    // WordPress's defaults, default filters on
 String safe = kses.post(html);                   // wp_kses_post
@@ -93,7 +93,7 @@ entry, not per case). Generated WordPress-mode soups often contain comments such
 (difference 11); they are compared under a separate aspect that accepts only neutralized delimiters, so any
 other change in them still fails.
 
-| # | QuarkPress | WordPress | Reason |
+| # | QuarkWord | WordPress | Reason |
 |---|---|---|---|
 | 1 | lone UTF-16 surrogates become U+FFFD | invalid UTF-8 bytes pass through | a Java `String` cannot hold invalid UTF-8 |
 | 2 | with the `entities` context, a numeric start tag such as `<5>` or `<12 a=1>` is removed | PHP `TypeError` | fail safe |
@@ -123,11 +123,11 @@ that run longer than 2 seconds (difference 9) are stopped with `pcntl_alarm`.
 
 Data that comes from WordPress is regenerated, then reviewed as a diff, after a WordPress bump:
 
-- `src/main/resources/org/quarkpress/lib/wpkses/wordpress-tables.txt`:
+- `src/main/resources/org/quarkword/lib/wpkses/wordpress-tables.txt`:
   `php src/test/php/export-tables.php <wordpress-src-dir>`
 - `src/test/resources/examples/*.json`:
   `php src/test/php/kses-examples.php <wordpress-src-dir> src/test/resources/examples` (needs `iconv`)
-- `src/main/resources/org/quarkpress/lib/wpkses/html5-named-references.txt`:
+- `src/main/resources/org/quarkword/lib/wpkses/html5-named-references.txt`:
   `php src/test/php/export-html5-references.php <wordpress-src-dir>` (needs `iconv`)
 
 `<wordpress-src-dir>` is the repository's `.cache/wp-source/7.1.3` after a parity run.
@@ -136,5 +136,5 @@ Data that comes from WordPress is regenerated, then reviewed as a diff, after a 
 
 Written from a description of WordPress's observable behaviour, WordPress's output and the HTML5
 specification. WordPress PHP was read to understand that behaviour and runs only as a test oracle; no
-WordPress code is copied (QUARKPRESS-SPEC.md §13). The tag-stripping state machine inside `stripAllTags` reproduces
+WordPress code is copied (QUARKWORD-SPEC.md §13). The tag-stripping state machine inside `stripAllTags` reproduces
 the behaviour of PHP's own C `strip_tags` function (PHP License), which WordPress calls; it is not WordPress code.

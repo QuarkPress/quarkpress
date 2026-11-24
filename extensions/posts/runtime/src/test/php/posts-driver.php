@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for the posts module.
@@ -19,21 +19,21 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
-qp_load_functions(QP_WP . 'functions.php', [
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
+qw_load_functions(QW_WP . 'functions.php', [
     'mbstring_binary_safe_encoding', 'reset_mbstring_encoding', 'wp_is_numeric_array', 'wp_parse_args',
     'wp_timezone_string', 'wp_timezone', 'wp_checkdate',
 ]);
-qp_load_functions(QP_WP . 'formatting.php', [
+qw_load_functions(QW_WP . 'formatting.php', [
     'sanitize_title', 'sanitize_title_with_dashes', 'sanitize_title_for_query', 'utf8_uri_encode', 'remove_accents',
     'sanitize_key', 'get_gmt_from_date', 'get_date_from_gmt',
 ]);
-qp_load_functions(QP_WP . 'post.php', [
+qw_load_functions(QW_WP . 'post.php', [
     '_truncate_post_slug', 'register_post_status', 'get_post_type_labels', '_get_custom_object_labels',
     'get_post_type_capabilities', '_post_type_meta_capabilities', 'add_post_type_support', 'post_type_supports',
     'get_all_post_type_supports', 'wp_resolve_post_date',
 ]);
-require QP_WP . 'class-wp-post-type.php';
+require QW_WP . 'class-wp-post-type.php';
 
 /** Stub: the date the post-date check falls back to for an empty or zero date; fixed, so the answer is stable. */
 function current_time($type, $gmt = 0)
@@ -66,13 +66,13 @@ function is_admin()
 add_filter('sanitize_title', 'sanitize_title_with_dashes', 10, 3);
 
 /** Rule applied by the driver: flags are compared as booleans, whatever WordPress stores (0, 1, '', true). */
-function qp_bool(mixed $value): bool
+function qw_bool(mixed $value): bool
 {
     return (bool) $value;
 }
 
-qp_run(function (array $in): array {
-    $GLOBALS['qp_options'] = $in['options'] ?? [];
+qw_run(function (array $in): array {
+    $GLOBALS['qw_options'] = $in['options'] ?? [];
     switch ($in['op']) {
         case 'sanitize_title':
             return ['value' => sanitize_title($in['text'], $in['fallback'] ?? '', $in['context'] ?? 'save')];
@@ -92,20 +92,20 @@ qp_run(function (array $in): array {
             $type = new WP_Post_Type(sanitize_key($in['name']), $in['args']);
             $type->add_supports();
             // Rule applied by the driver (planned normalization): WordPress keeps unset labels as null (a flat type's
-            // parent_item_colon); the comparison drops null-valued keys, and QuarkPress omits them.
+            // parent_item_colon); the comparison drops null-valued keys, and QuarkWord omits them.
             $labels = array_filter((array) $type->labels, static fn($value) => null !== $value);
             return [
                 'name' => $type->name,
-                'public' => qp_bool($type->public),
-                'hierarchical' => qp_bool($type->hierarchical),
-                'exclude_from_search' => qp_bool($type->exclude_from_search),
-                'publicly_queryable' => qp_bool($type->publicly_queryable),
-                'embeddable' => qp_bool($type->embeddable),
-                'show_ui' => qp_bool($type->show_ui),
-                'show_in_menu' => qp_bool($type->show_in_menu),
-                'show_in_nav_menus' => qp_bool($type->show_in_nav_menus),
-                'show_in_admin_bar' => qp_bool($type->show_in_admin_bar),
-                'map_meta_cap' => qp_bool($type->map_meta_cap),
+                'public' => qw_bool($type->public),
+                'hierarchical' => qw_bool($type->hierarchical),
+                'exclude_from_search' => qw_bool($type->exclude_from_search),
+                'publicly_queryable' => qw_bool($type->publicly_queryable),
+                'embeddable' => qw_bool($type->embeddable),
+                'show_ui' => qw_bool($type->show_ui),
+                'show_in_menu' => qw_bool($type->show_in_menu),
+                'show_in_nav_menus' => qw_bool($type->show_in_nav_menus),
+                'show_in_admin_bar' => qw_bool($type->show_in_admin_bar),
+                'map_meta_cap' => qw_bool($type->map_meta_cap),
                 'capability_type' => $type->capability_type,
                 'edit_posts' => $type->cap->edit_posts,
                 'supports' => array_keys(get_all_post_type_supports($type->name)),
@@ -118,15 +118,15 @@ qp_run(function (array $in): array {
                 'name' => $status->name,
                 'label' => $status->label,
                 'label_count' => [$status->label_count['singular'], $status->label_count['plural']],
-                'public' => qp_bool($status->public),
-                'protected' => qp_bool($status->protected),
-                'private' => qp_bool($status->private),
-                'internal' => qp_bool($status->internal),
-                'publicly_queryable' => qp_bool($status->publicly_queryable),
-                'exclude_from_search' => qp_bool($status->exclude_from_search),
-                'show_in_admin_all_list' => qp_bool($status->show_in_admin_all_list),
-                'show_in_admin_status_list' => qp_bool($status->show_in_admin_status_list),
-                'date_floating' => qp_bool($status->date_floating),
+                'public' => qw_bool($status->public),
+                'protected' => qw_bool($status->protected),
+                'private' => qw_bool($status->private),
+                'internal' => qw_bool($status->internal),
+                'publicly_queryable' => qw_bool($status->publicly_queryable),
+                'exclude_from_search' => qw_bool($status->exclude_from_search),
+                'show_in_admin_all_list' => qw_bool($status->show_in_admin_all_list),
+                'show_in_admin_status_list' => qw_bool($status->show_in_admin_status_list),
+                'date_floating' => qw_bool($status->date_floating),
             ];
         case 'gmt_from_date':
             return ['value' => get_gmt_from_date($in['date'])];

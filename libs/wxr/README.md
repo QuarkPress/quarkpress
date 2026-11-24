@@ -1,9 +1,9 @@
-# quarkpress-lib-wxr
+# quarkword-lib-wxr
 
 Read and write WordPress eXtended RSS (WXR), the format of WordPress's Tools, Export, in plain Java.
 The reader streams files of any size and survives the malformed XML that real exports contain; the writer
 produces WXR 1.2 that the WordPress Importer reads like a WordPress export, without WordPress's
-malformed-XML quirks. Dependencies: the JDK (StAX) and `quarkpress-lib-php-serialize`.
+malformed-XML quirks. Dependencies: the JDK (StAX) and `quarkword-lib-php-serialize`.
 
 ## Coordinates
 
@@ -11,9 +11,9 @@ malformed-XML quirks. Dependencies: the JDK (StAX) and `quarkpress-lib-php-seria
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-bom</artifactId>
-      <version>${quarkpress.version}</version>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-bom</artifactId>
+      <version>${quarkword.version}</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -21,8 +21,8 @@ malformed-XML quirks. Dependencies: the JDK (StAX) and `quarkpress-lib-php-seria
 </dependencyManagement>
 
 <dependency>
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-lib-wxr</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-lib-wxr</artifactId>
 </dependency>
 ```
 
@@ -166,7 +166,7 @@ an XML-processor parser, which also reads the files SimpleXML rejects. D1 to D3 
 - **Error columns on the root line shift** in lenient mode when the reader injects missing prefix declarations
   into the root start tag; positions on other lines are exact up to earlier repairs on the same line.
 - **D8 XML-illegal characters** become U+FFFD in lenient mode; the importer's parsers pass them through or fail.
-- **D13 Meta values.** `WxrMeta.parsed()` inherits the kept differences of `quarkpress-lib-php-serialize`: an `E:`
+- **D13 Meta values.** `WxrMeta.parsed()` inherits the kept differences of `quarkword-lib-php-serialize`: an `E:`
   enum value parses to an enum for any class and case (WordPress returns `false` for an unknown one), `C:`
   payloads are kept as opaque bytes (WordPress builds an incomplete class and drops them), and a few
   malformed object headers that PHP refuses can still parse. Classes are never looked up, and every object is
@@ -250,4 +250,4 @@ are compared.
 
 Written from WXR files, a prose description of WordPress's observable behaviour and observed WordPress output.
 WordPress and importer PHP were read to understand that behaviour and run as a test oracle; no WordPress code is
-copied (QUARKPRESS-SPEC.md section 13).
+copied (QUARKWORD-SPEC.md section 13).

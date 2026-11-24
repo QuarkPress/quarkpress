@@ -3,17 +3,17 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-extensions-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-extensions-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../../extensions/pom.xml</relativePath>
   </parent>
 
-  <artifactId>quarkpress-it-feature-extension-parent</artifactId>
+  <artifactId>quarkword-it-feature-extension-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: Integration tests :: Feature extension</name>
-  <description>A test-only extension that declares per-site features, the way a QuarkPress module does. Never published.</description>
+  <name>QuarkWord :: Integration tests :: Feature extension</name>
+  <description>A test-only extension that declares per-site features, the way a QuarkWord module does. Never published.</description>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>

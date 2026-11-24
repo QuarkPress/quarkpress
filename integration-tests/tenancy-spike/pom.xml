@@ -3,18 +3,18 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-integration-tests-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-it-tenancy-spike</artifactId>
+  <artifactId>quarkword-it-tenancy-spike</artifactId>
 
-  <name>QuarkPress :: Integration tests :: Tenancy spike</name>
+  <name>QuarkWord :: Integration tests :: Tenancy spike</name>
   <description>Checks site isolation by an auto-enabled Hibernate filter and a stamping listener, on PostgreSQL and MySQL, in JVM mode and as a native executable.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.it.tenancy</automatic.module.name>
+    <automatic.module.name>org.quarkword.it.tenancy</automatic.module.name>
   </properties>
 
   <dependencies>

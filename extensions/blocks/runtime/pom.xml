@@ -3,37 +3,37 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-blocks-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-blocks-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-blocks</artifactId>
+  <artifactId>quarkword-blocks</artifactId>
 
-  <name>QuarkPress :: Blocks :: Runtime</name>
-  <description>Block types, block renderers, patterns and pattern categories for QuarkPress</description>
+  <name>QuarkWord :: Blocks :: Runtime</name>
+  <description>Block types, block renderers, patterns and pattern categories for QuarkWord</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.blocks</automatic.module.name>
+    <automatic.module.name>org.quarkword.blocks</automatic.module.name>
   </properties>
 
   <dependencies>
     <!-- The core module, so that the deployment side may declare the module's configuration keys through the core's
          build items: the extension plugin refuses a deployment that reaches a runtime extension its runtime lacks. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.lib</groupId>
-      <artifactId>quarkpress-lib-wp-blocks</artifactId>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-blocks</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- WordPress's text-field sanitizing of the metadata a resolved pattern gives its block. -->
     <dependency>
-      <groupId>org.quarkpress.lib</groupId>
-      <artifactId>quarkpress-lib-wp-kses</artifactId>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-kses</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -63,7 +63,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.blocks</provides>
+            <provides>org.quarkword.blocks</provides>
           </capabilities>
         </configuration>
       </plugin>

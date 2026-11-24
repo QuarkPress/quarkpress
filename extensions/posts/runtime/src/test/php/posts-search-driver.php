@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for the search parsing of the posts module. It loads only WP_Query, always, so it does not depend on
@@ -13,13 +13,13 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
-require QP_WP . 'class-wp-query.php';
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
+require QW_WP . 'class-wp-query.php';
 
 /** The search parsing of WP_Query, which is protected, reached from a subclass. */
-final class QpSearchQuery extends WP_Query
+final class QwSearchQuery extends WP_Query
 {
-    public function qp_terms(string $search, bool $sentence): array
+    public function qw_terms(string $search, bool $sentence): array
     {
         // Driver-applied rule: query variables arrive slashed, as WordPress's request parsing leaves them.
         $vars = ['s' => addslashes($search), 'sentence' => $sentence, 'exact' => false, 'search_columns' => []];
@@ -33,14 +33,14 @@ final class QpSearchQuery extends WP_Query
         ];
     }
 
-    public function qp_stopwords(): array
+    public function qw_stopwords(): array
     {
         return $this->get_search_stopwords();
     }
 }
 
 /** The parts of the database object the search parsing calls to build SQL text, which the driver ignores. */
-final class QpSearchWpdb
+final class QwSearchWpdb
 {
     public string $posts = 'wp_posts';
 
@@ -67,13 +67,13 @@ function is_user_logged_in()
     return false;
 }
 
-qp_run(function (array $in): array {
+qw_run(function (array $in): array {
     switch ($in['op']) {
         case 'search_terms':
-            $GLOBALS['wpdb'] = new QpSearchWpdb();
-            return (new QpSearchQuery())->qp_terms($in['s'], (bool) $in['sentence']);
+            $GLOBALS['wpdb'] = new QwSearchWpdb();
+            return (new QwSearchQuery())->qw_terms($in['s'], (bool) $in['sentence']);
         case 'stopwords':
-            return ['words' => (new QpSearchQuery())->qp_stopwords()];
+            return ['words' => (new QwSearchQuery())->qw_stopwords()];
         default:
             throw new InvalidArgumentException('unknown op ' . $in['op']);
     }

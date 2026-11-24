@@ -1,0 +1,61 @@
+package org.quarkword.core;
+
+import java.net.URI;
+import java.util.Objects;
+
+/**
+ * A site of the network. The flags are independent, as in WordPress; {@link #status()} derives one state from them.
+ *
+ * @param publicFlag 1 when search engines may index the site, 0 when not; negative values are reserved for privacy
+ *     modules
+ */
+public record SiteInfo(
+        SiteId id,
+        String domain,
+        String path,
+        String name,
+        int publicFlag,
+        boolean archived,
+        boolean mature,
+        boolean spam,
+        boolean deleted) {
+
+    public SiteInfo {
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(domain, "domain");
+        Objects.requireNonNull(path, "path");
+        Objects.requireNonNull(name, "name");
+    }
+
+    public SiteStatus status() {
+        if (deleted) {
+            return SiteStatus.DELETED;
+        }
+        if (spam) {
+            return SiteStatus.SPAM;
+        }
+        return archived ? SiteStatus.ARCHIVED : SiteStatus.ACTIVE;
+    }
+
+    /**
+     * The site's address as a URL: {@code scheme://domain/path/}. The scheme is {@code http} or {@code https}; the
+     * site record does not store one.
+     */
+    public URI url(String scheme) {
+        return url(scheme, domain, path);
+    }
+
+    /**
+     * The URL of a site address: {@code scheme://domain/path/}, for a stored (normalized) domain and path. The scheme
+     * is {@code http} or {@code https}.
+     *
+     * @throws IllegalArgumentException when the scheme is neither, or the domain and path do not form a valid URI
+     *     (stored, normalized addresses always do)
+     */
+    public static URI url(String scheme, String domain, String path) {
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
+            throw new IllegalArgumentException("a site URL uses http or https, not " + scheme);
+        }
+        return URI.create(scheme + "://" + domain + path);
+    }
+}

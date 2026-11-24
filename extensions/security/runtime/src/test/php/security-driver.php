@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for the security module.
@@ -16,31 +16,31 @@
  *   {"op":"post_type_caps",...}         get_post_type_capabilities of a post type with the given capability type,
  *                                     map_meta_cap flag and capabilities
  *   {"op":"roles"}                    the role table populate_roles stores, read back from the options
- * With QP_DISALLOW_UNFILTERED_HTML set, the DISALLOW_UNFILTERED_HTML constant is defined true.
+ * With QW_DISALLOW_UNFILTERED_HTML set, the DISALLOW_UNFILTERED_HTML constant is defined true.
  */
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
-if (false !== getenv('QP_DISALLOW_UNFILTERED_HTML')) {
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
+if (false !== getenv('QW_DISALLOW_UNFILTERED_HTML')) {
     define('DISALLOW_UNFILTERED_HTML', true);
 }
-qp_load_functions(QP_WP . 'functions.php', [
+qw_load_functions(QW_WP . 'functions.php', [
     'mbstring_binary_safe_encoding', 'reset_mbstring_encoding', 'wp_is_numeric_array',
 ]);
-qp_load_functions(QP_WP . 'formatting.php', [
+qw_load_functions(QW_WP . 'formatting.php', [
     'sanitize_user', 'remove_accents', 'wp_strip_all_tags', 'sanitize_title', 'sanitize_title_with_dashes',
     'utf8_uri_encode',
 ]);
-qp_load_functions(QP_WP . 'capabilities.php', ['map_meta_cap', 'add_role', 'get_role', 'wp_roles']);
+qw_load_functions(QW_WP . 'capabilities.php', ['map_meta_cap', 'add_role', 'get_role', 'wp_roles']);
 // WordPress's own get_post_status (attachments inherit from their parent) and get_post_status_object, which reads
 // the $wp_post_statuses global the case fills.
-qp_load_functions(QP_WP . 'post.php', [
+qw_load_functions(QW_WP . 'post.php', [
     'get_post_type_capabilities', '_post_type_meta_capabilities', 'get_post_status', 'get_post_status_object',
 ]);
-require QP_WP . 'class-wp-role.php';
-require QP_WP . 'class-wp-roles.php';
-qp_load_functions(ABSPATH . 'wp-admin/includes/schema.php', [
+require QW_WP . 'class-wp-role.php';
+require QW_WP . 'class-wp-roles.php';
+qw_load_functions(ABSPATH . 'wp-admin/includes/schema.php', [
     'populate_roles', 'populate_roles_160', 'populate_roles_210', 'populate_roles_230', 'populate_roles_250',
     'populate_roles_260', 'populate_roles_270', 'populate_roles_280', 'populate_roles_300',
 ]);
@@ -54,37 +54,37 @@ function get_locale()
 // WordPress's default filters attach the dashes sanitizer to sanitize_title.
 add_filter('sanitize_title', 'sanitize_title_with_dashes', 10, 3);
 
-$GLOBALS['qp_case'] = [];
+$GLOBALS['qw_case'] = [];
 
-function qp_case(string $key, mixed $default = null): mixed
+function qw_case(string $key, mixed $default = null): mixed
 {
-    return $GLOBALS['qp_case'][$key] ?? $default;
+    return $GLOBALS['qw_case'][$key] ?? $default;
 }
 
 function is_multisite()
 {
-    return (bool) qp_case('multisite', false);
+    return (bool) qw_case('multisite', false);
 }
 
 function is_super_admin($user_id = false)
 {
-    return in_array((int) $user_id, qp_case('super_admins', []), true);
+    return in_array((int) $user_id, qw_case('super_admins', []), true);
 }
 
 function user_can($user, $capability, ...$args)
 {
-    return in_array($capability, qp_case('user_can', []), true);
+    return in_array($capability, qw_case('user_can', []), true);
 }
 
 function get_site_option($option, $default_value = false, $deprecated = true)
 {
-    $options = qp_case('network_options', []);
+    $options = qw_case('network_options', []);
     return array_key_exists($option, $options) ? $options[$option] : $default_value;
 }
 
 function update_option($option, $value, $autoload = null)
 {
-    $GLOBALS['qp_options'][$option] = $value;
+    $GLOBALS['qw_options'][$option] = $value;
     return true;
 }
 
@@ -93,7 +93,7 @@ function get_current_blog_id()
     return 1;
 }
 
-/** QuarkPress edits no files: file modifications count as allowed, as in a default WordPress. */
+/** QuarkWord edits no files: file modifications count as allowed, as in a default WordPress. */
 function wp_is_file_mod_allowed($context)
 {
     return true;
@@ -108,7 +108,7 @@ function is_wp_error($thing)
 function get_post($post = null, $output = 'OBJECT', $filter = 'raw')
 {
     $id = is_object($post) ? (int) $post->ID : (int) $post;
-    foreach (qp_case('posts', []) as $found) {
+    foreach (qw_case('posts', []) as $found) {
         if ($id === (int) $found['ID']) {
             return (object) $found;
         }
@@ -118,7 +118,7 @@ function get_post($post = null, $output = 'OBJECT', $filter = 'raw')
 
 function get_post_type_object($post_type)
 {
-    $type = qp_case('post_types', [])[$post_type] ?? null;
+    $type = qw_case('post_types', [])[$post_type] ?? null;
     return null === $type ? null : (object) ['cap' => (object) $type['cap'], 'map_meta_cap' => $type['map_meta_cap']];
 }
 
@@ -133,7 +133,7 @@ function get_post_meta($post_id, $key = '', $single = false)
 
 function get_term($term, $taxonomy = '', $output = 'OBJECT', $filter = 'raw')
 {
-    $found = qp_case('term');
+    $found = qw_case('term');
     if (null === $found || (int) $term !== (int) $found['term_id']) {
         return null;
     }
@@ -142,11 +142,11 @@ function get_term($term, $taxonomy = '', $output = 'OBJECT', $filter = 'raw')
 
 function get_taxonomy($taxonomy)
 {
-    $found = qp_case('taxonomies', [])[$taxonomy] ?? null;
+    $found = qw_case('taxonomies', [])[$taxonomy] ?? null;
     return null === $found ? false : (object) ['cap' => (object) $found];
 }
 
-final class QpWpdb
+final class QwWpdb
 {
     public string $prefix = 'wp_';
 
@@ -156,11 +156,11 @@ final class QpWpdb
     }
 }
 
-$wpdb = new QpWpdb();
+$wpdb = new QwWpdb();
 
-qp_run(function (array $in): array {
-    $GLOBALS['qp_case'] = $in;
-    $GLOBALS['qp_options'] = $in['options'] ?? [];
+qw_run(function (array $in): array {
+    $GLOBALS['qw_case'] = $in;
+    $GLOBALS['qw_options'] = $in['options'] ?? [];
     $GLOBALS['wp_post_statuses'] = array_map(fn($status) => (object) $status, $in['statuses'] ?? []);
     switch ($in['op']) {
         case 'sanitize_user':

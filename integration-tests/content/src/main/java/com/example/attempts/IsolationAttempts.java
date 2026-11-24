@@ -26,29 +26,29 @@ import org.eclipse.microprofile.context.ManagedExecutor;
 import org.hibernate.boot.spi.SessionFactoryOptions;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.exception.ConstraintViolationException;
-import org.quarkpress.core.SiteId;
-import org.quarkpress.core.runtime.Binding;
-import org.quarkpress.core.runtime.SiteBinding;
-import org.quarkpress.it.content.model.ItBook;
-import org.quarkpress.it.content.model.ItShelf;
-import org.quarkpress.persistence.Options;
-import org.quarkpress.persistence.SiteScope;
-import org.quarkpress.persistence.runtime.OptionEntity;
-import org.quarkpress.persistence.runtime.OptionRepository;
+import org.quarkword.core.SiteId;
+import org.quarkword.core.runtime.Binding;
+import org.quarkword.core.runtime.SiteBinding;
+import org.quarkword.it.content.model.ItBook;
+import org.quarkword.it.content.model.ItShelf;
+import org.quarkword.persistence.Options;
+import org.quarkword.persistence.SiteScope;
+import org.quarkword.persistence.runtime.OptionEntity;
+import org.quarkword.persistence.runtime.OptionRepository;
 
 /**
- * Application code (outside the QuarkPress packages, so the build-time checks do not apply) that tries the run-time
+ * Application code (outside the QuarkWord packages, so the build-time checks do not apply) that tries the run-time
  * paths around site isolation. Each method answers "ok" when isolation held, or describes the leak.
  */
 @ApplicationScoped
 public class IsolationAttempts {
 
     @Inject
-    @PersistenceUnit("quarkpress")
+    @PersistenceUnit("quarkword")
     EntityManager em;
 
     @Inject
-    @PersistenceUnit("quarkpress")
+    @PersistenceUnit("quarkword")
     EntityManagerFactory emf;
 
     @Inject
@@ -141,7 +141,7 @@ public class IsolationAttempts {
         try {
             scope.run(siteB, () -> {
                 OptionEntity row = (OptionEntity)
-                        em.createNativeQuery("select * from qp_option where id = :id", OptionEntity.class)
+                        em.createNativeQuery("select * from qw_option where id = :id", OptionEntity.class)
                                 .setParameter("id", id)
                                 .getSingleResult();
                 row.value = TextNode.valueOf("b");

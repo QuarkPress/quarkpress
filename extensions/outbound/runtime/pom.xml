@@ -3,26 +3,26 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-outbound-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-outbound-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-outbound</artifactId>
+  <artifactId>quarkword-outbound</artifactId>
 
-  <name>QuarkPress :: Outbound :: Runtime</name>
-  <description>Safe outbound HTTP GET for QuarkPress</description>
+  <name>QuarkWord :: Outbound :: Runtime</name>
+  <description>Safe outbound HTTP GET for QuarkWord</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.outbound</automatic.module.name>
+    <automatic.module.name>org.quarkword.outbound</automatic.module.name>
   </properties>
 
   <dependencies>
     <!-- The core module, so that the deployment side may declare the module's configuration keys through the core's
          build items: the extension plugin refuses a deployment that reaches a runtime extension its runtime lacks. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -63,7 +63,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.outbound</provides>
+            <provides>org.quarkword.outbound</provides>
           </capabilities>
         </configuration>
       </plugin>

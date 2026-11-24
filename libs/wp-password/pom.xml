@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress.lib</groupId>
-    <artifactId>quarkpress-libs-parent</artifactId>
+    <groupId>org.quarkword.lib</groupId>
+    <artifactId>quarkword-libs-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-lib-wp-password</artifactId>
+  <artifactId>quarkword-lib-wp-password</artifactId>
 
-  <name>QuarkPress :: lib :: WP password</name>
+  <name>QuarkWord :: lib :: WP password</name>
   <description>Verify passwords stored by WordPress: MD5, phpass, bcrypt, $wp$ bcrypt and application passwords</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.lib.wppassword</automatic.module.name>
+    <automatic.module.name>org.quarkword.lib.wppassword</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

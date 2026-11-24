@@ -10,5 +10,5 @@ target/
 .factorypath
 .DS_Store
 .quarkus-libvips/
-.quarkpress-keycloak/
+.quarkword-keycloak/
 .cache/

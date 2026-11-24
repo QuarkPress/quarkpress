@@ -3,28 +3,28 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-core-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-core-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-core-deployment</artifactId>
+  <artifactId>quarkword-core-deployment</artifactId>
 
-  <name>QuarkPress :: Core :: Deployment</name>
+  <name>QuarkWord :: Core :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.core.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.core.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment-spi</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -56,8 +56,8 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

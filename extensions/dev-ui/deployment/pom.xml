@@ -3,28 +3,28 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-dev-ui-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-dev-ui-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-dev-ui-deployment</artifactId>
+  <artifactId>quarkword-dev-ui-deployment</artifactId>
 
-  <name>QuarkPress :: Dev UI :: Deployment</name>
+  <name>QuarkWord :: Dev UI :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.devui.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.devui.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-dev-ui</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-dev-ui</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -36,44 +36,44 @@
       <artifactId>quarkus-arc-deployment</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-taxonomy-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-taxonomy-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-revisions-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-revisions-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-scheduling-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-scheduling-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
@@ -129,8 +129,8 @@
             </goals>
             <configuration>
               <includes>
-                <include>org/quarkpress/devui/deployment/DevUiClient*.class</include>
-                <include>org/quarkpress/devui/deployment/TestDb.class</include>
+                <include>org/quarkword/devui/deployment/DevUiClient*.class</include>
+                <include>org/quarkword/devui/deployment/TestDb.class</include>
               </includes>
             </configuration>
           </execution>

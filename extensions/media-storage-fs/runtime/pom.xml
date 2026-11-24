@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-storage-fs-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-storage-fs-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-storage-fs</artifactId>
+  <artifactId>quarkword-media-storage-fs</artifactId>
 
-  <name>QuarkPress :: Media Storage FS :: Runtime</name>
-  <description>Stores QuarkPress media files in a directory and serves them under WordPress's uploads path</description>
+  <name>QuarkWord :: Media Storage FS :: Runtime</name>
+  <description>Stores QuarkWord media files in a directory and serves them under WordPress's uploads path</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.storage.fs</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.storage.fs</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -34,8 +34,8 @@
     </dependency>
     <!-- The storage contract every backend passes. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
@@ -54,7 +54,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.mediastoragefs</provides>
+            <provides>org.quarkword.mediastoragefs</provides>
           </capabilities>
         </configuration>
       </plugin>

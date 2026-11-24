@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-taxonomy-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-taxonomy-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-taxonomy</artifactId>
+  <artifactId>quarkword-taxonomy</artifactId>
 
-  <name>QuarkPress :: Taxonomy :: Runtime</name>
+  <name>QuarkWord :: Taxonomy :: Runtime</name>
   <description>Categories, tags and custom taxonomies with WordPress's sanitizing, slug, hierarchy, assignment and count rules</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.taxonomy</automatic.module.name>
+    <automatic.module.name>org.quarkword.taxonomy</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -34,14 +34,14 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -54,7 +54,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.taxonomy</provides>
+            <provides>org.quarkword.taxonomy</provides>
           </capabilities>
         </configuration>
       </plugin>

@@ -3,34 +3,34 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress.testing</groupId>
-    <artifactId>quarkpress-testing-parent</artifactId>
+    <groupId>org.quarkword.testing</groupId>
+    <artifactId>quarkword-testing-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-test-media-image-contract</artifactId>
+  <artifactId>quarkword-test-media-image-contract</artifactId>
 
-  <name>QuarkPress :: testing :: media image contract</name>
-  <description>The tests every QuarkPress image processor runs: what the media image SPI asks of an implementation, whatever library does the work. Test scope only.</description>
+  <name>QuarkWord :: testing :: media image contract</name>
+  <description>The tests every QuarkWord image processor runs: what the media image SPI asks of an implementation, whatever library does the work. Test scope only.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.testing.mediaimage</automatic.module.name>
+    <automatic.module.name>org.quarkword.testing.mediaimage</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-rest-parity</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

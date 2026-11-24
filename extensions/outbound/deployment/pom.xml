@@ -3,23 +3,23 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-outbound-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-outbound-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-outbound-deployment</artifactId>
+  <artifactId>quarkword-outbound-deployment</artifactId>
 
-  <name>QuarkPress :: Outbound :: Deployment</name>
+  <name>QuarkWord :: Outbound :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.outbound.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.outbound.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-outbound</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-outbound</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -31,14 +31,14 @@
       <artifactId>quarkus-tls-registry-deployment</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- The build item that declares the module's configuration keys. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment-spi</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

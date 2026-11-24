@@ -1,6 +1,6 @@
-# QuarkPress Scheduling
+# QuarkWord Scheduling
 
-WordPress's cron-driven post jobs for QuarkPress: scheduled posts published when their time comes by a polling job, the
+WordPress's cron-driven post jobs for QuarkWord: scheduled posts published when their time comes by a polling job, the
 trash emptied and old auto-drafts removed by a housekeeping job, and a per-site switch. There is no cron: the jobs run
 on Quarkus's scheduler at fixed intervals, on every node, whatever the traffic. It requires the posts module and works
 on a single site and in a network.
@@ -9,14 +9,14 @@ on a single site and in a network.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-scheduling</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-scheduling</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-posts` (and through it persistence, security, lib-wp-kses and lib-wp-blocks),
-`quarkpress-security`, `quarkpress-persistence` and `quarkus-scheduler`. Public API lives in
-`org.quarkpress.scheduling`; `org.quarkpress.scheduling.runtime` is implementation and may change.
+The extension brings `quarkword-posts` (and through it persistence, security, lib-wp-kses and lib-wp-blocks),
+`quarkword-security`, `quarkword-persistence` and `quarkus-scheduler`. Public API lives in
+`org.quarkword.scheduling`; `org.quarkword.scheduling.runtime` is implementation and may change.
 
 ## Using it
 
@@ -36,18 +36,18 @@ thread of its own with nothing of the caller's context (no request, transaction,
 there and returns its result (the posts published, in order; what a housekeeping purged). A call made inside an active
 transaction is refused with `IllegalStateException` ("a scheduling job is not called inside a transaction"): the job's
 own transactions would wait on locks the caller's holds, from another thread, and no database would see the deadlock.
-A `RuntimeException` of the job is rethrown on the caller's thread as it is. `quarkpress.scheduling.enabled=false`
+A `RuntimeException` of the job is rethrown on the caller's thread as it is. `quarkword.scheduling.enabled=false`
 stops the scheduler from running the jobs on this node; a direct call still works.
 
 ### The publish poll
 
-Every `quarkpress.scheduling.interval` (15 s by default) the poll runs, on every node, and overlapping runs on one node
+Every `quarkword.scheduling.interval` (15 s by default) the poll runs, on every node, and overlapping runs on one node
 are skipped. One run:
 
 - lists the sites with at least one `future` post whose GMT date is now or past, in ascending site id order, in one
   network-wide read as the system identity that ends before any site is visited;
 - then, for each site in a scope of that site: skips the site when its `scheduling` feature is off; otherwise reads
-  its due posts (`future`, GMT date now or past) by date and then id, at most `quarkpress.scheduling.batch-size` of
+  its due posts (`future`, GMT date now or past) by date and then id, at most `quarkword.scheduling.batch-size` of
   them (the rest wait for the next poll);
 - then publishes each of them through `Posts.publishIfDue` in a site scope and transaction of its own, as the system
   identity. Under the site's post lock the post is read again: one that is no longer `future`, or whose date is still
@@ -65,13 +65,13 @@ list itself cannot be read the poll records the failure and ends empty.
 
 ### Housekeeping
 
-Every `quarkpress.scheduling.housekeeping-interval` (24 h by default), counted from application start so that the
+Every `quarkword.scheduling.housekeeping-interval` (24 h by default), counted from application start so that the
 first run is one interval after start, the housekeeping runs on every node, overlapping runs on one node skipped. It
 visits every site of the network in ascending id order, skips a site whose `scheduling` feature is off, and for the
 others purges the trash, then the auto-drafts:
 
 - The trash purge deletes every trashed post, of any type, whose trash time is strictly older than now minus
-  `quarkpress.posts.empty-trash-days` days. The trash time is the meta `_wp_trash_meta_time` the posts module writes
+  `quarkword.posts.empty-trash-days` days. The trash time is the meta `_wp_trash_meta_time` the posts module writes
   when trashing, read as a number of seconds: the first value under the key, a JSON number or a text of 1 to 18 ASCII
   digits; anything else, or no such meta, and the post is never purged.
 - The auto-draft purge deletes every `auto-draft`, of any type, last modified more than seven days ago (the stored
@@ -104,18 +104,18 @@ under the site's post lock the same way, check it there and delete it once.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.scheduling.enabled` | `true` | Whether this node runs the jobs. `false` skips every scheduled run here through the scheduler's skip predicate; direct calls to the jobs and `Posts.publishIfDue` still work. |
-| `quarkpress.scheduling.interval` | `15s` | How often due posts are looked for. WordPress has no interval: its latency depends on traffic. |
-| `quarkpress.scheduling.batch-size` | `100` | How many due posts are published per site per poll (the rest wait for the next poll), and how many rows the housekeeping reads per page. A value below 1 counts as 1. |
-| `quarkpress.scheduling.housekeeping-interval` | `24h` | How often the trash and old auto-drafts are purged, counted from application start. |
+| `quarkword.scheduling.enabled` | `true` | Whether this node runs the jobs. `false` skips every scheduled run here through the scheduler's skip predicate; direct calls to the jobs and `Posts.publishIfDue` still work. |
+| `quarkword.scheduling.interval` | `15s` | How often due posts are looked for. WordPress has no interval: its latency depends on traffic. |
+| `quarkword.scheduling.batch-size` | `100` | How many due posts are published per site per poll (the rest wait for the next poll), and how many rows the housekeeping reads per page. A value below 1 counts as 1. |
+| `quarkword.scheduling.housekeeping-interval` | `24h` | How often the trash and old auto-drafts are purged, counted from application start. |
 
-The trash retention is the posts module's `quarkpress.posts.empty-trash-days` (30 by default). The scheduler itself is
+The trash retention is the posts module's `quarkword.posts.empty-trash-days` (30 by default). The scheduler itself is
 the host application's: `quarkus.scheduler.enabled=false` stops every scheduled job of the application, this module's
 included.
 
 ### The site feature
 
-The per-site feature `scheduling` (on by default; `FeatureToggles`, the `qp_features` option) gates the three jobs for
+The per-site feature `scheduling` (on by default; `FeatureToggles`, the `qw_features` option) gates the three jobs for
 the site: off, the site's scheduled posts wait, its trash is not emptied and its auto-drafts are kept, until it is on
 again; nothing is lost meanwhile, since an overdue post publishes on the first poll that sees it. The posts module's
 save-time switch (a `future` post re-saved with a date less than 60 seconds ahead becomes `publish`) is not affected by
@@ -182,19 +182,19 @@ transaction, identity or scope of the caller reaches them.
 
 | Label | Difference |
 |---|---|
-| D1 | One network-wide poller publishes due posts every `quarkpress.scheduling.interval` (15 s by default) on every node, whatever the traffic; WordPress runs each site's cron only when a request reaches that site and spawns a loopback, so a site nobody visits publishes nothing and an unreachable loopback publishes nothing. |
+| D1 | One network-wide poller publishes due posts every `quarkword.scheduling.interval` (15 s by default) on every node, whatever the traffic; WordPress runs each site's cron only when a request reaches that site and spawns a loopback, so a site nobody visits publishes nothing and an unreachable loopback publishes nothing. |
 | D2 | There is no "missed schedule" state and no lost event: an overdue scheduled post publishes on the first poll that sees it, however late; a publication that fails (an observer throws, the database refuses) is logged, shown on the status bean and retried on every poll until it succeeds or the post is re-saved. WordPress removes a cron event before running it, so a crashing handler loses it, and shows "Missed schedule" in the admin list. |
 | D3 | A post publishes at its one stored GMT date; WordPress queues the event at the local date's conversion made at save time and re-checks the GMT date when it fires, so an inconsistent pair or a zone change can make it publish at the later of the two. |
 | D4 | The per-site feature `scheduling` holds a site's scheduled posts and purges back until it is on again; WordPress's `DISABLE_WP_CRON` is installation-wide and only stops spawning. The posts module's save-time switch (an overdue scheduled post re-saved becomes published) ignores the feature. |
 | D5 | Due posts are published per site in batches of `batch-size` per poll, sites in ascending id order, posts by date then id; WordPress runs every due event of a site in one run, in timestamp order and then event insertion order. |
 | D6 | Cron's publication writes no `_pingme`, `_encloseme` or `_trackbackme` meta and queues no `do_pings`: there are no pings in this release. |
 | D7 | The trash purge and the auto-draft purge run from application start every `housekeeping-interval` (24 h by default) on every node, for every site; WordPress schedules them from the first admin visit (the trash purge) and the first "Add New" (the auto-draft purge) of each site, daily from that time of day. |
-| D8 | The trash purge examines only rows in the trash: a row carrying `_wp_trash_meta_time` that is no longer in the trash is left alone; WordPress deletes its two trash meta keys. QuarkPress's untrash removes them, and a direct database write is not a supported path. The trash time is read from the first value under the key only, and only when it is a JSON number or a text of 1 to 18 ASCII digits (anything else keeps the post); WordPress compares the meta text numerically in SQL (`meta_value < %d`), so a non-numeric or negative text casts to a purgeable number and any one of several values suffices. Protected meta is written only by the system, so the difference is not reachable through the service. |
+| D8 | The trash purge examines only rows in the trash: a row carrying `_wp_trash_meta_time` that is no longer in the trash is left alone; WordPress deletes its two trash meta keys. QuarkWord's untrash removes them, and a direct database write is not a supported path. The trash time is read from the first value under the key only, and only when it is a JSON number or a text of 1 to 18 ASCII digits (anything else keeps the post); WordPress compares the meta text numerically in SQL (`meta_value < %d`), so a non-numeric or negative text casts to a purgeable number and any one of several values suffices. Protected meta is written only by the system, so the difference is not reachable through the service. |
 | D9 | The auto-draft purge compares the stored modification instant with now, both in UTC, over a fixed 7 days; WordPress compares the local post date text with the MySQL server's clock, with a slip of up to the site's offset. |
 | D10 | No comments are purged (no comments yet), no transients, no update checks, no other core cron events: only scheduled publishing and the two post purges have counterparts. |
 | D11 | There is no cron option, no general event queue and no API to schedule, reschedule, unschedule or inspect events; the `future` status with its date is the schedule. `PostScheduled` fires on every save ending in `future`, as `future_{type}` does; nothing fires when a schedule is cleared, as in WordPress. |
 | D12 | `Posts.publishIfDue`, the callable handler, needs `publish_post` for a caller other than the system identity and is a lock-protected compare-and-set; WordPress's `check_and_publish_future_post` checks nothing and writes a plain status update guarded only by the cron lock and its status check. |
-| D13 | `quarkpress.scheduling.enabled=false` stops this node's jobs only, through the scheduler's skip predicate; other nodes keep polling, and direct calls to the jobs and `Posts.publishIfDue` still work. WordPress's `DISABLE_WP_CRON` is installation-wide and only stops requests from spawning cron: a direct run of `wp-cron.php` still fires every due event. |
+| D13 | `quarkword.scheduling.enabled=false` stops this node's jobs only, through the scheduler's skip predicate; other nodes keep polling, and direct calls to the jobs and `Posts.publishIfDue` still work. WordPress's `DISABLE_WP_CRON` is installation-wide and only stops requests from spawning cron: a direct run of `wp-cron.php` still fires every due event. |
 
 The parity tests (`-Pwp-parity`) run scheduling scenarios against a full WordPress 7.1.3 multisite in a MySQL container
 (Tier B, `testing/wp-scenario`): the publication check through `publishIfDue` as the system identity, the two purges

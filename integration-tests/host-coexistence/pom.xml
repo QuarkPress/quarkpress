@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-integration-tests-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-it-host-coexistence</artifactId>
+  <artifactId>quarkword-it-host-coexistence</artifactId>
 
-  <name>QuarkPress :: Integration tests :: Host coexistence</name>
-  <description>A host application with its own datasource, entities and Flyway history running QuarkPress beside them.</description>
+  <name>QuarkWord :: Integration tests :: Host coexistence</name>
+  <description>A host application with its own datasource, entities and Flyway history running QuarkWord beside them.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.it.host</automatic.module.name>
+    <automatic.module.name>org.quarkword.it.host</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -35,7 +35,7 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-hibernate-orm-panache</artifactId>
     </dependency>
-    <!-- The host uses both directly (its own Flyway history and datasource), not only through QuarkPress. -->
+    <!-- The host uses both directly (its own Flyway history and datasource), not only through QuarkWord. -->
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-flyway</artifactId>
@@ -65,8 +65,8 @@
     </dependency>
     <!-- Make the reactor build the deployment modules before this application. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -78,8 +78,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>

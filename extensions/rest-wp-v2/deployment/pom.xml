@@ -3,81 +3,81 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-rest-wp-v2-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-rest-wp-v2-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-rest-wp-v2-deployment</artifactId>
+  <artifactId>quarkword-rest-wp-v2-deployment</artifactId>
 
-  <name>QuarkPress :: REST API (WordPress v2) :: Deployment</name>
+  <name>QuarkWord :: REST API (WordPress v2) :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.restwp.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.restwp.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-rest-wp-v2</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-rest-wp-v2</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-taxonomy-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-taxonomy-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-blocks-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-blocks-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-outbound-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-outbound-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-revisions-deployment</artifactId>
-      <version>${project.version}</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-scheduling-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-revisions-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-multisite-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-scheduling-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite-deployment</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-deployment</artifactId>
       <version>${project.version}</version>
       <optional>true</optional>
     </dependency>
@@ -119,28 +119,28 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-gen</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <!-- the test applications store uploads on the filesystem and make image sizes with ImageIO -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-storage-fs-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-storage-fs-deployment</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-image-imageio-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-image-imageio-deployment</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <!-- the media fixtures only (JDK-only code): the module's scenario dependencies would add extensions to the test apps -->
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-rest-parity</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-rest-parity</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
       <exclusions>

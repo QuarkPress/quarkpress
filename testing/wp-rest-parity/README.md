@@ -1,6 +1,6 @@
 # WordPress REST parity harness
 
-Serves WordPress 7.1.3 over HTTP so REST API requests can be compared with QuarkPress's: the scenario harness's
+Serves WordPress 7.1.3 over HTTP so REST API requests can be compared with QuarkWord's: the scenario harness's
 subdirectory network (testing/wp-scenario) is copied into its own database of the `mysql:9.5` container, given pretty
 permalinks (`/%postname%/`), `WP_ENVIRONMENT_TYPE` `local` and the dev realm's five users (alice, bob, carol, dave,
 erin, with the dev realm's roles, e-mails and display names, each with one application password), and served by
@@ -28,7 +28,7 @@ the lock, preview and new-post items run on the main site, whose `wp-admin` is s
 committed. The second command runs the comparison itself, `RestParityDbTest` in `integration-tests/rest-wp-v2`,
 against that module's test application with the dev realm's Keycloak tokens. Both need a container runtime (Docker
 or Podman) and `php` 8.4 (`-Dwp.php=/path/to/php` to choose another); without `-Pwp-parity` they are skipped. CI runs
-the REST parity run, `RestParityDbTest`, with QuarkPress on PostgreSQL and on MySQL (WordPress always runs on its own
+the REST parity run, `RestParityDbTest`, with QuarkWord on PostgreSQL and on MySQL (WordPress always runs on its own
 MySQL container); this module's own tests and the Tier B post, term and revision scenarios (`testing/wp-scenario`)
 run on PostgreSQL only.
 
@@ -42,8 +42,8 @@ hand, shared with media's tests) through `RestCall.multipart`, and calls WordPre
 through the setup operations `probe`, `prepare_folder`, `attachment`, `uploads_listing`, `network_option`,
 `query_attachments` and `remove_upload`. `php -S` runs with `upload_max_filesize` and `post_max_size` of 64M. The
 must-use plugin's media switches are site options set to `"1"` by the item that needs them and switched off in its
-`finally`: `qp_parity_allow_svg`, `qp_parity_no_unsupported_refusal`, `qp_parity_hook_log` (the log is the option
-`qp_parity_hooks`), `qp_parity_no_big_image_threshold`, `qp_parity_fail_on_second_size` and `qp_parity_extra_sizes`.
+`finally`: `qw_parity_allow_svg`, `qw_parity_no_unsupported_refusal`, `qw_parity_hook_log` (the log is the option
+`qw_parity_hooks`), `qw_parity_no_big_image_threshold`, `qw_parity_fail_on_second_size` and `qw_parity_extra_sizes`.
 Items that need an image editor run only when the server's PHP has GD (`php8.4-gd`, as in CI) and are skipped with a
 message otherwise; `-Dwp.media.require-editor=true` makes them fail instead. Imagick items never run (GD is the
 reference), and the XMP item needs PHP's DOM extension (`php8.4-xml`). The run installs its template network with the
@@ -65,10 +65,10 @@ sent one line per value (two `Content-Disposition` lines are two lines) and reco
 `uploader` on the item's site, whose new application password `WordPressRestSite` registers so that calls can be made
 as `uploader`), `trash_post`, `delete_post` and `batch` (which only builds the body of a `POST /batch/v1`; the test
 sends it). Its must-use plugin switches, site options set to `"1"` by the item and switched off in its `finally`, are
-`qp_parity_fatal_on_second_size` (a real PHP fatal error, memory exhausted, while the second sub-size is made, so
-WordPress's fatal-error handler answers), `qp_parity_media_trashable` (`rest_attachment_trashable` answers true,
-standing in for `MEDIA_TRASH`) and `qp_parity_hidden_type` (a public custom type `qp_hidden` outside REST). A request
-carrying `X-QP-Parity-Https: 1` is presented to WordPress as one over HTTPS (`php -S` has no TLS). The setup operations
+`qw_parity_fatal_on_second_size` (a real PHP fatal error, memory exhausted, while the second sub-size is made, so
+WordPress's fatal-error handler answers), `qw_parity_media_trashable` (`rest_attachment_trashable` answers true,
+standing in for `MEDIA_TRASH`) and `qw_parity_hidden_type` (a public custom type `qw_hidden` outside REST). A request
+carrying `X-QW-Parity-Https: 1` is presented to WordPress as one over HTTPS (`php -S` has no TLS). The setup operations
 `attachment`, `query_attachments`, `remove_upload`, `clear_uploads`, `set_meta` and `delete_meta` of the media facts
 run serve it too, and `extensions` tells which image editors the server's PHP has. Images are uploaded with
 `generate_sub_sizes=false` except in the items that need GD, which are skipped with a message without it (or fail
@@ -85,15 +85,15 @@ keys) and `c01` (the `key` of a refused REST-named meta field), each on a subdir
 `/fv01/`, ...) except the editor page items `v07`-`v10`, which open `wp-admin` on the main site through cookie
 sessions; the values the page hands the editor (preload map, block categories, server block definitions, settings)
 are read out of it by marker text and noted. It saves the OPTIONS bodies of the nine routes the slice serves under
-`options/`. Every site serves the harness's classic theme `quarkpress` (`php/qp-theme/`: `style.css` with only a name
-and a description, an empty `index.php`, and a `functions.php` declaring the theme supports QuarkPress's synthetic
-theme has by default), which `WordPressRestSite` writes into `wp-content/themes/quarkpress/` beside the must-use
+`options/`. Every site serves the harness's classic theme `quarkword` (`php/qw-theme/`: `style.css` with only a name
+and a description, an empty `index.php`, and a `functions.php` declaring the theme supports QuarkWord's synthetic
+theme has by default), which `WordPressRestSite` writes into `wp-content/themes/quarkword/` beside the must-use
 plugin and removes with it. The plugin's switches for this run, site options set to `"1"` by the item and switched off
-in its `finally`, are `qp_parity_quarkpress_theme` (the classic theme is the active one), `qp_parity_no_core_patterns`
-(no theme support `core-block-patterns`), `qp_parity_patterns` (the patterns `qp/inner`, `qp/outer` and `qp/plain`),
-`qp_parity_block_types` (the block types `acme/notice`, `acme/supports` and, at `init` priority 30, `acme/late`),
-`qp_parity_notice_block` (`qp-it/notice`, a dynamic block printing its escaped `message`) and
-`qp_parity_rest_name_meta` (the post meta `qp_secret`, in REST as `qp_public`, whose auth callback refuses everyone).
+in its `finally`, are `qw_parity_quarkword_theme` (the classic theme is the active one), `qw_parity_no_core_patterns`
+(no theme support `core-block-patterns`), `qw_parity_patterns` (the patterns `qp/inner`, `qp/outer` and `qp/plain`),
+`qw_parity_block_types` (the block types `acme/notice`, `acme/supports` and, at `init` priority 30, `acme/late`),
+`qw_parity_notice_block` (`qw-it/notice`, a dynamic block printing its escaped `message`) and
+`qw_parity_rest_name_meta` (the post meta `qw_secret`, in REST as `qw_public`, whose auth callback refuses everyone).
 Its setup operations are `site_admin` (the network user `sadmin`, administrator of one site and not a super admin,
 whose application password is registered as `uploader`'s is), `options_like` (the names of a site's options with a
 prefix), `fileupload_maxk` (the network option) and `write_upload` (a file in a site's uploads folder, answered with
@@ -108,17 +108,17 @@ items never run here.
 `MediaParityDbTest` in `integration-tests/media` compares the media library below the REST layer with WordPress's
 (`mvn -pl integration-tests/media -am verify -Pwp-parity`). The 19 scenarios of `scenarios/media/index.txt`
 (`MediaScenarios`) not marked `vips` each run on a fresh subdirectory site on both sides: WordPress is uploaded to
-through its REST media routes, QuarkPress through the test application's media resource, with the files of
+through its REST media routes, QuarkWord through the test application's media resource, with the files of
 `MediaFixtures`. After each step `MediaComparison` compares, under WordPress's names, the outcome (accepted, or the
 refusal's code and message), the attachment's post columns, its meta, every pointer of its metadata, the files of its
 upload folder, a query's attachments and the setup posts' featured images. Ids become the scenario's refs, the site
 URL, a network site's `sites/<id>/` folder and the current `yyyy/MM` folder are normalised, and the byte size of every
 file a side wrote itself becomes `{bytes}` (pixels are never compared). Scenarios marked `editor` need GD on
-WordPress's side and are skipped with a message without it (QuarkPress still plays them);
+WordPress's side and are skipped with a message without it (QuarkWord still plays them);
 `-Dwp.media.require-editor=true`, as in CI, fails instead. Each scenario's observations go to
 `integration-tests/media/target/media-parity/<id>.json` and every difference to `differences.tsv` there;
 `-Dmedia.parity.only=m01,m04` narrows the run for local debugging (such a run never passes). CI runs it with
-QuarkPress on PostgreSQL and on MySQL.
+QuarkWord on PostgreSQL and on MySQL.
 
 Its known differences are `integration-tests/media/src/test/resources/wp-media-parity-known-differences.txt`, in the
 form of the REST run's below, labelled with the rows of the "Differences from WordPress" table of
@@ -164,18 +164,18 @@ recent dates uses). A call may carry its own credential instead (a `Cookie` and 
 `Authorization` header): the client then adds no application password. Further setup runs as rest-setup.php
 operations on the database, from the command line, never over HTTP.
 
-A must-use plugin, `php/qp-parity-mu.php`, is written into the tree before `php -S` starts and removed when the site
+A must-use plugin, `php/qw-parity-mu.php`, is written into the tree before `php -S` starts and removed when the site
 closes. It applies per-site switches, site options that are `"1"` where a site wants them (harness rules, through
 WordPress's public registration functions and filters only):
 
-- `qp_parity_book_type` registers the custom type `book` (public, in REST under `books`, with title, editor, author,
-  excerpt, thumbnail, revisions, custom fields and autosave), the type QuarkPress's test application registers too,
+- `qw_parity_book_type` registers the custom type `book` (public, in REST under `books`, with title, editor, author,
+  excerpt, thumbnail, revisions, custom fields and autosave), the type QuarkWord's test application registers too,
   and with it the post meta `book_rating` (integer, single, default 3) and `book_tags` (strings, several values), in
-  QuarkPress's registration order, after WordPress's `footnotes`. Every scenario site has it; the content facts run
+  QuarkWord's registration order, after WordPress's `footnotes`. Every scenario site has it; the content facts run
   sets it on the main site;
-- `qp_parity_book_formats` attaches `post_format` (outside REST) to `book`;
-- `qp_parity_no_revisions` keeps no revisions (`wp_revisions_to_keep` answers 0);
-- `qp_parity_no_trash` makes every type non-trashable (`rest_{type}_trashable`), so the "trash not supported" answer
+- `qw_parity_book_formats` attaches `post_format` (outside REST) to `book`;
+- `qw_parity_no_revisions` keeps no revisions (`wp_revisions_to_keep` answers 0);
+- `qw_parity_no_trash` makes every type non-trashable (`rest_{type}_trashable`), so the "trash not supported" answer
   can be recorded.
 
 The last three serve the content facts run.
@@ -200,8 +200,8 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
 - Setup steps create posts (`post`: a post, page, book or attachment through each side's own services, with
   optional `fields`: content, excerpt, password, parent, `date_gmt`, slug, menu order, comment status, sticky,
   categories and tags, format, featured media, template and meta), regular revisions (`revision`: an update of title
-  and content by a user) and autosaves (`autosave`), the auto-draft of a new post (`draft`, on QuarkPress through
-  `POST /quarkpress/v1/drafts` as that user), an editor lock of a given age (`lock`), terms (category or post_tag,
+  and content by a user) and autosaves (`autosave`), the auto-draft of a new post (`draft`, on QuarkWord through
+  `POST /quarkword/v1/drafts` as that user), an editor lock of a given age (`lock`), terms (category or post_tag,
   through each side's REST API, with an optional parent ref) and options; `own_site` makes a user the administrator of
   a new site of its own and takes the user's role on the scenario's site away, `leave` only takes it away. Each step
   names a ref (`t:` terms, `p:` posts, `r:` revisions and autosaves) that later steps and requests use in braces; each
@@ -211,7 +211,7 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   "args": [64, 48]}, "name": "photo.jpg", "type": "image/jpeg", "fields": {"post": "p:draft", "alt_text": "…"}}`):
   `fixture` names a `MediaFixtures` file and its arguments; `fields` are text fields (`post`, a `p:` or `m:` ref,
   `title`, `caption`, `description`, `alt_text`, `status`, and `generate_sub_sizes`, `"false"` only). WordPress's side
-  uploads it through its REST media route, QuarkPress's through the test application's `POST /it/media`
+  uploads it through its REST media route, QuarkWord's through the test application's `POST /it/media`
   (`Media.upload` as the caller); both make no sizes unless the scenario is an `editor` one. Setup uploads are not
   compared; their `m:` refs are used in braces like the others. A post step's `thumbnail_meta` (a `p:` or `m:` ref)
   writes the raw `_thumbnail_id` meta past WordPress's image check (harness rule), for a featured id no write would
@@ -221,31 +221,31 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   "fields": {…}}` (a multipart body: the fixture as the `file` part, declared as `type`, and the text fields, refs
   resolved) or `"raw": {"fixture": …}` (the fixture's bytes as the body, with the request's `contentType` and its
   `headerLines`, such as `{"Content-Disposition": ["attachment; filename=a.jpg"]}`, one header line per value).
-  `"https": true` sends the request as one over HTTPS: `X-QP-Parity-Https: 1` to WordPress and `X-Forwarded-Proto:
-  https` to QuarkPress (whose test application trusts forwarded headers from the loopback address); neither header is
+  `"https": true` sends the request as one over HTTPS: `X-QW-Parity-Https: 1` to WordPress and `X-Forwarded-Proto:
+  https` to QuarkWord (whose test application trusts forwarded headers from the loopback address); neither header is
   compared.
 - A scenario with `"editor": true` needs an image editor on WordPress's side: the run asks WordPress once
   (`extensions`) and, without GD, skips it with `SKIPPED (needs an image editor): php8.4-gd is not installed on this
   host; the CI parity cell installs it`, unless `-Dwp.media.require-editor=true` (as in CI), which fails the run
   instead.
 - A request with `"preload": {"type": "post", "post": "{p:x}"}` (and no body) compares the editor route's preload map:
-  QuarkPress's side sends `GET /wp-json/quarkpress/v1/editor/<type>/<id>` and takes its `preload`; WordPress's side
+  QuarkWord's side sends `GET /wp-json/quarkword/v1/editor/<type>/<id>` and takes its `preload`; WordPress's side
   builds the same map by sending each request of `EditorPreloadPaths.forPost` (WordPress's edit-screen preload list
-  minus the routes QuarkPress does not serve, keyed as the screen prints them) to WordPress as the caller and keeping
+  minus the routes QuarkWord does not serve, keyed as the screen prints them) to WordPress as the caller and keeping
   the 200s, with the headers the screen prints (`X-WP-Total` and `X-WP-TotalPages` as numbers, an empty set as `[]`).
   Both maps go through the normaliser (each entry's ids by its own kind) and the usual comparison, one aspect path
   `/<key>/body/…` per entry. The order of the map's keys and of each entry's headers is not compared here (bodies
   compare parsed); `EditorPreloadDbTest` pins them against the recorded page instead.
 - A setup `option` step may name a switch of the must-use plugin only when the test application has its counterpart
-  built in; QuarkPress's side then sets nothing, and any other `qp_parity_*` switch fails the scenario there. The
-  pairs (`QuarkPressSide.BUILT_IN_SWITCHES`) are: `qp_parity_hidden_type` ↔ `ItHiddenType` (the same public type
-  `qp_hidden`, outside REST, so a scenario can name a parent or a featured image of a type REST does not show);
-  `qp_parity_notice_block` ↔ `ItNoticeBlock` (the dynamic block `qp-it/notice`, whose renderer prints its escaped
-  `message`); `qp_parity_block_types` ↔ `ItBlockTypes` (`acme/notice`, `acme/supports`, `acme/late` and the
-  `qp-probe/*` types of the block-supports probes); `qp_parity_patterns` ↔ `ItPatterns` (the patterns `qp/inner`,
-  `qp/outer` and `qp/plain`) with `qp_parity_no_core_patterns` (WordPress without its core patterns, as QuarkPress
-  ships none); and `qp_parity_quarkpress_theme` ↔ the built-in synthetic theme (WordPress's active theme is the
-  harness's classic `quarkpress` theme). The test application always registers its block types and patterns (they
+  built in; QuarkWord's side then sets nothing, and any other `qw_parity_*` switch fails the scenario there. The
+  pairs (`QuarkWordSide.BUILT_IN_SWITCHES`) are: `qw_parity_hidden_type` ↔ `ItHiddenType` (the same public type
+  `qw_hidden`, outside REST, so a scenario can name a parent or a featured image of a type REST does not show);
+  `qw_parity_notice_block` ↔ `ItNoticeBlock` (the dynamic block `qw-it/notice`, whose renderer prints its escaped
+  `message`); `qw_parity_block_types` ↔ `ItBlockTypes` (`acme/notice`, `acme/supports`, `acme/late` and the
+  `qw-probe/*` types of the block-supports probes); `qw_parity_patterns` ↔ `ItPatterns` (the patterns `qp/inner`,
+  `qp/outer` and `qp/plain`) with `qw_parity_no_core_patterns` (WordPress without its core patterns, as QuarkWord
+  ships none); and `qw_parity_quarkword_theme` ↔ the built-in synthetic theme (WordPress's active theme is the
+  harness's classic `quarkword` theme). The test application always registers its block types and patterns (they
   show only on routes no other scenario requests), so block types, rendering and pattern resolution are compared with
   WordPress's rather than only their errors.
 - The hand-written scenarios come first: one per item of the REST verification list (`d01` to `d28`), then `x01` to
@@ -289,9 +289,9 @@ compared per caller.
 ignored), anything else as text; one aspect per differing JSON leaf. For the scenarios about PHP's escapes and the
 order of keys (`d14`, `d21`), a body equal once parsed is also compared byte for byte (`body:raw`), each value the
 normalisation changed written as its normalised JSON and every other byte kept. The namespaces, routes and index links
-QuarkPress does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect.
+QuarkWord does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect.
 Front-end links (`link`, `permalink_template`, `preview_link`, a search item's `url`) that differ while both sides
-have one are recorded as `link-form` aspects, and WordPress's pretty form is then compared in the plain form QuarkPress
+have one are recorded as `link-form` aspects, and WordPress's pretty form is then compared in the plain form QuarkWord
 writes (`/author/<slug>/` as `?author=<id>`, `/category/.../<slug>/` as `?cat=<id>`, `/tag/<slug>/` as `?tag=<slug>`,
 a post's `/<slug>/` as `?p=<id>`, a page's `/<parents>/<slug>/` as `?page_id=<id>`, `/book/<slug>/` as
 `?book=<slug>`, `/type/<slug>/` as `?post_format=<slug>`, a permalink template's `%postname%` and `%pagename%`
@@ -340,10 +340,10 @@ admin-editor and editor-assets references left to a real browser (`a01`–`a14`,
 what it saw under its item in `target/wp-rest-parity/verification-facts.json`, with one HAR per browser context in
 `target/har/facts-<item>-<label>.har` (every WordPress request, response bodies omitted except in a09's HAR) and the
 pages it reads in `target/wp-rest-parity/pages/`. It turns behaviour on per item through site options of the main site that the
-harness's must-use plugin reads (`qp_parity_no_concat`, `qp_parity_no_classic_editor`, `qp_parity_bare_canvas`,
-`qp_parity_dataviews_media`, `qp_parity_stub_media`, `qp_parity_stub_all_media`, `qp_parity_no_chrome_css`,
-`qp_parity_notes_404`, `qp_parity_notes_400`, `qp_parity_themes_500`, `qp_parity_no_bindings_key`,
-`qp_parity_nonce_403_once`, `qp_parity_block_styles`; each described in `qp-parity-mu.php`) and resets each one when
+harness's must-use plugin reads (`qw_parity_no_concat`, `qw_parity_no_classic_editor`, `qw_parity_bare_canvas`,
+`qw_parity_dataviews_media`, `qw_parity_stub_media`, `qw_parity_stub_all_media`, `qw_parity_no_chrome_css`,
+`qw_parity_notes_404`, `qw_parity_notes_400`, `qw_parity_themes_500`, `qw_parity_no_bindings_key`,
+`qw_parity_nonce_403_once`, `qw_parity_block_styles`; each described in `qw-parity-mu.php`) and resets each one when
 its item ends. Item `s09` downloads the release zip with its `.sha1` and `.md5` from wordpress.org into
 `target/wp-pin/`, checks both and records the SHA-256; `x02` downloads the `oidc-client-ts` tarball from npm only with
 `-Dfacts.npm=true`. `-Dtest=EditorBrowserFactsDbTest` overrides the profile's surefire `<includes>`, which name only

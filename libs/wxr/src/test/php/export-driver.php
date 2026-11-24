@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for lib-wxr: {"dataset":{…}} -> {"b64": base64 of what WordPress 7.1.3's export_wp() writes
@@ -10,9 +10,9 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
 
-qp_run(function (array $in): array {
+qw_run(function (array $in): array {
     global $argv;
     $work = dirname($argv[3]) . '/wxr-export';
     $abspath = $work . '/abspath/';

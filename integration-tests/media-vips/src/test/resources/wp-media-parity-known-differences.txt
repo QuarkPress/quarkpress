@@ -1,4 +1,4 @@
-# Known differences between QuarkPress's media library with the libvips image processor (ImageIO as its fallback) and
+# Known differences between QuarkWord's media library with the libvips image processor (ImageIO as its fallback) and
 # WordPress 7.1.3 (MediaVipsParityDbTest, -Pwp-parity). Started from integration-tests/media's file (ImageIO); the
 # scenario m20 is compared with WordPress with Imagick (its recorded answers), every other one with WordPress with GD.
 # One per line: <scenario-id> <aspect> <label> <reason>. Globs know * and ?. The label is the row of the "Differences
@@ -10,70 +10,70 @@
 # step<n>:files, step<n>:ids, step<n>:featured:<ref>.
 
 # D1: an existing file is never overwritten. m04's last upload (shot.png into {shot-150x150.png, shot-1.png}): WordPress's
-# sub-size listing check moves the name onto shot-1.png and writes over it; QuarkPress takes shot-2.png.
-m04 step14:post:guid D1 WordPress's file is the overwritten shot-1.png; QuarkPress's the new shot-2.png
-m04 step14:meta:_wp_attached_file D1 WordPress's file is the overwritten shot-1.png; QuarkPress's the new shot-2.png
-m04 step14:metadata:/file D1 WordPress's file is the overwritten shot-1.png; QuarkPress's the new shot-2.png
-m04 step14:files D1 QuarkPress's folder also holds shot-2.png; WordPress's shot-1.png was replaced
+# sub-size listing check moves the name onto shot-1.png and writes over it; QuarkWord takes shot-2.png.
+m04 step14:post:guid D1 WordPress's file is the overwritten shot-1.png; QuarkWord's the new shot-2.png
+m04 step14:meta:_wp_attached_file D1 WordPress's file is the overwritten shot-1.png; QuarkWord's the new shot-2.png
+m04 step14:metadata:/file D1 WordPress's file is the overwritten shot-1.png; QuarkWord's the new shot-2.png
+m04 step14:files D1 QuarkWord's folder also holds shot-2.png; WordPress's shot-1.png was replaced
 
 # D2: BMP declared image/bmp (GD cannot write BMP; libvips's fallback ImageIO decodes it, and its sizes are JPEG, as
 # with Imagick: m20 step12 matches WordPress with Imagick), and, with libvips, TIFF declared image/tiff (stored with its
 # file size only, as with Imagick). m07 compares WordPress with GD, which refuses both, so both files are in its later
-# listings on QuarkPress's side only.
-m07 step7:outcome D2 WordPress with GD refuses a TIFF declared image/tiff; QuarkPress with libvips stores it with its file size only, as WordPress with Imagick does (facts v05)
-m07 step10:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkPress stores it with JPEG sizes, as WordPress with Imagick does (facts v07)
-m07 step11:files D2 QuarkPress's folder also holds m07-bmp.bmp and m07-tiff.tif, which WordPress with GD refused; WordPress with Imagick stores both (facts v07, v05)
-m07 step12:files D2 QuarkPress's folder also holds m07-bmp.bmp and m07-tiff.tif, which WordPress with GD refused; WordPress with Imagick stores both (facts v07, v05)
+# listings on QuarkWord's side only.
+m07 step7:outcome D2 WordPress with GD refuses a TIFF declared image/tiff; QuarkWord with libvips stores it with its file size only, as WordPress with Imagick does (facts v05)
+m07 step10:outcome D2 WordPress with GD refuses a BMP declared image/bmp; QuarkWord stores it with JPEG sizes, as WordPress with Imagick does (facts v07)
+m07 step11:files D2 QuarkWord's folder also holds m07-bmp.bmp and m07-tiff.tif, which WordPress with GD refused; WordPress with Imagick stores both (facts v07, v05)
+m07 step12:files D2 QuarkWord's folder also holds m07-bmp.bmp and m07-tiff.tif, which WordPress with GD refused; WordPress with Imagick stores both (facts v07, v05)
 
-# D4: audio and video metadata. QuarkPress does not read what getID3 reads (format, codec, rates, channels, tags, MP3
+# D4: audio and video metadata. QuarkWord does not read what getID3 reads (format, codec, rates, channels, tags, MP3
 # playing time, the cover's description) and stores the attachment's type as mime_type.
-m05 step*:metadata:/bitrate D4 getID3's bitrate, which QuarkPress does not read
-m05 step*:metadata:/bits_per_sample D4 getID3's bits_per_sample, which QuarkPress does not read
-m05 step*:metadata:/channelmode D4 getID3's channelmode, which QuarkPress does not read
-m05 step*:metadata:/channels D4 getID3's channels, which QuarkPress does not read
-m05 step*:metadata:/codec D4 getID3's codec, which QuarkPress does not read
-m05 step*:metadata:/compression_ratio D4 getID3's compression_ratio, which QuarkPress does not read
-m05 step*:metadata:/created_timestamp D4 getID3's created_timestamp, which QuarkPress does not read
-m05 step*:metadata:/dataformat D4 getID3's dataformat, which QuarkPress does not read
-m05 step*:metadata:/fileformat D4 getID3's fileformat, which QuarkPress does not read
-m05 step*:metadata:/lossless D4 getID3's lossless, which QuarkPress does not read
-m05 step*:metadata:/mime_type D4 QuarkPress stores the attachment's type (a WAV, FLAC, OGG or WebM gets one, an M4A audio/mpeg, an MP4 video/mp4); WordPress stores getID3's (audio/mp4, video/quicktime) or none for files getID3 reads too little of
-m05 step*:metadata:/sample_rate D4 getID3's sample_rate, which QuarkPress does not read
-m05 step*:metadata:/bitrate_mode D4 getID3's bitrate_mode, which QuarkPress does not read
-m05 step*:metadata:/wformattag D4 getID3's wformattag, which QuarkPress does not read
-m17 step*:metadata:/album D4 getID3's album, which QuarkPress does not read
-m17 step*:metadata:/artist D4 getID3's artist, which QuarkPress does not read
-m17 step*:metadata:/bitrate D4 getID3's bitrate, which QuarkPress does not read
-m17 step*:metadata:/bitrate_mode D4 getID3's bitrate_mode, which QuarkPress does not read
-m17 step*:metadata:/channelmode D4 getID3's channelmode, which QuarkPress does not read
-m17 step*:metadata:/channels D4 getID3's channels, which QuarkPress does not read
-m17 step*:metadata:/compression_ratio D4 getID3's compression_ratio, which QuarkPress does not read
-m17 step*:metadata:/dataformat D4 getID3's dataformat, which QuarkPress does not read
-m17 step*:metadata:/encoder_options D4 getID3's encoder_options, which QuarkPress does not read
-m17 step*:metadata:/fileformat D4 getID3's fileformat, which QuarkPress does not read
-m17 step1:metadata:/length D4 getID3's playing time of an MP3, which QuarkPress does not compute
-m17 step2:metadata:/length D4 getID3's playing time of an MP3, which QuarkPress does not compute
-m17 step8:metadata:/length D4 getID3's playing time of an MP3, which QuarkPress does not compute
-m17 step1:metadata:/length_formatted D4 getID3's playing time of an MP3, which QuarkPress does not compute
-m17 step2:metadata:/length_formatted D4 getID3's playing time of an MP3, which QuarkPress does not compute
-m17 step8:metadata:/length_formatted D4 getID3's playing time of an MP3, which QuarkPress does not compute
-m17 step*:metadata:/lossless D4 getID3's lossless, which QuarkPress does not read
-m17 step*:metadata:/sample_rate D4 getID3's sample_rate, which QuarkPress does not read
-m17 step*:metadata:/title D4 getID3's title, which QuarkPress does not read
-m17 step*:metadata:/codec D4 getID3's codec, which QuarkPress does not read
-m17 step*:metadata:/created_timestamp D4 getID3's created_timestamp, which QuarkPress does not read
-m17 step*:metadata:/mime_type D4 QuarkPress stores the attachment's type (a WAV, FLAC, OGG or WebM gets one, an M4A audio/mpeg, an MP4 video/mp4); WordPress stores getID3's (audio/mp4, video/quicktime) or none for files getID3 reads too little of
-m17 step*:metadata:/bits_per_sample D4 getID3's bits_per_sample, which QuarkPress does not read
-m17 step*:metadata:/wformattag D4 getID3's wformattag, which QuarkPress does not read
-m17 step*:metadata:/image/* D4 the embedded cover's description, which QuarkPress does not read
-m19 step*:metadata:/bitrate D4 getID3's bitrate, which QuarkPress does not read
-m19 step*:metadata:/codec D4 getID3's codec, which QuarkPress does not read
-m19 step*:metadata:/created_timestamp D4 getID3's created_timestamp, which QuarkPress does not read
-m19 step*:metadata:/dataformat D4 getID3's dataformat, which QuarkPress does not read
-m19 step*:metadata:/fileformat D4 getID3's fileformat, which QuarkPress does not read
-m19 step*:metadata:/mime_type D4 QuarkPress stores the attachment's type (a WAV, FLAC, OGG or WebM gets one, an M4A audio/mpeg, an MP4 video/mp4); WordPress stores getID3's (audio/mp4, video/quicktime) or none for files getID3 reads too little of
-m17 step8:meta:_thumbnail_id D4 WordPress makes the MP3's embedded cover an attachment and the audio's featured image; QuarkPress does not
-m17 step8:files D4 WordPress writes the embedded cover beside the MP3 (m17-covered-mp3-image.jpg); QuarkPress does not
+m05 step*:metadata:/bitrate D4 getID3's bitrate, which QuarkWord does not read
+m05 step*:metadata:/bits_per_sample D4 getID3's bits_per_sample, which QuarkWord does not read
+m05 step*:metadata:/channelmode D4 getID3's channelmode, which QuarkWord does not read
+m05 step*:metadata:/channels D4 getID3's channels, which QuarkWord does not read
+m05 step*:metadata:/codec D4 getID3's codec, which QuarkWord does not read
+m05 step*:metadata:/compression_ratio D4 getID3's compression_ratio, which QuarkWord does not read
+m05 step*:metadata:/created_timestamp D4 getID3's created_timestamp, which QuarkWord does not read
+m05 step*:metadata:/dataformat D4 getID3's dataformat, which QuarkWord does not read
+m05 step*:metadata:/fileformat D4 getID3's fileformat, which QuarkWord does not read
+m05 step*:metadata:/lossless D4 getID3's lossless, which QuarkWord does not read
+m05 step*:metadata:/mime_type D4 QuarkWord stores the attachment's type (a WAV, FLAC, OGG or WebM gets one, an M4A audio/mpeg, an MP4 video/mp4); WordPress stores getID3's (audio/mp4, video/quicktime) or none for files getID3 reads too little of
+m05 step*:metadata:/sample_rate D4 getID3's sample_rate, which QuarkWord does not read
+m05 step*:metadata:/bitrate_mode D4 getID3's bitrate_mode, which QuarkWord does not read
+m05 step*:metadata:/wformattag D4 getID3's wformattag, which QuarkWord does not read
+m17 step*:metadata:/album D4 getID3's album, which QuarkWord does not read
+m17 step*:metadata:/artist D4 getID3's artist, which QuarkWord does not read
+m17 step*:metadata:/bitrate D4 getID3's bitrate, which QuarkWord does not read
+m17 step*:metadata:/bitrate_mode D4 getID3's bitrate_mode, which QuarkWord does not read
+m17 step*:metadata:/channelmode D4 getID3's channelmode, which QuarkWord does not read
+m17 step*:metadata:/channels D4 getID3's channels, which QuarkWord does not read
+m17 step*:metadata:/compression_ratio D4 getID3's compression_ratio, which QuarkWord does not read
+m17 step*:metadata:/dataformat D4 getID3's dataformat, which QuarkWord does not read
+m17 step*:metadata:/encoder_options D4 getID3's encoder_options, which QuarkWord does not read
+m17 step*:metadata:/fileformat D4 getID3's fileformat, which QuarkWord does not read
+m17 step1:metadata:/length D4 getID3's playing time of an MP3, which QuarkWord does not compute
+m17 step2:metadata:/length D4 getID3's playing time of an MP3, which QuarkWord does not compute
+m17 step8:metadata:/length D4 getID3's playing time of an MP3, which QuarkWord does not compute
+m17 step1:metadata:/length_formatted D4 getID3's playing time of an MP3, which QuarkWord does not compute
+m17 step2:metadata:/length_formatted D4 getID3's playing time of an MP3, which QuarkWord does not compute
+m17 step8:metadata:/length_formatted D4 getID3's playing time of an MP3, which QuarkWord does not compute
+m17 step*:metadata:/lossless D4 getID3's lossless, which QuarkWord does not read
+m17 step*:metadata:/sample_rate D4 getID3's sample_rate, which QuarkWord does not read
+m17 step*:metadata:/title D4 getID3's title, which QuarkWord does not read
+m17 step*:metadata:/codec D4 getID3's codec, which QuarkWord does not read
+m17 step*:metadata:/created_timestamp D4 getID3's created_timestamp, which QuarkWord does not read
+m17 step*:metadata:/mime_type D4 QuarkWord stores the attachment's type (a WAV, FLAC, OGG or WebM gets one, an M4A audio/mpeg, an MP4 video/mp4); WordPress stores getID3's (audio/mp4, video/quicktime) or none for files getID3 reads too little of
+m17 step*:metadata:/bits_per_sample D4 getID3's bits_per_sample, which QuarkWord does not read
+m17 step*:metadata:/wformattag D4 getID3's wformattag, which QuarkWord does not read
+m17 step*:metadata:/image/* D4 the embedded cover's description, which QuarkWord does not read
+m19 step*:metadata:/bitrate D4 getID3's bitrate, which QuarkWord does not read
+m19 step*:metadata:/codec D4 getID3's codec, which QuarkWord does not read
+m19 step*:metadata:/created_timestamp D4 getID3's created_timestamp, which QuarkWord does not read
+m19 step*:metadata:/dataformat D4 getID3's dataformat, which QuarkWord does not read
+m19 step*:metadata:/fileformat D4 getID3's fileformat, which QuarkWord does not read
+m19 step*:metadata:/mime_type D4 QuarkWord stores the attachment's type (a WAV, FLAC, OGG or WebM gets one, an M4A audio/mpeg, an MP4 video/mp4); WordPress stores getID3's (audio/mp4, video/quicktime) or none for files getID3 reads too little of
+m17 step8:meta:_thumbnail_id D4 WordPress makes the MP3's embedded cover an attachment and the audio's featured image; QuarkWord does not
+m17 step8:files D4 WordPress writes the embedded cover beside the MP3 (m17-covered-mp3-image.jpg); QuarkWord does not
 
 # Rows no scenario shows (scenario "none"), each with the reason.
 none * D2 a BMP above 2560 pixels gets a -scaled.jpg main copy; WordPress with Imagick writes -scaled.bmp, as its scaled copy keeps the upload's extension and only the sizes fall back to JPEG (Task 6 review, read from WordPress; no recorded fact, and no scenario uploads a BMP that large)
@@ -87,10 +87,10 @@ none * D7 no scenario gives its site a locale with accent rules of its own (Germ
 none * D8 the scenario files are typed alike by Tika and by WordPress's libmagic
 none * D9 deletions are compared once committed; a storage failure or a trashed attachment is not provoked
 none * D10 the scenarios upload through the REST routes only, never through the admin upload path
-none * D11 quarkpress.media.max-upload-size is not set in the test application
+none * D11 quarkword.media.max-upload-size is not set in the test application
 none * D13 no scenario uses WordPress's quality or output format filters
 none * D13 the REST image_quality field is the upload's type's quality (86 for a WebP, lossless or not; 82 otherwise), as WordPress's for the default output types (facts v01-v07: wp_get_image_encode_quality asks 86 for a lossless WebP, which Imagick writes at 100); WordPress asks the output type's (82 for a WebP mapped to JPEG, v01), and no scenario compares REST answers
-none * D14 no scenario image exceeds quarkpress.media.max-image-pixels
+none * D14 no scenario image exceeds quarkword.media.max-image-pixels
 none * D19 no scenario image reaches these bounds (DOCTYPE, depth, sizes, other date forms, further segments, ICO)
 none * D16 libvips writes WebP and AVIF, so their uploads are accepted with WebP and AVIF sizes, as WordPress's GD and Imagick do
 none * D20 no scenario makes a main-file copy fail, so post-processes have no copy to make again

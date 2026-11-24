@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Runs WordPress 7.1.3's export_wp() once, for a full export ('content' => 'all') of a JSON dataset, and
@@ -17,28 +17,28 @@
 error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', 'stderr');
 
-$qp_wp = rtrim($argv[1], '/') . '/';
+$qw_wp = rtrim($argv[1], '/') . '/';
 define('ABSPATH', rtrim($argv[2], '/') . '/');
 define('WPINC', 'wp-includes');
 
-function qp_objects(array $rows): array
+function qw_objects(array $rows): array
 {
     return array_map(fn ($row) => (object) $row, $rows);
 }
 
-function qp_dataset(array $d): array
+function qw_dataset(array $d): array
 {
     $d['users'] = array_map(fn ($u) => (object) $u, $d['users']);
     foreach (['categories', 'tags', 'terms', 'nav_menus', 'posts'] as $k) {
-        $d[$k] = qp_objects($d[$k]);
+        $d[$k] = qw_objects($d[$k]);
     }
     foreach (['termmeta', 'postmeta', 'comments', 'commentmeta', 'relationships'] as $k) {
-        $d[$k] = array_map('qp_objects', $d[$k]);
+        $d[$k] = array_map('qw_objects', $d[$k]);
     }
     return $d;
 }
 
-$GLOBALS['DATA'] = qp_dataset(json_decode(file_get_contents($argv[3]), true, 512, JSON_THROW_ON_ERROR));
+$GLOBALS['DATA'] = qw_dataset(json_decode(file_get_contents($argv[3]), true, 512, JSON_THROW_ON_ERROR));
 
 function __($text, $domain = 'default') { return $text; }
 function _x($text, $context, $domain = 'default') { return $text; }
@@ -96,7 +96,7 @@ function is_sticky($id) { return in_array($id, $GLOBALS['DATA']['sticky'], true)
 function wp_get_attachment_url($id) { return $GLOBALS['DATA']['attachment_urls'][$id]; }
 
 /** Answers the query shapes export_wp() issues from the dataset. */
-final class QpWpdb
+final class QwWpdb
 {
     public $posts = 'wp_posts', $postmeta = 'wp_postmeta', $comments = 'wp_comments', $commentmeta = 'wp_commentmeta',
         $termmeta = 'wp_termmeta', $term_relationships = 'wp_term_relationships';
@@ -170,14 +170,14 @@ final class QpWpdb
     }
 }
 
-require $qp_wp . 'wp-includes/plugin.php';
-require $qp_wp . 'wp-includes/formatting.php';
-require $qp_wp . 'wp-includes/functions.php';
-require getenv('QP_ORACLE_HOME') . '/extract-functions.php';
-qp_load_functions($qp_wp . 'wp-includes/general-template.php', ['get_post_time', 'get_post_datetime', 'get_the_generator', 'the_generator']);
-require $qp_wp . 'wp-includes/kses.php';
-require $qp_wp . 'wp-includes/compat-utf8.php';
-require $qp_wp . 'wp-includes/utf8.php';
+require $qw_wp . 'wp-includes/plugin.php';
+require $qw_wp . 'wp-includes/formatting.php';
+require $qw_wp . 'wp-includes/functions.php';
+require getenv('QW_ORACLE_HOME') . '/extract-functions.php';
+qw_load_functions($qw_wp . 'wp-includes/general-template.php', ['get_post_time', 'get_post_datetime', 'get_the_generator', 'the_generator']);
+require $qw_wp . 'wp-includes/kses.php';
+require $qw_wp . 'wp-includes/compat-utf8.php';
+require $qw_wp . 'wp-includes/utf8.php';
 
 // Default filters of wp-includes/default-filters.php that the export output depends on (wptexturize and the
 // site icon are not reproduced; see D11).
@@ -187,7 +187,7 @@ add_action('rss2_head', 'the_generator');
 add_filter('bloginfo', 'convert_chars');
 add_filter('bloginfo', 'esc_html');
 
-$GLOBALS['wpdb'] = new QpWpdb();
+$GLOBALS['wpdb'] = new QwWpdb();
 $GLOBALS['wp_query'] = new stdClass();
-require $qp_wp . 'wp-admin/includes/export.php';
+require $qw_wp . 'wp-admin/includes/export.php';
 export_wp();

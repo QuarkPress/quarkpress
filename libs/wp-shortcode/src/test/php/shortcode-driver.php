@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Oracle driver for lib-wp-shortcode. A case is either {"allowlist": true}, which returns the "post" kses
@@ -10,14 +10,14 @@
 
 declare(strict_types=1);
 
-require getenv('QP_ORACLE_HOME') . '/bootstrap.php';
-require QP_WP . 'compat.php';
-require QP_WP . 'formatting.php';
-require QP_WP . 'kses.php';
-require QP_WP . 'shortcodes.php';
-require QP_WP . 'class-wp-token-map.php';
-require QP_WP . 'html-api/html5-named-character-references.php';
-require QP_WP . 'html-api/class-wp-html-decoder.php';
+require getenv('QW_ORACLE_HOME') . '/bootstrap.php';
+require QW_WP . 'compat.php';
+require QW_WP . 'formatting.php';
+require QW_WP . 'kses.php';
+require QW_WP . 'shortcodes.php';
+require QW_WP . 'class-wp-token-map.php';
+require QW_WP . 'html-api/html5-named-character-references.php';
+require QW_WP . 'html-api/class-wp-html-decoder.php';
 
 /** Environment stub: kses's PDF object rule asks for the upload directory. */
 function wp_upload_dir(): array
@@ -25,22 +25,22 @@ function wp_upload_dir(): array
     return ['baseurl' => 'https://example.org/wp-content/uploads', 'basedir' => '/nonexistent', 'error' => false];
 }
 
-const QP_SHORTCODE_JSON = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
-const QP_PAIRS = ['a' => 'A', 'b' => 'B', '0' => 'Z', 'data-x' => 'D'];
+const QW_SHORTCODE_JSON = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+const QW_PAIRS = ['a' => 'A', 'b' => 'B', '0' => 'Z', 'data-x' => 'D'];
 
 /** {TAG:ATTRS:CONTENT}, with ATTRS and CONTENT as JSON. */
-function qp_echo(array $atts, string $content, string $tag): string
+function qw_echo(array $atts, string $content, string $tag): string
 {
-    return '{' . $tag . ':' . json_encode($atts, QP_SHORTCODE_JSON) . ':' . json_encode($content, QP_SHORTCODE_JSON) . '}';
+    return '{' . $tag . ':' . json_encode($atts, QW_SHORTCODE_JSON) . ':' . json_encode($content, QW_SHORTCODE_JSON) . '}';
 }
 
-function qp_profile(string $name): void
+function qw_profile(string $name): void
 {
     remove_all_shortcodes();
     $tags = match ($name) {
         'main' => [
-            'foo' => 'qp_echo', 'b' => 'qp_echo', 'foo-bar' => 'qp_echo', 'foo_bar' => 'qp_echo',
-            'x.y' => 'qp_echo', 'ü' => 'qp_echo', 'gallery' => 'qp_echo',
+            'foo' => 'qw_echo', 'b' => 'qw_echo', 'foo-bar' => 'qw_echo', 'foo_bar' => 'qw_echo',
+            'x.y' => 'qw_echo', 'ü' => 'qw_echo', 'gallery' => 'qw_echo',
             'inner' => static fn() => 'I',
             'outer' => static fn($atts, $content) => '<o>' . do_shortcode($content) . '</o>',
             'quiet' => static fn($atts, $content) => '<o>' . $content . '</o>',
@@ -54,8 +54,8 @@ function qp_profile(string $name): void
             'attr' => static fn() => 'title="hi"',
             'amp' => static fn() => 'a &amp; b &copy; &apos; &bogus; &#65; &#x41;',
         ],
-        'x-first' => ['x' => 'qp_echo', 'x.y' => 'qp_echo'],
-        'xy-first' => ['x.y' => 'qp_echo', 'x' => 'qp_echo'],
+        'x-first' => ['x' => 'qw_echo', 'x.y' => 'qw_echo'],
+        'xy-first' => ['x.y' => 'qw_echo', 'x' => 'qw_echo'],
         'empty' => [],
     };
     foreach ($tags as $tag => $callback) {
@@ -63,7 +63,7 @@ function qp_profile(string $name): void
     }
 }
 
-function qp_hooks(array $hooks): void
+function qw_hooks(array $hooks): void
 {
     remove_all_filters('pre_do_shortcode_tag');
     remove_all_filters('do_shortcode_tag');
@@ -83,7 +83,7 @@ function qp_hooks(array $hooks): void
 }
 
 /** has_shortcode for every registered tag. */
-function qp_has(string $content): array
+function qw_has(string $content): array
 {
     $found = [];
     foreach (array_keys($GLOBALS['shortcode_tags']) as $tag) {
@@ -93,7 +93,7 @@ function qp_has(string $content): array
 }
 
 /** shortcode_parse_atts as [key type, key, value] triples, so integer and string keys stay apart. */
-function qp_atts(array $atts): array
+function qw_atts(array $atts): array
 {
     $entries = [];
     foreach ($atts as $key => $value) {
@@ -103,23 +103,23 @@ function qp_atts(array $atts): array
 }
 
 /** shortcode_atts with fixed defaults, as "key=value" lines in result order. */
-function qp_defaults(string $content): array
+function qw_defaults(string $content): array
 {
     $lines = [];
-    foreach (shortcode_atts(QP_PAIRS, shortcode_parse_atts($content), 'gal') as $key => $value) {
+    foreach (shortcode_atts(QW_PAIRS, shortcode_parse_atts($content), 'gal') as $key => $value) {
         $lines[] = $key . '=' . $value;
     }
     return $lines;
 }
 
 /** wp_kses_allowed_html('post') in the notation of the Java table: element => sorted rule names. */
-function qp_allowlist(): array
+function qw_allowlist(): array
 {
     $table = [];
     foreach (wp_kses_allowed_html('post') as $element => $attributes) {
         $rules = [];
         foreach ($attributes as $name => $rule) {
-            $rules[] = qp_rule((string) $name, $rule);
+            $rules[] = qw_rule((string) $name, $rule);
         }
         sort($rules, SORT_STRING);
         $table[(string) $element] = $rules;
@@ -128,7 +128,7 @@ function qp_allowlist(): array
     return $table;
 }
 
-function qp_rule(string $name, mixed $rule): string
+function qw_rule(string $name, mixed $rule): string
 {
     return match (true) {
         true === $rule => $name,
@@ -140,12 +140,12 @@ function qp_rule(string $name, mixed $rule): string
     };
 }
 
-qp_run(function (array $in): array {
+qw_run(function (array $in): array {
     if (isset($in['allowlist'])) {
-        return qp_allowlist();
+        return qw_allowlist();
     }
-    qp_profile($in['profile']);
-    qp_hooks($in['hooks']);
+    qw_profile($in['profile']);
+    qw_hooks($in['hooks']);
     $content = $in['content'];
     $out = [];
     foreach ($in['aspects'] as $aspect) {
@@ -154,10 +154,10 @@ qp_run(function (array $in): array {
             'apply_ignore_html' => do_shortcode($content, true),
             'strip' => strip_shortcodes($content),
             'tags' => get_shortcode_tags_in_content($content),
-            'has' => qp_has($content),
+            'has' => qw_has($content),
             'unautop' => shortcode_unautop($content),
-            'atts' => qp_atts(shortcode_parse_atts($content)),
-            'defaults' => qp_defaults($content),
+            'atts' => qw_atts(shortcode_parse_atts($content)),
+            'defaults' => qw_defaults($content),
         };
     }
     return $out;

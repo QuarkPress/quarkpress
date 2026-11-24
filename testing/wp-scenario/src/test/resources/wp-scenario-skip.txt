@@ -1,4 +1,4 @@
-# Deliberate differences between QuarkPress and WordPress 7.1.3 that the multisite scenarios show.
+# Deliberate differences between QuarkWord and WordPress 7.1.3 that the multisite scenarios show.
 # Format: <case-id> <aspect> <item> <reason>. Case ids are <scenario>@<variant>; items are the labels of the
 # "Differences from WordPress" table in extensions/multisite/README.md. "none" documents a difference that the
 # comparison maps before comparing (see WordPressOutcomes and ScenarioParityBase).

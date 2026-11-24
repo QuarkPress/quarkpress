@@ -3,45 +3,45 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-integration-tests-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-it-keycloak</artifactId>
+  <artifactId>quarkword-it-keycloak</artifactId>
 
-  <name>QuarkPress :: Integration tests :: Keycloak</name>
-  <description>A single site with the REST API (wp/v2) and the Keycloak provisioner: users imported with their WordPress password hashes sign in through Keycloak, which has the quarkpress-keycloak hash provider, and their passwords move to Argon2. JVM mode locally, also native in CI.</description>
+  <name>QuarkWord :: Integration tests :: Keycloak</name>
+  <description>A single site with the REST API (wp/v2) and the Keycloak provisioner: users imported with their WordPress password hashes sign in through Keycloak, which has the quarkword-keycloak hash provider, and their passwords move to Argon2. JVM mode locally, also native in CI.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.it.keycloak</automatic.module.name>
-    <!-- The quarkpress-keycloak checkout (the root POM pins its commit as quarkpress-keycloak.commit): its packaged
+    <automatic.module.name>org.quarkword.it.keycloak</automatic.module.name>
+    <!-- The quarkword-keycloak checkout (the root POM pins its commit as quarkword-keycloak.commit): its packaged
          provider jar is mounted into Dev Services' Keycloak and its WordPress-made hashes are the test's fixtures.
-         Locally a checkout beside this repository; CI passes -DquarkpressKeycloakDir. Without the jar or the fixtures, or
+         Locally a checkout beside this repository; CI passes -DquarkwordKeycloakDir. Without the jar or the fixtures, or
          with a jar older than the checkout's sources, the end-to-end tests are skipped; -DrequireKeycloakProvider=true
          (CI) makes them fail instead. A checkout at another commit than the pin is logged as a warning. The names
-         carry no quarkpress. prefix: Surefire hands -D properties to the test JVM, whose QuarkPress configuration
-         root refuses undeclared quarkpress.* settings. -->
-    <quarkpressKeycloakDir>${maven.multiModuleProjectDirectory}/../quarkpress-keycloak</quarkpressKeycloakDir>
-    <keycloakProviderJar>${quarkpressKeycloakDir}/wp-password/target/quarkpress-keycloak-wp-password.jar</keycloakProviderJar>
-    <keycloakHashes>${quarkpressKeycloakDir}/wp-password/src/test/resources/wordpress-7.1.3-hashes.txt</keycloakHashes>
+         carry no quarkword. prefix: Surefire hands -D properties to the test JVM, whose QuarkWord configuration
+         root refuses undeclared quarkword.* settings. -->
+    <quarkwordKeycloakDir>${maven.multiModuleProjectDirectory}/../quarkword-keycloak</quarkwordKeycloakDir>
+    <keycloakProviderJar>${quarkwordKeycloakDir}/wp-password/target/quarkword-keycloak-wp-password.jar</keycloakProviderJar>
+    <keycloakHashes>${quarkwordKeycloakDir}/wp-password/src/test/resources/wordpress-7.1.3-hashes.txt</keycloakHashes>
     <requireKeycloakProvider>false</requireKeycloakProvider>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-rest-wp-v2</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-rest-wp-v2</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-keycloak-provisioner</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-keycloak-provisioner</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -78,8 +78,8 @@
     </dependency>
     <!-- Make the reactor build the deployment modules before this application. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-core-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -91,8 +91,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -104,8 +104,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-security-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -117,8 +117,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-posts-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -130,8 +130,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-taxonomy-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-taxonomy-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -143,8 +143,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-rest-wp-v2-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-rest-wp-v2-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -156,8 +156,8 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-keycloak-provisioner-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-keycloak-provisioner-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>
@@ -184,8 +184,8 @@
             <keycloakProviderJar>${keycloakProviderJar}</keycloakProviderJar>
             <keycloakHashes>${keycloakHashes}</keycloakHashes>
             <requireKeycloakProvider>${requireKeycloakProvider}</requireKeycloakProvider>
-            <quarkpressKeycloakDir>${quarkpressKeycloakDir}</quarkpressKeycloakDir>
-            <quarkpressKeycloakCommit>${quarkpress-keycloak.commit}</quarkpressKeycloakCommit>
+            <quarkwordKeycloakDir>${quarkwordKeycloakDir}</quarkwordKeycloakDir>
+            <quarkwordKeycloakCommit>${quarkword-keycloak.commit}</quarkwordKeycloakCommit>
           </systemPropertyVariables>
         </configuration>
       </plugin>
@@ -197,8 +197,8 @@
             <keycloakProviderJar>${keycloakProviderJar}</keycloakProviderJar>
             <keycloakHashes>${keycloakHashes}</keycloakHashes>
             <requireKeycloakProvider>${requireKeycloakProvider}</requireKeycloakProvider>
-            <quarkpressKeycloakDir>${quarkpressKeycloakDir}</quarkpressKeycloakDir>
-            <quarkpressKeycloakCommit>${quarkpress-keycloak.commit}</quarkpressKeycloakCommit>
+            <quarkwordKeycloakDir>${quarkwordKeycloakDir}</quarkwordKeycloakDir>
+            <quarkwordKeycloakCommit>${quarkword-keycloak.commit}</quarkwordKeycloakCommit>
           </systemPropertyVariables>
         </configuration>
       </plugin>

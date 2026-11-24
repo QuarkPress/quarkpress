@@ -3,28 +3,28 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-storage-s3-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-storage-s3-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-storage-s3-deployment</artifactId>
+  <artifactId>quarkword-media-storage-s3-deployment</artifactId>
 
-  <name>QuarkPress :: Media Storage S3 :: Deployment</name>
+  <name>QuarkWord :: Media Storage S3 :: Deployment</name>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.storage.s3.deployment</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.storage.s3.deployment</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-storage-s3</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-storage-s3</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-deployment</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -48,15 +48,15 @@
     </dependency>
     <!-- The filesystem backend next to this one, for the tests that choose between them. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media-storage-fs-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-storage-fs-deployment</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <!-- The storage contract every backend passes. -->
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>

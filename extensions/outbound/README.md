@@ -1,6 +1,6 @@
-# QuarkPress Outbound
+# QuarkWord Outbound
 
-A safe HTTP GET for the URLs a QuarkPress server is asked to fetch on a user's behalf (the block editor's oEmbed
+A safe HTTP GET for the URLs a QuarkWord server is asked to fetch on a user's behalf (the block editor's oEmbed
 previews, media uploads from a URL): the URL is tested, its host resolved once and the connection pinned to an address
 that passed, every redirect checked again, the body decompressed and cut at a byte cap. It stands for WordPress's safe
 remote request (`wp_safe_remote_get`), with the rules WordPress's reject-unsafe-URLs check applies and a few stricter
@@ -10,13 +10,13 @@ ones. Reusable on its own: nothing in it knows about sites, posts or the REST AP
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-outbound</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-outbound</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-core` (for its configuration keys only), `quarkus-vertx` (the HTTP client is Vert.x
-core's) and `quarkus-tls-registry`. Public API lives in `org.quarkpress.outbound`; `org.quarkpress.outbound.runtime`
+The extension brings `quarkword-core` (for its configuration keys only), `quarkus-vertx` (the HTTP client is Vert.x
+core's) and `quarkus-tls-registry`. Public API lives in `org.quarkword.outbound`; `org.quarkword.outbound.runtime`
 is implementation and may change.
 
 ## Using it
@@ -38,7 +38,7 @@ try (FetchResponse response = fetcher.get(URI.create("https://example.com/photo.
 ```
 
 - `boolean allowed(String url)` runs the URL test (below) without a request, resolving the host within
-  `quarkpress.outbound.timeout`; `null` and a malformed URL are false.
+  `quarkword.outbound.timeout`; `null` and a malformed URL are false.
 - `FetchResponse get(URI url, FetchLimits limits)` fetches the URL. `FetchLimits(timeout, maxRedirects, maxBytes)` bounds
   the whole exchange (redirects and body included; more than zero), the redirects followed and the body's bytes after
   decompression; `fetcher.defaults()` is the configured `timeout`, `max-redirects` and `max-response-size`.
@@ -64,7 +64,7 @@ A URL may be fetched when all of these hold; a hop that fails any is refused bef
 | Scheme `http` or `https` | `ftp://`, `file://`, `javascript:`, a relative reference |
 | A host, with no user information | `http://user@host/`, `http:///path` |
 | The host is a name or an IPv4 literal | an IPv6 literal (`http://[::1]/`, as WordPress refuses them), a host holding `[`, `]`, `:`, `#` or `?` |
-| The port (the URL's, else the scheme's 80 or 443) is in `quarkpress.outbound.allowed-ports` | `:22`, `:8443` by default |
+| The port (the URL's, else the scheme's 80 or 443) is in `quarkword.outbound.allowed-ports` | `:22`, `:8443` by default |
 | Every address the host resolves to is public (`AddressPolicy.isPublic`) | `http://127.0.0.1/`, a host with one private address among public ones (`203.0.113.9, 10.0.0.1`) |
 
 `allow-private-addresses` lifts the address rule only; scheme, user information and port rules still apply.
@@ -107,7 +107,7 @@ silence before the headers and between two reads. The idle timeout also runs whi
 is paused by back-pressure: a reader that takes longer than `idle-timeout` between two reads of a large body gets
 `TIMEOUT` although the server is fine (the fetcher's callers spool to disk, where this does not happen).
 
-Every request sends `User-Agent: QuarkPress` (`user-agent`). HTTPS trusts the JVM's trust store, or the trust store
+Every request sends `User-Agent: QuarkWord` (`user-agent`). HTTPS trusts the JVM's trust store, or the trust store
 of the Quarkus TLS registry configuration named by `tls-configuration-name` (`quarkus.tls.<name>.*`); a name that
 exists without a trust store, or that names no configuration, fails the start.
 
@@ -123,20 +123,20 @@ local caching resolver) rather than widen the pool.
 
 ## Configuration
 
-Run time; checked at start-up with the other `quarkpress.*` keys (an unknown `quarkpress.outbound.*` key fails the
+Run time; checked at start-up with the other `quarkword.*` keys (an unknown `quarkword.outbound.*` key fails the
 start).
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.outbound.connect-timeout` | `5s` | How long a connection may take to open. |
-| `quarkpress.outbound.timeout` | `5s` | How long a whole exchange may take, redirects and body included, unless the caller's `FetchLimits` says otherwise; also how long `allowed` waits for the host to resolve. |
-| `quarkpress.outbound.idle-timeout` | `5s` | How long a connection may stay silent before the headers and between two reads (also while a slow reader pauses the response). |
-| `quarkpress.outbound.max-redirects` | `5` | How many redirects are followed; the 3xx answer after them is returned as is. |
-| `quarkpress.outbound.max-response-size` | `1M` | The largest body, after decompression, unless the caller's `FetchLimits` says otherwise; a larger one closes the connection (`TOO_LARGE`). |
-| `quarkpress.outbound.allowed-ports` | `80,443,8080` | The ports a URL may name; a URL without a port uses its scheme's, which must be listed too. WordPress's list. |
-| `quarkpress.outbound.allow-private-addresses` | `false` | Lets requests reach loopback, private, link-local and the other non-public addresses. **For tests only**: on, anyone who can make the server fetch a URL can reach its own network (the metadata service of a cloud host, say). The scheme, user information and port rules still apply, and the server logs at WARN when it starts: "quarkpress.outbound.allow-private-addresses is true: outbound requests may reach loopback and private addresses; use it for tests only". |
-| `quarkpress.outbound.user-agent` | `QuarkPress` | The `User-Agent` header sent. |
-| `quarkpress.outbound.tls-configuration-name` | unset: the JVM's trust store | The name of a Quarkus TLS registry configuration (`quarkus.tls.<name>.*`) whose trust store replaces the JVM's for HTTPS requests. An unknown name, or one without a trust store, fails the start. |
+| `quarkword.outbound.connect-timeout` | `5s` | How long a connection may take to open. |
+| `quarkword.outbound.timeout` | `5s` | How long a whole exchange may take, redirects and body included, unless the caller's `FetchLimits` says otherwise; also how long `allowed` waits for the host to resolve. |
+| `quarkword.outbound.idle-timeout` | `5s` | How long a connection may stay silent before the headers and between two reads (also while a slow reader pauses the response). |
+| `quarkword.outbound.max-redirects` | `5` | How many redirects are followed; the 3xx answer after them is returned as is. |
+| `quarkword.outbound.max-response-size` | `1M` | The largest body, after decompression, unless the caller's `FetchLimits` says otherwise; a larger one closes the connection (`TOO_LARGE`). |
+| `quarkword.outbound.allowed-ports` | `80,443,8080` | The ports a URL may name; a URL without a port uses its scheme's, which must be listed too. WordPress's list. |
+| `quarkword.outbound.allow-private-addresses` | `false` | Lets requests reach loopback, private, link-local and the other non-public addresses. **For tests only**: on, anyone who can make the server fetch a URL can reach its own network (the metadata service of a cloud host, say). The scheme, user information and port rules still apply, and the server logs at WARN when it starts: "quarkword.outbound.allow-private-addresses is true: outbound requests may reach loopback and private addresses; use it for tests only". |
+| `quarkword.outbound.user-agent` | `QuarkWord` | The `User-Agent` header sent. |
+| `quarkword.outbound.tls-configuration-name` | unset: the JVM's trust store | The name of a Quarkus TLS registry configuration (`quarkus.tls.<name>.*`) whose trust store replaces the JVM's for HTTPS requests. An unknown name, or one without a trust store, fails the start. |
 
 ## Limits
 
@@ -155,10 +155,10 @@ start).
   host verification are forced on.
 - A host is refused when **any** of its addresses is inside, not only the first: a resolver that returns a public
   address first and a private one second would otherwise be a way in.
-- No same-host exemption: WordPress lets a URL on its own host through its address check; QuarkPress does not (its
+- No same-host exemption: WordPress lets a URL on its own host through its address check; QuarkWord does not (its
   callers document the difference, rest-wp-v2 D39), since a site on a loopback or private address is exactly what the
   check protects.
 - The 3xx answer after the redirect budget is returned as it is, as WordPress returns it, rather than failing.
 - Decompression is on and the cap counts decompressed bytes, so the cap bounds memory and disk, not only transfer.
 - The module is a candidate for extraction as a standalone Quarkus extension (SiteNetSoft) once a second consumer
-  outside QuarkPress needs it; nothing in it depends on QuarkPress beyond the configuration-key registration.
+  outside QuarkWord needs it; nothing in it depends on QuarkWord beyond the configuration-key registration.

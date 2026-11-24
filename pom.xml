@@ -2,14 +2,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-parent</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-parent</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <name>QuarkPress Parent</name>
+  <name>QuarkWord Parent</name>
   <description>WordPress business features for the Java/Quarkus ecosystem</description>
-  <url>https://quarkpress.org</url>
+  <url>https://quarkword.org</url>
   <inceptionYear>2026</inceptionYear>
 
   <licenses>
@@ -30,9 +30,9 @@
   </modules>
 
   <scm>
-    <connection>scm:git:https://github.com/QuarkPress/quarkpress.git</connection>
-    <developerConnection>scm:git:git@github.com:QuarkPress/quarkpress.git</developerConnection>
-    <url>https://github.com/QuarkPress/quarkpress</url>
+    <connection>scm:git:https://github.com/QuarkWord/quarkword.git</connection>
+    <developerConnection>scm:git:git@github.com:QuarkWord/quarkword.git</developerConnection>
+    <url>https://github.com/QuarkWord/quarkword</url>
   </scm>
 
   <properties>
@@ -54,10 +54,10 @@
          in a checkout of that commit. Change both properties together. -->
     <quarkus-libvips.version>0.1.0-SNAPSHOT</quarkus-libvips.version>
     <quarkus-libvips.commit>7137bc9863fd35ed6a2c1390429c8d86470bfcf7</quarkus-libvips.commit>
-    <!-- The Keycloak password-hash provider (QuarkPress/quarkpress-keycloak) that integration-tests/keycloak mounts
+    <!-- The Keycloak password-hash provider (QuarkWord/quarkword-keycloak) that integration-tests/keycloak mounts
          into Dev Services' Keycloak. CI checks it out at this commit and packages it; developers package a checkout
-         of it beside this repository (../quarkpress-keycloak) or point -DkeycloakProviderJar at the jar. -->
-    <quarkpress-keycloak.commit>8875ba968ef33cd8efc74bd7a47e41a40b4be1b5</quarkpress-keycloak.commit>
+         of it beside this repository (../quarkword-keycloak) or point -DkeycloakProviderJar at the jar. -->
+    <quarkword-keycloak.commit>8875ba968ef33cd8efc74bd7a47e41a40b4be1b5</quarkword-keycloak.commit>
 
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>
@@ -228,7 +228,7 @@
                 <systemPropertyVariables>
                   <wp.version>${wp.version}</wp.version>
                   <wp.php>${wp.php}</wp.php>
-                  <quarkpressRoot>${maven.multiModuleProjectDirectory}</quarkpressRoot>
+                  <quarkwordRoot>${maven.multiModuleProjectDirectory}</quarkwordRoot>
                   <wpSourceDir>${wpSourceDir}</wpSourceDir>
                 </systemPropertyVariables>
               </configuration>

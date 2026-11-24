@@ -3,30 +3,30 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-integration-tests-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-integration-tests-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-it-dev-ui-minimal</artifactId>
+  <artifactId>quarkword-it-dev-ui-minimal</artifactId>
   <packaging>jar</packaging>
 
-  <name>QuarkPress :: Integration tests :: Dev UI minimal</name>
+  <name>QuarkWord :: Integration tests :: Dev UI minimal</name>
   <description>A dev-mode application with only the core, persistence and dev-ui modules, proving that the Dev UI pages and JSON-RPC methods of the absent modules are absent. JVM dev mode only; never native.</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.it.devui</automatic.module.name>
+    <automatic.module.name>org.quarkword.it.devui</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-dev-ui</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-dev-ui</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- dev-ui brings no HTTP server; the Dev UI needs one. -->
@@ -35,21 +35,21 @@
       <artifactId>quarkus-vertx-http</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-dev-ui-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-dev-ui-deployment</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-dev-ui-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-dev-ui-deployment</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-persistence-deployment</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

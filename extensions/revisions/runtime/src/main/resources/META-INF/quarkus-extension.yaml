@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Revisions"
+name: "QuarkWord Revisions"
 description: "Revisions and autosaves of posts with WordPress's change check, limits, restore and capability rules"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "revisions"
   categories:

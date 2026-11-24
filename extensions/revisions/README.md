@@ -1,6 +1,6 @@
-# QuarkPress Revisions
+# QuarkWord Revisions
 
-WordPress revisions for QuarkPress: a revision saved after every update-like save of a post with WordPress's change
+WordPress revisions for QuarkWord: a revision saved after every update-like save of a post with WordPress's change
 check and limits, one autosave per user and post with the rules of WordPress's REST autosaves endpoint, restoring,
 deleting and reading revisions with WordPress's capability rules, and a per-site switch. It requires the posts module
 and works on a single site and in a network.
@@ -9,13 +9,13 @@ and works on a single site and in a network.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-revisions</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-revisions</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-posts` (and through it persistence, security, lib-wp-kses and lib-wp-blocks). Public
-API lives in `org.quarkpress.revisions`; `org.quarkpress.revisions.runtime` is implementation and may change.
+The extension brings `quarkword-posts` (and through it persistence, security, lib-wp-kses and lib-wp-blocks). Public
+API lives in `org.quarkword.revisions`; `org.quarkword.revisions.runtime` is implementation and may change.
 
 ## Using it
 
@@ -130,7 +130,7 @@ fires the post's events and saves a revision of the result unless it equals the 
 newest saves none). Then `RevisionRestored` fires, then the revision's revisioned meta replaces the post's (a key the
 revision lacks ends empty), so the revision the restore just saved still carries the post's previous meta, as in
 WordPress; the next save sees the meta change. The post's `_edit_last` meta becomes the restoring user's id, as
-WordPress records the last editor after a restore (the system identity writes none); nothing else in QuarkPress writes
+WordPress records the last editor after a restore (the system identity writes none); nothing else in QuarkWord writes
 that key. Autosaves can be restored.
 
 ### Events
@@ -166,16 +166,16 @@ Beans run in a chain, higher `@Priority` first, the opposite of WordPress:
 
 ### Configuration
 
-- `quarkpress.revisions.keep` (default `-1`): WordPress's `WP_POST_REVISIONS`, every post's starting point: negative
+- `quarkword.revisions.keep` (default `-1`): WordPress's `WP_POST_REVISIONS`, every post's starting point: negative
   keeps every revision, 0 saves none, a positive number keeps that many.
-- The per-site feature `revisions` (on by default; `FeatureToggles`, the `qp_features` option): off, every post of the
+- The per-site feature `revisions` (on by default; `FeatureToggles`, the `qw_features` option): off, every post of the
   site has a limit of 0, with exactly WordPress's keep = 0 behaviour: no new revisions, `ofPost` lists nothing (unless
   the query turns the check off), `latestAndCount` is `revisions_not_enabled`, `find` by id still works, restores are
   refused unless the revision is an autosave, and autosaves are still created, listed and restorable.
 
 ## Storage
 
-`qp_revision` holds every revision of every site in a table of its own (WordPress keeps them as rows of its posts
+`qw_revision` holds every revision of every site in a table of its own (WordPress keeps them as rows of its posts
 table): the post (a composite key of the post's site, cascading the post's delete), the author (set to null when the
 profile is deleted), the three texts, the revisioned meta as JSON (key to array of values), the autosave flag and the
 time; `autosave_owner`, a plain nullable column the entity derives in a lifecycle callback (the author for an
@@ -201,7 +201,7 @@ where several are locked, though trimming during a restore may lock lower ids af
   WordPress's REST writes do.
 - WordPress hooks without counterpart: `wp_{type}_revisions_to_keep`, `wp_save_post_revision_check_for_changes`,
   `wp_save_post_revision_revisions_before_deletion`, the preview filters, the revision UI filters and
-  `heartbeat_received`; `wp_check_post_lock_window` is the posts module's `quarkpress.posts.lock-window`.
+  `heartbeat_received`; `wp_check_post_lock_window` is the posts module's `quarkword.posts.lock-window`.
 
 ## Decisions
 

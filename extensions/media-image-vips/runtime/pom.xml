@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-image-vips-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-image-vips-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-image-vips</artifactId>
+  <artifactId>quarkword-media-image-vips</artifactId>
 
-  <name>QuarkPress :: Media Image Vips :: Runtime</name>
-  <description>Reads, orients, crops, scales and writes QuarkPress images with libvips, through quarkus-libvips</description>
+  <name>QuarkWord :: Media Image Vips :: Runtime</name>
+  <description>Reads, orients, crops, scales and writes QuarkWord images with libvips, through quarkus-libvips</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.image.vips</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.image.vips</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -47,7 +47,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.mediaimagevips</provides>
+            <provides>org.quarkword.mediaimagevips</provides>
           </capabilities>
         </configuration>
       </plugin>

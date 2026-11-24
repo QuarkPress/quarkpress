@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Posts"
+name: "QuarkWord Posts"
 description: "Posts and pages with WordPress's types, statuses, dates, slugs, sticky and hierarchy rules"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "posts"
   categories:

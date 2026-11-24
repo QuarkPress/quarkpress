@@ -1,0 +1,110 @@
+package org.quarkword.testing.wprestparity;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
+/**
+ * Sends {@link RestCall}s to a server over HTTP/1.1 with {@code java.net.http} and records what came back. Any method
+ * goes, HEAD and OPTIONS included. Every header of the call is sent as given, then each of its header lines, one line
+ * per value, to the server's address (absolute paths under {@code 127.0.0.1:<port>}); redirects are never followed,
+ * so an admin page's {@code 302} to {@code http://localhost/...} comes back as the answer. Each {@link Exchange}
+ * carries the moment its request was sent. The client keeps no cookie jar: a cookie session is a call carrying its own
+ * {@code Cookie} and {@code X-WP-Nonce} headers, and such a call sends no application password.
+ */
+public final class RestClient {
+
+    /** The user {@code "invalid"} sends: alice's login with a password no server accepts. */
+    static final String WRONG_PASSWORD = "not-the-application-password";
+
+    private static final Duration TIMEOUT = Duration.ofSeconds(60);
+
+    private final String root;
+    private final Function<String, Optional<String>> authorization;
+    private final HttpClient http;
+
+    /**
+     * {@code authorization} maps {@link RestCall#as()} to an {@code Authorization} header value; empty for anonymous.
+     * A call that names its own {@code Authorization} header sends that one instead; a call with a {@code Cookie}
+     * header (a cookie session) sends none.
+     */
+    public RestClient(URI root, Function<String, Optional<String>> authorization) {
+        String text = Objects.requireNonNull(root, "root").toString();
+        this.root = text.endsWith("/") ? text.substring(0, text.length() - 1) : text;
+        this.authorization = Objects.requireNonNull(authorization, "authorization");
+        this.http = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+    }
+
+    public Exchange send(RestCall call) throws IOException, InterruptedException {
+        HttpRequest.BodyPublisher body =
+                call.body().map(HttpRequest.BodyPublishers::ofByteArray).orElseGet(HttpRequest.BodyPublishers::noBody);
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(root + call.target()))
+                .version(HttpClient.Version.HTTP_1_1)
+                .timeout(TIMEOUT)
+                .method(call.method(), body);
+        // A call that carries its own credential (an Authorization header, or a cookie session) gets no computed one.
+        boolean ownCredential = false;
+        for (String name : call.headers().keySet()) {
+            ownCredential |= name.equalsIgnoreCase("Authorization") || name.equalsIgnoreCase("Cookie");
+        }
+        for (String name : call.headerLines().keySet()) {
+            ownCredential |= name.equalsIgnoreCase("Authorization") || name.equalsIgnoreCase("Cookie");
+        }
+        if (!ownCredential) {
+            authorization.apply(call.as()).ifPresent(value -> request.header("Authorization", value));
+        }
+        call.contentType().ifPresent(type -> request.header("Content-Type", type));
+        for (Map.Entry<String, String> header : call.headers().entrySet()) {
+            request.header(header.getKey(), header.getValue());
+        }
+        // Then the header lines, one line per value, unchanged and in order.
+        for (Map.Entry<String, List<String>> lines : call.headerLines().entrySet()) {
+            for (String value : lines.getValue()) {
+                request.header(lines.getKey(), value);
+            }
+        }
+        Instant sentAt = Instant.now();
+        HttpResponse<byte[]> response = http.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+        return new Exchange(call, response.statusCode(), response.headers().map(), response.body(), sentAt);
+    }
+
+    /**
+     * Basic authentication with the site's application passwords: a {@link WordPressRestSite#USERS} entry (or a user a
+     * {@code role} operation registered) sends its own, {@code "invalid"} sends alice's login with a wrong password,
+     * {@code "anonymous"} sends nothing. The password is read from the site on every call, so a
+     * {@link WordPressRestSite#renewApplicationPassword renewed} one is used from then on.
+     */
+    public static Function<String, Optional<String>> applicationPasswords(WordPressRestSite site) {
+        Objects.requireNonNull(site, "site");
+        return as -> switch (as) {
+            case "anonymous" -> Optional.empty();
+            case "invalid" -> Optional.of(basic("alice", WRONG_PASSWORD));
+            default -> {
+                if (!site.knows(as)) {
+                    throw new IllegalArgumentException("unknown caller '" + as + "'; known: anonymous, invalid, "
+                            + String.join(", ", WordPressRestSite.USERS) + " and the users of role operations");
+                }
+                yield Optional.of(basic(as, site.applicationPassword(as)));
+            }
+        };
+    }
+
+    static String basic(String user, String password) {
+        return "Basic " + Base64.getEncoder().encodeToString((user + ":" + password).getBytes(StandardCharsets.UTF_8));
+    }
+}

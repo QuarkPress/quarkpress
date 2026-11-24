@@ -1,6 +1,6 @@
-# QuarkPress Multisite
+# QuarkWord Multisite
 
-Several sites on one QuarkPress network, as WordPress multisite has them: each request is matched to a site by its
+Several sites on one QuarkWord network, as WordPress multisite has them: each request is matched to a site by its
 domain and path, sites can have further domains (aliases), and the network's administrator creates, changes and
 deletes sites. Without this extension every request belongs to the main site.
 
@@ -8,13 +8,13 @@ deletes sites. Without this extension every request belongs to the main site.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-multisite</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-multisite</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-persistence` and Quarkus's HTTP layer. It sets `quarkpress.multisite.enabled=true`,
-which removes the single-site resolver. Setting `quarkpress.multisite.enabled=false` in an application that has the
+The extension brings `quarkword-persistence` and Quarkus's HTTP layer. It sets `quarkword.multisite.enabled=true`,
+which removes the single-site resolver. Setting `quarkword.multisite.enabled=false` in an application that has the
 module makes the installation a single site for the other modules, decided at build time: the security module then
 counts every user profile as a user of the site, those created while the application ran as a network included, as
 WordPress's single site counts every user.
@@ -23,17 +23,17 @@ WordPress's single site counts every user.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.main-site-id` | `1` | The main site. Its domain and path are the network's address; the application does not start without it. |
-| `quarkpress.multisite.resolvers` | `domain,subdomain,path` | The built-in strategies that resolve sites (see below). |
-| `quarkpress.multisite.path-segments` | `1` | How many path segments are compared with site paths (1 to 16): the count WordPress's `site_by_path_segments_count` filter sets (WordPress's own is 1). Under a network path other than `/`, the network path's segments are added. A value outside 1 to 16 stops the application at start. |
+| `quarkword.main-site-id` | `1` | The main site. Its domain and path are the network's address; the application does not start without it. |
+| `quarkword.multisite.resolvers` | `domain,subdomain,path` | The built-in strategies that resolve sites (see below). |
+| `quarkword.multisite.path-segments` | `1` | How many path segments are compared with site paths (1 to 16): the count WordPress's `site_by_path_segments_count` filter sets (WordPress's own is 1). Under a network path other than `/`, the network path's segments are added. A value outside 1 to 16 stops the application at start. |
 
-`quarkpress.*` is QuarkPress's configuration namespace: keys it does not declare fail the application.
+`quarkword.*` is QuarkWord's configuration namespace: keys it does not declare fail the application.
 
 ## How a request finds its site
 
 Before any route runs, and before authentication, an HTTP filter builds what resolvers see of the request (scheme,
 host and port of the authority, raw path) and asks every `SiteResolver` once, higher `@Priority` first, on a worker
-thread. The answer is stored on the request; the request's site context adopts it the first time QuarkPress code asks,
+thread. The answer is stored on the request; the request's site context adopts it the first time QuarkWord code asks,
 also in security code and filters that run before Quarkus REST. Resolvers are never asked again for that request. A
 resolver or database failure fails the request with 500; it never binds "no site" or another site.
 
@@ -106,7 +106,7 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
   (see the security README). **Without the security module every caller is allowed**: do not expose these services to
   untrusted callers without it.
 - Each write runs in a network transaction of its own, one after the other (they all take one lock row,
-  `qp_network_lock`, first). Called from a request bound to a site, it commits independently of the caller's
+  `qw_network_lock`, first). Called from a request bound to a site, it commits independently of the caller's
   transaction; called from a request bound to the network, it joins the caller's transaction.
 - A write called inside a transaction (or nested scope) that already holds the network lock, for example after a
   network option or feature default was written in it, is refused with `IllegalStateException` instead of deadlocking:
@@ -146,7 +146,7 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
   `date_format` `"F j, Y"`, `time_format` `"g:i a"`, `start_of_week` `1`, `posts_per_page` `10`, `default_category` (the
   site's Uncategorized term with the taxonomy module, else `0`), `show_on_front` `"posts"`, `page_on_front` `0`,
   `page_for_posts` `0`, `default_comment_status` `"open"`, `default_ping_status` `"open"`, `use_smilies` `"1"`,
-  `default_post_format` `"0"`, `site_icon` `"0"`, `WPLANG` `""`, and `qp_features` (the switches passed in
+  `default_post_format` `"0"`, `site_icon` `"0"`, `WPLANG` `""`, and `qw_features` (the switches passed in
   `NewSite.withFeatures`, else `{}`; features not set follow the network defaults). `NewSite.of` creates a public site
   (public 1), as the Add Site screen does.
 - Events: `SiteCreated` (preceded by `SiteFlagsChanged` when the new site's public value is not 1, as WordPress fires
@@ -171,10 +171,10 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 
 - Observers of `SiteCreated` run in the network transaction that creates the site. Write the new site's rows there,
   naming the site (`assignSite`); a `SiteScope` for the new site runs in another transaction, which cannot see it.
-- Every `site_id` foreign key to `qp_site` is `on delete cascade`, and so is every composite key between site-scoped
+- Every `site_id` foreign key to `qw_site` is `on delete cascade`, and so is every composite key between site-scoped
   tables, so `Sites.delete` removes all of a site's rows.
-- Network writes serialize on the `qp_network_lock` row and change `qp_site` rows under their version, never with a
-  row lock. Do not lock `qp_site` rows yourself: a transaction that inserted rows of a site holds a shared lock on
+- Network writes serialize on the `qw_network_lock` row and change `qw_site` rows under their version, never with a
+  row lock. Do not lock `qw_site` rows yourself: a transaction that inserted rows of a site holds a shared lock on
   that site's row, and a lock on it would wait for, or deadlock with, such transactions.
 - Do not change, flag or delete the site a request is bound to from inside that request's transaction, nor from a
   scope opened inside it; do it outside the transaction (`Sites` refuses it).
@@ -190,7 +190,7 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 | D2 | A domain that is empty (or `0`), has a port or is longer than 200 characters is refused; WordPress stores it. Request ports are ignored, so the redirect of an alias drops the request's port; WordPress keeps ports other than 80 and 443 as part of the host. |
 | D3 | A path with characters a URL path cannot carry unescaped, a `%` that does not start a `%XX` escape, or longer than 100 characters, is refused; WordPress stores it. |
 | D4 | A request that matches no site is served without a site; WordPress redirects (to the network, or to the signup page in subdomain installs) or, on the network host, shows its database-error page ("not installed"). The scenario oracle maps all three to "none". |
-| D5 | Domain aliases with an optional redirect are a QuarkPress addition; WordPress maps a domain by setting the site's own domain. |
+| D5 | Domain aliases with an optional redirect are a QuarkWord addition; WordPress maps a domain by setting the site's own domain. |
 | D6 | The main site's domain and path can change through `Sites`; WordPress's site settings screen does not allow it. |
 | D7 | `default_category` names the site's Uncategorized term when the taxonomy module is installed (else 0), whose id is unique across the network; WordPress's is 1. `home`, `siteurl` and `blog_public` are not options. |
 | D8 | WordPress's front-end signup rules (lowercase letters and digits only, so no upper case and no hyphens; at least 4 characters; not all digits; `illegal_names`) are not applied: `Sites.create` is the network administrator's "Add Site". |
@@ -198,11 +198,11 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 | D10 | A raw request path with `.` or `..` segments is served without a site; WordPress compares such segments as written. |
 | D11 | A site's title is stored as given; WordPress stores `blogname` HTML-escaped (`Tom &amp; Jerry`). |
 | D12 | The main site's flags never change and it is never deleted; WordPress guards it only on some network-admin paths (its direct status actions and the Edit Site form can change its flags), and its delete function marks blog 1 and the main site deleted instead of dropping them. |
-| D13 | The request path is cut at the last `/wp-admin/` for every request; WordPress cuts only when the request is an admin request. QuarkPress has no admin flag. |
-| D14 | WordPress's `/wp-admin/` cut can fail on a very long line (PCRE backtrack limit) and then yields an empty path; QuarkPress always cuts, in linear time. |
+| D13 | The request path is cut at the last `/wp-admin/` for every request; WordPress cuts only when the request is an admin request. QuarkWord has no admin flag. |
+| D14 | WordPress's `/wp-admin/` cut can fail on a very long line (PCRE backtrack limit) and then yields an empty path; QuarkWord always cuts, in linear time. |
 | D15 | Every backslash is removed from the request host; WordPress applies `stripslashes`, which keeps one of a doubled backslash. Hosts containing backslashes are invalid either way. |
 | D16 | A site path no request can reach (a `0` segment, dot segments, an interior `//`) is refused at creation, and so is a path under the non-application root (`/q/` by default); WordPress creates such a site, which no request then reaches. |
-| D17 | Archived, spammed and deleted sites resolve like any other. WordPress's `ms_site_check` (skipped for super admins) answers a deleted site with `blog-deleted.php` or a 410 page, and an archived or spammed one with `blog-suspended.php` or a 410 page. QuarkPress leaves that to HTTP layers, which read `SiteContext.site().status()`; the REST API (`quarkpress-rest-wp-v2`) answers 410 with WordPress's sentence. |
+| D17 | Archived, spammed and deleted sites resolve like any other. WordPress's `ms_site_check` (skipped for super admins) answers a deleted site with `blog-deleted.php` or a 410 page, and an archived or spammed one with `blog-suspended.php` or a 410 page. QuarkWord leaves that to HTTP layers, which read `SiteContext.site().status()`; the REST API (`quarkword-rest-wp-v2`) answers 410 with WordPress's sentence. |
 
 The parity tests (`-Pwp-parity`) compare the path candidates, the domain and path normalization and the reserved names
 with WordPress 7.1.3's functions (Tier A), and run site creation, lookup, flag and default-option scenarios against a

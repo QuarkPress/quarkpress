@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Media"
+name: "QuarkWord Media"
 description: "Uploads, image sizes and the media library with WordPress's file, type and attachment rules"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "media"
     - "uploads"

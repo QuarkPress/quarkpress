@@ -1,26 +1,26 @@
-# QuarkPress Core
+# QuarkWord Core
 
-`org.quarkpress:quarkpress-core` is the API every QuarkPress module builds on: the current site, typed ids, site
+`org.quarkword:quarkword-core` is the API every QuarkWord module builds on: the current site, typed ids, site
 options as read by WordPress code, per-site features, events, rendering filters and the clock. It has no persistence
-and no HTTP; the persistence module (`quarkpress-persistence`) stores sites, options and feature switches.
+and no HTTP; the persistence module (`quarkword-persistence`) stores sites, options and feature switches.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-core</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-core</artifactId>
 </dependency>
 ```
 
-Public API lives in `org.quarkpress.core`; `org.quarkpress.core.runtime` is implementation and may change.
+Public API lives in `org.quarkword.core`; `org.quarkword.core.runtime` is implementation and may change.
 
 ## Configuration namespace
 
-The `quarkpress.*` configuration keys are reserved for QuarkPress. At startup QuarkPress fails on any key under that prefix
+The `quarkword.*` configuration keys are reserved for QuarkWord. At startup QuarkWord fails on any key under that prefix
 that no installed module declares (each module declares its keys; indexed lists such as `resolvers[0]` are accepted,
-a map takes exactly one further segment, plain or quoted, such as `quarkpress.media.allowed-types."jpg|jpeg"`,
+a map takes exactly one further segment, plain or quoted, such as `quarkword.media.allowed-types."jpg|jpeg"`,
 sub-keys of plain settings are not), so a typo cannot silently leave a setting at its default. Every config source is
-checked except environment variables and `.env` entries, whose names are ambiguous (`QUARKPRESS_A_B` could be `a.b` or `a-b`). Application settings use their own prefix. For the
-same reason the repository's own build passes the test database as `-DtestDb`, not as a `quarkpress.*` property.
+checked except environment variables and `.env` entries, whose names are ambiguous (`QUARKWORD_A_B` could be `a.b` or `a-b`). Application settings use their own prefix. For the
+same reason the repository's own build passes the test database as `-DtestDb`, not as a `quarkword.*` property.
 
 ## The current site
 
@@ -41,22 +41,22 @@ while other threads can see it: work for another site runs in a fresh request co
 module's `SiteScope` or `NetworkScope`, never by rebinding.
 
 Without the multisite module every request, HTTP or not, belongs to the main site: the persistence module's
-single-site resolver answers `quarkpress.main-site-id` without touching the database. The multisite module (`quarkpress-multisite`)
-binds HTTP requests from their host and path before any QuarkPress persistence use.
+single-site resolver answers `quarkword.main-site-id` without touching the database. The multisite module (`quarkword-multisite`)
+binds HTTP requests from their host and path before any QuarkWord persistence use.
 
 ### Resolvers
 
 A `SiteResolver` bean answers which site a `SiteRequest` (scheme, host, port, path) belongs to. All resolvers are
 asked in order of `@Priority`, **higher values first** (the order ArC uses for `@All` lists; WordPress runs lower hook
-priorities first, QuarkPress does not), and resolvers with equal priority in order of their fully qualified class name,
+priorities first, QuarkWord does not), and resolvers with equal priority in order of their fully qualified class name,
 so the order never depends on discovery order. The first non-empty answer wins. A resolver that throws stops the
 resolution (no lower resolver answers in its place), and a resolver that returns `null` fails with a message naming
 it. A resolver must not read the current site while it is asked (that throws `SiteNotResolvedException`), and for
-`SiteRequest.none()` it must answer without the QuarkPress persistence unit, whose session depends on the answer.
+`SiteRequest.none()` it must answer without the QuarkWord persistence unit, whose session depends on the answer.
 
 ### HTTP layers
 
-The multisite extension's HTTP layer decides a request's site before any QuarkPress code runs (before authentication)
+The multisite extension's HTTP layer decides a request's site before any QuarkWord code runs (before authentication)
 and hands the decision to the request's binding through the internal `PresetSite` bean. The binding adopts it the
 first time it is read, and the resolvers are not asked for that request. `SiteContext.redirect()` returns the redirect
 decided with it. A preset is a site or "no site", never the network; a `PresetSite` bean outside the multisite
@@ -93,7 +93,7 @@ The typed readers convert values the way WordPress code sees them:
    `-2.5` is `-02:30`);
 3. otherwise UTC.
 
-Where WordPress itself fails or Java cannot follow, QuarkPress differs on purpose:
+Where WordPress itself fails or Java cannot follow, QuarkWord differs on purpose:
 
 - a `timezone_string` that is not an IANA region id falls back to `gmt_offset` (WordPress fails). This covers forms
   only Java understands (`UTC+5`, `UTC-03:30`, `UT`, `SystemV/...`), PHP's fixed-offset abbreviations (`EST`, `PST`,
@@ -102,7 +102,7 @@ Where WordPress itself fails or Java cannot follow, QuarkPress differs on purpos
 
 ## Per-site features
 
-A module declares a feature at build time with `SiteFeatureBuildItem` (artifact `quarkpress-core-deployment-spi`): a
+A module declares a feature at build time with `SiteFeatureBuildItem` (artifact `quarkword-core-deployment-spi`): a
 key of 1 to 64 characters `a-z`, `0-9`, `-`, `_` starting with a letter, the declaring module, its default and a
 one-line description. Two modules declaring the same key fail the build.
 
@@ -148,7 +148,7 @@ Default methods inherited from JDK interfaces (for example `Iterable.forEach`) a
 a class-level annotation; annotate an override if one must be gated.
 
 An observer whose event is a `SiteEvent` checks the feature for the event's site, whatever the request is bound to and
-also without a request context; this is what `@ObservesAsync` observers of QuarkPress events need, since they run
+also without a request context; this is what `@ObservesAsync` observers of QuarkWord events need, since they run
 after the change committed, outside the request that made it.
 
 **Interceptor order.** The gate's interceptor has priority `PLATFORM_BEFORE + 175`: after the security interceptors
@@ -173,7 +173,7 @@ inside the transaction that caused them. A `MissingNode` stands for "no value": 
 `after` of a deleted one. Observers that need committed data use
 `@Observes(during = TransactionPhase.AFTER_SUCCESS)`; `@ObservesAsync` is fire-and-forget.
 
-QuarkPress services fire every event synchronously inside the transaction that caused it, and again to
+QuarkWord services fire every event synchronously inside the transaction that caused it, and again to
 `@ObservesAsync` observers once that transaction commits; asynchronous observers never hear of a change that was
 rolled back.
 
@@ -191,14 +191,14 @@ Filters are beans implementing a filter interface. `Filters.ordered` sorts an `@
 resolvers. `Filters.apply` passes a value through the chain: the value must not be null, a filter that returns null
 fails with a `NullPointerException` naming its class, and a filter that throws stops the chain with its exception.
 
-`QuarkPressClock` is the time source of QuarkPress decisions; an application bean implementing it replaces the system
+`QuarkWordClock` is the time source of QuarkWord decisions; an application bean implementing it replaces the system
 clock.
 
 ### Roles and capabilities from extensions
 
 `RoleDefinition` describes a role (key, English display name, capabilities in order). An extension registers a role
 with `RoleBuildItem` and grants a capability to roles with `CapabilityBuildItem` (both in
-`quarkpress-core-deployment-spi`); the security module builds the default role table from them and fails the build
+`quarkword-core-deployment-spi`); the security module builds the default role table from them and fails the build
 on a role key registered twice, the reserved key `super_admin`, or a capability granted to an unknown role.
 
 ### Post types and statuses
@@ -210,7 +210,7 @@ default to title, editor and autosave, and its labels are derived from its names
 given none of public, protected, private and internal is internal, and its other flags follow from those four. A type
 key and a status name each hold 1 to 20 characters of `a-z`, `0-9`, `_` and `-` (the builders sanitize them as keys
 first). An extension registers them with `PostTypeBuildItem` and `PostStatusBuildItem` (both in
-`quarkpress-core-deployment-spi`); the posts module collects them and fails the build on a key registered twice.
+`quarkword-core-deployment-spi`); the posts module collects them and fails the build on a key registered twice.
 `WordPressKeys.sanitize` is WordPress's `sanitize_key`.
 
 ### Taxonomies
@@ -219,7 +219,7 @@ first). An extension registers them with `PostTypeBuildItem` and `PostStatusBuil
 defaults: a taxonomy is public unless told otherwise, its interface flags follow `public` and each other, its four
 capability names default to `manage_categories` (managing, editing, deleting terms) and `edit_posts` (assigning them),
 and its labels are derived from its names and its hierarchical flag. A key is used as given and holds 1 to 32 bytes.
-An extension registers taxonomies with `TaxonomyBuildItem` (in `quarkpress-core-deployment-spi`); the taxonomy module
+An extension registers taxonomies with `TaxonomyBuildItem` (in `quarkword-core-deployment-spi`); the taxonomy module
 collects them and fails the build on a key registered twice.
 
 ## Typed ids

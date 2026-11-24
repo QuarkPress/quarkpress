@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-media-storage-s3-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-media-storage-s3-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-media-storage-s3</artifactId>
+  <artifactId>quarkword-media-storage-s3</artifactId>
 
-  <name>QuarkPress :: Media Storage S3 :: Runtime</name>
-  <description>Stores QuarkPress media files in an S3 bucket</description>
+  <name>QuarkWord :: Media Storage S3 :: Runtime</name>
+  <description>Stores QuarkWord media files in an S3 bucket</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.media.storage.s3</automatic.module.name>
+    <automatic.module.name>org.quarkword.media.storage.s3</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-media</artifactId>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -51,7 +51,7 @@
         <artifactId>quarkus-extension-maven-plugin</artifactId>
         <configuration>
           <capabilities>
-            <provides>org.quarkpress.mediastorages3</provides>
+            <provides>org.quarkword.mediastorages3</provides>
           </capabilities>
         </configuration>
       </plugin>

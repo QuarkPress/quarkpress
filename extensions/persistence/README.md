@@ -1,13 +1,13 @@
-# QuarkPress Persistence
+# QuarkWord Persistence
 
-`org.quarkpress:quarkpress-persistence` gives QuarkPress its own datasource and Hibernate ORM persistence unit, both
-named `quarkpress`, with Flyway migrations for PostgreSQL and MySQL. It stores sites, site options, network options
+`org.quarkword:quarkword-persistence` gives QuarkWord its own datasource and Hibernate ORM persistence unit, both
+named `quarkword`, with Flyway migrations for PostgreSQL and MySQL. It stores sites, site options, network options
 and per-site feature switches, and keeps every site's rows away from the other sites.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-persistence</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-persistence</artifactId>
 </dependency>
 <dependency>
   <groupId>io.quarkus</groupId>
@@ -15,92 +15,92 @@ and per-site feature switches, and keeps every site's rows away from the other s
 </dependency>
 ```
 
-Public API lives in `org.quarkpress.persistence`: `SiteScope`, `NetworkScope`, `NetworkScopePolicy`, `Options`,
-`NetworkOptions`, `FeatureToggles`, `SiteScopedNativeSql` and `QuarkPressPersistence`. Entities and
-`org.quarkpress.persistence.runtime` are implementation and may change, with three exceptions that QuarkPress modules
+Public API lives in `org.quarkword.persistence`: `SiteScope`, `NetworkScope`, `NetworkScopePolicy`, `Options`,
+`NetworkOptions`, `FeatureToggles`, `SiteScopedNativeSql` and `QuarkWordPersistence`. Entities and
+`org.quarkword.persistence.runtime` are implementation and may change, with three exceptions that QuarkWord modules
 build on and that are kept stable as their SPI although they live in the runtime package: `SiteScopedEntity` (with its
 `FILTER` name and `assignSite`) and `TenantIds.param`.
 
 ## Configuration
 
-The only required setting is the database kind of the `quarkpress` datasource; Dev Services starts a database in dev
+The only required setting is the database kind of the `quarkword` datasource; Dev Services starts a database in dev
 and test mode:
 
 ```properties
-quarkus.datasource."quarkpress".db-kind=postgresql
+quarkus.datasource."quarkword".db-kind=postgresql
 # production:
-quarkus.datasource."quarkpress".jdbc.url=jdbc:postgresql://db/quarkpress
-quarkus.datasource."quarkpress".username=quarkpress
-quarkus.datasource."quarkpress".password=...
+quarkus.datasource."quarkword".jdbc.url=jdbc:postgresql://db/quarkword
+quarkus.datasource."quarkword".username=quarkword
+quarkus.datasource."quarkword".password=...
 ```
 
 The build stops with an explanation when the datasource is missing or its kind has no migrations.
 
 Everything else has defaults (shipped with ordinal 100) that `application.properties` may override:
 
-- the persistence unit `quarkpress` uses the datasource `quarkpress`, attaches the entities of the `org.quarkpress`
+- the persistence unit `quarkword` uses the datasource `quarkword`, attaches the entities of the `org.quarkword`
   packages, manages no schema itself, and stores times in UTC;
 - its second-level and query caches are off and must stay off (see "Site isolation");
-- the `quarkpress` datasource's connections use the READ COMMITTED isolation level
-  (`quarkus.datasource."quarkpress".jdbc.transaction-isolation-level=read-committed`), PostgreSQL's default, so both
+- the `quarkword` datasource's connections use the READ COMMITTED isolation level
+  (`quarkus.datasource."quarkword".jdbc.transaction-isolation-level=read-committed`), PostgreSQL's default, so both
   databases share one isolation level: on MySQL, locking reads then lock only the rows they find, not gaps that rows
   of other sites share, and a plain read made after a lock sees what was committed before it. An application may set
-  another level, and any application code that uses the `quarkpress` datasource works at this level too. On MySQL
+  another level, and any application code that uses the `quarkword` datasource works at this level too. On MySQL
   with binary logging on, READ COMMITTED needs `binlog_format` `ROW` (MySQL's default) or `MIXED`: under `STATEMENT`
   MySQL refuses the writes;
 - its JSON columns are read and written by its own Jackson mapper, so the application's `ObjectMapper` settings do not
   change how options are stored, and the application's own unit is untouched;
-- Flyway runs at start from `db/quarkpress/common` and `db/quarkpress/<vendor>` into the history table
-  `qp_schema_history`, out of order (modules added later still migrate), with `baseline-on-migrate=true` and
-  `baseline-version=0`, so on a database the application already populated every QuarkPress script still runs.
+- Flyway runs at start from `db/quarkword/common` and `db/quarkword/<vendor>` into the history table
+  `qw_schema_history`, out of order (modules added later still migrate), with `baseline-on-migrate=true` and
+  `baseline-version=0`, so on a database the application already populated every QuarkWord script still runs.
 
 PostgreSQL and MySQL are tested on every change; MySQL must be 8.0.16 or newer (CHECK constraints, which keep option
 values valid JSON, are enforced from 8.0.16). MariaDB is best effort and untested:
-it uses the MySQL migrations, so set `quarkpress.persistence.migration-vendor=mysql`.
+it uses the MySQL migrations, so set `quarkword.persistence.migration-vendor=mysql`.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.persistence.migration-vendor` | the datasource's db-kind | folder of vendor migrations: `postgresql` or `mysql` (build time) |
-| `quarkpress.main-site-id` | `1` | the site every request belongs to without the multisite module (run time) |
-| `quarkpress.multisite.enabled` | `false` | set by the multisite module; turns off the single-site resolver (build time) |
+| `quarkword.persistence.migration-vendor` | the datasource's db-kind | folder of vendor migrations: `postgresql` or `mysql` (build time) |
+| `quarkword.main-site-id` | `1` | the site every request belongs to without the multisite module (run time) |
+| `quarkword.multisite.enabled` | `false` | set by the multisite module; turns off the single-site resolver (build time) |
 
-The `quarkpress.*` namespace is reserved: a key under it that no module declares fails the start (environment variables and `.env` entries are not checked). Application settings
+The `quarkword.*` namespace is reserved: a key under it that no module declares fails the start (environment variables and `.env` entries are not checked). Application settings
 use their own prefix.
 
-Without the multisite module the application does not start unless the main site's row exists in `qp_site`; the
+Without the multisite module the application does not start unless the main site's row exists in `qw_site`; the
 migrations create site 1 (`localhost`, `/`).
 
 ## Running beside your application
 
-QuarkPress can share your application's database. Checklist for the application:
+QuarkWord can share your application's database. Checklist for the application:
 
 1. **Packages.** Attach your own entities to your persistence unit with `quarkus.hibernate-orm.packages=<your
-   packages>`; QuarkPress's unit claims `org.quarkpress`.
-2. **Own datasource.** Set `quarkus.datasource."quarkpress".*`. It may reuse your JDBC URL and credentials, for example
-   `quarkus.datasource."quarkpress".jdbc.url=${quarkus.datasource.jdbc.url}`; turn its Dev Services off
-   (`quarkus.datasource."quarkpress".devservices.enabled=false`) when it should use your dev database. Its connections
+   packages>`; QuarkWord's unit claims `org.quarkword`.
+2. **Own datasource.** Set `quarkus.datasource."quarkword".*`. It may reuse your JDBC URL and credentials, for example
+   `quarkus.datasource."quarkword".jdbc.url=${quarkus.datasource.jdbc.url}`; turn its Dev Services off
+   (`quarkus.datasource."quarkword".devservices.enabled=false`) when it should use your dev database. Its connections
    read committed data (see "Configuration"); your own datasource keeps its own isolation level, and on MySQL the
    server's `binlog_format` must be `ROW` or `MIXED`.
 3. **Flyway baseline on both sides.** The two Flyway runs happen in an order you cannot control, and whichever runs
-   second finds a non-empty schema. QuarkPress already ships `baseline-on-migrate=true` and `baseline-version=0` for
+   second finds a non-empty schema. QuarkWord already ships `baseline-on-migrate=true` and `baseline-version=0` for
    its own Flyway; set `quarkus.flyway.baseline-on-migrate=true` and `quarkus.flyway.baseline-version=0` on yours. Your
-   Flyway keeps scanning `db/migration`; QuarkPress's migrations live under `db/quarkpress` with their own history
+   Flyway keeps scanning `db/migration`; QuarkWord's migrations live under `db/quarkword` with their own history
    table.
 4. **JSON columns and a customized `ObjectMapper`.** If your application customizes its `ObjectMapper` and its own
    entities have JSON columns, Quarkus refuses to start your persistence unit until you either provide a
    `@JsonFormat @PersistenceUnitExtension` `FormatMapper` for your default unit or set
-   `quarkus.hibernate-orm.mapping.format.global=ignore`. This is a Quarkus rule; QuarkPress's unit is not affected.
-   Never change the global format setting to make QuarkPress's unit work: it has its own mapper.
-5. **MariaDB.** Set `quarkpress.persistence.migration-vendor=mysql`.
-6. **Configuration prefix.** Keep your own settings out of `quarkpress.*`.
-7. **Access.** Never read or write `qp_` tables directly; use QuarkPress services and events. See "Limits for
+   `quarkus.hibernate-orm.mapping.format.global=ignore`. This is a Quarkus rule; QuarkWord's unit is not affected.
+   Never change the global format setting to make QuarkWord's unit work: it has its own mapper.
+5. **MariaDB.** Set `quarkword.persistence.migration-vendor=mysql`.
+6. **Configuration prefix.** Keep your own settings out of `quarkword.*`.
+7. **Access.** Never read or write `qw_` tables directly; use QuarkWord services and events. See "Limits for
    application code".
 
 ## Site isolation
 
 Every site-scoped row carries `site_id`. Two mechanisms keep sites apart:
 
-- **An always-enabled Hibernate filter** (`qp_site`) limits queries, loads by id and filtered collections to the
+- **An always-enabled Hibernate filter** (`qw_site`) limits queries, loads by id and filtered collections to the
   current site. The network scope passes `-1` and sees every site; an unresolved binding passes `0` and sees nothing.
   A thread without a request context fails instead of seeing any site.
 - **A stamping listener** stamps inserts with the current site and refuses an insert for another site. Updates and
@@ -116,7 +116,7 @@ What the filter and the listener cannot see is closed by configuration and by bu
   fails the build, and so does `@Cacheable` or `@Cache` on a site-scoped entity.
 - **`StatelessSession` is banned** for the unit: an update of a detached object whose id was swapped bypasses the
   stored-site snapshot, and stateless DML is not filtered by site. Injecting one (also as `Instance` or `Provider`)
-  for the `quarkpress` unit fails the build anywhere in the application.
+  for the `quarkword` unit fails the build anywhere in the application.
 - HQL bulk `update` and `delete` statements are not seen by the listener; each one names the site (see "Rules for
   module authors").
 
@@ -126,11 +126,11 @@ key. `@ManyToMany` between site-scoped entities, and associations to site-scoped
 embeddables or as unidirectional one-to-many, fail the build. Removals are not checked, so rows that point across sites
 can be cleaned up.
 
-### Build checks of QuarkPress classes
+### Build checks of QuarkWord classes
 
-The build reads the bytecode and mapping annotations of every class in an `org.quarkpress` package and fails when one:
+The build reads the bytecode and mapping annotations of every class in an `org.quarkword` package and fails when one:
 
-- maps a site-scoped entity, or a collection of site-scoped elements, without `@Filter(name = "qp_site")`;
+- maps a site-scoped entity, or a collection of site-scoped elements, without `@Filter(name = "qw_site")`;
 - runs native SQL (`createNativeQuery` and its variants, JDBC `prepareStatement`, `prepareCall`, `execute*`,
   `addBatch`, or the Vert.x SQL client) while holding a string that names a site-scoped table, unless the class is
   annotated `@SiteScopedNativeSql`; SQL in `@NamedNativeQuery`, `@Formula`, `@Subselect`, `@SQLInsert` and similar
@@ -152,7 +152,7 @@ binds explicitly:
 - `SiteScope.run(siteId, work)` / `call(siteId, work)` runs work for one site; inside it, `SiteContext` answers for
   that site and queries see only its rows.
 - `NetworkScope.run(work)` / `call(work)` runs work across all sites: queries see every site's rows, and inserts of
-  site rows must name their site. It is reserved for QuarkPress's multisite, security and scheduling modules and for
+  site rows must name their site. It is reserved for QuarkWord's multisite, security and scheduling modules and for
   callers that a `NetworkScopePolicy` bean allows; anyone else gets a `SecurityException`. This rule guards against
   mistakes; it is not a security boundary.
 
@@ -184,11 +184,11 @@ binding other code can see.
 
 `Options` writes the current site's options (`SiteContext.options()` reads them, through the request cache);
 `NetworkOptions` reads and writes network options; `FeatureToggles` switches features per site or as network
-defaults. Site options and network options live in separate tables (`qp_option`, `qp_network_option`).
+defaults. Site options and network options live in separate tables (`qw_option`, `qw_network_option`).
 
 ### Behaviour compared with WordPress
 
-| QuarkPress | WordPress | Behaviour |
+| QuarkWord | WordPress | Behaviour |
 |---|---|---|
 | `Options.set(name, value)` | `update_option` | creates (autoloaded) or changes the value; returns whether the value changed. An unchanged value returns false and writes nothing |
 | `Options.set(name, value, autoload)` | `update_option` with autoload | a new option, or an existing one whose value changes, takes `autoload`. An unchanged value returns false and keeps the flag |
@@ -198,8 +198,8 @@ defaults. Site options and network options live in separate tables (`qp_option`,
 
 - **Names** are PHP-trimmed (space, tab, line feed, carriage return, NUL, vertical tab); an empty name and `"0"` are
   refused, as WordPress refuses them. Names hold at most 191 characters (code points, the same limit on both
-  databases), no NUL inside and no unpaired surrogate. `Options` refuses to write names starting with `qp_`: they are
-  reserved for QuarkPress's modules, which keep state there (`qp_features`, the security module's `qp_user_roles`) and
+  databases), no NUL inside and no unpaired surrogate. `Options` refuses to write names starting with `qw_`: they are
+  reserved for QuarkWord's modules, which keep state there (`qw_features`, the security module's `qw_user_roles`) and
   write it through their own services, so no caller of `Options` can replace it. WordPress's `update_option` writes
   any name, including its own `wp_user_roles`.
 - **Change detection** compares numbers by value (`1`, `1.0` and `1L` are the same) and object keys **in order**:
@@ -216,7 +216,7 @@ defaults. Site options and network options live in separate tables (`qp_option`,
   context can still see a value that is one commit stale; no other request and no other site is exposed to it.
 - **Concurrent writes.** Concurrent writes of one option never fail on its unique key: of several concurrent `add`
   calls exactly one returns true, and concurrent `set` calls apply one after the other. Writes lock the option's row,
-  never the site's row; network option writes serialize on the `qp_network_lock` row (migration `V1_004`). A
+  never the site's row; network option writes serialize on the `qw_network_lock` row (migration `V1_004`). A
   transaction that takes that lock waits at most 10 seconds for any lock from then on (PostgreSQL `lock_timeout`,
   MySQL `innodb_lock_wait_timeout`), then fails with a lock timeout and rolls back. An option write for a site other
   than the one the request is bound to is refused, as for any site-scoped row (the network scope may write any site's
@@ -244,26 +244,26 @@ Values are JSON (`JsonNode`) and must be storable the same way on both databases
 Values keep their text: PostgreSQL stores them as `json` and MySQL as `longtext` checked with `json_valid`, so object
 keys keep their insertion order on both. This deviates from the original design, which planned `jsonb` on PostgreSQL and
 `json` on MySQL: both of those reorder object keys. The cost is that values cannot use `jsonb` operators or indexes;
-QuarkPress compares values only by equality. Decimals read back as `BigDecimal` (trailing zeros kept), integers as
+QuarkWord compares values only by equality. Decimals read back as `BigDecimal` (trailing zeros kept), integers as
 int or long nodes, so a value reads back the same on both databases.
 
 ### Name collation
 
 Option names compare case- and accent-sensitively on both databases (`utf8mb4_bin` on MySQL, the default
 deterministic collation on PostgreSQL): `blogname` and `BlogName` are two options. WordPress's MySQL tables use
-`utf8mb4_unicode_520_ci`, where they would be the same option; QuarkPress deliberately differs so both databases
+`utf8mb4_unicode_520_ci`, where they would be the same option; QuarkWord deliberately differs so both databases
 answer alike. Names reach the database already trimmed, and a name with surrounding whitespace is refused before any
 query, so MySQL's trailing-space comparison never matches `"foo "` with `"foo"`.
 
 ## Feature switches
 
 `FeatureToggles.setForSite` / `clearForSite` change the current site's switch (stored in the site option
-`qp_features`) and fire `SiteFeatureToggled` when the site's effective value changes. `setNetworkDefault` /
-`clearNetworkDefault` change the network default (network option `qp_feature_defaults`) and fire
+`qw_features`) and fire `SiteFeatureToggled` when the site's effective value changes. `setNetworkDefault` /
+`clearNetworkDefault` change the network default (network option `qw_feature_defaults`) and fire
 `NetworkOptionChanged`. Unknown keys are refused with `IllegalArgumentException`. An observer that throws rolls the
 change back, whatever the exception type.
 
-A change locks the stored switches (the `qp_features` option, or the `qp_feature_defaults` network option); a first
+A change locks the stored switches (the `qw_features` option, or the `qw_feature_defaults` network option); a first
 change inserts the option only if it is still missing, so concurrent first changes of different keys keep both. The effective values before and after a site change are computed from the stored switches, not from the
 request's cached feature values. Stored members that are not booleans, and a stored value that is not an object, are
 ignored.
@@ -275,28 +275,28 @@ next request.
 
 ## Limits for application code
 
-QuarkPress checks its own classes (`org.quarkpress` packages) at build time. **Application code outside those packages
+QuarkWord checks its own classes (`org.quarkword` packages) at build time. **Application code outside those packages
 is not scanned**, so it must not:
 
-- run native SQL or JDBC on `qp_` tables: the site filter does not see native SQL;
-- open a `StatelessSession` for the `quarkpress` unit (`SessionFactory.openStatelessSession()` and similar). Injecting
+- run native SQL or JDBC on `qw_` tables: the site filter does not see native SQL;
+- open a `StatelessSession` for the `quarkword` unit (`SessionFactory.openStatelessSession()` and similar). Injecting
   one fails the build everywhere, but opening one from the session factory is not detected;
-- call `disableFilter("qp_site")` or `enableFilter("qp_site")` (or change its parameter);
-- write HQL `insert` statements into QuarkPress entities, or assignments to `siteId`;
-- run bulk `update` or `delete` statements on QuarkPress entities without a site condition (the listener does not see
+- call `disableFilter("qw_site")` or `enableFilter("qw_site")` (or change its parameter);
+- write HQL `insert` statements into QuarkWord entities, or assignments to `siteId`;
+- run bulk `update` or `delete` statements on QuarkWord entities without a site condition (the listener does not see
   them);
-- turn the second-level or query cache back on for the `quarkpress` unit (the build fails for the settings QuarkPress
-  knows) or keep references to QuarkPress entities across requests or scopes for different sites;
+- turn the second-level or query cache back on for the `quarkword` unit (the build fails for the settings QuarkWord
+  knows) or keep references to QuarkWord entities across requests or scopes for different sites;
 - call `SiteBinding.bind`, in particular with `Binding.NETWORK`: that is `NetworkScope` without its caller rule.
 
 Rows that application code loads around the filter still cannot be written from another site: writes are compared
 with the site the row was loaded with.
 
-The build checks of QuarkPress classes guard against mistakes, not against deliberate evasion. They do not see:
+The build checks of QuarkWord classes guard against mistakes, not against deliberate evasion. They do not see:
 
 - SQL held in a non-final or computed static field, or in a field of another class that is not a compile-time
   constant;
-- table names built at run time (`"qp_" + suffix`, `String.format` with a variable);
+- table names built at run time (`"qw_" + suffix`, `String.format` with a variable);
 - HQL attribute names held in variables (`"set o." + field + " = :v"`) and criteria paths built from variables;
 - reflection and method handles looked up by name (for example the `NETWORK` field, `SiteBinding.bind` or
   `Session.disableFilter` invoked reflectively);
@@ -315,7 +315,7 @@ string cannot be traced counts every string of its method, so it fails the build
   filter. Every HQL bulk `update`/`delete` on a site-scoped entity names the site, and each such statement gets a guard
   test on both databases: the listener does not see bulk statements.
 - No HQL `insert` into site-scoped entities, no assignments to `siteId`, no `disableFilter`/`enableFilter` of the site
-  filter and no `StatelessSession` in QuarkPress classes; the build rejects them.
+  filter and no `StatelessSession` in QuarkWord classes; the build rejects them.
 - Native SQL on a site-scoped table only in classes annotated `@SiteScopedNativeSql`, taking the site explicitly.
   Declare new site-scoped tables with `SiteScopedTableBuildItem`.
 - Every foreign key from a site-scoped table to another site-scoped table is composite and includes the site:
@@ -324,12 +324,12 @@ string cannot be traced counts every string of its method, so it fails the build
   another site's row, on both databases and whatever the application code does. The entity may keep mapping the
   association by id alone.
 - Inserts in the network scope name their site (`assignSite`).
-- Every `site_id` foreign key to `qp_site` is `on delete cascade`, and so is every composite key between site-scoped
+- Every `site_id` foreign key to `qw_site` is `on delete cascade`, and so is every composite key between site-scoped
   tables, so deleting a site removes its rows.
 - Map associations between site-scoped entities on fields, never with `@ManyToMany`.
-- Never lock a site's `qp_site` row: a transaction that inserted rows of that site holds a shared lock on it, so a lock
-  on it waits for, or deadlocks with, such transactions. QuarkPress's own writes never lock it; network writes serialize
-  on the `qp_network_lock` row and change site rows under their version.
+- Never lock a site's `qw_site` row: a transaction that inserted rows of that site holds a shared lock on it, so a lock
+  on it waits for, or deadlocks with, such transactions. QuarkWord's own writes never lock it; network writes serialize
+  on the `qw_network_lock` row and change site rows under their version.
 - A failed network write (a lock timeout included) marks its transaction rollback-only: a caller that catches the
   failure inside its own network transaction cannot go on writing without the network lock. A module's own network
   write does the same with `NetworkLockRepository.failWrite` when it fails after taking the lock.
@@ -346,11 +346,11 @@ string cannot be traced counts every string of its method, so it fails the build
   tenant parameter is bound as text). It is worth re-evaluating when Quarkus supports numeric tenant ids; it would
   replace only `SiteScopedEntity`, its parameter supplier and the listener, since every query already goes through
   `TenantIds.param`.
-- A named datasource and persistence unit `quarkpress`, with defaults shipped in the extension, so QuarkPress never
+- A named datasource and persistence unit `quarkword`, with defaults shipped in the extension, so QuarkWord never
   takes over the application's default unit.
 - Sites, the site context, the site filter and the single-site resolver live in core and persistence; multisite adds
   domains and resolver strategies.
-- Migrations under `db/quarkpress/{common,postgresql,mysql}`, one version band per module, run out of order.
+- Migrations under `db/quarkword/{common,postgresql,mysql}`, one version band per module, run out of order.
 - Site options and network options in separate tables.
 - Option values in text-preserving JSON columns (`json` / `longtext`), so key order survives.
 - Blocking Hibernate ORM with Panache repositories.

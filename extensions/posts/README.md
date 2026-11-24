@@ -1,6 +1,6 @@
-# QuarkPress Posts
+# QuarkWord Posts
 
-WordPress posts for QuarkPress: post types and statuses, saving with WordPress's rules (slugs, dates, sanitizing,
+WordPress posts for QuarkWord: post types and statuses, saving with WordPress's rules (slugs, dates, sanitizing,
 hierarchy, trash, sticky posts), post meta and queries. It requires the persistence and security modules and works on
 a single site and in a network.
 
@@ -8,13 +8,13 @@ a single site and in a network.
 
 ```xml
 <dependency>
-  <groupId>org.quarkpress</groupId>
-  <artifactId>quarkpress-posts</artifactId>
+  <groupId>org.quarkword</groupId>
+  <artifactId>quarkword-posts</artifactId>
 </dependency>
 ```
 
-The extension brings `quarkpress-persistence`, `quarkpress-security`, `quarkpress-lib-wp-kses` and
-`quarkpress-lib-wp-blocks`. Public API lives in `org.quarkpress.posts`; `org.quarkpress.posts.runtime` is
+The extension brings `quarkword-persistence`, `quarkword-security`, `quarkword-lib-wp-kses` and
+`quarkword-lib-wp-blocks`. Public API lives in `org.quarkword.posts`; `org.quarkword.posts.runtime` is
 implementation and may change.
 
 ## Using it
@@ -45,11 +45,11 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   the site's post lock; `sanitize(post, key, value)` answers the value such a write would store (the sanitizer
   for the caller, the storable check) without writing, for autosaves. Built in: `wp_pattern_sync_status` for `wp_block` and `footnotes` for every type shown in REST
   that supports `editor`, `custom-fields` and `revisions`, decided once at startup after every type is registered
-  (WordPress decides at `init` priority 20 and misses types registered later; QuarkPress has no late types, so there
+  (WordPress decides at `init` priority 20 and misses types registered later; QuarkWord has no late types, so there
   is no difference to record). Extensions register keys with `MetaKeyProvider` beans.
 - `PostLocks` is the editor's post lock, WordPress's `_edit_lock` (`"<epoch seconds>:<user id>"`): `holder(post,
   acting)` answers the user whose fresh lock keeps `acting` out (a lock is fresh while its time is strictly later than
-  now minus `quarkpress.posts.lock-window`; the acting user's own lock never counts, the holder must be an existing
+  now minus `quarkword.posts.lock-window`; the acting user's own lock never counts, the holder must be an existing
   user, and a value without user part names the post's `_edit_last`); `take` and `refresh` set the lock to the caller
   unless another user holds a fresh one, which they report as `Held` without writing (an absent or expired lock is
   taken again even if it was another user's, as the heartbeat does); `takeOver` sets it whatever is stored; `release`
@@ -57,17 +57,17 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   (`"<now - window + 5>:<caller>"`), answering whether it changed; `current` reads the stored value. The system
   identity cannot hold a lock. Besides the REST API's lock routes, which serve the lock itself, only the revisions
   module's autosave branch reads locks; every other read and write ignores them, as WordPress's REST API does.
-- `PreviewTokens` is QuarkPress's counterpart of the nonce in a WordPress preview link, computed and never stored:
+- `PreviewTokens` is QuarkWord's counterpart of the nonce in a WordPress preview link, computed and never stored:
   `issue(post, user)` (the caller must be `user` and hold `edit_post`) answers the base64url text (27 characters) of the
   first 20 bytes of HMAC-SHA256 over `preview|<site>|<post>|<user>|<tick>` with the site's secret, where the tick is the
-  current time divided by half of `quarkpress.posts.preview-lifetime`; the same token is answered for a whole tick.
+  current time divided by half of `quarkword.posts.preview-lifetime`; the same token is answered for a whole tick.
   `verify(post, token, viewer)` recomputes it for the current and the previous tick (so a link is valid for at least
   the lifetime and at most twice as long, 12–24 h by default, as WordPress's nonces are), compares in constant time and
   requires that `viewer` holds `edit_post` on the post now. The secret is 32 random bytes kept in the site's option
-  `quarkpress_preview_secret` (base64, not autoloaded, not a registered setting, never exposed through REST), created
+  `quarkword_preview_secret` (base64, not autoloaded, not a registered setting, never exposed through REST), created
   with the site, in the transaction of `SiteCreated`; on a site without one (created before this module, or whose
   option was deleted) the first issued token creates it under the site's write lock; `verify` creates none. The secret
-  per site is QuarkPress's own: WordPress's nonces use network-wide salts, constants its installer writes into
+  per site is QuarkWord's own: WordPress's nonces use network-wide salts, constants its installer writes into
   `wp-config.php`, with a network option that `wp_salt` creates when one is missing; creating a WordPress site writes
   none. Deleting the option revokes every
   preview link of the site, and a malformed value refuses every preview with `IllegalStateException` until it is deleted.
@@ -78,7 +78,7 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   behind WordPress's unlock nonce: `issue(post, user, lockValue)` (caller = `user`, `edit_post`) binds a token to the
   post, the user and the stored lock value, and `consume(post, user, token, lockValue)` (caller = `user`)
   answers true once for a matching, unexpired token and deletes it either way, so a token presented with another lock
-  value is gone too. Both kinds live for `quarkpress.posts.preview-lifetime` and are stored as SHA-256 hashes only; every
+  value is gone too. Both kinds live for `quarkword.posts.preview-lifetime` and are stored as SHA-256 hashes only; every
   lookup names the site and the kind (and, for release tokens, the post and the user), so a token of one kind is never
   found as another.
 - `FeaturedImages` (`_thumbnail_id`) and `PageTemplates` (`_wp_page_template`) read and write the two internal meta
@@ -303,10 +303,10 @@ not), never null; one that throws stops the call.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `quarkpress.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. A negative value keeps the trash on here, as WordPress's constant does, while the REST API, which trashes only with a positive value, answers a delete without `force` with 501 before anything is trashed. |
-| `quarkpress.posts.lock-window` | `150s` | WordPress's `wp_check_post_lock_window`: how long an editor's post lock stays fresh after it was taken or refreshed. |
-| `quarkpress.posts.preview-lifetime` | `12h` | How long a preview session and a lock release token live, and the span of a preview token: the token changes every half of this duration and stays valid for the half it was issued in and the one after (at least the lifetime, at most twice as long), as WordPress's nonce lifetime does. |
-| `quarkpress.posts.preview-sessions` | `10` | How many preview sessions a user keeps open on a site: opening one more closes the user's oldest ones there (a value below 1 counts as 1). |
+| `quarkword.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. A negative value keeps the trash on here, as WordPress's constant does, while the REST API, which trashes only with a positive value, answers a delete without `force` with 501 before anything is trashed. |
+| `quarkword.posts.lock-window` | `150s` | WordPress's `wp_check_post_lock_window`: how long an editor's post lock stays fresh after it was taken or refreshed. |
+| `quarkword.posts.preview-lifetime` | `12h` | How long a preview session and a lock release token live, and the span of a preview token: the token changes every half of this duration and stays valid for the half it was issued in and the one after (at least the lifetime, at most twice as long), as WordPress's nonce lifetime does. |
+| `quarkword.posts.preview-sessions` | `10` | How many preview sessions a user keeps open on a site: opening one more closes the user's oldest ones there (a value below 1 counts as 1). |
 
 The module also reads the site options WordPress's post code reads: `default_comment_status`, `default_ping_status`,
 `posts_per_page`, `permalink_structure`, `show_on_front`, `page_on_front`, `page_for_posts` and
@@ -315,16 +315,16 @@ README) and the site's address, which guids are built on.
 
 ## Storage
 
-`qp_post` holds every post of every site (ids are unique across the network), with its meta as a JSON object of key
+`qw_post` holds every post of every site (ids are unique across the network), with its meta as a JSON object of key
 to list of values, and its stickiness as a column. The parent reference is the composite key `(site_id, parent_id)`,
-so a post can only have a parent of its own site. `qp_post_lock` holds one row per site, which post writes lock (see
-[Locks](#locks)). `qp_post_token` holds the preview sessions and the one-time lock release tokens of every site as
+so a post can only have a parent of its own site. `qw_post_lock` holds one row per site, which post writes lock (see
+[Locks](#locks)). `qw_post_token` holds the preview sessions and the one-time lock release tokens of every site as
 SHA-256 hashes (unique per site), with the release tokens following their post through the composite key
 `(site_id, post_id)`; expired rows are deleted, at most 500 at a time, when a session is opened or a release token is
-issued, and opening a session closes the user's sessions on the site beyond `quarkpress.posts.preview-sessions`. A
+issued, and opening a session closes the user's sessions on the site beyond `quarkword.posts.preview-sessions`. A
 token row's user has no foreign key: the sessions of a deleted profile stay until they expire, naming nobody (the
 preview page then has an anonymous viewer, and every token check reads the user's rights again). Preview tokens are
-computed from the site's `quarkpress_preview_secret` option and have no row. The module's migrations are the `V4_*`
+computed from the site's `quarkword_preview_secret` option and have no row. The module's migrations are the `V4_*`
 band.
 
 ### Locks
@@ -409,15 +409,15 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D13 | No pingback or enclosure markers (`_pingme`, `_encloseme`) are written, and nothing about comments happens yet (deleting a post deletes no comments). |
 | D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` (the taxonomy module assigns terms after the save) and `meta_input` are not stored; global styles are not filtered on save. |
 | D15 | `PostMeta` checks `edit_post` for meta writes, as WordPress's REST API maps the post meta capabilities; protected keys (leading `_`) are written only by the system identity through `PostMeta`, and through `RegisteredMeta` only when the key's auth allows the caller (WordPress's `auth_post_meta_{key}` filter, which `RegisteredMeta` applies together with `edit_post`); meta values are JSON values, so numbers and booleans keep their types. The meta capability names themselves (`edit_post_meta`, `add_post_meta`, `delete_post_meta`) are not mapped for direct checks. |
-| D16 | The trash purge, the auto-draft purge and scheduled publishing are the scheduling module's jobs (`quarkpress-scheduling`: a poll every `quarkpress.scheduling.interval`, housekeeping every `quarkpress.scheduling.housekeeping-interval`, both gated per site by its `scheduling` feature); without that module nothing publishes a due post (`publishIfDue` and `publish` do it when called) and nothing empties the trash after `empty-trash-days`. WordPress runs the three from its page-load cron. |
+| D16 | The trash purge, the auto-draft purge and scheduled publishing are the scheduling module's jobs (`quarkword-scheduling`: a poll every `quarkword.scheduling.interval`, housekeeping every `quarkword.scheduling.housekeeping-interval`, both gated per site by its `scheduling` feature); without that module nothing publishes a due post (`publishIfDue` and `publish` do it when called) and nothing empties the trash after `empty-trash-days`. WordPress runs the three from its page-load cron. |
 | D17 | Queries leave out calendar arguments other than date conditions, `rand`, `comment_count`, meta and taxonomy queries; ties are broken by id (WordPress leaves them in database order); when every ordering key is skipped the query orders newest first (WordPress orders nothing when the keys come as a list); statuses other than `publish` need `edit_posts`, and such a query by a caller other than the system identity leaves out the posts the caller may not read, with `found` counting only what it returns (`WP_Query` returns and counts them; the REST API drops them item by item but still counts them in `X-WP-Total`); without statuses the system identity counts as logged out. |
 | D18 | Post writes of one site are serialized; WordPress lets concurrent saves race (two saves of one title can get the same slug). |
 | D19 | An operation on a missing post, or a post of another site, throws `invalid_post` (as the REST API answers): `trash`, `untrash`, `delete`, `publish`, `publishIfDue`, `stick`, `unstick`, `ancestors`, `uri` and the `PostMeta` calls. WordPress's functions return null (`wp_trash_post`, `wp_untrash_post`, `wp_delete_post`), false (`get_page_uri`) or an empty list (`get_post_ancestors`), do nothing (`wp_publish_post`, `check_and_publish_future_post`, `unstick_post`) or add the id to the sticky list (`stick_post`); its meta functions read and write meta rows for the missing id. `find` returns empty. |
 | D20 | Save-time sanitizing inherits the kses and blocks libraries' differences: block attributes that lib-wp-blocks re-serializes differently (its D10–D13, reaching kses through lib-wp-kses #7) and a block attribute holding `<` (lib-wp-kses #11). Tier A's save parity labels those inputs with the library differences. |
-| D21 | A meta key is protected when its first printable-ASCII character is `_` after skipping every other leading character; WordPress strips bytes that are neither printable ASCII nor Latin-1 letters, so some keys with a leading non-ASCII character (`é_x`, U+200B then `_secret`) are protected here and not there. QuarkPress errs toward protecting. |
+| D21 | A meta key is protected when its first printable-ASCII character is `_` after skipping every other leading character; WordPress strips bytes that are neither printable ASCII nor Latin-1 letters, so some keys with a leading non-ASCII character (`é_x`, U+200B then `_secret`) are protected here and not there. QuarkWord errs toward protecting. |
 | D22 | Post meta values are matched exactly (stored JSON values) when updating or deleting by value; WordPress compares text with the database collation, case-insensitively on its default MySQL collation. `PostMeta` has no `prev_value` on update, and an empty key does not read every key (`all` does). |
 | D23 | An author of `0` (no author) is accepted from a caller holding the type's `edit_others_posts`; WordPress's REST layer refuses it as an invalid author. |
-| D24 | When breaking a parent loop re-parents another post and that change is refused (possible only with a loop made outside QuarkPress), the whole save fails and changes nothing; WordPress ignores the refused change and saves the post. |
+| D24 | When breaking a parent loop re-parents another post and that change is refused (possible only with a loop made outside QuarkWord), the whole save fails and changes nothing; WordPress ignores the refused change and saves the post. |
 | D25 | A trash that fails or is refused changes nothing; WordPress, which has no transaction, keeps the trash meta, the unstick and the reset reading settings it wrote before the failure. |
 | D26 | Without the media module, deleting an attachment leaves other posts' `_thumbnail_id`; with it they are removed. A sticky attachment (possible only after a type change) is unstuck with a `StickyChanged` event, which WordPress's attachment path does not send. |
 | D27 | A single-post query whose post the caller may not see reports `found` 0; WordPress counts it (1) and returns no post. |
@@ -428,9 +428,9 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D32 | `PostQueryFilter`s (`pre_get_posts`) do not run on the fetch of the sticky posts that `stickyFirst` adds; WordPress runs them on that inner query. |
 | D33 | `stickyFirst` stays on for a query with only paging arguments while the site shows a static front page; WordPress answers that query with the static front page itself (and so with no sticky posts). `types` has no one-element list form: one type with an archive always counts as that type's archive (no sticky posts first), as WordPress's `post_type => 'book'` does, where `post_type => ['book']` keeps them. |
 | D34 | The system identity holds every capability but `unfiltered_html`, the type's publish capability included, so a pending post it saves keeps its typed slug; WordPress's user 0 can publish nothing, so its pending posts lose the typed slug. |
-| D35 | With the media module, only attachments of an image type can be featured images; any other attachment removes the featured image, as WordPress does. Without it, any attachment counts as an image. `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkPress's window. |
-| D36 | Preview links carry a computed token: HMAC-SHA256 over the site, the post, the user and a tick of half `quarkpress.posts.preview-lifetime` with a per-site secret (`quarkpress_preview_secret`), valid for the current and the previous tick and only for the user it was issued to, who must hold `edit_post` now. WordPress's `preview_nonce` (10 hexadecimal characters) is derived from the action `post_preview_{id}`, the user id, the user's login session token and a tick of half the nonce life (one day by default), and is likewise valid for the current and the previous tick, 12 to 24 hours; QuarkPress's token has no session token in its message, so logging out does not revoke a token by itself (the preview session's user still has to be the token's user and hold `edit_post` now), while deleting the option revokes every link of the site at once, which WordPress has no counterpart for. |
-| D37 | The preview page's viewer comes from a QuarkPress preview session (`PreviewSessions`, a random token stored as a hash and bound to the site) rather than WordPress's login cookie, and the editor's unlock nonce is a one-time `LockReleaseTokens` token bound to the post, the user and the lock value, consumed on first use whatever the outcome; WordPress's unlock nonce (`update-post_{id}`) is an ordinary nonce, reusable any number of times within its 12 to 24 hours and not bound to a lock value (the release itself compares the stored lock with the value sent). |
+| D35 | With the media module, only attachments of an image type can be featured images; any other attachment removes the featured image, as WordPress does. Without it, any attachment counts as an image. `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkWord's window. |
+| D36 | Preview links carry a computed token: HMAC-SHA256 over the site, the post, the user and a tick of half `quarkword.posts.preview-lifetime` with a per-site secret (`quarkword_preview_secret`), valid for the current and the previous tick and only for the user it was issued to, who must hold `edit_post` now. WordPress's `preview_nonce` (10 hexadecimal characters) is derived from the action `post_preview_{id}`, the user id, the user's login session token and a tick of half the nonce life (one day by default), and is likewise valid for the current and the previous tick, 12 to 24 hours; QuarkWord's token has no session token in its message, so logging out does not revoke a token by itself (the preview session's user still has to be the token's user and hold `edit_post` now), while deleting the option revokes every link of the site at once, which WordPress has no counterpart for. |
+| D37 | The preview page's viewer comes from a QuarkWord preview session (`PreviewSessions`, a random token stored as a hash and bound to the site) rather than WordPress's login cookie, and the editor's unlock nonce is a one-time `LockReleaseTokens` token bound to the post, the user and the lock value, consumed on first use whatever the outcome; WordPress's unlock nonce (`update-post_{id}`) is an ordinary nonce, reusable any number of times within its 12 to 24 hours and not bound to a lock value (the release itself compares the stored lock with the value sent). |
 
 The parity tests (`-Pwp-parity`) compare slugs, slug truncation, keys, post type and status registration, local and
 GMT date conversions, the save filters of titles, content and excerpts, and the search tokenizer with WordPress

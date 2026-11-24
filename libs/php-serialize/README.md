@@ -1,4 +1,4 @@
-# quarkpress-lib-php-serialize
+# quarkword-lib-php-serialize
 
 A plain-Java reader and writer for the PHP `serialize()` format, plus WordPress's helpers around it
 (`maybe_serialize`, `maybe_unserialize`, `is_serialized`, `is_serialized_string`). Zero runtime
@@ -14,9 +14,9 @@ and write them back the way PHP writes them.
 <dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress</groupId>
-      <artifactId>quarkpress-bom</artifactId>
-      <version>${quarkpress.version}</version>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-bom</artifactId>
+      <version>${quarkword.version}</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -24,8 +24,8 @@ and write them back the way PHP writes them.
 </dependencyManagement>
 
 <dependency>
-  <groupId>org.quarkpress.lib</groupId>
-  <artifactId>quarkpress-lib-php-serialize</artifactId>
+  <groupId>org.quarkword.lib</groupId>
+  <artifactId>quarkword-lib-php-serialize</artifactId>
 </dependency>
 ```
 
@@ -153,7 +153,7 @@ Floats created in Java are written as PHP's `serialize()` writes the same double
 Checked by the `wp-parity` profile against PHP 8.4 and WordPress 7.1.3; each is listed in
 `src/test/resources/wp-parity-skip.txt` with its audit item.
 
-| Item | QuarkPress | PHP / WordPress | Reason |
+| Item | QuarkWord | PHP / WordPress | Reason |
 |---|---|---|---|
 | #23 | an enum is data: `E:9:"Foo:Hello";` parses to `PhpEnum` | fails (WordPress returns `false`) when the enum class or case does not exist | no class registry |
 | #24 | `C:` payloads are kept as `PhpCustomObject`; unknown classes stay `PhpObject` | builds `__PHP_Incomplete_Class` and drops a `C:` payload | classes are never looked up (like `allowed_classes => false`, without losing data) |
@@ -174,7 +174,7 @@ and a few thousand generated inputs, and compares every result with this library
 ## Source policy
 
 WordPress PHP is read to understand behaviour and is run as a test oracle; it is never copied into
-this library (QUARKPRESS-SPEC.md §13).
+this library (QUARKWORD-SPEC.md §13).
 
 ## Licence
 

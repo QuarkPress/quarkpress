@@ -1,0 +1,179 @@
+package org.quarkword.posts.runtime;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
+import jakarta.inject.Inject;
+import java.time.Instant;
+import java.util.Optional;
+import org.quarkword.core.PostId;
+import org.quarkword.core.SiteId;
+import org.quarkword.persistence.runtime.OptionTransactions;
+import org.quarkword.posts.AttachmentAdded;
+import org.quarkword.posts.AttachmentEdited;
+import org.quarkword.posts.PostCreated;
+import org.quarkword.posts.PostDeleted;
+import org.quarkword.posts.PostDeleting;
+import org.quarkword.posts.PostPublished;
+import org.quarkword.posts.PostRestored;
+import org.quarkword.posts.PostSaved;
+import org.quarkword.posts.PostScheduled;
+import org.quarkword.posts.PostSnapshot;
+import org.quarkword.posts.PostStatusChanged;
+import org.quarkword.posts.PostTrashed;
+import org.quarkword.posts.PostTypes;
+import org.quarkword.posts.PostUpdated;
+import org.quarkword.posts.StickyChanged;
+
+/**
+ * Fires the events of a save in WordPress's order: the status transition, published or scheduled, updated (updates
+ * that announce it), saved, then created (inserts). Published and scheduled are fired only for registered types. An
+ * attachment's save fires none of these events but the attachment's own, as WordPress does: {@link AttachmentAdded}
+ * when it is created, {@link AttachmentEdited} when it is updated; publishing one fires the events of any other type,
+ * and trashing, restoring and deleting one announce only the trash, the restore and the delete. Synchronous observers
+ * run inside the transaction; one that throws marks it for rollback whatever the exception type, so a caller that
+ * catches the exception cannot commit the save. Asynchronous observers run after commit.
+ */
+@ApplicationScoped
+public class PostEvents {
+
+    @Inject
+    OptionTransactions transactions;
+
+    @Inject
+    PostTypes types;
+
+    @Inject
+    Event<PostStatusChanged> statusChanged;
+
+    @Inject
+    Event<PostPublished> published;
+
+    @Inject
+    Event<PostScheduled> scheduled;
+
+    @Inject
+    Event<PostUpdated> updated;
+
+    @Inject
+    Event<PostSaved> saved;
+
+    @Inject
+    Event<PostCreated> created;
+
+    @Inject
+    Event<AttachmentAdded> attachmentAdded;
+
+    @Inject
+    Event<AttachmentEdited> attachmentEdited;
+
+    @Inject
+    Event<StickyChanged> stickyChanged;
+
+    @Inject
+    Event<PostTrashed> trashedEvent;
+
+    @Inject
+    Event<PostRestored> restoredEvent;
+
+    @Inject
+    Event<PostDeleting> deletingEvent;
+
+    @Inject
+    Event<PostDeleted> deletedEvent;
+
+    public void saved(
+            SiteId site,
+            Instant at,
+            String from,
+            Optional<PostSnapshot> before,
+            PostSnapshot after,
+            boolean announceUpdate) {
+        saved(site, at, from, before, after, announceUpdate, true);
+    }
+
+    /**
+     * As {@link #saved(SiteId, Instant, String, Optional, PostSnapshot, boolean)}; an attachment's update is announced
+     * as edited only when {@code announceEdit} is true (trashing and restoring one announce only the trash and the
+     * restore).
+     */
+    public void saved(
+            SiteId site,
+            Instant at,
+            String from,
+            Optional<PostSnapshot> before,
+            PostSnapshot after,
+            boolean announceUpdate,
+            boolean announceEdit) {
+        if (after.type().equals("attachment")) {
+            // every other update of an attachment is announced as edited, whether or not a post update would be
+            if (before.isEmpty()) {
+                transactions.publish(attachmentAdded, new AttachmentAdded(site, at, after));
+            } else if (announceEdit) {
+                transactions.publish(attachmentEdited, new AttachmentEdited(site, at, before.get(), after));
+            }
+            return;
+        }
+        fire(site, at, from, before, after, announceUpdate);
+    }
+
+    /**
+     * The events of WordPress's {@code wp_publish_post}: the status transition, published (registered types) and
+     * saved, for every type including attachments; the update is not announced.
+     */
+    public void published(SiteId site, Instant at, PostSnapshot before, PostSnapshot after) {
+        fire(site, at, before.status(), Optional.of(before), after, false);
+    }
+
+    private void fire(
+            SiteId site,
+            Instant at,
+            String from,
+            Optional<PostSnapshot> before,
+            PostSnapshot after,
+            boolean announceUpdate) {
+        transactions.publish(statusChanged, new PostStatusChanged(site, at, after, from, after.status()));
+        boolean registered = types.registered(after.type());
+        if (registered && after.status().equals("publish")) {
+            transactions.publish(published, new PostPublished(site, at, after));
+        } else if (registered && after.status().equals("future")) {
+            transactions.publish(
+                    scheduled,
+                    new PostScheduled(site, at, after, after.publishedAt().orElse(at)));
+        }
+        if (before.isPresent() && announceUpdate) {
+            transactions.publish(updated, new PostUpdated(site, at, before.get(), after));
+        }
+        transactions.publish(saved, new PostSaved(site, at, after, before.isEmpty()));
+        if (before.isEmpty()) {
+            transactions.publish(created, new PostCreated(site, at, after));
+        }
+    }
+
+    /** A post was stuck or unstuck. */
+    public void sticky(SiteId site, Instant at, PostId post, boolean sticky) {
+        transactions.publish(stickyChanged, new StickyChanged(site, at, post, sticky));
+    }
+
+    /** A post was moved to the trash; fired for every type, attachments included. */
+    public void trashed(SiteId site, Instant at, PostSnapshot post) {
+        transactions.publish(trashedEvent, new PostTrashed(site, at, post));
+    }
+
+    /**
+     * A post left the trash; {@code previousStatus} is the status recorded when it was trashed. Fired for every type,
+     * attachments included.
+     */
+    public void restored(SiteId site, Instant at, PostSnapshot post, Optional<String> previousStatus) {
+        transactions.publish(restoredEvent, new PostRestored(site, at, post, previousStatus));
+    }
+
+    /** A post is about to be deleted for good; fired for every type, attachments included. */
+    public void deleting(SiteId site, Instant at, PostSnapshot post) {
+        transactions.publish(deletingEvent, new PostDeleting(site, at, post));
+    }
+
+    /** A post was deleted for good; fired for every type, attachments included. */
+    public void deleted(SiteId site, Instant at, PostId post, String type) {
+        transactions.publish(deletedEvent, new PostDeleted(site, at, post, type));
+    }
+}

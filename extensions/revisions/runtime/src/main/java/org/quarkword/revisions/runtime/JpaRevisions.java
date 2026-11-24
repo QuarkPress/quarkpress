@@ -1,0 +1,370 @@
+package org.quarkword.revisions.runtime;
+
+import com.fasterxml.jackson.databind.node.TextNode;
+import io.quarkus.security.ForbiddenException;
+import io.quarkus.security.UnauthorizedException;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import org.quarkword.core.PostId;
+import org.quarkword.core.QuarkWordClock;
+import org.quarkword.core.RevisionId;
+import org.quarkword.core.SiteContext;
+import org.quarkword.core.SiteId;
+import org.quarkword.core.UserId;
+import org.quarkword.posts.PostChanges;
+import org.quarkword.posts.PostException;
+import org.quarkword.posts.PostSnapshot;
+import org.quarkword.posts.PostTypes;
+import org.quarkword.posts.Posts;
+import org.quarkword.posts.runtime.Acting;
+import org.quarkword.posts.runtime.JpaEditLocks;
+import org.quarkword.posts.runtime.PostCapabilityFacts;
+import org.quarkword.posts.runtime.PostDates;
+import org.quarkword.posts.runtime.PostEntity;
+import org.quarkword.posts.runtime.PostLocks;
+import org.quarkword.posts.runtime.PostRepository;
+import org.quarkword.posts.runtime.ProtectedMeta;
+import org.quarkword.revisions.AutosaveChanges;
+import org.quarkword.revisions.AutosaveResult;
+import org.quarkword.revisions.RevisionCount;
+import org.quarkword.revisions.RevisionException;
+import org.quarkword.revisions.RevisionField;
+import org.quarkword.revisions.RevisionQuery;
+import org.quarkword.revisions.RevisionSnapshot;
+import org.quarkword.revisions.Revisions;
+import org.quarkword.security.MissingObject;
+
+/**
+ * The revisions service: capability checks first (WordPress's REST rules), then the site's post lock, then the parent
+ * row, then revision rows in id order. A refused capability check or an input refusal raised before the first write
+ * does not mark the caller's transaction for rollback; a refused lock does.
+ */
+@ApplicationScoped
+public class JpaRevisions implements Revisions {
+
+    @Inject
+    SiteContext site;
+
+    @Inject
+    PostRepository postRows;
+
+    @Inject
+    PostCapabilityFacts facts;
+
+    @Inject
+    Acting acting;
+
+    @Inject
+    PostLocks siteLocks;
+
+    @Inject
+    org.quarkword.posts.PostLocks editLocks;
+
+    @Inject
+    ProtectedMeta protectedMeta;
+
+    @Inject
+    RevisionWrites writes;
+
+    @Inject
+    RevisionRepository rows;
+
+    @Inject
+    RevisionQueries queries;
+
+    @Inject
+    RevisionPolicy policy;
+
+    @Inject
+    PostTypes types;
+
+    @Inject
+    Posts posts;
+
+    @Inject
+    QuarkWordClock clock;
+
+    @Inject
+    RevisionEvents events;
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<RevisionSnapshot> save(PostId post) {
+        Objects.requireNonNull(post, "post");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedParent(
+                siteId, post, stored -> acting.require(siteId, "edit_post", Optional.of(facts.of(stored))));
+        return writes.saveRevision(siteId, row.toSnapshot());
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public <T> T revisingAfter(PostId post, Supplier<T> work) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(work, "work");
+        SiteId siteId = site.siteId();
+        readableParent(siteId, post);
+        T result = Autosaving.silencing(post, work);
+        siteLocks.lock(siteId);
+        // the work may have removed the post: then there is nothing to revision
+        postRows.lockPost(siteId, post).ifPresent(row -> writes.saveRevision(siteId, row.toSnapshot()));
+        return result;
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<RevisionSnapshot> find(RevisionId revision) {
+        Objects.requireNonNull(revision, "revision");
+        SiteId siteId = site.siteId();
+        Optional<RevisionEntity> row = rows.findRevision(siteId, revision);
+        if (row.isEmpty()) {
+            return Optional.empty();
+        }
+        readableParent(siteId, PostId.of(row.get().postId));
+        return row.map(RevisionEntity::toSnapshot);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<RevisionSnapshot> ofPost(PostId post, RevisionQuery query) {
+        Objects.requireNonNull(query, "query");
+        SiteId siteId = site.siteId();
+        PostSnapshot parent = readableParent(siteId, post);
+        if (query.checkEnabled() && !policy.enabled(parent)) {
+            return List.of();
+        }
+        return queries.ofPost(siteId, post, query).stream()
+                .map(RevisionEntity::toSnapshot)
+                .toList();
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public long count(PostId post, RevisionQuery query) {
+        Objects.requireNonNull(query, "query");
+        SiteId siteId = site.siteId();
+        PostSnapshot parent = readableParent(siteId, post);
+        if (query.checkEnabled() && !policy.enabled(parent)) {
+            return 0;
+        }
+        return queries.count(siteId, post, query);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<RevisionSnapshot> autosaveOf(PostId post, Optional<UserId> user) {
+        Objects.requireNonNull(user, "user");
+        SiteId siteId = site.siteId();
+        readableParent(siteId, post);
+        return (user.isPresent() ? rows.autosaveOfAuthor(siteId, post, user) : queries.latestAutosave(siteId, post))
+                .map(RevisionEntity::toSnapshot);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public List<RevisionSnapshot> autosavesOf(PostId post) {
+        SiteId siteId = site.siteId();
+        readableParent(siteId, post);
+        return queries
+                .ofPost(
+                        siteId,
+                        post,
+                        RevisionQuery.builder()
+                                .autosaves(RevisionQuery.Autosaves.ONLY)
+                                .checkEnabled(false)
+                                .build())
+                .stream()
+                .map(RevisionEntity::toSnapshot)
+                .toList();
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public RevisionCount latestAndCount(PostId post) {
+        SiteId siteId = site.siteId();
+        PostSnapshot parent = readableParent(siteId, post);
+        if (!policy.enabled(parent)) {
+            throw RevisionException.notEnabled();
+        }
+        return queries.latestAndCount(siteId, post);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public AutosaveResult autosave(PostId post, AutosaveChanges changes) {
+        Objects.requireNonNull(post, "post");
+        Objects.requireNonNull(changes, "changes");
+        SiteId siteId = site.siteId();
+        PostEntity row = lockedParent(siteId, post, stored -> {
+            if (!types.supports(stored.type(), "autosave")) {
+                throw RevisionException.autosaveNotSupported(stored.type());
+            }
+            acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
+            Set<String> keys = policy.metaKeys(stored.type());
+            changes.meta()
+                    .ifPresent(given -> given.keySet().forEach(key -> {
+                        if (!keys.contains(key)) {
+                            throw new IllegalArgumentException(
+                                    "the meta key " + key + " is not revisioned for posts of type " + stored.type());
+                        }
+                    }));
+        });
+        PostSnapshot parent = row.toSnapshot();
+        Optional<UserId> user = acting.user();
+        // the stored post under its row lock decides: a draft of the caller's own that nobody else holds a lock on
+        boolean ownDraft = (parent.status().equals("draft") || parent.status().equals("auto-draft"))
+                && user.isPresent()
+                && parent.author().equals(user)
+                && editLocks.holder(post, user).isEmpty();
+        if (ownDraft) {
+            PostChanges.Builder update =
+                    changes.post().map(PostChanges::toBuilder).orElseGet(PostChanges::builder);
+            changes.title().ifPresent(update::title);
+            changes.content().ifPresent(update::content);
+            changes.excerpt().ifPresent(update::excerpt);
+            return new AutosaveResult.Draft(Autosaving.during(() -> posts.update(post, update.build())));
+        }
+        Set<RevisionField> fields = policy.fields(parent);
+        Set<String> keys = policy.metaKeys(parent.type());
+        Optional<RevisionEntity> existing = rows.autosaveOfAuthor(siteId, post, user);
+        Instant now = PostDates.now(clock);
+        if (existing.isEmpty()) {
+            return new AutosaveResult.Stored(
+                    writes.createAutosave(siteId, parent, user, changes, fields, keys, now), true);
+        }
+        if (!RevisionRules.autosaveDiffers(fields, keys, changes, parent)) {
+            return new AutosaveResult.Stored(existing.get().toSnapshot(), false);
+        }
+        RevisionEntity locked = rows.lockRevision(siteId, RevisionId.of(existing.get().id))
+                .orElseThrow(() -> RevisionException.invalidRevision());
+        return new AutosaveResult.Stored(writes.updateAutosave(siteId, locked, user, changes, fields, now), true);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public PostSnapshot restore(RevisionId revision, Set<RevisionField> fields) {
+        Objects.requireNonNull(revision, "revision");
+        Objects.requireNonNull(fields, "fields");
+        SiteId siteId = site.siteId();
+        RevisionSnapshot unlocked = rows.findRevision(siteId, revision)
+                .map(RevisionEntity::toSnapshot)
+                .orElseThrow(RevisionException::invalidRevision);
+        PostEntity parent = lockedParent(siteId, unlocked.post(), stored -> {
+            acting.require(siteId, "edit_post", Optional.of(facts.of(stored)));
+            if (!unlocked.autosave() && !policy.enabled(stored)) {
+                throw RevisionException.notEnabled();
+            }
+        });
+        RevisionSnapshot locked = rows.lockRevision(siteId, revision)
+                .map(RevisionEntity::toSnapshot)
+                .orElseThrow(RevisionException::invalidRevision);
+        PostSnapshot before = parent.toSnapshot();
+        Set<RevisionField> restored = fields.isEmpty() ? policy.fields(before) : fields;
+        PostChanges.Builder changes = PostChanges.builder();
+        if (restored.contains(RevisionField.TITLE)) {
+            changes.title(locked.title());
+        }
+        if (restored.contains(RevisionField.CONTENT)) {
+            changes.content(locked.content());
+        }
+        if (restored.contains(RevisionField.EXCERPT)) {
+            changes.excerpt(locked.excerpt());
+        }
+        // the posts module refuses its own input before writing and marks its own failures after its first write
+        posts.update(before.id(), changes.build());
+        return writes.written(() -> {
+            events.restored(siteId, PostDates.now(clock), before.id(), revision);
+            PostEntity row =
+                    postRows.lockPost(siteId, before.id()).orElseThrow(() -> PostException.invalidPost(before.id()));
+            // WordPress records the restoring user as the post's last editor, as text; the system identity has none
+            acting.user()
+                    .ifPresent(user -> protectedMeta.put(
+                            siteId, row, JpaEditLocks.EDIT_LAST, TextNode.valueOf(Long.toString(user.value()))));
+            writes.restoreMeta(row, policy.metaKeys(before.type()), locked);
+            postRows.flush();
+            return row.toSnapshot();
+        });
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public Optional<RevisionSnapshot> delete(RevisionId revision) {
+        Objects.requireNonNull(revision, "revision");
+        SiteId siteId = site.siteId();
+        if (!acting.system()) {
+            // deleting a revision maps to do_not_allow for everyone: the check refuses with the caller's status
+            acting.require(siteId, "delete_post", Optional.of(new MissingObject(revision.value())));
+        }
+        Optional<RevisionEntity> found = rows.findRevision(siteId, revision);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        siteLocks.lock(siteId);
+        // the parent row first, as every other write takes them: post rows, then revision rows
+        postRows.lockPost(siteId, PostId.of(found.get().postId));
+        Optional<RevisionEntity> locked = rows.lockRevision(siteId, revision);
+        if (locked.isEmpty()) {
+            return Optional.empty();
+        }
+        RevisionSnapshot before = locked.get().toSnapshot();
+        writes.written(() -> {
+            writes.delete(siteId, locked.get());
+            return null;
+        });
+        return Optional.of(before);
+    }
+
+    @Override
+    @Transactional(
+            dontRollbackOn = {IllegalArgumentException.class, ForbiddenException.class, UnauthorizedException.class})
+    public long countAll() {
+        SiteId siteId = site.siteId();
+        acting.require(siteId, "edit_others_posts", Optional.empty());
+        return queries.countOnSite(siteId);
+    }
+
+    /** The post, which the caller must be able to edit; a missing post, or one of another site, is refused. */
+    PostSnapshot readableParent(SiteId siteId, PostId post) {
+        Objects.requireNonNull(post, "post");
+        PostSnapshot found = postRows.findPost(siteId, post)
+                .map(PostEntity::toSnapshot)
+                .orElseThrow(() -> PostException.invalidPost(post));
+        acting.require(siteId, "edit_post", Optional.of(facts.of(found)));
+        return found;
+    }
+
+    /**
+     * The stored post, locked for a write: read and checked without locks (a missing post, or one of another site, is
+     * {@code invalid_post}), then the site's post lock is taken, and the post is read again under its row lock and
+     * checked again, since it may have changed meanwhile.
+     */
+    PostEntity lockedParent(SiteId siteId, PostId post, Consumer<PostSnapshot> checks) {
+        PostSnapshot unlocked = postRows.findPost(siteId, post)
+                .map(PostEntity::toSnapshot)
+                .orElseThrow(() -> PostException.invalidPost(post));
+        checks.accept(unlocked);
+        siteLocks.lock(siteId);
+        PostEntity row = postRows.lockPost(siteId, post).orElseThrow(() -> PostException.invalidPost(post));
+        checks.accept(row.toSnapshot());
+        return row;
+    }
+}

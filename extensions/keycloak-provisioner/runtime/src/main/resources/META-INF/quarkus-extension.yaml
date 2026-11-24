@@ -1,9 +1,9 @@
 ---
-name: "QuarkPress Keycloak Provisioner"
-description: "Creates QuarkPress users in Keycloak through its Admin REST API, with their WordPress password hashes"
+name: "QuarkWord Keycloak Provisioner"
+description: "Creates QuarkWord users in Keycloak through its Admin REST API, with their WordPress password hashes"
 metadata:
   keywords:
-    - "quarkpress"
+    - "quarkword"
     - "cms"
     - "keycloak"
     - "users"

@@ -3,24 +3,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress.lib</groupId>
-    <artifactId>quarkpress-libs-parent</artifactId>
+    <groupId>org.quarkword.lib</groupId>
+    <artifactId>quarkword-libs-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-lib-wxr</artifactId>
+  <artifactId>quarkword-lib-wxr</artifactId>
 
-  <name>QuarkPress :: lib :: WXR</name>
+  <name>QuarkWord :: lib :: WXR</name>
   <description>Stream-read and write WordPress eXtended RSS (WXR) export files</description>
 
   <properties>
-    <automatic.module.name>org.quarkpress.lib.wxr</automatic.module.name>
+    <automatic.module.name>org.quarkword.lib.wxr</automatic.module.name>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.quarkpress.lib</groupId>
-      <artifactId>quarkpress-lib-php-serialize</artifactId>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-php-serialize</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -29,8 +29,8 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.quarkpress.testing</groupId>
-      <artifactId>quarkpress-test-wp-oracle</artifactId>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

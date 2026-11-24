@@ -20,7 +20,7 @@ extension does.
 
 | Path | Effect | Closed by |
 |---|---|---|
-| `StatelessSession` reads | no filter: other sites' rows are read | build failure on injecting a stateless session for the `quarkpress` unit |
+| `StatelessSession` reads | no filter: other sites' rows are read | build failure on injecting a stateless session for the `quarkword` unit |
 | `StatelessSession` writes | no listener: rows written for any site | the same build failure |
 | Collection loads | a collection without `@Filter` loads other sites' elements | build check: every collection of site-scoped elements carries the site filter |
 | Second-level cache | cached entities served without the filter | unit ships with the second-level cache off; build fails on cacheable site-scoped entities |
@@ -29,6 +29,6 @@ extension does.
 | HQL `set siteId` | moves rows to another site | the scanner rejects assignments to `siteId` |
 | Native load, then a setter | the guard trusts the in-memory site | guard compares against the loaded site; no setter after load |
 | Rebinding a shared request-scoped site | propagated tasks see the new site | work for another site runs in a fresh request context |
-| `disableFilter("qp_site")` | isolation off for the session | the scanner rejects it in QuarkPress code; documented host-application limit |
+| `disableFilter("qw_site")` | isolation off for the session | the scanner rejects it in QuarkWord code; documented host-application limit |
 | Native SQL | never filtered | site-scoped native SQL only in annotated classes that take the site explicitly; documented host-application limit |
 | No-site inserts | the listener stamps site 0; only the foreign key refuses it | the listener refuses site 0 explicitly |

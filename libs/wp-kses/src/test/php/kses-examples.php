@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2026 The QuarkPress Authors
+ * Copyright 2026 The QuarkWord Authors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Writes the reference examples (src/test/resources/examples/*.json): each case's "expected" value is
@@ -18,7 +18,7 @@ if (3 !== $argc) {
 $E = rtrim($argv[2], '/') . '/';
 
 /** Characters that are hard to see in a diff are written as \u escapes. */
-function qp_visible(string $json): string
+function qw_visible(string $json): string
 {
     return preg_replace_callback(
         '/[\x{7F}-\x{A0}\x{AD}\x{2000}-\x{200F}\x{2028}-\x{202F}\x{FEFF}]/u',
@@ -28,7 +28,7 @@ function qp_visible(string $json): string
 }
 
 /** Writes one file; $groups maps an id prefix to a list of [fn, arguments]. */
-function qp_write(string $file, array $groups): void
+function qw_write(string $file, array $groups): void
 {
     $lines = [];
     foreach ($groups as $label => $cases) {
@@ -36,8 +36,8 @@ function qp_write(string $file, array $groups): void
         foreach ($cases as [$fn, $args]) {
             $n++;
             $case = ['id' => "$label-$n", 'fn' => $fn] + $args;
-            $case['expected'] = qp_kses_case($case);
-            $lines[] = '  ' . qp_visible(json_encode(
+            $case['expected'] = qw_kses_case($case);
+            $lines[] = '  ' . qw_visible(json_encode(
                 $case,
                 JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
             ));
@@ -52,37 +52,37 @@ function t(string $fn, array $texts, array $extra = []): array
     return array_map(fn ($text) => [$fn, ['text' => $text] + $extra], $texts);
 }
 
-qp_write($E . 'no-null.json', [
+qw_write($E . 'no-null.json', [
   'R2.1' => t('no_null', ["a\0b\x01c\x08d\te\x0Bf\x0Cg\rh\x0Ei\x1Fj\x7Fk"], ['keep' => false]),
   'R2.2' => t('no_null', ["a\\0b\\00c\\\\0d\\0x", "\\\\a\\0", "a\\b\\", "0\\0"], ['keep' => false]),
   'R2.3' => t('no_null', ["x\\0y \\0 <b title=\"a\\0b\">z</b>", "x\0y\x01z"], ['keep' => true]),
 ]);
-qp_write($E . 'text-utils.json', [
+qw_write($E . 'text-utils.json', [
   'R13.4' => t('stripslashes', ['a\"b', "a\\'b", "a\\\\\"b", '<a title=\"x\">q']),
   'R15.2' => t('html_error', ['abc def', '"a b" c', "'a b' c", 'a"b c"d e', '"unterminated x', '   lead', '', "x\ny"]),
 ]);
-qp_write($E . 'decode-attribute.json', [
+qw_write($E . 'decode-attribute.json', [
   'R8.4' => t('decode_attribute', ['&amp;', '&amp', '&ampx', '&amp=', '&amp;x', '&notit;', '&notin;', '&not', '&noti', '&#65', '&#65x', '&#x41g', '&#0;', '&#xD800;', '&#x110000;', '&#128;', '&#x81;', '&#x9F;', '&#9999999999;', '&#;', '&#x;', '&', '&;', '&Rarr;', '&RightArrow;', '&CounterClockwiseContourIntegral;', '&nbsp', '&nbspx', '&lt', '&ltx', '&#13;', '&NotNestedGreaterGreater;', "a\r\nb\rc", '&#0000000065;', '&#x0000000000041;', '&nbsp;x&copy;&hellip;&rarr;', '&#X41;&#x0;']),
 ]);
-qp_write($E . 'normalize.json', [
+qw_write($E . 'normalize.json', [
   'R3-html' => t('normalize_entities', ['&#65; &#065; &#0000065; &#00000000065;', '&#58;', '&#0; &#00; &#8; &#9; &#10; &#13; &#31; &#32;', '&#1114111; &#1114112; &#9999999; &#99999999;', '&#x41; &#X41; &#x0041; &#x000000041;', '&#x3a; &#x3A;', '&#xD800; &#xFFFE; &#xFFFF; &#x10FFFF; &#x110000;', '&#XYZZY; &#; &#x; &#xG1;', 'AT&T', '&amp; &lt; &gt; &quot; &apos; &nbsp;', '&hellip; &rarr; &euro; &trade;', '&Hellip; &AMP; &NBSP;', '&copy &copy;', '&a; &ab; &abcdefgh; &abcdefghi; &abcdefgh12; &abcdefgh123; &ab1; &a1b;', '&sup2; &frac12; &sup1;', '& alone; &&amp;', '&amp;amp; &amp;#65; &amp;lt;', '&#38;#x41;', 'no references'], ['xml' => false]),
   'R3-xml' => t('normalize_entities', ['&hellip; &rarr; &euro; &trade;', '&sup2; &frac12; &sup1;', '&nbsp;', '&amp; &lt; &gt; &quot; &apos;', '&copy &foo; &Hellip;'], ['xml' => true]),
 ]);
-qp_write($E . 'escape.json', [
+qw_write($E . 'escape.json', [
   'esc' => t('esc_attr', ['&apos; &amp; &copy; &#039; &#39; &#x27; &#1114111; &foo; &#0; a<b>"c" &hellip; &AMP; &amp', '&#x10FFFF; &#xD800; &#65 &#128; &sup2; &Rarr;', "it's \"q\"", 'plain', '', '<a href="x">']),
 ]);
-qp_write($E . 'bad-protocol.json', [
+qw_write($E . 'bad-protocol.json', [
   'R10.2' => t('bad_protocol', ['https://x'], ['protocols' => ['HTTPS']]),
   'R10.3' => t('bad_protocol', ['a:b:c:d:e', 'a:b:c:d:e:f', 'a:b:c:d:e:f:g', 'a:b:c:d:e:f:g:h', 'a:b:c:d:e:f:http://x', 'javascript:javascript:alert(1)']),
   'R10.4' => t('bad_protocol', ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'javascript :alert(1)', '  javascript:alert(1)', 'javascript&#58;alert(1)', 'javascript&#058alert(1)', 'javascript&#x3a;x', 'javascript&#X3A;x', 'javascript&#x0003a;x', 'javascript&#x0000003A;x', 'javascript&COLON;x', 'javascript&Colon;x', '/?q=a:b', '/x/?q=a:b', 'http:/?x:y', 'mailto:x?a:b', '/path?q=a:b', '?a:b', '#a:b', 'path/x:y', 'a:b', 'x:http://ok', 'http:x:y', 'https://a:b@c', 'MAILTO:a@b', 'Mailto:A@B', 'HTTP://X', 'feed:feed:http://x', 'feed:feed:feed:http://x', 'feed:javascript:x', 'feed:x', 'feed:0', 'feed:feed:0', 'javascript:', ':', ':nothing', 'javascript&#5800;x', 'javascript&#x3a3;x', 'no separator']),
   'R10.5' => t('bad_protocol', ["java\0script:alert(1)", "java\\0script:alert(1)", "java\x01script:alert(1)", "java\nscript:alert(1)", '&#106;avascript:x', '&#x6a;avascript:x', '&#X6A;avascript:x', '&#0106;avascript:x', '&#362;avascript:x', ' http://lead', 'http ://x', 'h&#116;tp://x', '&#38;#x68;ttp://x', '&#x7FFFFFFFFFFFFF6A;avascript:x', '&#x10000000000006A;avascript:x']),
   'R10.9' => array_merge(t('bad_protocol', ['FTP://x'], ['protocols' => ['FTP']]), t('bad_protocol', ['http://x', 'mailto:a'], ['protocols' => ['https']])),
 ]);
-qp_write($E . 'hair.json', [
+qw_write($E . 'hair.json', [
   'R8.1' => t('hair', ['class="is-wide" inert data-lazy=\'&lt;img&#00062\' =/🐮=/', 'A=1 a=2 B', '"q"=1', '', '   ', '/ /', 'x=">', 'a="1" b=\'2', '==x', "t=\"a\r\nb\"", 'x=a=b y=`c` z=\'d"e\'', ' / title="x"/ ']),
   'R8.5' => t('hair', ['href="javascript:x" src=javascript:y title="javascript:z" cite=" vbscript:q"', 'title="&lt;&amp;&#39;&quot;"']),
 ]);
-qp_write($E . 'safecss.json', [
+qw_write($E . 'safecss.json', [
   'R12.1' => t('safecss', ["\tcolor:\tred", "color: red\n;background:blue", "color: \"\0red\""]),
   'R12.3' => t('safecss', ["color:red; behavior:url(javascript:x)\n"], ['properties' => []]),
   'R12.4' => t('safecss', ['color: red', 'color:red; background-color: blue;', 'COLOR: red', 'foo: bar; color: red', 'color', 'color: red; nonsense', ';;;', 'color : red ;  ; margin:0', ' ; width:1px', 'width:10px;', "font-family: 'a;b'", 'color: red !important', 'color: #fff', 'display: none', 'position: fixed; z-index: 99999', 'margin: 0 auto !important; padding : 1em', 'content: "x"', 'behavior: url(x.htc)', '-moz-binding: url(x)', 'color: expression(alert(1))', '', '0', 'color:red;0', 'x:1;y:2']),
@@ -96,7 +96,7 @@ $pdf = 'https://example.org/wp-content/uploads/2026/10/a.pdf';
 $g = ['a' => ['href' => true, 'title' => false, 'rel' => '', 'name' => null, 'x-len' => ['maxlen' => 3], 'x-min' => ['minlen' => 2], 'x-maxv' => ['maxval' => 10], 'x-minv' => ['minval' => 5], 'x-vl' => ['valueless' => 'y'], 'x-nvl' => ['valueless' => 'N'], 'x-vals' => ['values' => ['one', 'two']], 'data-*' => ['maxlen' => 2]]];
 $probe = ['a' => ['x-vals' => ['values' => ['1', 'one']], 'x-maxv' => ['maxval' => 10], 'x-len' => ['MAXLEN' => 3]]];
 $obf = ['java&#115;cript:alert(1)', 'javascript&#58;alert(1)', 'javascript&colon;alert(1)', '&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;alert(1)', 'jav&#x09;ascript:alert(1)', ' javascript:alert(1)', 'java script:alert(1)', "java\tscript:alert(1)", '&#x6A;avascript:x', '&#x6A;&#x61;vascript&#x3A;x', 'javas&#99;ript&colon;x', 'javascript&amp;colon;x', 'ja&Tab;vascript:x', '&#x20;javascript:x', 'javascript&#x3a;&#x3a;x', 'javascript&#0000058alert(1)', '&#0000106avascript:x', 'javascript&#x3Aalert(1)', 'https:/&#x2f;ok'];
-qp_write($E . 'kses-bare.json', [
+qw_write($E . 'kses-bare.json', [
   'R1.3' => t('kses', ['<script>alert(1)</script>', '<foo>bar</foo>', '<p>one<p>two', '<div><p>unbalanced</div>', '<b>a</i>', '<B>Up</B><DIV ALIGN="center">x</DIV>', '<B title="T" ONCLICK="x">y</B>', '<svg><circle/></svg>'], $P),
   'R1.5' => t('kses', ['a > b', '', 'plain text'], $P),
   'R2.3' => t('kses', ["x\\0y \\0 <b title=\"a\\0b\">z</b>", "x\0y\x01z", "<b\0>bold</b>", "<scr\0ipt>alert(1)</script>"], $P),
@@ -150,21 +150,21 @@ qp_write($E . 'kses-bare.json', [
   'focus' => t('kses', ['<a title="🐮 x" href="https://例え.jp/🐮">🐮</a>', "<p\r\nclass=\"x\">y</p>", "<!-- a\r\nb -->", "<!-- a\r\n", "a\r\n<b\r\n>c</b\r\n>"], $P),
 ]);
 $W = ['mode' => 'wp', 'context' => 'post'];
-qp_write($E . 'kses-wp.json', [
+qw_write($E . 'kses-wp.json', [
   'R4.3' => t('kses', ['a < b', 'a <b c', 'x <3 y', '<b', '<b>x</b', '<b><', '<<b>>', '<a href="x"', '<a title="x', '<!-- unclosed', '<!-- <script>x</script> -->', '<![CDATA[ <b>x</b> ]]>', '<!-- a <!-- b --> c -->', '<p>1 < 2 and 3 > 2</p>', "a <b\n", "it's <\"q\"> & <x"], $W),
   'R4.4' => t('kses', ['<!-- wp:paragraph --><p onclick="x">t</p><!-- /wp:paragraph -->', '<!-- wp:p {"a":"<script>"} /-->', '<!-- wp:template-part {"tagName":"script"} /-->', '<!-- wp:image {"url":"javascript:alert(1)"} /-->', '<!-- wp:p {"a":"x"} --->', '<!-- wp:paragraph {"x":"<script>a</script><b>b</b>"} --><p>t</p><!-- /wp:paragraph -->'], $W),
   'blocks' => t('kses', ['<!-- wp:template-part {"tagName":true} /-->', '<!-- wp:template-part {"tagName":"DIV"} /-->', '<!-- wp:template-part {"tagName":"div","a":{"tagName":"script"}} /-->', '<!-- wp:template-part {"tagName":"0"} /-->', '<!-- wp:template-part {"tagName":""} /-->', '<!-- wp:template-part {"tagName":5} /-->', '<!-- wp:template-part {"tagName":[]} /-->', '<!-- wp:core/template-part {"tagName":"section"} /-->', '<!-- wp:p {"tagName":"script"} /-->', '<!-- wp:p {"\\u003cx\\u003ea":1,"a":2} /-->', '<!-- wp:p {"a":2,"\\u003cx\\u003ea":1} /-->', '<!-- wp:p {"1\\u003cx\\u003e":"a"} /-->', '<!-- wp:p {"0\\u003cx\\u003e":"a","1":"b"} /-->', '<!-- wp:p {"a":["\\u003cscript\\u003e",1,"\\u003cb\\u003ex"]} /-->', '<!-- wp:p {"a":"\\u003cb"} /-->', '<!-- wp:p {"a":"x \\u003c y"} /-->', '<!-- wp:p {"a":"x > y"} /-->', '<!-- wp:p {"a":"&copy"} /-->', 'a<!-- wp:p --><p>x</p><!-- wp:q /-->y<!-- /wp:p -->b', '<!-- wp:p {bad json} --><p>x</p><!-- /wp:p -->', '<p>a</p><!-- /wp:p -->b', '<!-- wp:p {"a":"\\u003cb\\u003ex"} --><!-- wp:q {"b":"\\u003cscript\\u003e"} /--><!-- /wp:p -->', '<!-- wp:a -->x', '<!-- wp:a {"n":1.5,"t":true,"z":null} /-->', "<!-- wp:p {\"a\":\"x\"} ---><!-- x\n--->", '<!-- wp:p --><!-- wp:q --->x<!-- /wp:p -->', '<!-- wp:p {"a":"\\u003c!-- c --\\u003e"} /-->'], $W),
   'R4.5' => array_merge(t('kses', ['<span class="wp-note-mention user-1" title="t">x</span>', '<span class="a">x</span>'], ['mode' => 'wp', 'context' => 'pre_comment_content']), t('kses', ['<span class="a">x</span>'], ['mode' => 'bare', 'context' => 'pre_comment_content'])),
   'focus' => t('kses', ['<a title="🐮">x</a>', "<p\r\nclass=\"x\">y</p>"], $W),
 ]);
-qp_write($E . 'one-attr.json', [
+qw_write($E . 'one-attr.json', [
   'R14.1' => array_merge(t('one_attr', ['href="javascript:alert(1)"', 'href=javascript:x', 'href="  javascript:x"', 'href="javascript&#58;x"', 'href="java&#115;cript:x"', 'href="java&Tab;script:x"', "href='javascript&colon;x'", ' title="a<b" ', "title='x'", 'title=x y', 'title = "x"', 'title=', 'title=x"y', 'title="unterminated', "title='mixed\"", 'onclick="x"', 'href', 'download', 'title="&amp; &foo; "q""', 'HREF="http://x"', 'style="color:red;foo:bar"', 'style="foo:bar"', 'style="font-family:&quot;A&quot;"', 'data-x="1"', '  ', ' onclick="x" ', "\ttitle=\"a\"\n", "title=\"a\" \n", '="x"', 'TITLE', 'title="&apos;"', 'href="&#x6A;avascript:x"', 'style="color:red;x:y" ', 'title="', "title='"], ['element' => 'a']),
      t('one_attr', ['title="x" data-foo="javascript:x"'], ['element' => 'span']),
      t('one_attr', ['title="x"'], ['element' => 'script']),
      t('one_attr', ['href=x', 'TITLE="t"'], ['element' => 'A']),
      t('one_attr', ['data="https://example.org/wp-content/uploads/2026/10/a.pdf"', 'data="https://evil.org/a.pdf"', 'type="application/pdf"'], ['element' => 'object'])),
 ]);
-qp_write($E . 'strip.json', [
+qw_write($E . 'strip.json', [
   'R15.5' => array_merge(t('strip_all_tags', ['<p>Hello <b>world</b></p>', '<script>alert(1)</script>text<style>p{}</style>', '<SCRIPT type="x">a</SCRIPT>b', "<script>\nx\n</script>y", '<script>x</script >y', '<script>a</style>b</script>c', '<script>a', 'a < b > c', 'a <b c', 'a<b', 'a <1 b> c', 'a <<b>> c', 'a <=b> c', 'x <a title=">">y</a> z', 'x <!-- a > b --> y', 'x <?php echo 1; ?> y', 'x <% y %> z', 'x <!-- unterminated', 'x &amp; y', "<p>a</p>\n<p>b</p>", '  <p> x </p>  ', '12', 'a <b title="x>y">c</b> d', "a <b title='>'>c", 'a <b <i>x</i>> c', 'a <!DOCTYPE html> b', 'a <!-- x -- > y --> b', 'a <!-x> b', '<?xml version="1.0"?>x', 'a <?php echo ">"; ?> b', 'a<? ( > ) ?>b', 'a >b', "a <\tb> c", 'a <b\"c>d', 'x<', '<', 'a <a href="x>y', 'a <!a "b>" c> d', '<!-- a -->', 'a<!-->b-->c', '1 <2> 3 >4', '<scripts>x</scripts>y', '<style type="a">x</STYLE>y', "a\0b", "<?xml x ?>y<a>z"], ['remove_breaks' => false]),
      t('strip_all_tags', ["<p>a</p>\n\n<p>b\tc</p>", "a \r\n\t b", " x "], ['remove_breaks' => true])),
 ]);

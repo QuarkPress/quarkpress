@@ -5,7 +5,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-resources="$here/../runtime/src/main/resources/org/quarkpress/restwp/oembed"
+resources="$here/../runtime/src/main/resources/org/quarkword/restwp/oembed"
 providers_url="${OEMBED_PROVIDERS_URL:-https://oembed.com/providers.json}"
 license_url="${OEMBED_LICENSE_URL:-https://raw.githubusercontent.com/iamcal/oembed/master/LICENSE}"
 

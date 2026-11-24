@@ -3,16 +3,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <groupId>org.quarkpress.testing</groupId>
-  <artifactId>quarkpress-testing-parent</artifactId>
+  <groupId>org.quarkword.testing</groupId>
+  <artifactId>quarkword-testing-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: Testing</name>
+  <name>QuarkWord :: Testing</name>
   <description>Test-only support modules. Never published and never part of the BOM.</description>
 
   <properties>

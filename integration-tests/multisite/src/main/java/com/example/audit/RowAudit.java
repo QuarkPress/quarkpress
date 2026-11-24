@@ -19,10 +19,10 @@ import java.util.Map;
 @ApplicationScoped
 public class RowAudit {
 
-    private static final List<String> TABLES = List.of("qp_option", "qp_site_domain", "it_note", "it_note_tag");
+    private static final List<String> TABLES = List.of("qw_option", "qw_site_domain", "it_note", "it_note_tag");
 
     @Inject
-    @DataSource("quarkpress")
+    @DataSource("quarkword")
     AgroalDataSource dataSource;
 
     public Map<String, Long> count(long site) {

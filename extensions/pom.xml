@@ -3,15 +3,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.quarkpress</groupId>
-    <artifactId>quarkpress-parent</artifactId>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>quarkpress-extensions-parent</artifactId>
+  <artifactId>quarkword-extensions-parent</artifactId>
   <packaging>pom</packaging>
 
-  <name>QuarkPress :: Extensions</name>
+  <name>QuarkWord :: Extensions</name>
   <description>Quarkus extensions (runtime and deployment modules)</description>
 
   <properties>
@@ -44,13 +44,13 @@
   <profiles>
     <profile>
       <!-- Modules that need Java 25 (the libvips image processor: quarkus-libvips is built on Java 25's Foreign
-           Function and Memory API). A Java 21 build leaves them out; -Dquarkpress.skip-vips leaves them out on
+           Function and Memory API). A Java 21 build leaves them out; -Dquarkword.skip-vips leaves them out on
            Java 25 too. -->
       <id>jdk25-modules</id>
       <activation>
         <jdk>[25,)</jdk>
         <property>
-          <name>!quarkpress.skip-vips</name>
+          <name>!quarkword.skip-vips</name>
         </property>
       </activation>
       <modules>
@@ -133,10 +133,10 @@
               <maven.home>${maven.home}</maven.home>
             </systemPropertyVariables>
             <!-- The test database reaches the tests as an environment variable, not a system property: the
-                 QuarkPress configuration roots own the quarkpress.* keys and reject unknown ones from system
+                 QuarkWord configuration roots own the quarkword.* keys and reject unknown ones from system
                  properties, while environment variables are only matched against known keys. -->
             <environmentVariables>
-              <QUARKPRESS_TEST_DB>${testDb}</QUARKPRESS_TEST_DB>
+              <QUARKWORD_TEST_DB>${testDb}</QUARKWORD_TEST_DB>
             </environmentVariables>
           </configuration>
         </plugin>
