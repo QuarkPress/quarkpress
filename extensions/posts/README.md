@@ -184,7 +184,8 @@ A save follows `wp_insert_post` and `wp_update_post`:
   WordPress's loop check: a post that is its own parent, or whose parent's chain leads back to it, gets none; a loop
   further up the chain is cut by giving each of its posts no parent, in WordPress's order.
 - **Guid.** Set once on insert: the `guid` given (refused as `db_insert_error` when longer than its column), else the
-  plain permalink on the site's `http` home.
+  post's permalink at that moment as the installed `LinkBuilder` builds it (the plain form, `home/?p=<id>`, without
+  the front module).
 
 `publish` changes only the status, as WordPress's scheduled publishing (`wp_publish_post`) does; it returns false for a
 published post. `publishIfDue` is the scheduled-publishing handler itself (`check_and_publish_future_post`): under the
@@ -298,6 +299,16 @@ not), never null; one that throws stops the call.
   `key()` names it and `term(...)` answers, as a term condition, the posts whose column holds a search term (a part of
   it, or the whole of it for an exact search). Each key is provided by one bean only; two beans providing one key stop
   the application at start.
+- `LinkBuilder` is the front-end link SPI (WordPress's link template): `home()` and `siteUrl()` (the `home` and
+  `siteurl` options without trailing slash, else the site record's `http` address), `admin(path)`, `rest(route)`,
+  `post(post)`, `postSample(post)` (the editor's template with `%postname%`/`%pagename%` literal), `term`, `author`,
+  `postTypeArchive`, `postFormat`, `date` and `search`. The default bean, `PlainLinkBuilder`, writes the links of an
+  empty permalink structure (`home/?p=7`, `home/?page_id=21`, `home/?book=dune` for a custom type with a query
+  variable and a slug outside the draft, pending, scheduled and auto-draft statuses, else `home/?post_type=book&p=40`,
+  `home/?cat=4`, `home/?tag=java`, `home/?taxonomy=genre&term=scifi` for a taxonomy whose query variable this module
+  does not know, `home/?author=1`, `home/?m=202511`, `home/?s=java+21`, `home/index.php?rest_route=/wp/v2/posts`,
+  `siteurl/wp-admin/`); the front module replaces it with one that follows the site's permalink structure. The guid of
+  a new post comes from it.
 
 ### Configuration
 
@@ -311,7 +322,7 @@ not), never null; one that throws stops the call.
 The module also reads the site options WordPress's post code reads: `default_comment_status`, `default_ping_status`,
 `posts_per_page`, `permalink_structure`, `show_on_front`, `page_on_front`, `page_for_posts` and
 `wp_page_for_privacy_policy`, as well as the site's time zone (from `timezone_string` and `gmt_offset`, see the core
-README) and the site's address, which guids are built on.
+README) and the site's address (`home` and `siteurl`, else the site record), which links and guids are built on.
 
 ## Storage
 
@@ -404,7 +415,7 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D8 | Only type `post` can be sticky, never a password-protected post; `stickyPosts` lists ids in id order. WordPress's `stick_post` accepts any id and keeps insertion order. |
 | D9 | A post type or status registered twice fails the build; WordPress replaces the earlier registration. Status names longer than 20 characters are refused when registered, as type keys are; WordPress fails only when a post is saved with one. |
 | D10 | The built-in types are `post`, `page`, `attachment` and `wp_block`; WordPress's other built-in types come with the modules that use them. |
-| D11 | A guid not given is always the plain permalink on the site's `http` home; WordPress uses the pretty permalink for posts published while pretty permalinks are on. |
+| D11 | The guid is the permalink at insert time as WordPress writes it; it follows the link builder installed (plain without the front module), so without the front module a post published under a pretty permalink structure still gets the plain `home/?p=<id>` form. |
 | D12 | Post ids are unique across the network; WordPress numbers posts per site. |
 | D13 | No pingback or enclosure markers (`_pingme`, `_encloseme`) are written, and nothing about comments happens yet (deleting a post deletes no comments). |
 | D14 | `post_content_filtered`, `to_ping`, `pinged`, `post_mime_type`, `page_template`, `tax_input` (the taxonomy module assigns terms after the save) and `meta_input` are not stored; global styles are not filtered on save. |

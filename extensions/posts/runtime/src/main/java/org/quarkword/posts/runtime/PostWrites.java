@@ -28,6 +28,7 @@ import org.quarkword.core.SiteId;
 import org.quarkword.core.UserId;
 import org.quarkword.persistence.runtime.TenantIds;
 import org.quarkword.posts.ContentSanitizer;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostChanges;
 import org.quarkword.posts.PostDraft;
 import org.quarkword.posts.PostException;
@@ -96,6 +97,9 @@ public class PostWrites {
 
     @Inject
     FrontPages frontPages;
+
+    @Inject
+    LinkBuilder links;
 
     /** Inserts a post: WordPress's {@code wp_insert_post} for a new post. */
     PostSnapshot insert(SiteId siteId, PostChanges changes) {
@@ -177,8 +181,8 @@ public class PostWrites {
             return written(() -> {
                 posts.persist(row);
                 posts.flush();
-                row.guid = changes.guid().orElseGet(() -> PostRules.guid(home(), row.type, row.id));
                 lateSlug(siteId, row);
+                row.guid = changes.guid().orElseGet(() -> PostRules.guid(links.post(row.toSnapshot())));
                 posts.flush();
                 PostSnapshot after = row.toSnapshot();
                 events.saved(siteId, now, "new", Optional.empty(), after, false);
@@ -816,12 +820,6 @@ public class PostWrites {
             throw new PostException("invalid_parent", "Invalid post parent ID: " + id);
         }
         return Optional.of(parent);
-    }
-
-    /** The site's home URL without trailing slash, with the http scheme. */
-    String home() {
-        String url = site.site().url("http").toString();
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     String option(String name) {

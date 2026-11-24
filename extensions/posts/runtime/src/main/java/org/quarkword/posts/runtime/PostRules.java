@@ -91,20 +91,11 @@ public final class PostRules {
         return status.equals("private") ? "" : password;
     }
 
-    /**
-     * The plain permalink of a post of {@code type} with {@code id} on the site whose home is {@code home}, cut to
-     * the 255 characters the column holds.
-     */
-    public static String guid(String home, String type, long id) {
-        String guid = switch (type) {
-            case "post" -> home + "/?p=" + id;
-            case "page" -> home + "/?page_id=" + id;
-            case "attachment" -> home + "/?attachment_id=" + id;
-            default -> home + "/?post_type=" + type + "&p=" + id;
-        };
-        return guid.codePointCount(0, guid.length()) <= MAX_TEXT
-                ? guid
-                : guid.substring(0, guid.offsetByCodePoints(0, MAX_TEXT));
+    /** The guid of a new post: its permalink {@code link} at insert time, cut to the 255 characters the column holds. */
+    public static String guid(String link) {
+        return link.codePointCount(0, link.length()) <= MAX_TEXT
+                ? link
+                : link.substring(0, link.offsetByCodePoints(0, MAX_TEXT));
     }
 
     /** Refuses values longer than their columns, as WordPress's database write refuses them. */

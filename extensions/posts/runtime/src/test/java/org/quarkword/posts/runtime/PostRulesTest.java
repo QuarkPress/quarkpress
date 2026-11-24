@@ -88,16 +88,6 @@ class PostRulesTest {
     }
 
     @Test
-    void theGuidIsThePlainPermalink() {
-        assertThat(PostRules.guid("http://example.test", "post", 15)).isEqualTo("http://example.test/?p=15");
-        assertThat(PostRules.guid("http://example.test", "page", 16)).isEqualTo("http://example.test/?page_id=16");
-        assertThat(PostRules.guid("http://example.test", "attachment", 17))
-                .isEqualTo("http://example.test/?attachment_id=17");
-        assertThat(PostRules.guid("http://example.test", "wp_block", 18))
-                .isEqualTo("http://example.test/?post_type=wp_block&p=18");
-    }
-
-    @Test
     void valuesLongerThanTheirColumnsFailAsWordPressDatabaseWritesDo() {
         assertThatThrownBy(() -> PostRules.requireStorable(
                         "a_type_name_longer_than_20", "draft", "", "", "", "open", "open", "", "g", false))
@@ -200,14 +190,15 @@ class PostRulesTest {
     }
 
     @Test
-    void theGuidIsCutToTheColumnInWholeCodePoints() {
-        String home = "http://example.test";
-        String longType = "t".repeat(20);
-        assertThat(PostRules.guid(home, "post", 1).length()).isLessThan(255);
-        String astralHome = home + new String(Character.toChars(0x1F600)).repeat(300);
-        String guid = PostRules.guid(astralHome, "post", 1);
+    void guidIsTheLinkCutToTheColumn() {
+        String link = "http://example.test/?p=15";
+        assertThat(PostRules.guid(link)).isEqualTo(link);
+        String longLink = "http://example.test/?" + "x".repeat(300 - "http://example.test/?".length());
+        assertThat(longLink).hasSize(300);
+        assertThat(PostRules.guid(longLink)).hasSize(255).isEqualTo(longLink.substring(0, 255));
+        String astralLink = "http://example.test/" + new String(Character.toChars(0x1F600)).repeat(300);
+        String guid = PostRules.guid(astralLink);
         assertThat(guid.codePointCount(0, guid.length())).isEqualTo(255);
         assertThat(Character.isLowSurrogate(guid.charAt(guid.length() - 1))).isTrue();
-        assertThat(PostRules.guid(home, longType, 1)).startsWith(home + "/?post_type=" + longType);
     }
 }
