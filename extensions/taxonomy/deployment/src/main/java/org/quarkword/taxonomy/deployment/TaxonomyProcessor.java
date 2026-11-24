@@ -32,6 +32,7 @@ import org.quarkword.taxonomy.runtime.DefaultTerms;
 import org.quarkword.taxonomy.runtime.JpaTerms;
 import org.quarkword.taxonomy.runtime.PostTermObserver;
 import org.quarkword.taxonomy.runtime.TaxonomyJson;
+import org.quarkword.taxonomy.runtime.TaxonomyQueryVars;
 import org.quarkword.taxonomy.runtime.TaxonomyRecorder;
 import org.quarkword.taxonomy.runtime.TermAssignments;
 import org.quarkword.taxonomy.runtime.TermCapabilityFacts;
@@ -86,6 +87,7 @@ class TaxonomyProcessor {
         List<TaxonomyDefinition> registered = new ArrayList<>();
         items.forEach(item -> registered.add(item.definition()));
         registered.addAll(annotated(index.getIndex()));
+        registered.replaceAll(TaxonomyProcessor::slugifiedQueryVar);
         registered.sort(Comparator.comparing(TaxonomyDefinition::key));
         taxonomies.addAll(registered);
         Set<String> seen = new HashSet<>();
@@ -100,6 +102,14 @@ class TaxonomyProcessor {
                 .unremovable()
                 .supplier(recorder.taxonomies(TaxonomyJson.write(taxonomies)))
                 .done();
+    }
+
+    private static TaxonomyDefinition slugifiedQueryVar(TaxonomyDefinition taxonomy) {
+        try {
+            return TaxonomyQueryVars.slugified(taxonomy);
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException("QuarkWord: " + invalid.getMessage(), invalid);
+        }
     }
 
     private static List<TaxonomyDefinition> annotated(IndexView index) {

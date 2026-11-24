@@ -31,6 +31,8 @@ public final class BuiltInTaxonomies {
                         "assign_terms", "assign_categories"))
                 .showInRest(true)
                 .restBase("categories")
+                .queryVar("category_name")
+                .rewrite("category", true, true)
                 .builtIn()
                 .build();
     }
@@ -48,6 +50,8 @@ public final class BuiltInTaxonomies {
                         "assign_terms", "assign_post_tags"))
                 .showInRest(true)
                 .restBase("tags")
+                .queryVar("tag")
+                .rewrite("tag", true, false)
                 .builtIn()
                 .build();
     }
@@ -55,9 +59,8 @@ public final class BuiltInTaxonomies {
     /**
      * Post formats, as WordPress registers them: public and queryable, flat, without admin screens (no interface
      * flag but {@code show_in_nav_menus}), managed with {@code manage_categories} and assigned with {@code edit_posts},
-     * outside REST, labelled {@code Formats}/{@code Format} with the generic tag labels for the rest. WordPress also
-     * gives it the query variable {@code post_format} and the rewrite slug {@code type}, which the definition does not
-     * keep.
+     * outside REST, labelled {@code Formats}/{@code Format} with the generic tag labels for the rest, queried as
+     * {@code post_format} under the rewrite slug {@code type}.
      */
     private static TaxonomyDefinition postFormat() {
         return TaxonomyDefinition.builder("post_format", List.of("post"))
@@ -78,6 +81,8 @@ public final class BuiltInTaxonomies {
                         "delete_terms", "manage_categories",
                         "assign_terms", "edit_posts"))
                 .showInRest(false)
+                .queryVar("post_format")
+                .rewrite("type", true, false)
                 .builtIn()
                 .build();
     }
@@ -87,8 +92,7 @@ public final class BuiltInTaxonomies {
      * publicly queryable, flat, with admin screens and an admin column but not in navigation menus nor a tag cloud,
      * shown in REST under its key, with the default capabilities ({@code manage_categories} to manage, edit and
      * delete terms, {@code edit_posts} to assign them), no default term, and WordPress's pattern category labels
-     * (the flat defaults for the rest). WordPress also turns off its query variable and rewrite rules, which the
-     * definition does not keep.
+     * (the flat defaults for the rest), without a query variable or rewrite rules.
      */
     private static TaxonomyDefinition patternCategory() {
         Map<String, String> labels = new LinkedHashMap<>();
@@ -121,6 +125,8 @@ public final class BuiltInTaxonomies {
                 .showInRest(true)
                 .showAdminColumn(true)
                 .showTagcloud(false)
+                .noQueryVar()
+                .rewrite(false)
                 .builtIn()
                 .build();
     }

@@ -48,6 +48,7 @@ class RegistriesDbTest {
                         @Override
                         public void execute(BuildContext context) {
                             context.produce(new TaxonomyBuildItem(TaxonomyDefinition.builder("lima", List.of("post"))
+                                    .queryVar("Lima Var")
                                     .build()));
                         }
                     })
@@ -74,6 +75,8 @@ class RegistriesDbTest {
         assertThat(category.showInRest()).isTrue();
         assertThat(category.restBase()).isEqualTo(Optional.of("categories"));
         assertThat(category.builtIn()).isTrue();
+        assertThat(category.queryVar()).contains("category_name");
+        assertThat(category.rewrite()).contains(new TaxonomyDefinition.Rewrite("category", true, true));
         assertThat(category.labels())
                 .containsEntry("name", "Categories")
                 .containsEntry("name_admin_bar", "category")
@@ -96,6 +99,8 @@ class RegistriesDbTest {
         assertThat(patterns.restBase()).isEmpty();
         assertThat(patterns.defaultTerm()).isEmpty();
         assertThat(patterns.builtIn()).isTrue();
+        assertThat(patterns.queryVar()).isEmpty();
+        assertThat(patterns.rewrite()).isEmpty();
         assertThat(patterns.labels())
                 .containsEntry("name", "Pattern Categories")
                 .containsEntry("singular_name", "Pattern Category")
@@ -123,6 +128,22 @@ class RegistriesDbTest {
         assertThat(tag.labels()).containsEntry("name", "Tags").containsEntry("name_admin_bar", "post_tag");
         assertThat(taxonomies.capabilities("post_tag")).contains(TaxonomyCapabilities.POST_TAG);
         assertThat(taxonomies.hierarchical("post_tag")).isFalse();
+        assertThat(tag.queryVar()).contains("tag");
+        assertThat(tag.rewrite()).contains(new TaxonomyDefinition.Rewrite("tag", true, false));
+    }
+
+    @Test
+    void postFormatsAreQueriedAsPostFormatUnderTheTypeSlug() {
+        TaxonomyDefinition format = taxonomies.find("post_format").orElseThrow();
+        assertThat(format.queryVar()).contains("post_format");
+        assertThat(format.rewrite()).contains(new TaxonomyDefinition.Rewrite("type", true, false));
+        TaxonomyDefinition genre = taxonomies.find("genre").orElseThrow();
+        assertThat(genre.queryVar()).contains("genre");
+        assertThat(genre.rewrite()).contains(new TaxonomyDefinition.Rewrite("genre", true, false));
+        TaxonomyDefinition mood = taxonomies.find("mood").orElseThrow();
+        assertThat(mood.queryVar()).isEmpty();
+        assertThat(mood.rewrite()).isEmpty();
+        assertThat(taxonomies.find("lima").orElseThrow().queryVar()).contains("lima-var");
     }
 
     @Test

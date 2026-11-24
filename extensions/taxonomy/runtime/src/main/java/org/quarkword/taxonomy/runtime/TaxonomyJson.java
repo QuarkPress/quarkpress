@@ -46,6 +46,12 @@ public final class TaxonomyJson {
                             .put("slug", term.slug())
                             .put("description", term.description()));
             node.put("sort", taxonomy.sort());
+            taxonomy.queryVar().ifPresent(var -> node.put("queryVar", var));
+            taxonomy.rewrite()
+                    .ifPresent(rewrite -> node.putObject("rewrite")
+                            .put("slug", rewrite.slug())
+                            .put("withFront", rewrite.withFront())
+                            .put("hierarchical", rewrite.hierarchical()));
             node.put("builtIn", taxonomy.builtIn());
         }
         return list.toString();
@@ -86,6 +92,12 @@ public final class TaxonomyJson {
                     Optional.ofNullable(node.get("restBase")).map(JsonNode::textValue),
                     defaultTerm,
                     node.get("sort").booleanValue(),
+                    Optional.ofNullable(node.get("queryVar")).map(JsonNode::textValue),
+                    Optional.ofNullable(node.get("rewrite"))
+                            .map(rewrite -> new TaxonomyDefinition.Rewrite(
+                                    rewrite.get("slug").textValue(),
+                                    rewrite.get("withFront").booleanValue(),
+                                    rewrite.get("hierarchical").booleanValue())),
                     node.get("builtIn").booleanValue()));
         }
         return taxonomies;
