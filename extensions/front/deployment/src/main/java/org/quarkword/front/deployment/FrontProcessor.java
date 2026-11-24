@@ -7,8 +7,12 @@ import org.quarkword.core.deployment.spi.QuarkWordConfigKeysBuildItem;
 import org.quarkword.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkword.front.FrontFeature;
 import org.quarkword.front.FrontUrls;
+import org.quarkword.front.Permalinks;
+import org.quarkword.front.runtime.DefaultPermalinks;
 import org.quarkword.front.runtime.FrontConfig;
+import org.quarkword.front.runtime.FrontLinkBuilder;
 import org.quarkword.front.runtime.RequestFrontUrls;
+import org.quarkword.posts.LinkBuilder;
 
 class FrontProcessor {
 
@@ -24,7 +28,13 @@ class FrontProcessor {
 
     @BuildStep
     UnremovableBeanBuildItem unremovable() {
-        return UnremovableBeanBuildItem.beanTypes(FrontUrls.class, RequestFrontUrls.class);
+        return UnremovableBeanBuildItem.beanTypes(
+                FrontUrls.class,
+                RequestFrontUrls.class,
+                Permalinks.class,
+                DefaultPermalinks.class,
+                FrontLinkBuilder.class,
+                LinkBuilder.class);
     }
 
     @BuildStep

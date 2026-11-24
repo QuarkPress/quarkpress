@@ -32,7 +32,13 @@ public final class FrontApp {
         return new QuarkusExtensionTest()
                 .withApplicationRoot(jar -> jar.addClasses(classes)
                         .addClasses(
-                                TestDb.class, FrontApp.class, Http.class, Jdbc.class, Failures.class, TestData.class))
+                                TestDb.class,
+                                FrontApp.class,
+                                Http.class,
+                                Jdbc.class,
+                                Failures.class,
+                                TestData.class,
+                                Identities.class))
                 .overrideConfigKey("quarkus.datasource.\"quarkword\".db-kind", TestDb.kind())
                 .overrideConfigKey("quarkus.datasource.devservices.enabled", "false")
                 .overrideConfigKey("quarkus.keycloak.devservices.enabled", "false")

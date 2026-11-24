@@ -26,6 +26,27 @@ class UrlSchemesTest {
     }
 
     @Test
+    void relativeTrimsWordPressLtrimSetButKeepsBackslashes() {
+        assertThat(UrlSchemes.set("http://wp.test/\\x", "relative", false, false))
+                .isEqualTo("/\\x");
+        assertThat(UrlSchemes.set("http://wp.test//  x", "relative", false, false))
+                .isEqualTo("/x");
+        assertThat(UrlSchemes.set("http://wp.test/\t\n\r\0\u000Bx", "relative", false, false))
+                .isEqualTo("/x");
+        assertThat(UrlSchemes.set("http://wp.test/ /\\x/", "relative", false, false))
+                .isEqualTo("/\\x/");
+    }
+
+    @Test
+    void relativeLeavesAValueThatDoesNotStartWithASlash() {
+        assertThat(UrlSchemes.set("x", "relative", false, false)).isEqualTo("x");
+        assertThat(UrlSchemes.set(" x", "relative", false, false)).isEqualTo("x");
+        assertThat(UrlSchemes.set("?a=1", "relative", false, false)).isEqualTo("?a=1");
+        assertThat(UrlSchemes.set("://x", "relative", false, false)).isEqualTo("://x");
+        assertThat(UrlSchemes.set("x/y", "relative", false, false)).isEqualTo("x/y");
+    }
+
+    @Test
     void theAdminModesFollowTheRequestOrForceSslAdmin() {
         assertThat(UrlSchemes.set("http://wp.test/wp-admin/", "admin", false, true))
                 .isEqualTo("https://wp.test/wp-admin/");

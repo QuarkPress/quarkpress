@@ -28,4 +28,14 @@ public final class TestDb {
     public static String now() {
         return kind().equals("postgresql") ? "now()" : "utc_timestamp(6)";
     }
+
+    /** The placeholder for an instant parameter of plain JDBC, given as the text {@link #instantText} makes. */
+    public static String instant() {
+        return kind().equals("postgresql") ? "cast(? as timestamp with time zone)" : "cast(? as datetime(6))";
+    }
+
+    /** The parameter for {@link #instant}: the ISO text on PostgreSQL, {@code Y-m-d H:i:s} in UTC on MySQL. */
+    public static String instantText(String iso) {
+        return kind().equals("postgresql") ? iso : iso.replace("T", " ").replace("Z", "");
+    }
 }

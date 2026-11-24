@@ -3,6 +3,8 @@ package org.quarkword.front.runtime;
 /** WordPress's {@code set_url_scheme}: the scheme a URL gets for a mode, given the request's and the admin's SSL. */
 public final class UrlSchemes {
 
+    private static final String TRIM_SET = "/ \t\n\r\0\u000B";
+
     private UrlSchemes() {}
 
     /**
@@ -10,8 +12,10 @@ public final class UrlSchemes {
      * {@code admin}, {@code login}, {@code login_post} and {@code rpc} give {@code https} when {@code ssl} or
      * {@code forceSslAdmin} holds, else {@code http}; any other mode, null included, gives {@code https} when
      * {@code ssl}, else {@code http}. The URL is trimmed and a protocol-relative {@code //host/...} is read as
-     * {@code http}. Mode {@code relative} removes the scheme and host and leaves exactly one leading slash; the other
-     * modes replace the leading {@code scheme://}, and a URL without one is left as it is.
+     * {@code http}. Mode {@code relative} removes the scheme and host and, when a slash follows, leaves exactly one
+     * leading slash (slashes and blanks after the host are trimmed, backslashes are kept); a value that does not start
+     * with a slash after that is left as it is. The other modes replace the leading
+     * {@code scheme://}, and a URL without one is left as it is.
      */
     public static String set(String url, String mode, boolean ssl, boolean forceSslAdmin) {
         String value = url.trim();
@@ -21,12 +25,12 @@ public final class UrlSchemes {
         String scheme = scheme(mode, ssl, forceSslAdmin);
         int schemeEnd = schemeEnd(value);
         if (scheme.equals("relative")) {
-            if (schemeEnd < 0) {
-                return value.stripLeading();
+            String rest = value;
+            if (schemeEnd >= 0) {
+                int hostEnd = value.indexOf('/', schemeEnd + 3);
+                rest = hostEnd < 0 ? "" : value.substring(hostEnd);
             }
-            int hostEnd = value.indexOf('/', schemeEnd + 3);
-            String rest = hostEnd < 0 ? "" : value.substring(hostEnd);
-            return rest.isEmpty() ? rest : "/" + withoutLeadingSlashes(rest);
+            return rest.isEmpty() || rest.charAt(0) != '/' ? rest : "/" + withoutLeadingTrimSet(rest);
         }
         return schemeEnd < 0 ? value : scheme + value.substring(schemeEnd);
     }
@@ -58,9 +62,10 @@ public final class UrlSchemes {
         return separator;
     }
 
-    private static String withoutLeadingSlashes(String path) {
+    /** PHP's {@code ltrim} with WordPress's set: slashes, spaces, tabs, line breaks, NUL and vertical tab. */
+    private static String withoutLeadingTrimSet(String path) {
         int start = 0;
-        while (start < path.length() && (path.charAt(start) == '/' || path.charAt(start) == '\\')) {
+        while (start < path.length() && TRIM_SET.indexOf(path.charAt(start)) >= 0) {
             start++;
         }
         return path.substring(start);
