@@ -57,7 +57,7 @@
     <!-- The Keycloak password-hash provider (QuarkWord/quarkword-keycloak) that integration-tests/keycloak mounts
          into Dev Services' Keycloak. CI checks it out at this commit and packages it; developers package a checkout
          of it beside this repository (../quarkword-keycloak) or point -DkeycloakProviderJar at the jar. -->
-    <quarkword-keycloak.commit>8875ba968ef33cd8efc74bd7a47e41a40b4be1b5</quarkword-keycloak.commit>
+    <quarkword-keycloak.commit>dd63b8ec9637d757536d81dd9b040e09fc743893</quarkword-keycloak.commit>
 
     <!-- Test libraries -->
     <junit.version>5.14.4</junit.version>
