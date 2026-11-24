@@ -1,0 +1,12 @@
+---
+name: "QuarkWord Front"
+description: "The public pages of QuarkWord sites as WordPress serves them: the home, site and admin URLs with WordPress's scheme rules, permalinks, request parsing, canonical redirects"
+metadata:
+  keywords:
+    - "quarkword"
+    - "cms"
+    - "front"
+    - "permalinks"
+  categories:
+    - "web"
+  status: "experimental"

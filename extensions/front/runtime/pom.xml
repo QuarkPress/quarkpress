@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-front-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkword-front</artifactId>
+
+  <name>QuarkWord :: Front :: Runtime</name>
+  <description>The public pages of QuarkWord sites as WordPress serves them: the home, site and admin URLs with WordPress's scheme rules, permalinks, request parsing, canonical redirects</description>
+
+  <properties>
+    <automatic.module.name>org.quarkword.front</automatic.module.name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-taxonomy</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-password</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-revisions</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-extension-maven-plugin</artifactId>
+        <configuration>
+          <capabilities>
+            <provides>org.quarkword.front</provides>
+          </capabilities>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>io.smallrye</groupId>
+        <artifactId>jandex-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

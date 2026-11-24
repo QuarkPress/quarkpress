@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkword</groupId>
+    <artifactId>quarkword-front-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkword-front-deployment</artifactId>
+
+  <name>QuarkWord :: Front :: Deployment</name>
+
+  <properties>
+    <automatic.module.name>org.quarkword.front.deployment</automatic.module.name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-front</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-core-deployment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-persistence-deployment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-security-deployment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-posts-deployment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-taxonomy-deployment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-multisite-deployment</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-deployment</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-revisions-deployment</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-deployment</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit-internal</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-postgresql-deployment</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-mysql-deployment</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-gen</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- the optional media module is on the test class path and needs a storage backend and an image processor -->
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-storage-fs-deployment</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-media-image-imageio-deployment</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
