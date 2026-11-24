@@ -11,6 +11,7 @@ import org.quarkword.front.Permalinks;
 import org.quarkword.front.runtime.DefaultPermalinks;
 import org.quarkword.front.runtime.FrontConfig;
 import org.quarkword.front.runtime.FrontLinkBuilder;
+import org.quarkword.front.runtime.PagePaths;
 import org.quarkword.front.runtime.RequestFrontUrls;
 import org.quarkword.posts.LinkBuilder;
 
@@ -34,7 +35,8 @@ class FrontProcessor {
                 Permalinks.class,
                 DefaultPermalinks.class,
                 FrontLinkBuilder.class,
-                LinkBuilder.class);
+                LinkBuilder.class,
+                PagePaths.class);
     }
 
     @BuildStep
