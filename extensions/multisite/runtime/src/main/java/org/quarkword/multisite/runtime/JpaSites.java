@@ -164,18 +164,19 @@ public class JpaSites implements Sites {
             if (!inserted.equals(standard)) {
                 transactions.publish(flagsChanged, new SiteFlagsChanged(id, now, standard, inserted));
             }
+            String address = SiteDefaults.address(site.scheme(), domain, path);
             for (Map.Entry<String, JsonNode> option :
-                    SiteDefaults.forNewSite(entity.name).entrySet()) {
+                    SiteDefaults.forNewSite(entity.name, address).entrySet()) {
                 JsonNode value = option.getKey().equals(FeatureOptions.SITE) ? switches : option.getValue();
                 options.persist(OptionEntity.create(id, option.getKey(), value, true, now));
             }
             // flags observers above may have read the new site's switches before its options existed
-            forget(id, SiteDefaults.forNewSite("").keySet(), true);
+            forget(id, SiteDefaults.names(), true);
             transactions.publish(created, new SiteCreated(id, now, inserted));
             return inserted;
         });
         // the calling request, if it has one, may be another context than the one the work ran in
-        forget(info.id(), SiteDefaults.forNewSite("").keySet(), false);
+        forget(info.id(), SiteDefaults.names(), false);
         return info;
     }
 

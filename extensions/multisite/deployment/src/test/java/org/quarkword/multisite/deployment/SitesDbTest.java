@@ -239,6 +239,28 @@ class SitesDbTest {
     }
 
     @Test
+    void aNewSiteGetsHomeAndSiteurl() throws Exception {
+        String domain = domain("addressed");
+        SiteInfo plain = sites.create(NewSite.of(domain, "/site2/", "Two"));
+        Map<String, JsonNode> stored = scope.call(plain.id(), () -> store.autoloaded(plain.id()));
+        assertThat(stored.get("home")).isEqualTo(TextNode.valueOf("http://" + domain + "/site2"));
+        assertThat(stored.get("siteurl")).isEqualTo(TextNode.valueOf("http://" + domain + "/site2"));
+        SiteInfo secure = sites.create(NewSite.of(domain, "/site3/", "Three", "https"));
+        Map<String, JsonNode> secureStored = scope.call(secure.id(), () -> store.autoloaded(secure.id()));
+        assertThat(secureStored.get("home")).isEqualTo(TextNode.valueOf("https://" + domain + "/site3"));
+        assertThat(secureStored.get("siteurl")).isEqualTo(TextNode.valueOf("https://" + domain + "/site3"));
+        assertThatThrownBy(() -> NewSite.of(domain, "/site4/", "Four", "ftp"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(NewSite.of(domain, "/site4/", "Four", "https").withPublic(0).scheme())
+                .isEqualTo("https");
+        assertThat(NewSite.of(domain, "/site4/", "Four", "https")
+                        .withFeatures(Map.of())
+                        .scheme())
+                .isEqualTo("https");
+        assertThat(NewSite.of(domain, "/site4/", "Four").scheme()).isEqualTo("http");
+    }
+
+    @Test
     void aSiteCreatedWithANonDefaultPublicValueFiresFlagsChangedFirst() {
         SiteInfo site = sites.create(NewSite.of(domain("hidden"), "/", "Hidden").withPublic(0));
         assertThat(site.publicFlag()).isZero();

@@ -131,6 +131,11 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 - Domains and paths are normalized as WordPress normalizes them, then lower-cased. A path may hold only URL path
   characters (a `%` only as `%XX`), at most 100; a domain at most 200 characters, no port, not empty and not `0`.
   `(domain, path)` is unique.
+- A new site gets WordPress's default options (`SiteDefaults`, persistence README), its `home` and `siteurl` among
+  them: `scheme://domain/path` without trailing slash (`http://wp.test/site2`), `http` unless the site is created with
+  `NewSite.of(…, "https")` (the creating request's scheme). `NewSite` refuses any other scheme. The main site's
+  `/blog/` permalink structure of a sub-directory network is seeded by migration `V1_007` only; `Sites.create` never
+  changes an existing site's options.
 - A site path that no request can reach is refused: one with a `.` or `..` segment, a segment `0`, or an interior `//`.
   So is a path under the non-application root (`/q/` by default), where requests are not resolved to sites. The error
   message shows the normalized path, cut to 64 characters.
@@ -192,7 +197,7 @@ form, is an alias. A domain that is empty after normalization, or `0`, is refuse
 | D4 | A request that matches no site is served without a site; WordPress redirects (to the network, or to the signup page in subdomain installs) or, on the network host, shows its database-error page ("not installed"). The scenario oracle maps all three to "none". |
 | D5 | Domain aliases with an optional redirect are a QuarkWord addition; WordPress maps a domain by setting the site's own domain. |
 | D6 | The main site's domain and path can change through `Sites`; WordPress's site settings screen does not allow it. |
-| D7 | `default_category` names the site's Uncategorized term when the taxonomy module is installed (else 0), whose id is unique across the network; WordPress's is 1. `home`, `siteurl` and `blog_public` are not options. |
+| D7 | `default_category` names the site's Uncategorized term when the taxonomy module is installed (else 0), whose id is unique across the network; WordPress's is 1. `blog_public` is not an option (`home` and `siteurl` are, as in WordPress; a new site's scheme comes from `NewSite`, WordPress takes it from the main site's `home`). |
 | D8 | WordPress's front-end signup rules (lowercase letters and digits only, so no upper case and no hyphens; at least 4 characters; not all digits; `illegal_names`) are not applied: `Sites.create` is the network administrator's "Add Site". |
 | D9 | Option values keep their JSON types (`posts_per_page` is the number 10); WordPress stores option values as text and reads every scalar back as text (`"10"`). |
 | D10 | A raw request path with `.` or `..` segments is served without a site; WordPress compares such segments as written. |
