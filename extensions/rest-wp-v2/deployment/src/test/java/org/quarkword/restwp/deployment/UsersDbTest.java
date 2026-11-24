@@ -407,7 +407,7 @@ class UsersDbTest {
         assertThat(view.get("meta").toString()).isEqualTo("[]");
         assertThat(view.at("/avatar_urls/48").textValue())
                 .isEqualTo("https://secure.gravatar.com/avatar/"
-                        + "b2b80e9a91cf0031a0929970d723ec1a622ab9f122eedb00a13c11a1caa42f9c?s=48&d=mm&r=g");
+                        + "1e1daeda5047a33a7aab175a5136c81bedb77126a110ca4bddd8213052e76211?s=48&d=mm&r=g");
         assertThat(view.at("/_links/self/0/href").textValue())
                 .isEqualTo("http://localhost/wp-json/wp/v2/users/" + carol);
         assertThat(view.at("/_links/collection/0/href").textValue()).isEqualTo("http://localhost/wp-json/wp/v2/users");

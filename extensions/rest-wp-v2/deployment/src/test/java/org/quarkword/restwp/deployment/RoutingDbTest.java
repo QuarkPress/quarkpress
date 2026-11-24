@@ -185,7 +185,7 @@ class RoutingDbTest {
                 .body(equalTo(TestRoutes.ITEMS));
         Http.as(null)
                 .urlEncodingEnabled(false)
-                .get("/?rest_route=%2Fqp-test%2Fv1%2Fitems%2F&_locale=user")
+                .get("/?rest_route=%2Fqw-test%2Fv1%2Fitems%2F&_locale=user")
                 .then()
                 .statusCode(200)
                 .body(equalTo(TestRoutes.ITEMS));
@@ -290,7 +290,7 @@ class RoutingDbTest {
                 "/x/../wp-json/qw-test/v1/echo/5",
                 "/./wp-json/qw-test/v1/echo/5",
                 "/x%2F..%2Fwp-json/qw-test/v1/echo/5",
-                "/wp-json%2Fqp-test/v1/echo/5",
+                "/wp-json%2Fqw-test/v1/echo/5",
                 "/%77p-json/qw-test/v1/echo/5")) {
             RawHttp.Reply reply = RawHttp.get(target);
             assertThat(reply.status()).as(target).isIn(400, 404);

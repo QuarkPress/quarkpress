@@ -181,7 +181,7 @@ class MultisiteDispatchDbTest {
                 .then()
                 .statusCode(301)
                 // the query as the client sent it (REST Assured percent-encodes the slashes)
-                .header("Location", "http://localhost/" + news + "/?rest_route=%2Fqp-test%2Fv1%2Fitems")
+                .header("Location", "http://localhost/" + news + "/?rest_route=%2Fqw-test%2Fv1%2Fitems")
                 .header("Content-Type", nullValue());
         // the decision follows the overridden method
         Http.at(alias, null)

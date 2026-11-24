@@ -300,11 +300,11 @@ class ThemesDbTest {
                             + "\"data\":{\"status\":404}}"));
         }
         // the stylesheet is URL-decoded exactly once, with the request path (sent raw: REST Assured would otherwise
-        // encode the % itself): a doubly encoded name stays quarkpres%73 and is not a theme, as WordPress answers
+        // encode the % itself): a doubly encoded name stays quarkwor%64 and is not a theme, as WordPress answers
         // (parity scenario f06)
         as(alice)
                 .urlEncodingEnabled(false)
-                .get("/wp-json/wp/v2/themes/quarkpres%2573")
+                .get("/wp-json/wp/v2/themes/quarkwor%2564")
                 .then()
                 .statusCode(404)
                 .header("Allow", "GET")
@@ -312,7 +312,7 @@ class ThemesDbTest {
                         + "\"data\":{\"status\":404}}"));
         as(alice)
                 .urlEncodingEnabled(false)
-                .get("/wp-json/wp/v2/themes/quarkpres%73")
+                .get("/wp-json/wp/v2/themes/quarkwor%64")
                 .then()
                 .statusCode(200)
                 .body("stylesheet", equalTo("quarkword"));

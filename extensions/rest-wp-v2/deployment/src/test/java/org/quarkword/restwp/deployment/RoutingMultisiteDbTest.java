@@ -101,7 +101,7 @@ class RoutingMultisiteDbTest {
                 "//" + news + "/wp-json/qw-test/v1/echo/5",
                 "/" + news + "//wp-json/qw-test/v1/echo/5",
                 "/" + news + "%2Fwp-json/qw-test/v1/echo/5",
-                "/" + news + "/wp-json%2Fqp-test/v1/echo/5",
+                "/" + news + "/wp-json%2Fqw-test/v1/echo/5",
                 "/x/../" + news + "/wp-json/qw-test/v1/echo/5",
                 "/" + news + "/./wp-json/qw-test/v1/echo/5")) {
             RawHttp.Reply reply = RawHttp.get(target);
