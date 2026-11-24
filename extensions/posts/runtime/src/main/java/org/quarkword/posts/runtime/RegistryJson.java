@@ -43,6 +43,14 @@ public final class RegistryJson {
             ArrayNode supports = node.putArray("supports");
             type.supports().forEach(supports::add);
             node.put("hasArchive", type.hasArchive());
+            type.archiveSlug().ifPresent(slug -> node.put("archiveSlug", slug));
+            type.queryVar().ifPresent(var -> node.put("queryVar", var));
+            type.rewrite()
+                    .ifPresent(rewrite -> node.putObject("rewrite")
+                            .put("slug", rewrite.slug())
+                            .put("withFront", rewrite.withFront())
+                            .put("pages", rewrite.pages())
+                            .put("feeds", rewrite.feeds()));
             node.put("showInRest", type.showInRest());
             type.restBase().ifPresent(base -> node.put("restBase", base));
             node.put("builtIn", type.builtIn());
@@ -74,6 +82,14 @@ public final class RegistryJson {
                     node.get("mapMetaCap").booleanValue(),
                     supports,
                     node.get("hasArchive").booleanValue(),
+                    Optional.ofNullable(node.get("archiveSlug")).map(JsonNode::textValue),
+                    Optional.ofNullable(node.get("queryVar")).map(JsonNode::textValue),
+                    Optional.ofNullable(node.get("rewrite"))
+                            .map(rewrite -> new PostTypeDefinition.Rewrite(
+                                    rewrite.get("slug").textValue(),
+                                    rewrite.get("withFront").booleanValue(),
+                                    rewrite.get("pages").booleanValue(),
+                                    rewrite.get("feeds").booleanValue())),
                     node.get("showInRest").booleanValue(),
                     Optional.ofNullable(node.get("restBase")).map(JsonNode::textValue),
                     node.get("builtIn").booleanValue()));

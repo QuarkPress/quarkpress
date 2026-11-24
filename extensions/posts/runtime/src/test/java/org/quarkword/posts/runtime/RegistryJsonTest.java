@@ -32,8 +32,35 @@ class RegistryJsonTest {
         PostTypeDefinition thing = types.getLast();
         assertThat(thing.showInNavMenus()).isNotEqualTo(thing.showInAdminBar());
         assertThat(thing.restBase()).isEmpty();
+        types.add(PostTypeDefinition.builder("book")
+                .publicly(true)
+                .hasArchive("library")
+                .queryVar("shelf")
+                .rewrite("books", false, false, true)
+                .build());
+        PostTypeDefinition book = types.getLast();
+        assertThat(book.archiveSlug()).contains("library");
+        assertThat(book.queryVar()).contains("shelf");
+        assertThat(book.rewrite()).contains(new PostTypeDefinition.Rewrite("books", false, false, true));
+        assertThat(thing.queryVar()).contains("thing");
+        assertThat(thing.rewrite()).contains(new PostTypeDefinition.Rewrite("thing", true, true, true));
+        assertThat(thing.archiveSlug()).isEmpty();
 
-        assertThat(RegistryJson.readTypes(RegistryJson.writeTypes(types))).isEqualTo(types);
+        String json = RegistryJson.writeTypes(types);
+        assertThat(json)
+                .contains("\"archiveSlug\":\"library\"")
+                .contains("\"queryVar\":\"shelf\"")
+                .contains("\"rewrite\":{\"slug\":\"books\",\"withFront\":false,\"pages\":false,\"feeds\":true}");
+        assertThat(RegistryJson.readTypes(json)).isEqualTo(types);
+    }
+
+    @Test
+    void builtInTypesHaveNoQueryVarAndNoRewrite() {
+        for (PostTypeDefinition type : BuiltInPostTypes.all()) {
+            assertThat(type.queryVar()).as(type.key()).isEmpty();
+            assertThat(type.rewrite()).as(type.key()).isEmpty();
+            assertThat(type.archiveSlug()).as(type.key()).isEmpty();
+        }
     }
 
     @Test

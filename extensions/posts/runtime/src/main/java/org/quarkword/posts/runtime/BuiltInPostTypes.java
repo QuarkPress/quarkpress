@@ -5,7 +5,11 @@ import java.util.List;
 import java.util.Map;
 import org.quarkword.core.PostTypeDefinition;
 
-/** WordPress's built-in post types that QuarkWord registers, with the arguments WordPress registers them with. */
+/**
+ * WordPress's built-in post types that QuarkWord registers, with the arguments WordPress registers them with. None of
+ * them has a query variable or rewrite rules of its own: posts, pages and attachments are addressed by the permalink
+ * structure's own tags and query variables.
+ */
 public final class BuiltInPostTypes {
 
     private BuiltInPostTypes() {}
@@ -34,6 +38,8 @@ public final class BuiltInPostTypes {
                         "post-formats"))
                 .showInRest(true)
                 .restBase("posts")
+                .noQueryVar()
+                .rewrite(false)
                 .builtIn()
                 .build();
     }
@@ -57,6 +63,8 @@ public final class BuiltInPostTypes {
                         "revisions"))
                 .showInRest(true)
                 .restBase("pages")
+                .noQueryVar()
+                .rewrite(false)
                 .builtIn()
                 .build();
     }
@@ -81,6 +89,8 @@ public final class BuiltInPostTypes {
                 .supports(List.of("title", "author", "comments"))
                 .showInRest(true)
                 .restBase("media")
+                .noQueryVar()
+                .rewrite(false)
                 .builtIn()
                 .build();
     }
@@ -125,6 +135,8 @@ public final class BuiltInPostTypes {
                 .supports(List.of("title", "excerpt", "editor", "revisions", "custom-fields"))
                 .showInRest(true)
                 .restBase("blocks")
+                .noQueryVar()
+                .rewrite(false)
                 .builtIn()
                 .build();
     }

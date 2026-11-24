@@ -10,8 +10,9 @@ import java.lang.annotation.Target;
  * Registers a post type when put on any class of the application (WordPress's {@code register_post_type}). An
  * attribute not given takes WordPress's default, derived as for a registration that leaves that argument out:
  * {@code supports} empty means title, editor and autosave; {@code excludeFromSearch} and {@code showUi} follow
- * {@code publicly}; {@code mapMetaCap} is on for the {@code post} and {@code page} capability types. {@code labels}
- * adds labels as {@code key=value} entries. A key registered twice fails the build.
+ * {@code publicly}; {@code mapMetaCap} is on for the {@code post} and {@code page} capability types; a publicly
+ * queryable type is queried by its key and a public type gets rewrite rules under its key. {@code labels} adds labels
+ * as {@code key=value} entries. A key registered twice fails the build.
  *
  * <p>The annotation covers the arguments most types need. An extension that needs every argument WordPress takes
  * (capability names, menu and REST flags, labels as a map and so on) registers a
@@ -45,6 +46,21 @@ public @interface PostType {
 
     /** Whether the type has an archive. */
     boolean hasArchive() default false;
+
+    /** The archive's slug; given, the type has an archive under it instead of under its rewrite slug. */
+    String archiveSlug() default "";
+
+    /** The query variable, slugified as WordPress does; not given, the key when the type is publicly queryable. */
+    String queryVar() default "";
+
+    /** Whether the type has rewrite rules; not given, the same as {@code publicly}. */
+    boolean rewrite() default true;
+
+    /** The slug the type's permalinks start with; not given, the key. */
+    String rewriteSlug() default "";
+
+    /** Whether the type's permalinks go under the permalink structure's front. */
+    boolean withFront() default true;
 
     String[] supports() default {};
 

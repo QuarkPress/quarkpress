@@ -32,6 +32,7 @@ class RegistriesDbTest {
             name = "Books",
             singularName = "Book",
             publicly = true,
+            queryVar = "Book Shelf",
             capabilityType = "book",
             mapMetaCap = true,
             supports = {"title", "editor", "author"},
@@ -44,10 +45,14 @@ class RegistriesDbTest {
             excludeFromSearch = true,
             showUi = false,
             hasArchive = true,
+            archiveSlug = "all-notes",
+            queryVar = "memo",
+            rewriteSlug = "memos",
+            withFront = false,
             description = "Short notes")
     static class Note {}
 
-    @PostType(key = "gadget", capabilityType = "gadget", mapMetaCap = false)
+    @PostType(key = "gadget", capabilityType = "gadget", mapMetaCap = false, rewrite = false)
     static class Gadget {}
 
     @RegisterExtension
@@ -235,7 +240,23 @@ class RegistriesDbTest {
         assertThat(book.showUi()).isTrue();
         assertThat(book.hasArchive()).isFalse();
         assertThat(book.description()).isEmpty();
+        assertThat(book.archiveSlug()).isEmpty();
+        assertThat(book.queryVar()).contains("book-shelf");
+        assertThat(book.rewrite()).contains(new PostTypeDefinition.Rewrite("book", true, true, false));
         assertThat(types.find("note").orElseThrow().mapMetaCap()).isTrue();
+        PostTypeDefinition gadget = types.find("gadget").orElseThrow();
+        assertThat(gadget.queryVar()).isEmpty();
+        assertThat(gadget.rewrite()).isEmpty();
+    }
+
+    @Test
+    void builtInTypesHaveNoQueryVarAndNoRewrite() {
+        for (String key : List.of("post", "page", "attachment", "wp_block")) {
+            PostTypeDefinition type = types.find(key).orElseThrow();
+            assertThat(type.queryVar()).as(key).isEmpty();
+            assertThat(type.rewrite()).as(key).isEmpty();
+            assertThat(type.archiveSlug()).as(key).isEmpty();
+        }
     }
 
     @Test
@@ -246,6 +267,9 @@ class RegistriesDbTest {
         assertThat(note.showUi()).isFalse();
         assertThat(note.showInMenu()).isFalse();
         assertThat(note.hasArchive()).isTrue();
+        assertThat(note.archiveSlug()).contains("all-notes");
+        assertThat(note.queryVar()).contains("memo");
+        assertThat(note.rewrite()).contains(new PostTypeDefinition.Rewrite("memos", false, true, true));
         assertThat(note.description()).isEqualTo("Short notes");
         assertThat(types.searchable()).doesNotContain("note");
     }

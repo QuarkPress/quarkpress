@@ -38,6 +38,7 @@ import org.quarkword.posts.runtime.BuiltInPostTypes;
 import org.quarkword.posts.runtime.PostCapabilityFacts;
 import org.quarkword.posts.runtime.PostsConfig;
 import org.quarkword.posts.runtime.PostsRecorder;
+import org.quarkword.posts.runtime.QueryVars;
 import org.quarkword.posts.runtime.RegistryJson;
 
 class PostsProcessor {
@@ -89,7 +90,7 @@ class PostsProcessor {
             CombinedIndexBuildItem index) {
         List<PostTypeDefinition> types = new ArrayList<>(BuiltInPostTypes.all());
         List<PostTypeDefinition> registered = new ArrayList<>();
-        typeItems.forEach(item -> registered.add(item.definition()));
+        typeItems.forEach(item -> registered.add(slugifiedQueryVar(item.definition())));
         registered.addAll(annotatedTypes(index.getIndex()));
         registered.sort(Comparator.comparing(PostTypeDefinition::key));
         types.addAll(registered);
@@ -120,7 +121,7 @@ class PostsProcessor {
         for (AnnotationInstance annotation : index.getAnnotations(POST_TYPE)) {
             String key = annotation.value("key").asString();
             try {
-                types.add(annotatedType(key, annotation));
+                types.add(QueryVars.slugified(annotatedType(key, annotation)));
             } catch (IllegalArgumentException invalid) {
                 throw new IllegalStateException(
                         "QuarkWord: @PostType on " + annotation.target() + ": " + invalid.getMessage(), invalid);
@@ -149,6 +150,23 @@ class PostsProcessor {
         if (annotation.value("mapMetaCap") != null) {
             builder.mapMetaCap(booleanValue(annotation, "mapMetaCap"));
         }
+        String archiveSlug = stringValue(annotation, "archiveSlug", "");
+        if (!archiveSlug.isEmpty()) {
+            builder.hasArchive(archiveSlug);
+        }
+        String queryVar = stringValue(annotation, "queryVar", "");
+        if (!queryVar.isEmpty()) {
+            builder.queryVar(queryVar);
+        }
+        String rewriteSlug = stringValue(annotation, "rewriteSlug", "");
+        boolean withFront = booleanValue(annotation, "withFront", true);
+        if (!booleanValue(annotation, "rewrite", true)) {
+            builder.rewrite(false);
+        } else if (!rewriteSlug.isEmpty() || !withFront) {
+            builder.rewrite(rewriteSlug, withFront, true, true);
+        } else if (annotation.value("rewrite") != null) {
+            builder.rewrite(true);
+        }
         Map<String, String> labels = new LinkedHashMap<>();
         String name = stringValue(annotation, "name", "");
         if (!name.isEmpty()) {
@@ -174,9 +192,21 @@ class PostsProcessor {
         return builder.build();
     }
 
+    private static PostTypeDefinition slugifiedQueryVar(PostTypeDefinition type) {
+        try {
+            return QueryVars.slugified(type);
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException("QuarkWord: " + invalid.getMessage(), invalid);
+        }
+    }
+
     private static boolean booleanValue(AnnotationInstance annotation, String name) {
+        return booleanValue(annotation, name, false);
+    }
+
+    private static boolean booleanValue(AnnotationInstance annotation, String name, boolean fallback) {
         AnnotationValue value = annotation.value(name);
-        return value != null && value.asBoolean();
+        return value == null ? fallback : value.asBoolean();
     }
 
     private static String stringValue(AnnotationInstance annotation, String name, String fallback) {
