@@ -15,6 +15,7 @@ import io.quarkus.test.QuarkusExtensionTest;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -424,13 +425,19 @@ class SettingsDbTest {
     @Test
     void noOptionOutsideTheRegistryIsReachable() {
         String features = Jdbc.optionJson(MAIN, "qw_features");
+        // home is seeded by the migrations; siteurl, blog_public and WPLANG are absent (site())
+        Map<String, String> before = new LinkedHashMap<>();
+        for (String name : List.of("home", "siteurl", "blog_public", "WPLANG")) {
+            before.put(name, Jdbc.optionJson(MAIN, name));
+        }
+        assertThat(before.get("home")).isNotNull();
+        assertThat(before.get("siteurl")).isNull();
         JsonNode answer = post("{\"blogname\":\"x\",\"home\":\"http://evil.test\",\"WPLANG\":\"fr_FR\","
                 + "\"qw_features\":{\"rest-wp-v2\":false},\"blog_public\":0,\"siteurl\":\"http://evil.test\"}");
         assertThat(answer.get("title")).isEqualTo(TextNode.valueOf("QuarkWord"));
         assertThat(Jdbc.optionJson(MAIN, "qw_features")).isEqualTo(features);
-        for (String name : List.of("home", "siteurl", "blog_public", "WPLANG")) {
-            assertThat(Jdbc.optionJson(MAIN, name)).as(name).isNull();
-        }
+        before.forEach((name, value) ->
+                assertThat(Jdbc.optionJson(MAIN, name)).as(name).isEqualTo(value));
         // a qw_ option is never listed, even when stored; the answer lists the registered settings
         assertThat(fieldNames(answer)).contains("title", "description").noneMatch(name -> name.startsWith("qw_"));
         Http.as("test-" + administrator)

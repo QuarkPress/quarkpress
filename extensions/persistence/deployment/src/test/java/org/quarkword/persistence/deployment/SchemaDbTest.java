@@ -73,7 +73,8 @@ class SchemaDbTest {
                         "db/quarkword/common/V1_003__persistence_network_defaults.sql",
                         "db/quarkword/" + TestDb.kind() + "/V1_004__persistence_network_lock.sql",
                         "db/quarkword/" + TestDb.kind() + "/V1_005__persistence_site_defaults.sql",
-                        "db/quarkword/" + TestDb.kind() + "/V1_006__persistence_more_site_defaults.sql");
+                        "db/quarkword/" + TestDb.kind() + "/V1_006__persistence_more_site_defaults.sql",
+                        "db/quarkword/" + TestDb.kind() + "/V1_007__persistence_front_defaults.sql");
     }
 
     @Test

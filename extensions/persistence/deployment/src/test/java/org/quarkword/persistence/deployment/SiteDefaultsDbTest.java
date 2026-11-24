@@ -79,6 +79,11 @@ class SiteDefaultsDbTest {
         expected.put("show_on_front", TextNode.valueOf("posts"));
         expected.put("page_on_front", IntNode.valueOf(0));
         expected.put("page_for_posts", IntNode.valueOf(0));
+        expected.put("permalink_structure", TextNode.valueOf("/%year%/%monthnum%/%day%/%postname%/"));
+        expected.put("category_base", TextNode.valueOf(""));
+        expected.put("tag_base", TextNode.valueOf(""));
+        expected.put("wp_attachment_pages_enabled", TextNode.valueOf("0"));
+        expected.put("wp_page_for_privacy_policy", IntNode.valueOf(0));
         expected.put("default_comment_status", TextNode.valueOf("open"));
         expected.put("default_ping_status", TextNode.valueOf("open"));
         expected.put("use_smilies", TextNode.valueOf("1"));
@@ -86,6 +91,14 @@ class SiteDefaultsDbTest {
         expected.put("site_icon", TextNode.valueOf("0"));
         expected.put("WPLANG", TextNode.valueOf(""));
         expected.put("qw_features", JsonNodeFactory.instance.objectNode());
+        return expected;
+    }
+
+    /** {@link #expected(String)} plus {@code home} and {@code siteurl}, both the site's address. */
+    private static Map<String, JsonNode> expected(String title, String address) {
+        Map<String, JsonNode> expected = expected(title);
+        expected.put("home", TextNode.valueOf(address));
+        expected.put("siteurl", TextNode.valueOf(address));
         return expected;
     }
 
@@ -105,6 +118,25 @@ class SiteDefaultsDbTest {
         assertThat(List.copyOf(defaults.keySet()))
                 .containsExactlyElementsOf(expected("Blog").keySet());
         assertThat(defaults).isEqualTo(expected("Blog"));
+    }
+
+    @Test
+    void newSitesGetTheFrontOptions() {
+        Map<String, JsonNode> defaults = SiteDefaults.forNewSite("Blog");
+        assertThat(defaults.get("permalink_structure"))
+                .isEqualTo(TextNode.valueOf("/%year%/%monthnum%/%day%/%postname%/"));
+        assertThat(defaults.get("category_base")).isEqualTo(TextNode.valueOf(""));
+        assertThat(defaults.get("tag_base")).isEqualTo(TextNode.valueOf(""));
+        assertThat(defaults.get("wp_attachment_pages_enabled")).isEqualTo(TextNode.valueOf("0"));
+        assertThat(defaults.get("wp_page_for_privacy_policy")).isEqualTo(IntNode.valueOf(0));
+        assertThat(defaults).doesNotContainKeys("home", "siteurl");
+        Map<String, JsonNode> addressed = SiteDefaults.forNewSite("Blog", "http://wp.test/site2");
+        assertThat(addressed.get("home")).isEqualTo(TextNode.valueOf("http://wp.test/site2"));
+        assertThat(addressed.get("siteurl")).isEqualTo(TextNode.valueOf("http://wp.test/site2"));
+        assertThat(addressed).containsAllEntriesOf(defaults);
+        assertThat(SiteDefaults.names()).isEqualTo(addressed.keySet());
+        assertThat(SiteDefaults.address("https", "wp.test", "/")).isEqualTo("https://wp.test");
+        assertThat(SiteDefaults.address("http", "wp.test", "/site2/")).isEqualTo("http://wp.test/site2");
     }
 
     @Test
@@ -131,15 +163,17 @@ class SiteDefaultsDbTest {
     @Test
     void theMigrationSeedsExactlyTheDefaults() throws Exception {
         String title = "Drift Site";
-        long site = insertSite(title);
+        String domain = uniqueDomain();
+        long site = insertSite(domain, "/", title);
+        String address = "http://" + domain;
         try {
             runSeedMigration();
             Map<String, Stored> stored = storedOptions(site);
             assertThat(List.copyOf(stored.keySet()))
                     .containsExactlyInAnyOrderElementsOf(
-                            withoutLanguage(expected(title)).keySet());
-            assertThat(values(stored)).isEqualTo(withoutLanguage(expected(title)));
-            assertThat(values(stored)).isEqualTo(withoutLanguage(SiteDefaults.forNewSite(title)));
+                            withoutLanguage(expected(title, address)).keySet());
+            assertThat(values(stored)).isEqualTo(withoutLanguage(expected(title, address)));
+            assertThat(values(stored)).isEqualTo(withoutLanguage(SiteDefaults.forNewSite(title, address)));
             stored.forEach((name, option) ->
                     assertThat(option.autoload()).as("autoload of %s", name).isTrue());
         } finally {
@@ -164,10 +198,80 @@ class SiteDefaultsDbTest {
             rest.keySet().removeAll(List.of("blogname", "posts_per_page", "qw_features"));
             rest.forEach((name, value) ->
                     assertThat(stored.get(name)).as("seeded %s", name).isEqualTo(new Stored(value, true)));
-            assertThat(stored).hasSize(18);
+            assertThat(stored).hasSize(25);
         } finally {
             deleteSite(site);
         }
+    }
+
+    @Test
+    void existingSitesAreSeeded() throws Exception {
+        String domain = uniqueDomain();
+        long root = insertSite(domain, "/", "Root");
+        long sub = insertSite(domain, "/sub/", "Sub");
+        try {
+            insertOption(sub, "permalink_structure", "\"/%postname%/\"", true);
+            runSeedMigration();
+            for (long site : new long[] {root, sub}) {
+                Map<String, Stored> stored = storedOptions(site);
+                assertThat(stored)
+                        .as("site %s", site)
+                        .containsKeys(
+                                "permalink_structure",
+                                "category_base",
+                                "tag_base",
+                                "wp_attachment_pages_enabled",
+                                "wp_page_for_privacy_policy",
+                                "home",
+                                "siteurl");
+                assertThat(stored.get("category_base")).isEqualTo(new Stored(TextNode.valueOf(""), true));
+                assertThat(stored.get("tag_base")).isEqualTo(new Stored(TextNode.valueOf(""), true));
+                assertThat(stored.get("wp_attachment_pages_enabled"))
+                        .isEqualTo(new Stored(TextNode.valueOf("0"), true));
+                assertThat(stored.get("wp_page_for_privacy_policy")).isEqualTo(new Stored(IntNode.valueOf(0), true));
+            }
+            Map<String, Stored> rootOptions = storedOptions(root);
+            assertThat(rootOptions.get("home")).isEqualTo(new Stored(TextNode.valueOf("http://" + domain), true));
+            assertThat(rootOptions.get("siteurl")).isEqualTo(new Stored(TextNode.valueOf("http://" + domain), true));
+            assertThat(rootOptions.get("permalink_structure").value())
+                    .isEqualTo(TextNode.valueOf("/%year%/%monthnum%/%day%/%postname%/"));
+            Map<String, Stored> subOptions = storedOptions(sub);
+            assertThat(subOptions.get("home"))
+                    .isEqualTo(new Stored(TextNode.valueOf("http://" + domain + "/sub"), true));
+            assertThat(subOptions.get("siteurl"))
+                    .isEqualTo(new Stored(TextNode.valueOf("http://" + domain + "/sub"), true));
+            assertThat(subOptions.get("permalink_structure").value()).isEqualTo(TextNode.valueOf("/%postname%/"));
+        } finally {
+            deleteSite(sub);
+            deleteSite(root);
+        }
+    }
+
+    /**
+     * The main site (the first row) of a sub-directory network gets the {@code /blog/} structure. The main site's
+     * seeded structure is deleted and seeded again, so the sites this test adds decide the result; afterwards the
+     * migration runs once more with them gone, which restores the default structure the main site started with.
+     */
+    @Test
+    void theMainSiteOfASubDirectoryNetworkGetsTheBlogStructure() throws Exception {
+        long main = Jdbc.count(dataSource, "select min(id) from qw_site");
+        String mainDomain = Jdbc.strings(dataSource, "select domain from qw_site where id = ?", main)
+                .get(0);
+        long sub = insertSite(mainDomain, "/second/", "Second");
+        try {
+            deleteOption(main, "permalink_structure");
+            runSeedMigration();
+            assertThat(storedOptions(main).get("permalink_structure"))
+                    .isEqualTo(new Stored(TextNode.valueOf("/blog/%year%/%monthnum%/%day%/%postname%/"), true));
+            assertThat(storedOptions(sub).get("permalink_structure").value())
+                    .isEqualTo(TextNode.valueOf("/%year%/%monthnum%/%day%/%postname%/"));
+        } finally {
+            deleteSite(sub);
+            deleteOption(main, "permalink_structure");
+            runSeedMigration();
+        }
+        assertThat(storedOptions(main).get("permalink_structure").value())
+                .isEqualTo(TextNode.valueOf("/%year%/%monthnum%/%day%/%postname%/"));
     }
 
     @Test
@@ -222,10 +326,17 @@ class SiteDefaultsDbTest {
         return values;
     }
 
+    private static String uniqueDomain() {
+        return "defaults-" + UUID.randomUUID() + ".test";
+    }
+
     private long insertSite(String name) {
-        String domain = "defaults-" + UUID.randomUUID() + ".test";
-        Jdbc.update(dataSource, "insert into qw_site (domain, path, name) values (?, '/', ?)", domain, name);
-        return Jdbc.count(dataSource, "select id from qw_site where domain = ?", domain);
+        return insertSite(uniqueDomain(), "/", name);
+    }
+
+    private long insertSite(String domain, String path, String name) {
+        Jdbc.update(dataSource, "insert into qw_site (domain, path, name) values (?, ?, ?)", domain, path, name);
+        return Jdbc.count(dataSource, "select id from qw_site where domain = ? and path = ?", domain, path);
     }
 
     private void deleteSite(long site) {
@@ -266,6 +377,7 @@ class SiteDefaultsDbTest {
     private void runSeedMigration() throws SQLException, IOException {
         runScript("db/quarkword/" + TestDb.kind() + "/V1_005__persistence_site_defaults.sql");
         runScript("db/quarkword/" + TestDb.kind() + "/V1_006__persistence_more_site_defaults.sql");
+        runScript("db/quarkword/" + TestDb.kind() + "/V1_007__persistence_front_defaults.sql");
     }
 
     private void runScript(String path) throws SQLException, IOException {

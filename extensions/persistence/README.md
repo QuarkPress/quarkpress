@@ -222,10 +222,25 @@ defaults. Site options and network options live in separate tables (`qw_option`,
   than the one the request is bound to is refused, as for any site-scoped row (the network scope may write any site's
   options); the internal `OptionWrites` bean that services use applies the same rule.
 - **Default options.** Every site gets WordPress's default options when it is created (and the sites that exist when
-  the `V1_005` and `V1_006` migrations run get them then, keeping any option they already have). Four came
+  the `V1_005`, `V1_006` and `V1_007` migrations run get them then, keeping any option they already have). Four came
   with `V1_006`, as the texts WordPress stores: `use_smilies` `"1"`, `default_post_format` `"0"`, `site_icon` `"0"`
   and `WPLANG` `""`. `WPLANG` is set for new sites only: like WordPress's installer, `V1_006` leaves the sites that
-  already exist without it, so they read the default language.
+  already exist without it, so they read the default language. Seven front-end options came with `V1_007`:
+
+  | Option | Default | Note |
+  |---|---|---|
+  | `home` | `scheme://domain/path` of the site, no trailing slash (`http://wp.test`, `http://wp.test/site2`) | the front-end root; `SiteDefaults.address` builds it. `V1_007` seeds existing sites with `http`; the multisite module writes the creating request's scheme |
+  | `siteurl` | the same address | the application root |
+  | `permalink_structure` | `"/%year%/%monthnum%/%day%/%postname%/"` | WordPress's default for a network's sites; QuarkWord can always rewrite, so a single site gets it too instead of WordPress's installer's loopback test. `V1_007` gives the main site (the first `qw_site` row, which `V1_002` inserted; the migration cannot read `quarkword.main-site-id`) `"/blog/%year%/%monthnum%/%day%/%postname%/"` when another site shares its domain with a path other than `/` (a sub-directory network), as WordPress does at network creation |
+  | `category_base` | `""` | empty means `category` |
+  | `tag_base` | `""` | empty means `tag` |
+  | `wp_attachment_pages_enabled` | `"0"` | text |
+  | `wp_page_for_privacy_policy` | `0` | number |
+
+  `wp_attachment_pages_enabled` is stored as the text `"0"` and `wp_page_for_privacy_policy` as the number `0`
+  because the defaults follow `SiteDefaults`' "type as its readers use it" rule: WordPress stores both as text and
+  sanitizes neither; the attachment flag is compared as the text `"1"` wherever it is read, while the privacy page id
+  is cast to an integer by every reader and written back as the integer `0` when the page is deleted.
 - **Reads** of the store join the caller's transaction or run in a short one of their own. Reading another site's
   options from a site-bound request finds nothing (the filter); use a `SiteScope` for that site.
 - **Typed reads** (`string`, `number`, `flag`) and the **time zone** follow PHP's conversions and WordPress's rules,
