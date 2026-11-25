@@ -395,8 +395,10 @@ class FrontFactsDbTest {
         return site.operation("post", input).get("id").longValue();
     }
 
+    /** A term through REST; the plain route, since a plain-permalink site has no {@code /wp-json/} rule. */
     static long term(String sitePath, String base, String json) throws Exception {
-        Exchange created = client.send(RestCall.json("alice", "POST", sitePath + "/wp-json/wp/v2/" + base, json));
+        Exchange created =
+                client.send(RestCall.json("alice", "POST", sitePath + "/index.php?rest_route=/wp/v2/" + base, json));
         assertThat(created.status())
                 .as("fixture %s %s: %s", base, json, created.text())
                 .isEqualTo(201);
@@ -429,13 +431,13 @@ class FrontFactsDbTest {
         entry.put("bodyBytes", body.length);
         String html = new String(body, StandardCharsets.UTF_8);
         between(html, "<title>", "</title>").stream().findFirst().ifPresent(title -> entry.put("title", title));
-        List<String> listed = between(html, "class=\"wp-block-post-title", "</h2>");
+        List<String> listed = between(html, "class=\"wp-block-post-title", "</h");
         if (!listed.isEmpty()) {
             ArrayNode titles = entry.putArray("listed");
             for (String heading : listed) {
-                int open = heading.lastIndexOf('>');
-                int close = heading.lastIndexOf("</a>");
-                titles.add(close > open ? heading.substring(open + 1, close) : heading);
+                int close = heading.endsWith("</a>") ? heading.length() - 4 : heading.length();
+                int open = heading.lastIndexOf('>', close - 1);
+                titles.add(heading.substring(open + 1, close));
             }
         }
     }
