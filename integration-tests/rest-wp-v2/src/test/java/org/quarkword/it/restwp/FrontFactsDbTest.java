@@ -3,6 +3,7 @@ package org.quarkword.it.restwp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -11,6 +12,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +33,9 @@ import org.quarkword.testing.wpscenario.WordPressTree;
 /**
  * Records what WordPress 7.1.3 answers on its front end for the routing reference's verification items (G1, G2, G3,
  * G14, G20), for the rewrite table's example paths, and for the query reference's items on a plain-permalink site
- * (FQ-G1 to FQ-G9, FQ-G14, FQ-G15, FQ-G22, FQ-G23), into {@code target/wp-rest-parity/front-facts.json}: status,
+ * (FQ-G1 to FQ-G9, FQ-G14, FQ-G15, FQ-G22, FQ-G23), for the main query's items with logged-in visitors (FQ-G10 to
+ * FQ-G12, FQ-G16 to FQ-G18, FQ-G24, FR's G5, G6 and G13, the content-page and {@code error} answers of the 404
+ * decision), and for MySQL's {@code WEEK} numbers, into {@code target/wp-rest-parity/front-facts.json}: status,
  * {@code Location}, {@code Cache-Control}, {@code Expires}, {@code Content-Type}, {@code Link}, {@code X-Redirect-By},
  * {@code X-Robots-Tag}, the first 300 bytes of the body, the document title and the listed post titles of every
  * request. The cast lives on subdirectory sites of the parity network (one per permalink structure); redirects are
@@ -306,7 +312,250 @@ class FrontFactsDbTest {
         option(site, "show_on_front", TextNode.valueOf("posts"));
     }
 
+    @Test
+    void fqMainQueryItemsWithLoggedInVisitors() throws Exception {
+        String site = createSite("gm", "");
+        long news = term(site, "categories", "{\"name\":\"News\",\"slug\":\"news\"}");
+        long europe = term(site, "categories", "{\"name\":\"Europe\",\"slug\":\"europe\",\"parent\":" + news + "}");
+        long cars = term(site, "tags", "{\"name\":\"Cars\",\"slug\":\"cars\"}");
+        long paint = term(site, "tags", "{\"name\":\"Paint\",\"slug\":\"paint\"}");
+        long food = term(site, "tags", "{\"name\":\"Food\",\"slug\":\"food\"}");
+        long longStory = post(site, "post", "publish", "Long story", "long-story", "2026-07-10 08:00:00", 0, null);
+        FrontFactsDbTest.site.operation(
+                "update_post",
+                args().put("site", site + "/")
+                        .put("as", "alice")
+                        .put("id", longStory)
+                        .set(
+                                "fields",
+                                args().put(
+                                                "post_content",
+                                                "Intro<!--more-->Rest of one\n<!--nextpage-->\nTwo<!--nextpage-->Three")));
+        castPostAs(
+                site,
+                "carol",
+                "publish",
+                "Secret recipe",
+                "secret-recipe",
+                "2026-06-01 08:00:00",
+                terms(0, food),
+                "s3",
+                false);
+        castPostAs(
+                site,
+                "bob",
+                "publish",
+                "Car painted red",
+                "car-painted-red",
+                "2026-05-20 08:00:00",
+                terms(europe, cars, paint),
+                null,
+                false);
+        castPostAs(
+                site,
+                "carol",
+                "publish",
+                "Red car for sale",
+                "red-car-for-sale",
+                "2026-04-02 08:00:00",
+                terms(news, cars),
+                null,
+                false);
+        castPostAs(
+                site,
+                "bob",
+                "publish",
+                "Spring notes",
+                "spring-notes",
+                "2026-03-14 08:00:00",
+                terms(news),
+                null,
+                false);
+        long hello = castPostAs(
+                site, "alice", "publish", "Hello world!", "hello-world", "2026-01-05 08:00:00", null, null, false);
+        castPostAs(site, "alice", "publish", "Welcome", "welcome", "2025-12-01 08:00:00", null, null, true);
+        long travel = castPostAs(
+                site, "carol", "draft", "Travel diary", "travel-diary", "2026-02-01 08:00:00", null, null, false);
+        long launch =
+                castPostAs(site, "bob", "future", "Launch day", "launch-day", "2027-01-01 08:00:00", null, null, false);
+        long aliceDraft = castPostAs(
+                site, "alice", "draft", "Alice draft", "alice-draft", "2026-02-02 08:00:00", null, null, false);
+        long draftShot = postAs(
+                site, "carol", "attachment", "inherit", "Draft shot", "draft-shot", "2026-02-01 08:30:00", travel);
+        long aliceShot = postAs(
+                site, "alice", "attachment", "inherit", "Alice shot", "alice-shot", "2026-02-01 08:31:00", travel);
+        long carolShot = postAs(
+                site, "carol", "attachment", "inherit", "Carol shot", "carol-shot", "2026-02-02 08:30:00", aliceDraft);
+        long outsider = FrontFactsDbTest.site
+                .operation("outsider", args().put("login", "olga"))
+                .get("id")
+                .longValue();
+        notes.put(
+                "FQ main query cast",
+                "site /gm/ (plain permalinks): long-story " + longStory + " (three content pages), hello-world " + hello
+                        + "; drafts travel-diary " + travel + " (carol) and alice-draft " + aliceDraft
+                        + " (alice), scheduled launch-day " + launch + " (bob); attachments draft-shot " + draftShot
+                        + " (by carol, of carol's draft), alice-shot " + aliceShot
+                        + " (by alice, of carol's draft), carol-shot " + carolShot
+                        + " (by carol, of alice's draft); erin " + FrontFactsDbTest.site.userId("erin")
+                        + " has no posts; olga " + outsider + " is a network user of no site.");
+
+        Session carol = login("carol");
+        Session bob = login("bob");
+        Session erin = login("erin");
+        record("FQ-G10", site + "/?attachment_id=" + draftShot);
+        record("FQ-G10", site + "/?attachment_id=" + draftShot, carol);
+        record("FQ-G10", site + "/?attachment_id=" + draftShot, erin);
+        record("FQ-G10", site + "/?attachment_id=" + draftShot, bob);
+        record("FQ-G10", site + "/?attachment_id=" + aliceShot, carol);
+        record("FQ-G10", site + "/?attachment_id=" + carolShot, carol);
+        record("FQ-G11", site + "/?p=" + travel, carol);
+        record("FQ-G11", site + "/?p=" + travel, erin);
+        record("FQ-G11", site + "/?p=" + launch, bob);
+        record("FQ-G11", site + "/?p=" + launch, carol);
+        record("FQ-G12", site + "/?s=secret");
+        record("FQ-G12", site + "/?s=secret", erin);
+        record("FQ-G16", site + "/?s=red");
+        record("FQ-G16", site + "/?s=red%20car");
+        record("FQ-G17", site + "/?author=" + FrontFactsDbTest.site.userId("erin"));
+        record("FQ-G17", site + "/?author=99999");
+        record("FQ-G17", site + "/?author_name=nobody");
+        record("FQ-G17", site + "/?author=" + outsider);
+        record("FQ-G17", site + "/?author_name=olga");
+        record("FQ-G17", site + "/?author_name=erin");
+        option(site, "posts_per_page", TextNode.valueOf("3"));
+        record("FQ-G18", site + "/");
+        record("FQ-G18", site + "/?paged=2");
+        record("FQ-G18", site + "/?paged=3");
+        record("FQ-G18", site + "/?paged=4");
+        option(site, "posts_per_page", TextNode.valueOf("10"));
+        record("FQ-G24", site + "/?feed=rss2");
+        record("FR15-page", site + "/?p=" + longStory + "&page=2");
+        record("FR15-page", site + "/?p=" + longStory + "&page=3");
+        record("FR15-page", site + "/?p=" + longStory + "&page=4");
+        record("FR15-page", site + "/?p=" + hello + "&page=2");
+        record("FR15-page", site + "/?p=" + hello + "&page=0");
+        record("FR16-error", site + "/?error=403");
+        record("FR16-error", site + "/?error=404");
+        record("FR16-error", site + "/?error=410");
+        record("FR16-error", site + "/?error=418");
+        record("FR16-error", site + "/?error=500");
+        record("FR16-error", site + "/?p=-1&error=410");
+    }
+
+    @Test
+    void frAuthorsAttachmentsOfDraftsAndPageZeroOnTheDatedSite() throws Exception {
+        String outsider = "otto";
+        long otto = site.operation("outsider", args().put("login", outsider))
+                .get("id")
+                .longValue();
+        long draft =
+                post(dated, "post", "draft", "Draft with photo", "draft-with-photo", "2025-11-24 08:00:00", 0, null);
+        long shot =
+                post(dated, "attachment", "inherit", "Draft photo", "draft-photo", "2025-11-24 08:30:00", draft, null);
+        notes.put(
+                "FR G5 G6 G13 cast",
+                "site /gdef/: draft " + draft + " with attachment " + shot + " (pages off); otto " + otto
+                        + " is a network user of no site; erin is a member without posts.");
+        record("G5", dated + "/author/" + outsider + "/");
+        record("G5", dated + "/author/erin/");
+        record("G5", dated + "/?author=" + otto);
+        record("G5", dated + "/?author=" + site.userId("erin"));
+        record("G6", dated + "/?attachment_id=" + shot);
+        record("G6", dated + "/?attachment_id=" + shot, login("alice"));
+        record("G13", dated + "/2025/11/23/second-post/0/");
+        record("G13", dated + "/2025/11/23/second-post/2/");
+    }
+
+    @Test
+    void mysqlWeekNumbers() throws Exception {
+        try (Connection connection = database.connect("mysql");
+                Statement statement = connection.createStatement();
+                ResultSet row = statement.executeQuery("SELECT WEEK('2026-05-20', 0), WEEK('2026-05-20', 1),"
+                        + " WEEK('2026-01-04', 0), WEEK('2026-01-04', 1), WEEK('2027-01-01', 1),"
+                        + " WEEK(DATE_SUB('2026-01-04', INTERVAL 3 DAY), 0), WEEK('2025-05-21', 0),"
+                        + " WEEK('2025-05-21', 1), VERSION()")) {
+            row.next();
+            ArrayNode list = items.putArray("DC3-WEEK");
+            ObjectNode entry = list.addObject();
+            entry.put(
+                    "request",
+                    "SELECT WEEK('2026-05-20', 0), WEEK('2026-05-20', 1), WEEK('2026-01-04', 0), WEEK('2026-01-04', 1),"
+                            + " WEEK('2027-01-01', 1), WEEK(DATE_SUB('2026-01-04', INTERVAL 3 DAY), 0),"
+                            + " WEEK('2025-05-21', 0), WEEK('2025-05-21', 1)");
+            ArrayNode values = entry.putArray("values");
+            for (int column = 1; column <= 8; column++) {
+                values.add(row.getInt(column));
+            }
+            entry.put("server", row.getString(9));
+        }
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------------------
+
+    /** A login session's cookies. */
+    record Session(String user, String cookie) {}
+
+    static Session login(String user) throws Exception {
+        JsonNode answer = site.operation("cookie_session", args().put("user", user));
+        StringBuilder cookie = new StringBuilder();
+        for (JsonNode entry : answer.get("cookies")) {
+            if (!cookie.isEmpty()) {
+                cookie.append("; ");
+            }
+            cookie.append(entry.get("name").asText())
+                    .append('=')
+                    .append(entry.get("value").asText());
+        }
+        return new Session(user, cookie.toString());
+    }
+
+    /** A post of type {@code post} by {@code as} with the reference's extras: terms, a password, stickiness. */
+    static long castPostAs(
+            String sitePath,
+            String as,
+            String status,
+            String title,
+            String slug,
+            String date,
+            ObjectNode terms,
+            String password,
+            boolean sticky)
+            throws Exception {
+        ObjectNode fields = args().put("post_name", slug).put("post_date", date);
+        if (terms != null) {
+            fields.set("terms", terms);
+        }
+        if (password != null) {
+            fields.put("post_password", password);
+        }
+        if (sticky) {
+            fields.put("sticky", true);
+        }
+        ObjectNode input = args().put("site", sitePath + "/")
+                .put("as", as)
+                .put("type", "post")
+                .put("status", status)
+                .put("title", title);
+        input.set("fields", fields);
+        return site.operation("post", input).get("id").longValue();
+    }
+
+    static long postAs(
+            String sitePath, String as, String type, String status, String title, String slug, String date, long parent)
+            throws Exception {
+        ObjectNode fields = args().put("post_name", slug).put("post_date", date);
+        if (parent > 0) {
+            fields.put("post_parent", parent);
+        }
+        ObjectNode input = args().put("site", sitePath + "/")
+                .put("as", as)
+                .put("type", type)
+                .put("status", status)
+                .put("title", title);
+        input.set("fields", fields);
+        return site.operation("post", input).get("id").longValue();
+    }
 
     /** A post of type {@code post} by alice with the reference's extras: terms, a password, stickiness. */
     static long castPost(
@@ -411,10 +660,22 @@ class FrontFactsDbTest {
 
     /** Sends an anonymous GET and records what came back under {@code item}. */
     static void record(String item, String target) throws Exception {
-        Exchange exchange = client.send(RestCall.get("anonymous", target));
+        record(item, target, null);
+    }
+
+    /** Sends a GET in {@code session} (anonymous when null) and records what came back under {@code item}. */
+    static void record(String item, String target, Session session) throws Exception {
+        RestCall call = RestCall.get("anonymous", target);
+        if (session != null) {
+            call = call.withHeader("Cookie", session.cookie());
+        }
+        Exchange exchange = client.send(call);
         ArrayNode list = items.has(item) ? (ArrayNode) items.get(item) : items.putArray(item);
         ObjectNode entry = list.addObject();
         entry.put("request", target);
+        if (session != null) {
+            entry.put("as", session.user());
+        }
         entry.put("status", exchange.status());
         for (String header : HEADERS) {
             List<String> lines = exchange.headerLines(header);
@@ -431,6 +692,15 @@ class FrontFactsDbTest {
         entry.put("bodyBytes", body.length);
         String html = new String(body, StandardCharsets.UTF_8);
         between(html, "<title>", "</title>").stream().findFirst().ifPresent(title -> entry.put("title", title));
+        List<String> dates = between(html, "<time datetime=\"", "\"");
+        if (!dates.isEmpty()) {
+            ArrayNode times = entry.putArray("dates");
+            dates.forEach(times::add);
+        }
+        if (html.contains("<rss")) {
+            ArrayNode titles = entry.putArray("feedTitles");
+            between(html, "<title>", "</title>").forEach(titles::add);
+        }
         List<String> listed = between(html, "class=\"wp-block-post-title", "</h");
         if (!listed.isEmpty()) {
             ArrayNode titles = entry.putArray("listed");

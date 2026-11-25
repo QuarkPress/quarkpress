@@ -109,12 +109,16 @@ items never run here.
 `mvn -pl integration-tests/rest-wp-v2 -am verify -Pwp-parity -Dfront.facts=true -Dtest=FrontFactsDbTest -Dsurefire.failIfNoSpecifiedTests=false`)
 records what WordPress answers on its front end for the routing reference's verification items (`G1`, `G2`, `G3`,
 `G14`, `G20`), for the rewrite table's example paths, and for the query reference's items on a plain-permalink site
-(`FQ-G1` to `FQ-G9`, `FQ-G14`, `FQ-G15`, `FQ-G22`, `FQ-G23`), into `target/wp-rest-parity/front-facts.json`: per
-request the status, `Location`, `Cache-Control`, `Expires`, `Content-Type`, `Link`, `X-Redirect-By`, `X-Robots-Tag`,
-the first 300 bytes of the body, the document title and the post titles the page lists, redirects not followed. The
-cast (the reference's posts, pages, attachments, terms and the `book` type) lives on subdirectory sites of the network,
-one per permalink structure (`/gdef/` dated, `/gplain/` plain, `/site2/` with `/%postname%/`, `/gq/` plain with the
-query reference's cast), created with the `create_site`, `option` and `post` setup operations. It asserts nothing about
+(`FQ-G1` to `FQ-G9`, `FQ-G14`, `FQ-G15`, `FQ-G22`, `FQ-G23`), for the main query's items, some as logged-in visitors
+through `cookie_session` cookies (`FQ-G10` to `FQ-G12`, `FQ-G16` to `FQ-G18`, `FQ-G24`, the routing reference's `G5`,
+`G6`, `G13`, the content-page and `error` answers of the 404 decision), and for MySQL's `WEEK` numbers of the week
+archives, into `target/wp-rest-parity/front-facts.json`: per request the status, `Location`, `Cache-Control`,
+`Expires`, `Content-Type`, `Link`, `X-Redirect-By`, `X-Robots-Tag`, the first 300 bytes of the body, the document
+title, the post titles the page lists, the `<time datetime>` values and a feed's titles, and who asked, redirects not
+followed. The cast (the reference's posts, pages, attachments, terms and the `book` type) lives on subdirectory sites
+of the network, one per permalink structure (`/gdef/` dated, `/gplain/` plain, `/site2/` with `/%postname%/`, `/gq/`
+and `/gm/` plain with the query reference's cast, `/gm/` with its authors, drafts and attachments of drafts), created
+with the `create_site`, `option`, `post`, `update_post` and `outsider` setup operations. It asserts nothing about
 QuarkWord. It needs `-Dfront.facts=true` as well as the profile: without that property the class is skipped, which is
 what CI's `-Pwp-parity` cell relies on, so the parity run never records the front facts by itself.
 
