@@ -536,6 +536,21 @@ class NormalizerTest {
     }
 
     @Test
+    void aPlainRestUrlsRouteIdsAreNormalised() {
+        // a front page's Link header on a site with plain permalinks names the REST route in rest_route
+        assertThat(normalizer.header(
+                        "Link",
+                        "<http://localhost/s/index.php?rest_route=/>; rel=\"https://api.w.org/\", "
+                                + "<http://localhost/s/index.php?rest_route=/wp/v2/posts/3>; rel=\"alternate\", "
+                                + "<http://localhost/s/?p=3>; rel=shortlink",
+                        Map.of(3L, "p:a"),
+                        "/s/"))
+                .isEqualTo("<http://{host}{site}/index.php?rest_route=/>; rel=\"https://api.w.org/\", "
+                        + "<http://{host}{site}/index.php?rest_route=/wp/v2/posts/p:a>; rel=\"alternate\", "
+                        + "<http://{host}{site}/?p=p:a>; rel=shortlink");
+    }
+
+    @Test
     void uploadFoldersSitesAndGeneratedSizesAreNormalised() {
         Normalizer november = new Normalizer(NOVEMBER);
         JsonNode body = json("{\"id\":31,\"type\":\"attachment\",\"post\":30,"

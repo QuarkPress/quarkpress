@@ -891,7 +891,7 @@ public final class Normalizer {
         };
     }
 
-    private static String query(String query, Refs refs, Kind routeKind) {
+    private String query(String query, Refs refs, Kind routeKind) {
         StringBuilder out = new StringBuilder(query.length());
         int i = 0;
         while (true) {
@@ -901,7 +901,10 @@ public final class Normalizer {
             int equals = pair.indexOf('=');
             String key = equals > 0 ? baseKey(pair.substring(0, equals)) : "";
             Kind kind = equals > 0 ? ID_QUERY_KEYS.get(key) : null;
-            if (kind != null) {
+            if (key.equals("rest_route")) {
+                // a plain REST URL's route is a path: its ids are normalised as a pretty REST URL's are
+                out.append(pair, 0, equals + 1).append(path(pair.substring(equals + 1), refs));
+            } else if (kind != null) {
                 // a parent in a query is a term's, unless the route is a post type's (pages?parent=)
                 Kind looked = key.equals("parent") && (routeKind == Kind.POST || routeKind == Kind.REVISION)
                         ? Kind.POST
