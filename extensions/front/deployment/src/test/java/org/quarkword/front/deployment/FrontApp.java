@@ -2,6 +2,8 @@ package org.quarkword.front.deployment;
 
 import io.quarkus.test.QuarkusExtensionTest;
 import java.util.UUID;
+import java.util.function.Consumer;
+import org.jboss.shrinkwrap.api.spec.JavaArchive;
 
 /**
  * Test applications with the front module (and so the posts, taxonomy, security and persistence modules) on
@@ -23,14 +25,23 @@ public final class FrontApp {
         return app(classes).overrideConfigKey("quarkword.multisite.enabled", "true");
     }
 
+    /** A single-site install whose application archive {@code more} adds to (resources, say). */
+    public static QuarkusExtensionTest with(Consumer<JavaArchive> more, Class<?>... classes) {
+        return app(more, classes).overrideConfigKey("quarkword.multisite.enabled", "false");
+    }
+
     /** For tests whose build or start must fail: no database is started. */
     public static QuarkusExtensionTest buildOnly(Class<?>... classes) {
         return with(classes).overrideConfigKey("quarkus.datasource.\"quarkword\".devservices.enabled", "false");
     }
 
     private static QuarkusExtensionTest app(Class<?>... classes) {
+        return app(jar -> {}, classes);
+    }
+
+    private static QuarkusExtensionTest app(Consumer<JavaArchive> more, Class<?>... classes) {
         return new QuarkusExtensionTest()
-                .withApplicationRoot(jar -> jar.addClasses(classes)
+                .withApplicationRoot(jar -> more.accept(jar.addClasses(classes)
                         .addClasses(
                                 TestDb.class,
                                 FrontApp.class,
@@ -38,7 +49,7 @@ public final class FrontApp {
                                 Jdbc.class,
                                 Failures.class,
                                 TestData.class,
-                                Identities.class))
+                                Identities.class)))
                 .overrideConfigKey("quarkus.datasource.\"quarkword\".db-kind", TestDb.kind())
                 .overrideConfigKey("quarkus.datasource.devservices.enabled", "false")
                 .overrideConfigKey("quarkus.keycloak.devservices.enabled", "false")

@@ -136,8 +136,8 @@ public class DefaultFrontResolver implements FrontResolver {
 
     private FrontRequest resolveAs(String rawPath, Map<String, List<String>> query, Viewer viewer, Instant now) {
         boolean armed = false;
-        if (query.containsKey("preview_id") && query.containsKey("preview_nonce")) {
-            armed = validPair(last(query, "preview_id"), last(query, "preview_nonce"), viewer);
+        if (hasPair(query)) {
+            armed = validPair(query, viewer, tokens);
             if (!armed) {
                 return FrontRequest.answered(QueryVars.empty(), FrontFlags.none(), 403, now)
                         .withMessage(FrontRequest.CANNOT_PREVIEW);
@@ -343,11 +343,20 @@ public class DefaultFrontResolver implements FrontResolver {
     // ---- helpers --------------------------------------------------------------------------------------------------
 
     /** Whether the preview pair is the viewer's valid token of the post {@code preview_id} names. */
-    private boolean validPair(String previewId, String nonce, Viewer viewer) {
-        long id = FlagParser.phpInt(previewId);
+    /** Whether the query carries the preview pair ({@code preview_id} and {@code preview_nonce}, both given). */
+    static boolean hasPair(Map<String, List<String>> query) {
+        return query.containsKey("preview_id") && query.containsKey("preview_nonce");
+    }
+
+    /** Whether the query's preview pair is the viewer's valid token of the post it names; run as the viewer. */
+    static boolean validPair(Map<String, List<String>> query, Viewer viewer, PreviewTokens tokens) {
+        long id = FlagParser.phpInt(last(query, "preview_id"));
         return viewer.user().isPresent()
                 && id > 0
-                && tokens.verify(PostId.of(id), nonce, viewer.user().get());
+                && tokens.verify(
+                        PostId.of(id),
+                        last(query, "preview_nonce"),
+                        viewer.user().get());
     }
 
     /** The {@code error} variable's status, when it is not empty as PHP reads it. */

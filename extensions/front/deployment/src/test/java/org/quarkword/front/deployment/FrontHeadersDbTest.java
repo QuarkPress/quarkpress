@@ -130,6 +130,14 @@ class FrontHeadersDbTest {
                         entry("Cache-Control", List.of("public, max-age=60")),
                         entry("X-Redirect-By", List.of("QuarkWord")),
                         entry("Location", List.of(hello)));
+        // a published post asked for as a preview without a valid pair is no preview once redirected (WordPress
+        // clears the flag before it redirects): no preview headers, no no-cache set
+        assertThat(cast.redirectHeaders("/?p=" + cast.hello.value() + "&preview=true", Viewer.anonymous()))
+                .containsExactly(
+                        entry("Content-Type", List.of(HTML)),
+                        entry("Cache-Control", List.of("public, max-age=60")),
+                        entry("X-Redirect-By", List.of("QuarkWord")),
+                        entry("Location", List.of(hello)));
         // a redirect after the 404 decision keeps its no-cache set (FR15-page, G13)
         assertThat(cast.redirectHeaders("/2025/11/23/second-post/3/", Viewer.anonymous()))
                 .containsExactly(

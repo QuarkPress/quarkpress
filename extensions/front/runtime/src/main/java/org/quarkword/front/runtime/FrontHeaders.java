@@ -25,8 +25,9 @@ import org.quarkword.taxonomy.Taxonomies;
  * <p>Every answer is {@code text/html; charset=UTF-8}. WordPress's no-cache set ({@code Expires} in 1984 and {@code
  * Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private}) goes with an answer to a logged-in viewer,
  * a preview, a 404, a request the 404 decision found missing (even when an {@code error} status then replaced the
- * 404), and a singular request whose post has a password. A preview adds {@code X-Robots-Tag: noindex, nofollow} and {@code
- * Content-Security-Policy: frame-ancestors 'self'}. Any other answer carries {@code quarkword.front.cache-control} as
+ * 404), and a singular request whose post has a password. A preview adds {@code X-Robots-Tag: noindex, nofollow} and
+ * {@code Content-Security-Policy: frame-ancestors 'self'}; a redirect is no preview (WordPress redirects a preview
+ * only once it stopped being one), so it gets neither, nor the no-cache set for being one. Any other answer carries {@code quarkword.front.cache-control} as
  * its {@code Cache-Control} when that is set. A page (not a redirect, and not an {@code error} status that ends the
  * request) carries the REST API's {@code Link}, then the REST route of the queried post, term or author when its type
  * or taxonomy is in the REST API ({@code rel="alternate"}), then a singular request's shortlink ({@code home/?p=ID},
@@ -61,7 +62,12 @@ public class FrontHeaders {
      * password.
      */
     public Map<String, List<String>> of(FrontRequest request, Viewer viewer, boolean passwordProtected) {
-        Map<String, List<String>> headers = base(request, viewer, config.cacheControl(), passwordProtected);
+        Map<String, List<String>> headers = base(
+                request,
+                viewer,
+                config.cacheControl(),
+                passwordProtected,
+                request.flags().preview());
         if (DefaultFrontResolver.ENDING.contains(request.status())) {
             return headers;
         }
@@ -79,20 +85,26 @@ public class FrontHeaders {
     public Map<String, List<String>> redirect(
             FrontRequest request, Viewer viewer, boolean passwordProtected, Redirect redirect) {
         Objects.requireNonNull(redirect, "redirect");
-        Map<String, List<String>> headers = base(request, viewer, config.cacheControl(), passwordProtected);
+        // a redirect answers no preview: WordPress redirects a preview only once it is no longer one (a published post
+        // asked for without a valid pair), the other previews being exempt from the canonical redirect
+        Map<String, List<String>> headers = base(request, viewer, config.cacheControl(), passwordProtected, false);
         headers.put("X-Redirect-By", List.of(REDIRECT_BY));
         headers.put("Location", List.of(redirect.location()));
         return headers;
     }
 
     private static Map<String, List<String>> base(
-            FrontRequest request, Viewer viewer, Optional<String> cacheControl, boolean passwordProtected) {
+            FrontRequest request,
+            Viewer viewer,
+            Optional<String> cacheControl,
+            boolean passwordProtected,
+            boolean preview) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(viewer, "viewer");
         Objects.requireNonNull(cacheControl, "cacheControl");
         Map<String, List<String>> headers = new LinkedHashMap<>();
         boolean noCache = viewer.user().isPresent()
-                || request.flags().preview()
+                || preview
                 || request.status() == 404
                 || (request.flags().is404() && request.query().isPresent())
                 || (request.flags().singular() && passwordProtected);
@@ -101,7 +113,7 @@ public class FrontHeaders {
             headers.put("Cache-Control", List.of(NO_CACHE));
         }
         headers.put("Content-Type", List.of(HTML));
-        if (request.flags().preview()) {
+        if (preview) {
             headers.put("X-Robots-Tag", List.of("noindex, nofollow"));
             headers.put("Content-Security-Policy", List.of("frame-ancestors 'self'"));
         }

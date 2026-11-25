@@ -47,6 +47,23 @@ headers: `text/html; charset=UTF-8`, WordPress's no-cache set for logged-in view
 password, the REST API, alternate and shortlink `Link` headers of a page, and `X-Redirect-By` with `Location` for a
 redirect. `RedirectUrls.validate` checks an address a request names (`redirect_to`) as `wp_validate_redirect` does.
 
+The module serves these pages itself. A catch-all route, registered after Quarkus REST's routes and the static
+resources, takes every `GET` and `HEAD` that no filter, static file, resource or other route of the application
+answered, outside Quarkus's non-application root (`/q/`); any other method is left to the server's own 404 or 405.
+It runs, in order: the site gate (except that, as WordPress checks the preview pair before the site, a request on an
+archived, spam or deleted site that carries a preview pair which is not the viewer's answers 403, not 410), the
+site's `front` feature (off: 404 with an empty body), the request's bounds (a
+request outside them is answered 404 without reading anything), the viewer (the user of the `quarkword_preview`
+session cookie the REST module's `POST /quarkword/v1/preview/session` sets, else anonymous), the resolution, a bad
+preview pair (403 "Sorry, you are not allowed to preview drafts.", WordPress's JSON `wp_die` object when the request
+wants JSON; the error page's robots meta follows the site's `blog_public`, as WordPress's), an `error` of 403, 500, 502 or 503 (that status, empty body), the old slug and canonical redirects, then
+the page through the `org.quarkword.front.FrontRenderer` bean with WordPress's headers (a `HEAD` gets the headers
+only). An application or a theme module replaces the renderer with a bean of its own; without one, the module's
+fallback page renders a minimal HTML page: the site's name, a post's title, date and content through the registered
+filters (an empty content while the post's password is required), a list's linked titles with links to its previous
+and next page, or "Page not found". A host application that maps `NotFoundException` (or a supertype) with a JAX-RS
+`ExceptionMapper` makes Quarkus REST answer unmatched paths itself, and the front end then serves nothing.
+
 ## Configuration
 
 | Key | Default | Meaning |
@@ -72,4 +89,5 @@ redirect. `RedirectUrls.validate` checks an address a request names (`redirect_t
 | D10 | The 404 guess and the old slug and old date lookups compare slugs exactly on the stored, lower-case form, where WordPress's database collation compares without regard to case or accents; as the requested slug is lower-cased and kept percent-encoded first, the answers agree (`/2025/11/20/HELLO-WO/` is guessed, `/2025/11/20/h%C3%A9llo/` is not, in both). The guess takes the first slug in the order of WordPress's slug index (MySQL's `utf8mb4_unicode_520_ci` over the first 191 characters: `_` before `-` before `%` before digits before letters, case folded), then the lowest id, as MySQL answers WordPress's unordered query through that index (`/jav/` finds `java-17` before `java-21`, and `jav_1` before `jav-2`, `jav%d0%ba`, `jav1` and `java`), on PostgreSQL too; the old slug and old date lookups take the lowest id where WordPress takes whichever row its database returns first. |
 | D11 | The requests of D3 get no canonical or old slug redirect: WordPress redirects `?p=N&feed=rss2` to the post's comment feed, a post's `comment-page-N/` to the post, `wp-register.php` to the sign-up page and the old feed files to `/feed/`, and the old slug redirect keeps an `embed/` ending. |
 | D12 | Without the media module an attachment has no file, so it is never redirected to one: its requests are redirected as with attachment pages on. |
-| D13 | No `X-Pingback` header (QuarkWord has no XML-RPC). A redirect is sent with `X-Redirect-By: QuarkWord`. A preview also gets `X-Robots-Tag: noindex, nofollow`, `Content-Security-Policy: frame-ancestors 'self'` and the no-cache set. An anonymous answer that is not a 404 carries `quarkword.front.cache-control` when it is set. |
+| D13 | No `X-Pingback` header (QuarkWord has no XML-RPC). A redirect is sent with `X-Redirect-By: QuarkWord`. A preview also gets `X-Robots-Tag: noindex, nofollow`, `Content-Security-Policy: frame-ancestors 'self'` and the no-cache set; a redirect is no preview (WordPress redirects a published post asked for as a preview without a valid pair only after it stopped being one) and gets none of them. An anonymous answer that is not a 404 carries `quarkword.front.cache-control` when it is set. |
+| D14 | A query parameter written as an array (`post_type[]=book`, `cat[]=2`) is ignored by the front end: no variable is read from it. WordPress keeps an array of scalars for a public variable (a `post_type` array is intersected with the publicly queryable types). |
