@@ -11,8 +11,11 @@ import jakarta.inject.Inject;
 import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -20,7 +23,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.TreeSet;
 import org.quarkword.core.Filters;
 import org.quarkword.core.PostId;
 import org.quarkword.core.PostStatusDefinition;
@@ -243,6 +248,8 @@ public class PostQueries {
         for (DateCondition condition : query.dates()) {
             dateCondition(condition, where);
         }
+        query.week().ifPresent(week -> weekCondition(siteId, week, where));
+        query.units().ifPresent(units -> unitCondition(siteId, units, where));
         if (!termConditions(siteId, query, where) || !moduleConditions(siteId, query, where)) {
             return new PostPage(stickyFirst(siteId, requested, query, queriedTypes, perPage(query), List.of()), 0, 0);
         }
@@ -820,6 +827,168 @@ public class PostQueries {
         } else {
             where.and(dated);
         }
+    }
+
+    /**
+     * The week condition: the local post date (as {@link #dateCondition} reads it) within the days that have the week
+     * number, in one of the years the site's posts are dated in. A week number names one range of days per year
+     * ({@link Weeks#range}), so the condition is one span of instants per year, from the year before the oldest post's
+     * (a shifted start of the week counts early January in the year before) to the newest post's; a site without posts
+     * matches nothing.
+     */
+    private void weekCondition(SiteId siteId, PostQuery.WeekCondition week, Where where) {
+        Optional<LocalDateTime[]> dated = datedBetween(siteId);
+        if (dated.isEmpty()) {
+            where.and("1 = 0");
+            return;
+        }
+        int firstYear = dated.get()[0].getYear() - 1;
+        int lastYear = dated.get()[1].getYear();
+        List<LocalDateTime[]> walls = new ArrayList<>();
+        for (int year = firstYear; year <= lastYear; year++) {
+            Weeks.range(year, week.week(), week.startOfWeek())
+                    .ifPresent(range -> walls.add(new LocalDateTime[] {
+                        range.from().atStartOfDay(), range.until().atStartOfDay()
+                    }));
+        }
+        where.and(wallSpans(walls, where));
+    }
+
+    /**
+     * The unit condition: the local post date (as {@link #dateCondition} reads it) has every unit given. Without a
+     * time unit, the days that have the year, month and day are enumerated from the site's oldest post's year to its
+     * newest's, one span of instants per run of days (a month alone is one span a year, a day alone one a month).
+     * With a time unit, the spans are the given finest unit's (an hour, minute or second) around each of the site's
+     * post dates that has every unit: the dates are read first, as a condition on the time of every day would be a
+     * span a day. Wall times become spans of instants in the site's zone, so a repeated hour of an autumn night
+     * counts both of its instants. A site without posts matches nothing.
+     */
+    private void unitCondition(SiteId siteId, PostQuery.DateUnits units, Where where) {
+        List<LocalDateTime[]> walls = units.timed() ? timeWalls(siteId, units) : dayWalls(siteId, units);
+        where.and(wallSpans(walls, where));
+    }
+
+    /** The runs of days that have the units' year, month and day, within the years the site's posts are dated in. */
+    private List<LocalDateTime[]> dayWalls(SiteId siteId, PostQuery.DateUnits units) {
+        List<LocalDateTime[]> walls = new ArrayList<>();
+        Optional<LocalDateTime[]> dated = datedBetween(siteId);
+        if (dated.isEmpty()) {
+            return walls;
+        }
+        int firstYear = dated.get()[0].getYear();
+        int lastYear = dated.get()[1].getYear();
+        if (units.year().isPresent()) {
+            firstYear = Math.max(firstYear, units.year().getAsInt());
+            lastYear = Math.min(lastYear, units.year().getAsInt());
+        }
+        for (int year = firstYear; year <= lastYear; year++) {
+            for (int month = 1; month <= 12; month++) {
+                if (units.month().isPresent() && units.month().getAsInt() != month) {
+                    continue;
+                }
+                LocalDate first = LocalDate.of(year, month, 1);
+                LocalDate from = first;
+                LocalDate until = first.plusMonths(1);
+                if (units.day().isPresent()) {
+                    int day = units.day().getAsInt();
+                    if (day < 1 || day > first.lengthOfMonth()) {
+                        continue;
+                    }
+                    from = first.withDayOfMonth(day);
+                    until = from.plusDays(1);
+                }
+                LocalDateTime start = from.atStartOfDay();
+                LocalDateTime end = until.atStartOfDay();
+                LocalDateTime[] last = walls.isEmpty() ? null : walls.get(walls.size() - 1);
+                if (last != null && last[1].equals(start)) {
+                    last[1] = end;
+                } else {
+                    walls.add(new LocalDateTime[] {start, end});
+                }
+            }
+        }
+        return walls;
+    }
+
+    /**
+     * The spans of the finest time unit given (the second, else the minute, else the hour) around each of the site's
+     * local post dates that has every unit given.
+     */
+    private List<LocalDateTime[]> timeWalls(SiteId siteId, PostQuery.DateUnits units) {
+        ChronoUnit finest = units.second().isPresent()
+                ? ChronoUnit.SECONDS
+                : units.minute().isPresent() ? ChronoUnit.MINUTES : ChronoUnit.HOURS;
+        ZoneId zone = site.zone();
+        Set<LocalDateTime> starts = new TreeSet<>();
+        List<Instant> dates = posts.getEntityManager()
+                .createQuery(
+                        "select distinct " + expression(OrderKey.DATE) + " from PostEntity p where p.siteId = :site",
+                        Instant.class)
+                .setParameter("site", TenantIds.param(siteId))
+                .getResultList();
+        for (Instant date : dates) {
+            if (date == null) {
+                continue;
+            }
+            LocalDateTime local = PostDates.toLocal(date, zone);
+            if (has(units.year(), local.getYear())
+                    && has(units.month(), local.getMonthValue())
+                    && has(units.day(), local.getDayOfMonth())
+                    && has(units.hour(), local.getHour())
+                    && has(units.minute(), local.getMinute())
+                    && has(units.second(), local.getSecond())) {
+                starts.add(local.truncatedTo(finest));
+            }
+        }
+        List<LocalDateTime[]> walls = new ArrayList<>();
+        for (LocalDateTime start : starts) {
+            walls.add(new LocalDateTime[] {start, start.plus(1, finest)});
+        }
+        return walls;
+    }
+
+    private static boolean has(OptionalInt unit, int value) {
+        return unit.isEmpty() || unit.getAsInt() == value;
+    }
+
+    /**
+     * The local dates of the site's oldest and newest posts (as {@link #dateCondition} reads them); empty without
+     * posts.
+     */
+    private Optional<LocalDateTime[]> datedBetween(SiteId siteId) {
+        String date = expression(OrderKey.DATE);
+        Object[] dated = posts.getEntityManager()
+                .createQuery(
+                        "select min(" + date + "), max(" + date + ") from PostEntity p where p.siteId = :site",
+                        Object[].class)
+                .setParameter("site", TenantIds.param(siteId))
+                .getSingleResult();
+        if (dated[0] == null || dated[1] == null) {
+            return Optional.empty();
+        }
+        ZoneId zone = site.zone();
+        return Optional.of(new LocalDateTime[] {
+            PostDates.toLocal((Instant) dated[0], zone), PostDates.toLocal((Instant) dated[1], zone)
+        });
+    }
+
+    /**
+     * The local post date within one of the wall-time ranges (from, kept, until, left out), each turned into spans of
+     * instants in the site's zone; {@code 1 = 0} for none.
+     */
+    private String wallSpans(List<LocalDateTime[]> walls, Where where) {
+        if (walls.isEmpty()) {
+            return "1 = 0";
+        }
+        String date = expression(OrderKey.DATE);
+        ZoneId zone = site.zone();
+        List<String> ranges = new ArrayList<>();
+        for (LocalDateTime[] wall : walls) {
+            ranges.add(within(date, PostDates.wallFrom(wall[0], zone), where)
+                    + " and "
+                    + within(date, PostDates.wallBefore(wall[1], zone), where));
+        }
+        return "(" + String.join(") or (", ranges) + ")";
     }
 
     /** {@code date} within one of the spans, clipped to the storable dates; false when none is left. */

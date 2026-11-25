@@ -221,7 +221,14 @@ is not built in, the module tells the security module its meta capability names,
 
 `PostQuery` reads its arguments as `WP_Query` does: types (`any` alone means the searchable types), statuses (`any`
 included), authors, parents, ids, slug, exact title, menu order, search, date conditions (`DateCondition` with
-`DateBound`s on `DateColumn`s), ordering (`OrderKey`, then the id in the first key's direction), paging with the
+`DateBound`s on `DateColumn`s), a week of the year (`week(week, startOfWeek)`: WordPress's `w`, the local post
+date's week number as MySQL's `WEEK` counts it under the site's `start_of_week` — mode 1 for 1, mode 0 for 0 and any
+value outside 1 to 6, the date n days earlier in mode 0 for 2 to 6 — in any year, computed in Java into one span of
+dates per year the site's posts are dated in, so both databases give MySQL's numbers), units of the local post date
+compared one by one (`units(DateUnits)`: WordPress's `MONTH(post_date) = 5`, `DAYOFMONTH`, `HOUR`, `MINUTE`,
+`SECOND` and `YEAR`, whatever the units not given; days are enumerated over the years the site's posts are dated in,
+times around the site's post dates that have every unit, all as spans of instants in the site's zone), ordering
+(`OrderKey`, then the id in the first key's direction), paging with the
 site's `posts_per_page` option as default, and sticky posts first (`stickyFirst`, off by default as in `get_posts`).
 It also takes a slug list (`nameIn`, ordered by `OrderKey.NAME_IN`), the columns a search looks in (`searchColumns`),
 an exact search (`exactSearch`, whole columns) and term filters (`taxQuery`, whose conditions come from the taxonomy

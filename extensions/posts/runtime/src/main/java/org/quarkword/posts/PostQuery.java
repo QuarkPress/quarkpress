@@ -62,7 +62,11 @@ import org.quarkword.core.UserId;
  * {@code RELEVANCE} first, results are ranked as WordPress ranks them, then ordered by date (newest first unless the
  * relevance key is ascending) and id; see {@link OrderKey}.
  *
- * <p>{@code dates} are WordPress's date conditions, all of which must hold; see {@link DateCondition}.
+ * <p>{@code dates} are WordPress's date conditions, all of which must hold; see {@link DateCondition}. {@code week} is
+ * WordPress's {@code w}: the local post date's week number must be the one given, counted as the site's {@code
+ * start_of_week} counts (see {@link WeekCondition}), in whatever year, next to the date conditions. {@code units}
+ * compares units of the local post date one by one (see {@link DateUnits}): a month in whatever year, a day in
+ * whatever month, an hour on whatever day.
  *
  * <p>{@code taxQuery} holds the term filters, which the application's {@link TermConditionProvider} (the taxonomy
  * module) turns into conditions; a query with clauses is refused without one. Each clause of the query is asked for in
@@ -116,6 +120,8 @@ public record PostQuery(
         Set<SearchColumn> searchColumns,
         boolean exactSearch,
         List<DateCondition> dates,
+        Optional<WeekCondition> week,
+        Optional<DateUnits> units,
         TaxQuery taxQuery,
         boolean stickyFirst,
         List<PostOrder> orderBy,
@@ -132,6 +138,43 @@ public record PostQuery(
      * it before searching.
      */
     public static final int MAX_SEARCH_BYTES = 1600;
+
+    /**
+     * A week of the year, as WordPress's {@code w} compares it with MySQL's {@code WEEK}: with {@code startOfWeek} 1,
+     * weeks start on Monday and week 1 is the first with four days or more in the year; with 0 or any value outside 1
+     * to 6, weeks start on Sunday and week 1 starts on the year's first Sunday; with a value n from 2 to 6, the date n
+     * days earlier is counted as with 0. Days before week 1 are week 0, and a week is never counted in the next year.
+     * A number outside 0 to 53 matches no post.
+     */
+    public record WeekCondition(int week, int startOfWeek) {}
+
+    /**
+     * Units of the local post date, each equal to the value given, whatever the units not given, as WordPress compares
+     * its date variables with {@code YEAR(post_date) = …}, {@code MONTH}, {@code DAYOFMONTH}, {@code HOUR}, {@code
+     * MINUTE} and {@code SECOND}: {@code month} 5 alone is May of every year, {@code hour} 8 alone eight o'clock on
+     * every day. A value no date has (a month of 13, a day of 31 in February, an hour of 24) matches no post.
+     */
+    public record DateUnits(
+            OptionalInt year,
+            OptionalInt month,
+            OptionalInt day,
+            OptionalInt hour,
+            OptionalInt minute,
+            OptionalInt second) {
+        public DateUnits {
+            Objects.requireNonNull(year, "year");
+            Objects.requireNonNull(month, "month");
+            Objects.requireNonNull(day, "day");
+            Objects.requireNonNull(hour, "hour");
+            Objects.requireNonNull(minute, "minute");
+            Objects.requireNonNull(second, "second");
+        }
+
+        /** Whether an hour, minute or second is given. */
+        public boolean timed() {
+            return hour.isPresent() || minute.isPresent() || second.isPresent();
+        }
+    }
 
     public PostQuery {
         types = List.copyOf(types);
@@ -152,6 +195,8 @@ public record PostQuery(
         Objects.requireNonNull(search, "search");
         searchColumns = Set.copyOf(searchColumns);
         dates = List.copyOf(dates);
+        Objects.requireNonNull(week, "week");
+        Objects.requireNonNull(units, "units");
         Objects.requireNonNull(taxQuery, "taxQuery");
         orderBy = List.copyOf(orderBy);
         Objects.requireNonNull(perPage, "perPage");
@@ -236,6 +281,8 @@ public record PostQuery(
         builder.searchColumns.addAll(searchColumns);
         builder.exactSearch = exactSearch;
         builder.dates.addAll(dates);
+        builder.week = week;
+        builder.units = units;
         builder.taxQuery = taxQuery;
         builder.stickyFirst = stickyFirst;
         builder.orderBy.addAll(orderBy);
@@ -270,6 +317,8 @@ public record PostQuery(
         private final Set<SearchColumn> searchColumns = EnumSet.noneOf(SearchColumn.class);
         private boolean exactSearch;
         private final List<DateCondition> dates = new ArrayList<>();
+        private Optional<WeekCondition> week = Optional.empty();
+        private Optional<DateUnits> units = Optional.empty();
         private TaxQuery taxQuery = TaxQuery.NONE;
         private boolean stickyFirst;
         private final List<PostOrder> orderBy = new ArrayList<>();
@@ -424,6 +473,21 @@ public record PostQuery(
             return this;
         }
 
+        /**
+         * The week of the year the local post date must fall in (WordPress's {@code w}), counted as the site's {@code
+         * start_of_week} counts; see {@link WeekCondition}.
+         */
+        public Builder week(int week, int startOfWeek) {
+            this.week = Optional.of(new WeekCondition(week, startOfWeek));
+            return this;
+        }
+
+        /** Units of the local post date each equal to the value given (see {@link DateUnits}). */
+        public Builder units(DateUnits value) {
+            this.units = Optional.of(Objects.requireNonNull(value, "value"));
+            return this;
+        }
+
         /** The term filters (WordPress's {@code tax_query}). */
         public Builder taxQuery(TaxQuery value) {
             this.taxQuery = Objects.requireNonNull(value, "value");
@@ -498,6 +562,8 @@ public record PostQuery(
                     searchColumns,
                     exactSearch,
                     dates,
+                    week,
+                    units,
                     taxQuery,
                     stickyFirst,
                     orderBy,
