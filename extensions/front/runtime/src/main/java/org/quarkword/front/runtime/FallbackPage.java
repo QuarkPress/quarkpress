@@ -27,6 +27,7 @@ import org.quarkword.front.FrontAnswer;
 import org.quarkword.front.FrontFlags;
 import org.quarkword.front.FrontRenderer;
 import org.quarkword.front.FrontRequest;
+import org.quarkword.front.FrontUrls;
 import org.quarkword.front.Permalinks;
 import org.quarkword.front.Viewer;
 import org.quarkword.posts.FeaturedImages;
@@ -35,9 +36,11 @@ import org.quarkword.taxonomy.PostFormats;
 
 /**
  * The front end's own renderer while no theme provides one: a minimal HTML page. A singular request shows the site's
- * name, the post's title, its date and its content through the registered title and content filters (an empty
- * {@code entry-content} when the post's password is required); a list (the home, an archive, a search) the titles of
- * its posts linked to their permalinks, with links to the previous and next page of the list when they exist; a request
+ * name, the post's title (with WordPress's {@code Protected: } or {@code Private: } prefix in the heading, not in the
+ * document's title), its date and its content through the registered title and content filters (WordPress's
+ * password form in its place, with the invalid-password notice when the state says so, when the post's password is
+ * required); a list (the home, an archive, a search) the titles of
+ * its posts (prefixed as the heading) linked to their permalinks, with links to the previous and next page of the list when they exist; a request
  * that was not found (its flags say so, or its status is 404) {@value #NOT_FOUND}. Texts are HTML-escaped (an entity
  * already written is kept); the content is HTML as the filters leave it. The body's classes name the page as
  * WordPress's do ({@code single single-<type> postid-<id>}, {@code home blog}, {@code archive}, {@code search},
@@ -54,10 +57,15 @@ public class FallbackPage implements FrontRenderer {
 
     private static final DateTimeFormatter HUMAN_DATE = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
 
-    /** A post as the page shows it: the title already filtered, the content already filtered (empty when locked). */
+    /**
+     * A post as the page shows it: the title already filtered for the document's title, the entry title (with its
+     * {@code Protected: } or {@code Private: } prefix) already filtered for the heading, the content already filtered
+     * (the form when locked).
+     */
     record Singular(
             String siteName,
             String title,
+            String entryTitle,
             String type,
             long id,
             String format,
@@ -68,6 +76,7 @@ public class FallbackPage implements FrontRenderer {
         Singular {
             Objects.requireNonNull(siteName, "siteName");
             Objects.requireNonNull(title, "title");
+            Objects.requireNonNull(entryTitle, "entryTitle");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(format, "format");
             Objects.requireNonNull(date, "date");
@@ -75,7 +84,7 @@ public class FallbackPage implements FrontRenderer {
         }
     }
 
-    /** A list item: the post's link and its filtered title. */
+    /** A list item: the post's link and its filtered entry title. */
     record Item(String link, String title) {}
 
     private record Rendering(SiteId site) implements RenderContext {}
@@ -91,6 +100,9 @@ public class FallbackPage implements FrontRenderer {
 
     @Inject
     CurrentVertxRequest current;
+
+    @Inject
+    FrontUrls urls;
 
     @Inject
     @All
@@ -132,15 +144,18 @@ public class FallbackPage implements FrontRenderer {
     private Singular singularOf(PostSnapshot post, FrontRequest request, String siteName, PasswordState password) {
         Rendering rendering = new Rendering(post.site());
         String title = Filters.apply(titleFilters, post.title(), (filter, value) -> filter.apply(value, rendering));
+        String entryTitle = filteredEntryTitle(post, rendering);
         Optional<String> content = password == PasswordState.NOT_REQUIRED
                 ? Optional.of(Filters.apply(
                         contentFilters, post.content(), (filter, value) -> filter.apply(value, rendering)))
-                : Optional.empty();
+                : Optional.of(PasswordForm.html(
+                        post, urls.login(), permalinks.post(post), password == PasswordState.INVALID));
         String format =
                 post.metaText("post_format").filter(value -> !value.isEmpty()).orElseGet(() -> formats.of(post.id()));
         return new Singular(
                 siteName,
                 title,
+                entryTitle,
                 post.type(),
                 post.id().value(),
                 format,
@@ -152,9 +167,7 @@ public class FallbackPage implements FrontRenderer {
     private List<Item> items(FrontRequest request) {
         List<Item> items = new ArrayList<>();
         for (PostSnapshot post : request.posts().posts()) {
-            Rendering rendering = new Rendering(post.site());
-            String title = Filters.apply(titleFilters, post.title(), (filter, value) -> filter.apply(value, rendering));
-            items.add(new Item(permalinks.post(post), title));
+            items.add(new Item(permalinks.post(post), filteredEntryTitle(post, new Rendering(post.site()))));
         }
         return items;
     }
@@ -176,6 +189,29 @@ public class FallbackPage implements FrontRenderer {
             return entry.target();
         }
         return "/";
+    }
+
+    /** The post's entry title, prefixed as {@link #entryTitle} says, through the title filters. */
+    private String filteredEntryTitle(PostSnapshot post, Rendering rendering) {
+        return Filters.apply(
+                titleFilters,
+                entryTitle(post.title(), post.password(), post.status()),
+                (filter, value) -> filter.apply(value, rendering));
+    }
+
+    /**
+     * WordPress's {@code get_the_title} on the front end: {@code Protected: } before the title of a post with a
+     * password (neither empty nor {@code 0}), whatever the visitor's cookie, else {@code Private: } before a private
+     * post's; the document's title ({@code single_post_title}) takes neither.
+     */
+    static String entryTitle(String title, String password, String status) {
+        if (!password.isEmpty() && !password.equals("0")) {
+            return "Protected: " + title;
+        }
+        if (status.equals("private")) {
+            return "Private: " + title;
+        }
+        return title;
     }
 
     private static String bodyClass(FrontFlags flags) {
@@ -203,7 +239,9 @@ public class FallbackPage implements FrontRenderer {
                 .append("\">\n");
         header(html, post.siteName());
         html.append("<main>\n<article id=\"post-").append(post.id()).append("\">\n");
-        html.append("<h1 class=\"entry-title\">").append(escape(post.title())).append("</h1>\n");
+        html.append("<h1 class=\"entry-title\">")
+                .append(escape(post.entryTitle()))
+                .append("</h1>\n");
         html.append("<p class=\"entry-date\"><time datetime=\"")
                 .append(MACHINE_DATE.format(post.date()))
                 .append("\">")

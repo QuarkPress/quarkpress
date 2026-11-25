@@ -241,24 +241,47 @@ final class PhpUrls {
 
     // ---- parse_str / build_query ----------------------------------------------------------------------------------
 
+    /** PHP's default {@code max_input_vars}: how many variables one query string, form or cookie header sets. */
+    static final int MAX_INPUT_VARS = 1000;
+
     /**
-     * PHP's {@code parse_str}: the pairs split on {@code &}, names and values url-decoded, empty names dropped; in a
-     * name, leading spaces are dropped and spaces and dots before any bracket become {@code _}; {@code a[]} appends to
-     * an array and {@code a[k]} sets its key {@code k}, nested as written; a later value replaces an earlier one in
-     * its place; a name nested more than 64 levels deep removes its variable. A value is a byte string or a nested map.
+     * PHP's {@code parse_str} (and its {@code $_GET}): the pairs split on {@code &}, names and values url-decoded,
+     * empty names dropped; in a name, leading spaces are dropped and spaces and dots before any bracket become
+     * {@code _}; {@code a[]} appends to an array at its next free index and {@code a[k]} sets its key {@code k},
+     * nested as written; a later value replaces an earlier one in its place; a name nested more than 64 levels deep
+     * removes its variable. Only the first {@value #MAX_INPUT_VARS} pairs that are not empty are read (a pair without
+     * a name counts), as PHP's {@code max_input_vars} stops it. A value is a byte string or a nested map.
      */
     static Map<String, Object> parseStr(String query) {
+        return parse(query, false);
+    }
+
+    /**
+     * PHP's {@code $_POST} of an {@code application/x-www-form-urlencoded} body: read as {@link #parseStr} reads a
+     * query, except that every pair counts towards {@code max_input_vars}, an empty one too (not an empty end after a
+     * final {@code &}), and PHP stops only after it registered one pair more than the limit.
+     */
+    static Map<String, Object> parsePost(String body) {
+        return parse(body, true);
+    }
+
+    private static Map<String, Object> parse(String query, boolean form) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (query == null || query.isEmpty()) {
             return result;
         }
+        int limit = form ? MAX_INPUT_VARS + 1 : MAX_INPUT_VARS;
+        int count = 0;
         int start = 0;
-        while (start <= query.length()) {
+        while (start < query.length() && count < limit) {
             int end = query.indexOf('&', start);
             if (end < 0) {
                 end = query.length();
             }
             String pair = query.substring(start, end);
+            if (!pair.isEmpty() || form) {
+                count++;
+            }
             if (!pair.isEmpty()) {
                 int equals = pair.indexOf('=');
                 String name = urldecode(equals < 0 ? pair : pair.substring(0, equals));
@@ -270,10 +293,51 @@ final class PhpUrls {
         return result;
     }
 
+    /** An array that parsing builds: it keeps PHP's next free index, the key an appending {@code []} takes. */
+    private static final class PhpArray extends LinkedHashMap<String, Object> {
+
+        private static final long serialVersionUID = 1L;
+
+        /** The next free index; {@link Long#MIN_VALUE} while no integer key was set (an append then takes 0). */
+        private long next = Long.MIN_VALUE;
+
+        /** The key an append takes, or null when that key is taken (after {@link Long#MAX_VALUE}). */
+        String appendKey() {
+            String key = Long.toString(next == Long.MIN_VALUE ? 0 : next);
+            return containsKey(key) ? null : key;
+        }
+
+        /** Notes {@code key} as set: an integer key at or past the next free index moves it on. */
+        void used(String key) {
+            Long index = integerKey(key);
+            if (index != null && (next == Long.MIN_VALUE || index >= next)) {
+                next = index < Long.MAX_VALUE ? index + 1 : Long.MAX_VALUE;
+            }
+        }
+    }
+
+    /**
+     * The integer PHP makes of an array key written in decimal ({@code 0}, or an optional {@code -} and digits
+     * without a leading zero, within the 64-bit range); null for any other key ({@code 05}, {@code -0}, {@code  7}).
+     */
+    static Long integerKey(String key) {
+        int digitsFrom = key.startsWith("-") ? 1 : 0;
+        String digits = key.substring(digitsFrom);
+        if (!digits(digits)
+                || digits.length() > 19
+                || (digits.charAt(0) == '0' && (digits.length() > 1 || digitsFrom == 1))) {
+            return null;
+        }
+        try {
+            return Long.parseLong(key);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /** PHP's default {@code max_input_nesting_level}: a name with more brackets than this is dropped. */
     static final int MAX_NESTING = 64;
 
-    @SuppressWarnings("unchecked")
     private static void register(Map<String, Object> target, String rawName, String value) {
         int skip = 0;
         while (skip < rawName.length() && rawName.charAt(skip) == ' ') {
@@ -317,31 +381,26 @@ final class PhpUrls {
         String key = base;
         for (String index : indexes) {
             Object existing = level.get(key);
-            Map<String, Object> child;
-            if (existing instanceof Map<?, ?> map) {
-                child = (Map<String, Object>) map;
+            PhpArray child;
+            if (existing instanceof PhpArray array) {
+                child = array;
             } else {
-                child = new LinkedHashMap<>();
+                child = new PhpArray();
                 level.put(key, child);
             }
             level = child;
-            key = index.isEmpty() ? Long.toString(nextIndex(child)) : index;
+            key = index.isEmpty() ? child.appendKey() : index;
+            if (key == null) {
+                // the next index is taken: PHP cannot append and drops the pair
+                return;
+            }
+            child.used(key);
         }
         level.put(key, value);
     }
 
     private static String underscores(String name) {
         return name.replace(' ', '_').replace('.', '_');
-    }
-
-    private static long nextIndex(Map<String, Object> array) {
-        long next = 0;
-        for (String key : array.keySet()) {
-            if (digits(key) && key.length() < 19) {
-                next = Math.max(next, Long.parseLong(key) + 1);
-            }
-        }
-        return next;
     }
 
     /** WordPress's {@code build_query}: {@code name=value} joined by {@code &}, nothing encoded; nested names bracketed. */

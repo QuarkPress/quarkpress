@@ -7,6 +7,7 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HEAD;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
@@ -23,9 +24,11 @@ import org.quarkword.front.FrontRenderer;
 import org.quarkword.front.FrontRenderer.PasswordState;
 import org.quarkword.front.FrontRequest;
 import org.quarkword.front.FrontResolver;
+import org.quarkword.front.Permalinks;
 import org.quarkword.front.QueryVars;
 import org.quarkword.front.Viewer;
 import org.quarkword.posts.PostPasswords;
+import org.quarkword.posts.PostSnapshot;
 import org.quarkword.posts.PreviewTokens;
 
 /**
@@ -38,8 +41,14 @@ import org.quarkword.posts.PreviewTokens;
  * cookie alone; the resolution as that viewer; a bad preview pair: 403 with WordPress's message; an {@code error} of
  * 403, 500, 502 or
  * 503: that status with an empty body; the old slug redirect, then the canonical redirect: 301; otherwise the page
- * through the {@link FrontRenderer}, with WordPress's headers. A {@code HEAD} request gets the headers only. The
- * request's identity is the viewer's for the whole answer and is put back afterwards.
+ * through the {@link FrontRenderer}, with WordPress's headers and, for a post with a password, whether the request's
+ * post-password cookie unlocks it. A {@code HEAD} request gets the headers only. The request's identity is the
+ * viewer's for the whole answer and is put back afterwards.
+ *
+ * <p>{@code wp-login.php} on the site's path is no page: once the site gate, the feature and the bounds let the
+ * request through, its {@code postpass} action is answered by the {@link PostPassEndpoint} (a {@code POST} is
+ * re-routed to {@link #postpass}), and anything else there is answered 404 with an empty body, as QuarkWord serves no
+ * login page.
  */
 @Path(FrontPage.PATH)
 @Blocking
@@ -50,6 +59,9 @@ public class FrontPage {
 
     /** The method's path below {@link #PATH}. */
     public static final String PAGE = "page";
+
+    /** The path below {@link #PATH} that a {@code POST} to {@code wp-login.php} is re-routed to. */
+    public static final String POSTPASS = "postpass";
 
     @Inject
     SiteContext site;
@@ -84,6 +96,15 @@ public class FrontPage {
     @Inject
     QuarkWordClock clock;
 
+    @Inject
+    PostPassCookies cookies;
+
+    @Inject
+    PostPassEndpoint postPass;
+
+    @Inject
+    Permalinks permalinks;
+
     @GET
     @Path(PAGE)
     public Response get(@Context RoutingContext context) {
@@ -94,6 +115,36 @@ public class FrontPage {
     @Path(PAGE)
     public Response head(@Context RoutingContext context) {
         return serve(context, true);
+    }
+
+    /**
+     * A {@code POST} to a path ending in {@code wp-login.php}: the site gate (a gone site answers its 410), the
+     * feature and the bounds, then the {@code postpass} action, or 404 when it is none.
+     */
+    @POST
+    @Path(POSTPASS)
+    public Response postpass(@Context RoutingContext context, byte[] body) {
+        if (!(context.get(FrontRoute.ENTRY) instanceof FrontRoute.Entry entry)
+                || !entry.method().equals("POST")
+                || !site.isResolved()) {
+            return Response.status(404).build();
+        }
+        String accept = context.request().getHeader("Accept");
+        String contentType = context.request().getHeader("Content-Type");
+        Optional<FrontSiteGate.Answer> gated = gate.decide(site, entry.method(), entry.target());
+        if (gated.isPresent() && gated.get() instanceof FrontSiteGate.Gone gone) {
+            return response(died(gone.status(), gone.message(), accept, contentType), false);
+        }
+        if (!site.features().isEnabled(FrontFeature.KEY) || !RequestLimits.check(entry.rawPath(), entry.rawQuery())) {
+            return Response.status(404).build();
+        }
+        return postPass.answer(
+                        entry,
+                        body == null ? new byte[0] : body,
+                        Optional.ofNullable(contentType),
+                        Optional.ofNullable(context.request().getHeader("Referer")))
+                .map(answer -> response(answer, false))
+                .orElseGet(() -> Response.status(404).build());
     }
 
     private Response serve(RoutingContext context, boolean head) {
@@ -120,6 +171,18 @@ public class FrontPage {
         if (!enabled) {
             return Response.status(404).build();
         }
+        if (bounded
+                && gone.isEmpty()
+                && PostPassEndpoint.onSitePath(entry.rawPath(), site.site().path())) {
+            // WordPress runs wp-login.php for a read too: only its postpass action is served
+            return postPass.answer(
+                            entry,
+                            new byte[0],
+                            Optional.empty(),
+                            Optional.ofNullable(context.request().getHeader("Referer")))
+                    .map(answer -> response(answer, head))
+                    .orElseGet(() -> Response.status(404).build());
+        }
         Viewer viewer = bounded ? viewers.of(context.request().headers().getAll("Cookie")) : Viewer.anonymous();
         SecurityIdentity previous = identities.getIdentity();
         identities.setIdentity(viewer.identity());
@@ -134,14 +197,20 @@ public class FrontPage {
             FrontRequest request = bounded
                     ? resolver.resolve(entry.rawPath(), query, viewer)
                     : FrontRequest.answered(QueryVars.empty(), FrontFlags.notFound(), 404, clock.now());
-            return response(answer(entry, request, viewer, accept, contentType), head);
+            return response(answer(context, entry, query, request, viewer, accept, contentType), head);
         } finally {
             identities.setIdentity(previous);
         }
     }
 
     private FrontAnswer answer(
-            FrontRoute.Entry entry, FrontRequest request, Viewer viewer, String accept, String contentType) {
+            RoutingContext context,
+            FrontRoute.Entry entry,
+            Map<String, List<String>> query,
+            FrontRequest request,
+            Viewer viewer,
+            String accept,
+            String contentType) {
         if (request.message().isPresent()) {
             return died(request.status(), request.message().get(), accept, contentType);
         }
@@ -161,9 +230,39 @@ public class FrontPage {
                     headers.redirect(request, viewer, passwordProtected, redirect.get()),
                     new byte[0]);
         }
-        PasswordState password = passwordProtected ? PasswordState.REQUIRED : PasswordState.NOT_REQUIRED;
+        PasswordState password = passwordProtected
+                ? passwordState(request.shownPost().get(), context, query)
+                : PasswordState.NOT_REQUIRED;
         return withComputedHeaders(
                 headers.of(request, viewer, passwordProtected), renderer.render(request, viewer, password));
+    }
+
+    /**
+     * Whether the request's post-password cookie unlocks {@code post} (a post with a password): not required when it
+     * holds the hash of the post's password; else invalid when the request came from the post's permalink (its
+     * {@code _wp_http_referer} parameter, else its {@code Referer}) and carries the cookie, which is what a wrong
+     * password just entered leaves; else required.
+     */
+    private PasswordState passwordState(PostSnapshot post, RoutingContext context, Map<String, List<String>> query) {
+        Optional<String> cookie =
+                PostPassCookies.value(context.request().headers().getAll("Cookie"), cookies.cookieName());
+        if (PostPassCookies.unlocked(post, cookie)) {
+            return PasswordState.NOT_REQUIRED;
+        }
+        Optional<String> referer =
+                rawReferer(query, Optional.ofNullable(context.request().getHeader("Referer")));
+        return PostPassCookies.invalid(referer, permalinks.post(post), cookie.isPresent())
+                ? PasswordState.INVALID
+                : PasswordState.REQUIRED;
+    }
+
+    /**
+     * WordPress's {@code wp_get_raw_referer} for a page: the query's {@code _wp_http_referer} when it is a string
+     * (the {@link #query} map leaves arrays out), neither empty nor {@code 0}, else the {@code Referer} header.
+     */
+    static Optional<String> rawReferer(Map<String, List<String>> query, Optional<String> header) {
+        return PostPassCookies.rawReferer(
+                Optional.ofNullable(query.get("_wp_http_referer")).map(values -> values.get(0)), header);
     }
 
     /**

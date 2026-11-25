@@ -137,15 +137,16 @@ class PreviewDbTest {
                     .contentType(HTML)
                     .header("Cache-Control", NO_CACHE)
                     .body(allOf(
-                            containsString("<h1 class=\"entry-title\">Locked title</h1>"),
-                            containsString("<div class=\"entry-content\"></div>"),
+                            containsString("<h1 class=\"entry-title\">Protected: Locked title</h1>"),
+                            containsString("<div class=\"entry-content\"><form action=\"" + home
+                                    + "/wp-login.php?action=postpass\""),
                             not(containsString("SECRET"))));
         }
     }
 
     @Test
     void previewDoesNotLiftThePassword() throws Exception {
-        // the author previewing her own protected draft sees the form like everyone else (the form arrives later)
+        // the author previewing her own protected draft sees the form like everyone else
         PostId own = draft(carol, "Own locked draft");
         content(own, "SECRET");
         password(own, "s3");
@@ -154,8 +155,9 @@ class PreviewDbTest {
                 .then()
                 .statusCode(200)
                 .body(allOf(
-                        containsString("<h1 class=\"entry-title\">Own locked draft</h1>"),
-                        containsString("<div class=\"entry-content\"></div>"),
+                        containsString("<h1 class=\"entry-title\">Protected: Own locked draft</h1>"),
+                        containsString("<div class=\"entry-content\"><form action=\"" + home
+                                + "/wp-login.php?action=postpass\""),
                         not(containsString("SECRET"))));
         // and so does an editor with a valid pair on a published post
         PostId published = post(bob, "publish", "Locked published", "SECRET", "2026-01-10T10:00:00Z");

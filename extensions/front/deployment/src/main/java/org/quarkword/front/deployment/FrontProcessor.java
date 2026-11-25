@@ -35,6 +35,8 @@ import org.quarkword.front.runtime.FrontRoute;
 import org.quarkword.front.runtime.FrontSiteGate;
 import org.quarkword.front.runtime.OldSlugRedirects;
 import org.quarkword.front.runtime.PagePaths;
+import org.quarkword.front.runtime.PostPassCookies;
+import org.quarkword.front.runtime.PostPassEndpoint;
 import org.quarkword.front.runtime.PreviewViewer;
 import org.quarkword.front.runtime.RequestFrontUrls;
 import org.quarkword.posts.LinkBuilder;
@@ -69,7 +71,9 @@ class FrontProcessor {
                 FrontSiteGate.class,
                 FrontRenderer.class,
                 FallbackPage.class,
-                PreviewViewer.class);
+                PreviewViewer.class,
+                PostPassCookies.class,
+                PostPassEndpoint.class);
     }
 
     /** The capability the media module provides. */
@@ -134,7 +138,8 @@ class FrontProcessor {
 
     /**
      * The catch-all route on every path of the application, after Quarkus REST's routes and the static resources: a
-     * {@code GET} or {@code HEAD} that nothing else answered is re-routed to the page resource.
+     * {@code GET} or {@code HEAD} that nothing else answered is re-routed to the page resource, a {@code POST} to a
+     * {@code wp-login.php} path to its {@code postpass} method.
      */
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)

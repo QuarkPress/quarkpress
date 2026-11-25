@@ -14,7 +14,30 @@ class FallbackPageTest {
     private static final ZonedDateTime DATE = ZonedDateTime.of(2025, 11, 20, 10, 15, 30, 0, ZoneOffset.UTC);
 
     private static FallbackPage.Singular post(String siteName, String title, Optional<String> content) {
-        return new FallbackPage.Singular(siteName, title, "post", 7, "standard", DATE, 0, content);
+        return new FallbackPage.Singular(siteName, title, title, "post", 7, "standard", DATE, 0, content);
+    }
+
+    @Test
+    void theHeadingCarriesTheEntryTitleAndTheDocumentTitleThePlainOne() {
+        String html = FallbackPage.singular(new FallbackPage.Singular(
+                "Site", "Secret recipe", "Protected: Secret recipe", "post", 7, "standard", DATE, 0, Optional.empty()));
+        assertThat(html)
+                .contains("<title>Secret recipe &#8211; Site</title>")
+                .contains("<h1 class=\"entry-title\">Protected: Secret recipe</h1>");
+    }
+
+    @Test
+    void entryTitlesArePrefixedAsGetTheTitlePrefixesThem() {
+        // php postpass-fix.php: get_the_title on the front end; "0" is no password, a password outranks private
+        assertThat(FallbackPage.entryTitle("Secret recipe", "s3", "publish")).isEqualTo("Protected: Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", "0", "publish")).isEqualTo("Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", " ", "publish")).isEqualTo("Protected: Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", "", "publish")).isEqualTo("Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", "", "private")).isEqualTo("Private: Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", "s3", "private")).isEqualTo("Protected: Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", "0", "private")).isEqualTo("Private: Secret recipe");
+        assertThat(FallbackPage.entryTitle("Secret recipe", "s3", "draft")).isEqualTo("Protected: Secret recipe");
+        assertThat(FallbackPage.entryTitle("", "s3", "publish")).isEqualTo("Protected: ");
     }
 
     @Test

@@ -73,10 +73,11 @@ public final class RedirectUrls {
 
     /**
      * {@code url} sanitised when it may be redirected to, else {@code fallback}: a URL starting with {@code //} is
-     * taken as {@code http:}; only {@code http} and {@code https} schemes; a relative path without a leading slash is
-     * made absolute against the directory of {@code requestUri}; a URL with a scheme, user, password or port but no
-     * host, or with {@code :/?#@} in its user, password or host, is refused; a host must be {@code homeHost} (or its
-     * lower-case form). A path starting with a slash is kept as it is, relative to the host.
+     * taken as {@code http:}; only {@code http} and {@code https} schemes; a relative path without a leading slash
+     * (other than {@code 0}, which PHP reads as empty) is made absolute against the directory of {@code requestUri};
+     * a URL with a scheme, user, password or port but no host, or with {@code :/?#@} in its user, password or host, is
+     * refused; a host must be {@code homeHost} (or its lower-case form). A path starting with a slash is kept as it
+     * is, relative to the host. A {@code null} fallback is answered as {@code null}.
      */
     public static String validate(String url, String homeHost, String requestUri, String fallback) {
         Objects.requireNonNull(url, "url");
@@ -96,7 +97,12 @@ public final class RedirectUrls {
         if (parts.scheme != null && !(parts.scheme.equals("http") || parts.scheme.equals("https"))) {
             return fallback;
         }
-        if (parts.host == null && parts.path != null && !parts.path.isEmpty() && parts.path.charAt(0) != '/') {
+        // PHP's empty(): a path of "0" is left as it is
+        if (parts.host == null
+                && parts.path != null
+                && !parts.path.isEmpty()
+                && !parts.path.equals("0")
+                && parts.path.charAt(0) != '/') {
             String directory = directory(requestUri);
             location = "/" + PhpUrls.ltrim(directory + "/", '/') + location;
         }

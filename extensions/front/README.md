@@ -60,9 +60,28 @@ wants JSON; the error page's robots meta follows the site's `blog_public`, as Wo
 the page through the `org.quarkword.front.FrontRenderer` bean with WordPress's headers (a `HEAD` gets the headers
 only). An application or a theme module replaces the renderer with a bean of its own; without one, the module's
 fallback page renders a minimal HTML page: the site's name, a post's title, date and content through the registered
-filters (an empty content while the post's password is required), a list's linked titles with links to its previous
-and next page, or "Page not found". A host application that maps `NotFoundException` (or a supertype) with a JAX-RS
+filters (WordPress's password form in place of the content while the post's password is required), a list's linked
+titles with links to its previous and next page, or "Page not found". A host application that maps `NotFoundException` (or a supertype) with a JAX-RS
 `ExceptionMapper` makes Quarkus REST answer unmatched paths itself, and the front end then serves nothing.
+
+Password-protected posts work as in WordPress, and with WordPress's own cookies. A singular post with a password shows
+its title (the heading prefixed `Protected: `, as WordPress's `get_the_title` prefixes it whatever the cookie, and
+a private post's `Private: `; the document's `<title>` unprefixed) and, in place of its content, WordPress's form (`org.quarkword.front.runtime.PasswordForm`, the 7.1.3
+classic-theme markup), to every visitor, logged-in or previewing alike; the renderer is told the post's
+`PasswordState`. The form posts the password to `wp-login.php?action=postpass` on the site's path (the `siteurl` of a
+site must therefore be served by the same application). That endpoint, a `POST` the catch-all route also takes, sets
+the `wp-postpass_<md5 of the network's siteurl>` cookie with a fresh portable phpass hash of the password as entered
+(`PostPassCookies`: ten days, `home`'s path on a single site and the network's path (the main site's) on a multisite, `secure` when the target is https,
+neither `HttpOnly` nor `SameSite`, as WordPress's), without checking it, and sends the visitor with a 302 to the form's
+`redirect_to`, else the referrer, only on the site's own host (`RedirectUrls.validate`), else to `admin_url()`. A
+cookie holding the hash of a post's password unlocks every post with that password, and a cookie set by WordPress for
+the same site works here (and the other way round). After a wrong password the form shows WordPress's "Invalid
+password." notice. The page of a protected post always carries the no-cache set. The endpoint reads the form as PHP
+reads `$_POST`, stopping after `max_input_vars` (1000) + 1 pairs (query strings everywhere stop after 1000 variables,
+as `$_GET` and `parse_str` do), and reads nothing of a body over 64 KiB (`PostPassEndpoint.MAX_FORM_BYTES`), as PHP
+leaves `$_POST` empty for a body over its `post_max_size`: no cookie is set, and the query's `action` and the referrer
+still count. WordPress's form posts the password (hashed only up to 4096 bytes, at most 12 KiB encoded), `redirect_to`
+(a permalink) and `Submit`, a few kilobytes.
 
 ## Configuration
 
@@ -91,3 +110,5 @@ and next page, or "Page not found". A host application that maps `NotFoundExcept
 | D12 | Without the media module an attachment has no file, so it is never redirected to one: its requests are redirected as with attachment pages on. |
 | D13 | No `X-Pingback` header (QuarkWord has no XML-RPC). A redirect is sent with `X-Redirect-By: QuarkWord`. A preview also gets `X-Robots-Tag: noindex, nofollow`, `Content-Security-Policy: frame-ancestors 'self'` and the no-cache set; a redirect is no preview (WordPress redirects a published post asked for as a preview without a valid pair only after it stopped being one) and gets none of them. An anonymous answer that is not a 404 carries `quarkword.front.cache-control` when it is set. |
 | D14 | A query parameter written as an array (`post_type[]=book`, `cat[]=2`) is ignored by the front end: no variable is read from it. WordPress keeps an array of scalars for a public variable (a `post_type` array is intersected with the publicly queryable types). |
+| D15 | `wp-login.php` serves only the post-password action (`action=postpass`, for any method as WordPress runs it), on the site's own path (`siteurl` must be served by the same application); anything else there, the login page included, answers 404 with an empty body, and the admin shorthands `/admin`, `/login`, `/dashboard` and `/wp-admin` are served as any other front-end path (where they would be a 404, WordPress redirects them with a 302 to its login and admin screens). The action's fallback target `admin_url()` (`{siteurl}/wp-admin/`) is a page QuarkWord does not serve yet. The action sets no `wordpress_test_cookie`, reads the form only as `application/x-www-form-urlencoded` (PHP also reads multipart forms), and answers 500 for a `redirect_to` array as WordPress fails on it. It reads no form body over 64 KiB, where PHP's `post_max_size` is 8 MB by default (a larger body is ignored as PHP ignores one over that limit). Its redirect is sent with `X-Redirect-By: QuarkWord`. |
+| D16 | The password form is written as it is, not passed through the content filters (a theme's `the_content` adds paragraphs around it in WordPress), and its `action` address is attribute-escaped where WordPress's `esc_url` also deletes characters a URL may not hold. A post-password cookie holding a byte outside ASCII, or sent under a bracketed name, unlocks nothing (WordPress compares such a value as given, or fails on an array). |

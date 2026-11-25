@@ -36,6 +36,9 @@ class RedirectUrlsTest {
         assertThat(validate("?x=1")).isEqualTo("?x=1");
         assertThat(validate("#frag")).isEqualTo("#frag");
         assertThat(validate("")).isEqualTo("");
+        // PHP's empty(): a path "0" is not made absolute (postpass.out), "00" is
+        assertThat(validate("0")).isEqualTo("0");
+        assertThat(validate("00")).isEqualTo("/00");
         assertThat(validate("http://wp.test@evil.test/")).isEqualTo("F");
         assertThat(validate("wp.test:80/x")).isEqualTo("wp.test:80/x");
         assertThat(validate("http://wp.test#@evil.test")).isEqualTo("http://wp.test#@evil.test");

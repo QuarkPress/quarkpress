@@ -14,9 +14,15 @@ public interface FrontRenderer {
     enum PasswordState {
         /** The post has no password, or the request shows no single post. */
         NOT_REQUIRED,
-        /** The post has a password and the viewer has not given it: the form replaces the content. */
+        /**
+         * The post has a password the viewer's post-password cookie does not hold: the form replaces the content (and
+         * the excerpt is {@code PasswordForm.PROTECTED_EXCERPT}).
+         */
         REQUIRED,
-        /** The viewer's password cookie does not match the post's password: the form replaces the content. */
+        /**
+         * As {@link #REQUIRED}, and the request came from the post's permalink with the cookie set, as after a wrong
+         * password: the form shows WordPress's invalid-password notice.
+         */
         INVALID
     }
 

@@ -13,8 +13,10 @@ import java.util.Objects;
  * {@code HEAD} outside Quarkus's non-application root ({@code /q/} by default) is then kept on the routing context as
  * an {@link Entry} (its method, raw path and query, host and scheme as sent) and re-routed to the internal page
  * resource ({@link FrontPage}), which renders it inside a normal request (authentication, request scope and site
- * binding active). Every other request is passed on, so the server's own 404 or 405 answers it: the front end never
- * refuses a method.
+ * binding active). A {@code POST} to a path ending in {@code /wp-login.php} (WordPress's post-password form posts
+ * there) is kept the same way and re-routed to the resource's {@code postpass} method, which answers 404 when it is
+ * not the site's own {@code postpass} action. Every other request is passed on, so the server's own 404 or 405
+ * answers it: the front end never refuses a method.
  *
  * <p>A host application that maps {@code NotFoundException} (or one of its supertypes) with a JAX-RS
  * {@code ExceptionMapper} makes Quarkus REST answer unmatched paths itself, and this route then never runs.
@@ -27,8 +29,12 @@ public final class FrontRoute implements Handler<RoutingContext> {
     /** The route's order: after Quarkus REST's routes (20 500) and the static resources (10 000). */
     public static final int ORDER = 21_000;
 
+    /** The path a post-password form is posted to, below a site's path. */
+    static final String LOGIN_FILE = "/wp-login.php";
+
     /**
-     * A front-end request as it arrived: {@code method} {@code GET} or {@code HEAD}, {@code rawPath} the path
+     * A front-end request as it arrived: {@code method} {@code GET}, {@code HEAD} or (to {@code wp-login.php})
+     * {@code POST}, {@code rawPath} the path
      * percent-encoded as sent, {@code rawQuery} the query string as sent (empty when there is none), {@code host} the
      * request's host with its port when one was given, {@code scheme} after the proxy headers the server trusts.
      */
@@ -49,15 +55,21 @@ public final class FrontRoute implements Handler<RoutingContext> {
     }
 
     private final String entryPath;
+    private final String postPassPath;
     private final String nonApplicationRoot;
 
     /**
-     * @param entryPath the absolute path of the page resource's {@code page} method
+     * @param entryPath the absolute path of the page resource's {@code page} method; its {@code postpass} method is
+     *     the sibling path
      * @param nonApplicationRoot Quarkus's non-application root path ({@code /q/} by default); {@code /} or empty when
      *     the non-application endpoints share the application's root
      */
     public FrontRoute(String entryPath, String nonApplicationRoot) {
         this.entryPath = Objects.requireNonNull(entryPath, "entryPath");
+        if (!entryPath.endsWith("/" + FrontPage.PAGE)) {
+            throw new IllegalArgumentException("the entry path must end with /" + FrontPage.PAGE + ": " + entryPath);
+        }
+        this.postPassPath = entryPath.substring(0, entryPath.length() - FrontPage.PAGE.length()) + FrontPage.POSTPASS;
         this.nonApplicationRoot = normalizeRoot(Objects.requireNonNull(nonApplicationRoot, "nonApplicationRoot"));
     }
 
@@ -65,17 +77,17 @@ public final class FrontRoute implements Handler<RoutingContext> {
     public void handle(RoutingContext context) {
         HttpServerRequest request = context.request();
         HttpMethod method = request.method();
-        if ((method != HttpMethod.GET && method != HttpMethod.HEAD)
-                || context.get(ENTRY) != null
-                || underNonApplicationRoot(context.normalizedPath())) {
+        String path = request.path() == null || request.path().isEmpty() ? "/" : request.path();
+        boolean read = method == HttpMethod.GET || method == HttpMethod.HEAD;
+        boolean postPass = method == HttpMethod.POST && path.endsWith(LOGIN_FILE);
+        if ((!read && !postPass) || context.get(ENTRY) != null || underNonApplicationRoot(context.normalizedPath())) {
             context.next();
             return;
         }
-        String path = request.path() == null || request.path().isEmpty() ? "/" : request.path();
         String query = request.query() == null ? "" : request.query();
         String scheme = request.scheme() == null ? "http" : request.scheme();
         context.put(ENTRY, new Entry(method.name(), path, query, host(request), scheme));
-        context.reroute(method, entryPath);
+        context.reroute(method, read ? entryPath : postPassPath);
     }
 
     /** The request's host as sent, with its port when one was given; empty when the request named none. */
