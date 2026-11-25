@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
@@ -12,7 +13,8 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Verifies passwords stored by WordPress the way WordPress 7.1.3's {@code wp_check_password} does, reports the
- * stored format, and says when a stored hash should be replaced. Stateless and thread-safe.
+ * stored format, says when a stored hash should be replaced, and makes the portable phpass hash WordPress puts in its
+ * post-password cookie. Stateless and thread-safe.
  *
  * <p>Passwords are used as their UTF-8 bytes, never trimmed or normalized. Stored hashes are read as their UTF-8
  * bytes as well, so every length below is a byte count, as in PHP.
@@ -223,8 +225,36 @@ public final class WpPasswords {
     }
 
     /**
+     * A new phpass portable hash of {@code password}, as WordPress's {@code PasswordHash(log2Rounds, true)} makes it
+     * for the post-password cookie ({@code log2Rounds} 8): {@code $P$}, the hash alphabet's character at index
+     * {@code log2Rounds + 5} ({@code B} for 8, 2^13 MD5 rounds), eight characters written from six bytes of
+     * {@code random} (the salt), then 22 hash characters; 34 characters in all. {@link #check(String, String)} verifies
+     * it. The password's UTF-8 bytes are hashed, untrimmed. This is the only WordPress format the library writes:
+     * stored user passwords belong to the identity provider.
+     *
+     * @throws IllegalArgumentException if {@code log2Rounds} is outside 4 to 15 (WordPress's hasher takes 4 to 31 and
+     *     {@code check} computes up to count character {@code I}, which is 15), or the password is longer than 4096 bytes (WordPress answers
+     *     {@code *} for those instead of a hash)
+     * @throws NullPointerException if an argument is {@code null}
+     */
+    public static String hashPortable(String password, int log2Rounds, SecureRandom random) {
+        Objects.requireNonNull(password, "password");
+        Objects.requireNonNull(random, "random");
+        byte[] bytes = PhpBytes.utf8(password);
+        if (bytes.length > MAX_PASSWORD_BYTES) {
+            throw new IllegalArgumentException("the password is longer than " + MAX_PASSWORD_BYTES + " bytes");
+        }
+        if (log2Rounds < 4 || log2Rounds > 15) {
+            throw new IllegalArgumentException("log2Rounds must be 4 to 15, not " + log2Rounds);
+        }
+        byte[] salt = new byte[6];
+        random.nextBytes(salt);
+        return new String(Phpass.compute(bytes, Phpass.setting(log2Rounds + 5, salt)), US_ASCII);
+    }
+
+    /**
      * A {@code $wp$2y$} hash of {@code password} with the given cost and 16-byte salt. For tests only: QuarkWord
-     * never writes WordPress hashes. Unlike {@code wp_hash_password} it does not trim.
+     * never writes WordPress's password hashes. Unlike {@code wp_hash_password} it does not trim.
      */
     static String wpBcryptHash(byte[] password, int cost, byte[] salt) {
         return WP_PREFIX + Bcrypt.hash(prehash(password), 'y', cost, salt);

@@ -81,6 +81,29 @@ final class Phpass {
     }
 
     /**
+     * A {@code $P$} setting: the alphabet character at index {@code countIndex} (2^countIndex rounds) and the six salt
+     * bytes written as eight characters.
+     *
+     * @throws IllegalArgumentException if {@code countIndex} is outside the rounds {@link #compute} accepts, or
+     *     {@code salt} is not six bytes
+     */
+    static byte[] setting(int countIndex, byte[] salt) {
+        if (countIndex < MIN_LOG2_ROUNDS || countIndex > MAX_LOG2_ROUNDS) {
+            throw new IllegalArgumentException("the count index must be " + MIN_LOG2_ROUNDS + " to " + MAX_LOG2_ROUNDS);
+        }
+        if (salt.length != 6) {
+            throw new IllegalArgumentException("the salt must be six bytes");
+        }
+        byte[] setting = new byte[SETTING_BYTES];
+        setting[0] = '$';
+        setting[1] = 'P';
+        setting[2] = '$';
+        setting[3] = (byte) ALPHABET.charAt(countIndex);
+        encode(salt, setting, 4);
+        return setting;
+    }
+
+    /**
      * The hash text's Base64 variant: each group of up to three bytes is read as one little-endian integer and
      * written six bits at a time, lowest bits first; a final group of n bytes gives n + 1 characters, a full group
      * four.

@@ -7,8 +7,9 @@ WordPress core writes, with the differences listed below, and `needsRehash` give
 dependencies, no reflection, no Quarkus: bcrypt and BLAKE2b are implemented here from their specifications; MD5,
 HMAC-SHA-384 and Base64 come from the JDK.
 
-The library only verifies. It never writes WordPress hashes: after a successful login, store a new hash in your own
-format or identity provider instead.
+The library verifies stored passwords; it never writes WordPress's password hashes: after a successful login, store
+a new hash in your own format or identity provider instead. The one WordPress format it writes is the portable phpass
+hash of a post password that WordPress keeps in its `wp-postpass_…` cookie (`hashPortable`).
 
 ## Coordinates
 
@@ -46,6 +47,10 @@ boolean usable = WpPasswords.verifiable(userPass); // some password can pass che
 
 // Application passwords (user meta _application_passwords):
 boolean ok = WpPasswords.checkFastHash(secret, storedHash);
+
+// The post-password cookie's value, as WordPress's PasswordHash(8, true) makes it ($P$B…, 34 characters):
+String cookieHash = WpPasswords.hashPortable(postPassword, 8, new SecureRandom());
+boolean unlocked = WpPasswords.check(storedPostPassword, cookieHash);
 ```
 
 - `check(password, storedHash)` is `wp_check_password` with WordPress's default configuration: no trimming, no
@@ -58,6 +63,10 @@ boolean ok = WpPasswords.checkFastHash(secret, storedHash);
   BLAKE2b of the secret; anything else goes to `check` (application passwords made before WordPress 6.8).
   The secret is used as given: remove every character other than ASCII letters and digits from the displayed
   `abcd EFGH …` form first, as WordPress's login does.
+- `hashPortable(password, log2Rounds, random)` is `PasswordHash(log2Rounds, true)->HashPassword(password)`: `$P$`,
+  the count character at alphabet index `log2Rounds + 5` (`B` for 8), eight characters written from six bytes of
+  `random`, then the 22-character digest. `log2Rounds` must be 4 to 15 (the counts `check` computes), and a password
+  over 4096 bytes is refused with `IllegalArgumentException` where WordPress answers `*`.
 - `detect` never throws. `needsRehash` is `false` only for a `$wp$2y$` hash of cost 12 (PHP 8.4's default); it reads
   the cost as PHP 8.4.28 and later do: exactly two digits, then `$`. Earlier releases read it as C's `sscanf` does,
   so `+12`, ` 12`, `012` and a cost without digits answered `false` there.
@@ -106,7 +115,7 @@ Each difference is exercised by the tests, and the `wp-parity` profile compares 
 | D6 | `checkFastHash` sends non-`$generic$` hashes to `check`, as `WP_Application_Passwords::check_password` does | `wp_verify_fast_hash` (reset and activation keys) sends them to phpass, which accepts `$H$` and rejects MD5 | application passwords are the case QuarkWord needs |
 | D7 | `String` arguments are UTF-8 encoded; unpaired surrogates become `?` | PHP sees the bytes it received | Java strings are UTF-16; use `check(byte[], String)` for exact bytes |
 | D8 | `$P$` hashes with a count character above `I` (more than 2^20 rounds) fail without computing | computed, up to 2^30 rounds | the bound keeps a hostile stored hash to seconds, not minutes (a 2^20-round hash with a 4096-byte password takes several seconds); WordPress writes `B` (2^13) |
-| D9 | hashing in WordPress's formats is not public | `wp_hash_password` and `wp_fast_hash` write them | the library only verifies; new hashes belong to the identity provider |
+| D9 | hashing in WordPress's formats is not public, except the portable phpass hash of `hashPortable` (count 4 to 15; over 4096 bytes refused) | `wp_hash_password` and `wp_fast_hash` write them; `PasswordHash::HashPassword` writes portable hashes (count 4 to 31; `*` over 4096 bytes) | new password hashes belong to the identity provider; the portable hash is the value of WordPress's post-password cookie, which QuarkWord's front end sets |
 
 ## Parity testing
 

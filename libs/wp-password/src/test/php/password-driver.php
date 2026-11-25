@@ -10,6 +10,7 @@
  *                                         wp_check_password picks (restated from its tests, not a WordPress function)
  *   {"op":"hash","pw":hex,"cost":n}       wp_hash_password, cost set through the wp_hash_password_options filter
  *   {"op":"phpass","pw":hex,"setting":…}  PasswordHash::crypt_private; the result travels as hex
+ *   {"op":"portable","pw":hex}            PasswordHash(8, true)::HashPassword, the post-password cookie's hash
  *   {"op":"fast","pw":hex}                wp_fast_hash
  */
 
@@ -57,6 +58,8 @@ qw_run(function (array $in): array {
             }
         case 'phpass':
             return ['hash' => bin2hex((new PasswordHash(8, true))->crypt_private($password, $in['setting']))];
+        case 'portable':
+            return ['hash' => (new PasswordHash(8, true))->HashPassword($password)];
         case 'fast':
             return ['hash' => wp_fast_hash($password)];
     }
