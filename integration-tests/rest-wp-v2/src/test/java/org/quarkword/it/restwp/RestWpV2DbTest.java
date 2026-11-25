@@ -34,8 +34,8 @@ import org.quarkword.testing.wprestparity.MediaFixtures;
  * The REST API (wp/v2) end to end, with real Keycloak tokens: JVM mode here, the packaged application in
  * {@code RestWpV2IT}, and a native executable in CI. Every test runs on a network (the multisite install): the main
  * site is {@code localhost} at {@code /}, alice is a network administrator; two tests add a site in a subdirectory.
- * The content tests run the editor's flow (a new draft, its edit lock, autosaves, the preview session and the minimal
- * front-end page), the posts, pages and books routes (writes, meta, term filters, links and embeds, revisions, search)
+ * The content tests run the editor's flow (a new draft, its edit lock, autosaves, the preview session and the front
+ * module's pages), the posts, pages and books routes (writes, meta, term filters, links and embeds, revisions, search)
  * and the media routes (uploads read, served, processed and deleted, the collection's filters, a featured image
  * embedded), so that the native run in CI proves their runtime paths too.
  */
@@ -440,8 +440,8 @@ class RestWpV2DbTest {
                 .statusCode(201)
                 .extract()
                 .path("id");
-        page(null)
-                .get(path + "?p=" + post)
+        // the plain link is redirected to the site's pretty permalink, which shows the post
+        followed(null, path + "?p=" + post, "http://localhost" + path)
                 .then()
                 .statusCode(200)
                 .contentType("text/html; charset=UTF-8")
@@ -469,6 +469,16 @@ class RestWpV2DbTest {
                 .header("Set-Cookie", allOf(startsWith(PREVIEW_COOKIE + "="), containsString("Path=/")))
                 .body("expires_in", equalTo(43200));
         return session.getCookie(PREVIEW_COOKIE);
+    }
+
+    /**
+     * The page a front-end link is redirected to (WordPress's canonical redirect, a 301 sent by QuarkWord to a
+     * {@code Location} starting with {@code prefix}), requested in turn.
+     */
+    private Response followed(String cookie, String target, String prefix) {
+        Response moved = page(cookie).get(target);
+        moved.then().statusCode(301).header("X-Redirect-By", "QuarkWord").header("Location", startsWith(prefix));
+        return page(cookie).get(local(moved.getHeader("Location")));
     }
 
     /** The path and query of an absolute link on the main site. */
@@ -518,7 +528,7 @@ class RestWpV2DbTest {
                 .then()
                 .statusCode(200)
                 .contentType("text/html; charset=UTF-8")
-                .header("Cache-Control", "no-cache, must-revalidate, max-age=0")
+                .header("Cache-Control", "no-cache, must-revalidate, max-age=0, no-store, private")
                 .body(allOf(startsWith("<!DOCTYPE html>"), containsString("<h1 class=\"entry-title\">Flow</h1>")));
         page(null).get("/?p=" + id + "&preview=true").then().statusCode(404);
 
@@ -650,9 +660,9 @@ class RestWpV2DbTest {
                 .contentType("application/json; charset=UTF-8")
                 .body("code", equalTo("wp_die"))
                 .body("message", equalTo("Sorry, you are not allowed to preview drafts."));
-        // the published post itself, and its canonical redirect when asked for as a bare preview
-        page(null)
-                .get("/?p=" + id)
+        // the published post itself through its permalink, the canonical redirect of its plain link and of a bare
+        // preview of it
+        followed(null, "/?p=" + id, "http://localhost/")
                 .then()
                 .statusCode(200)
                 .body(containsString("<h1 class=\"entry-title\">" + title + "</h1>"));
@@ -660,7 +670,7 @@ class RestWpV2DbTest {
                 .get("/?p=" + id + "&preview=true")
                 .then()
                 .statusCode(301)
-                .header("Location", "http://localhost/?p=" + id);
+                .header("Location", page(null).get("/?p=" + id).getHeader("Location"));
     }
 
     @Test
@@ -684,8 +694,7 @@ class RestWpV2DbTest {
                 .extract()
                 .jsonPath()
                 .getLong("id");
-        page(null)
-                .get("/index.php?p=" + id)
+        followed(null, "/index.php?p=" + id, "http://localhost/2026/01/10/")
                 .then()
                 .statusCode(200)
                 .contentType("text/html; charset=UTF-8")
@@ -693,7 +702,7 @@ class RestWpV2DbTest {
                         containsString("<title>" + title + " &#8211; "),
                         containsString("January 10, 2026"),
                         containsString("Body words")));
-        page(null).head("/?p=" + id).then().statusCode(200);
+        page(null).head("/?p=" + id).then().statusCode(301);
         page(null).get("/?p=" + (id + 1_000_000)).then().statusCode(404);
     }
 
@@ -881,8 +890,7 @@ class RestWpV2DbTest {
                 .then()
                 .statusCode(200)
                 .body("id", contains(child));
-        page(null)
-                .get("/?page_id=" + child)
+        followed(null, "/?page_id=" + child, "http://localhost/")
                 .then()
                 .statusCode(200)
                 .body(containsString("<h1 class=\"entry-title\">Child " + word + "</h1>"));

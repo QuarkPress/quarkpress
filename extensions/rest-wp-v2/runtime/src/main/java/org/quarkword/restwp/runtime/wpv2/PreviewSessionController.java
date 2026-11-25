@@ -14,23 +14,28 @@ import org.quarkword.restwp.RestRequest;
 import org.quarkword.restwp.RestResponse;
 import org.quarkword.restwp.RestRouteProvider;
 import org.quarkword.restwp.RouteRegistry;
-import org.quarkword.restwp.runtime.PreviewPage;
 import org.quarkword.restwp.runtime.RestJson;
 import org.quarkword.security.Capabilities;
 import org.quarkword.security.Memberships;
 
 /**
- * The preview session over REST, {@code /quarkword/v1/preview/session}: the front-end preview page knows its viewer
- * by the {@code quarkword_preview} cookie, which a browser cannot be given by the admin shell's Bearer token, so the
- * shell opens a session here first. {@code POST} opens one for the caller, a logged-in member of the site (or a super
- * admin): {@code Set-Cookie: quarkword_preview=<token>; Max-Age=<lifetime>; Path=<the site's path>; HttpOnly;
- * SameSite=Lax} ({@code Secure} too over HTTPS) and {@code {"expires_in": <lifetime in seconds>}}, the lifetime being
- * {@code quarkword.posts.preview-lifetime}. {@code DELETE} closes every session of the caller on the site and clears
- * the cookie ({@code Max-Age=0}), answering {@code {"closed": true}}. Anyone else is refused with
- * {@code rest_forbidden}. No REST route reads the cookie: the session is for the page alone.
+ * The preview session over REST, {@code /quarkword/v1/preview/session}: the front end (the front module) knows a
+ * preview's viewer by the {@code quarkword_preview} cookie, which a browser cannot be given by the admin shell's
+ * Bearer token, so the shell opens a session here first. {@code POST} opens one for the caller, a logged-in member of
+ * the site (or a super admin): {@code Set-Cookie: quarkword_preview=<token>; Max-Age=<lifetime>; Path=<the site's
+ * path>; HttpOnly; SameSite=Lax} ({@code Secure} too over HTTPS) and {@code {"expires_in": <lifetime in seconds>}},
+ * the lifetime being {@code quarkword.posts.preview-lifetime}. {@code DELETE} closes every session of the caller on
+ * the site and clears the cookie ({@code Max-Age=0}), answering {@code {"closed": true}}. Anyone else is refused with
+ * {@code rest_forbidden}. No REST route reads the cookie: the session is for the front-end pages alone.
  */
 @ApplicationScoped
 public class PreviewSessionController implements RestRouteProvider {
+
+    /**
+     * The session cookie's name, which the front module's preview viewer reads (its own constant of the same value:
+     * neither module depends on the other).
+     */
+    public static final String COOKIE = "quarkword_preview";
 
     private static final String NAMESPACE = "quarkword/v1";
 
@@ -95,7 +100,7 @@ public class PreviewSessionController implements RestRouteProvider {
 
     /** The cookie for the site's path, kept from scripts and cross-site navigations; {@code Secure} over HTTPS. */
     private String cookie(String value, long maxAge, boolean secure) {
-        StringBuilder cookie = new StringBuilder(PreviewPage.COOKIE)
+        StringBuilder cookie = new StringBuilder(COOKIE)
                 .append('=')
                 .append(value)
                 .append("; Max-Age=")

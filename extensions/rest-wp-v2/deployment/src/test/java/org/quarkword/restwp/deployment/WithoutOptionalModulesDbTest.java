@@ -1,10 +1,7 @@
 package org.quarkword.restwp.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,17 +12,10 @@ import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.SecureRandom;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -38,8 +28,7 @@ import org.quarkword.core.UserId;
  * and media modules (runtime and deployment artifacts, the media storage and image processor included) are left out
  * of the build (the installed features name none of them). It boots; the index lists no revisions, autosaves or media
  * route; a post links no version history and no predecessor, since no revisions route exists to link to, and no
- * featured image, since no media route exists; the posts write routes work; and the preview page shows a draft to a
- * session holder and a published post as stored, with no autosave overlay. Members of the main site: the editor bob and
+ * featured image, since no media route exists; and the posts write routes work. Members of the main site: the editor bob and
  * the author carol.
  */
 class WithoutOptionalModulesDbTest {
@@ -79,13 +68,6 @@ class WithoutOptionalModulesDbTest {
             .overrideConfigKey("quarkus.http.test-ssl-port", "0");
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    private static final String COOKIE = "quarkword_preview";
-
-    private static final String SESSION = "/wp-json/quarkword/v1/preview/session";
-
-    /** The default of {@code quarkword.posts.preview-lifetime}, 12 hours, in seconds. */
-    private static final int LIFETIME = 43200;
 
     static AgroalDataSource data;
     static final SiteId site = TestData.MAIN;
@@ -244,90 +226,10 @@ class WithoutOptionalModulesDbTest {
                 .isZero();
     }
 
-    @Test
-    void thePreviewPageShowsTheStoredPost() {
-        String session = session(carol);
-        PostId draft = PostFixtures.builder(site)
-                .status("draft")
-                .author(carol)
-                .title("Draft without revisions")
-                .content("draft text")
-                .publishedAt(null)
-                .insert(data);
-        page(session)
-                .get("/?p=" + draft.value() + "&preview=true")
-                .then()
-                .statusCode(200)
-                .body(allOf(
-                        containsString("<h1 class=\"entry-title\">Draft without revisions</h1>"),
-                        containsString("draft text")));
-        page(null).get("/?p=" + draft.value() + "&preview=true").then().statusCode(404);
-        // the editor's preview pair on a published post: the stored post, since no autosave can exist
-        PostId post = PostFixtures.builder(site)
-                .author(carol)
-                .title("Published without revisions")
-                .content("stored text")
-                .insert(data);
-        String token = token(post, carol, Instant.now());
-        page(session)
-                .get("/?p=" + post.value() + "&preview_id=" + post.value() + "&preview_nonce=" + token
-                        + "&preview=true")
-                .then()
-                .statusCode(200)
-                .body(allOf(
-                        containsString("<h1 class=\"entry-title\">Published without revisions</h1>"),
-                        containsString("stored text")));
-        page(null)
-                .get("/?p=" + post.value() + "&preview_id=" + post.value() + "&preview_nonce=" + token
-                        + "&preview=true")
-                .then()
-                .statusCode(403)
-                .body(not(containsString("stored text")));
-    }
-
     // ---- helpers
 
     private static RequestSpecification as(long user) {
         return Http.as("test-" + user).contentType("application/json");
-    }
-
-    private static RequestSpecification page(String cookie) {
-        RequestSpecification spec = Http.as(null);
-        return cookie == null ? spec : spec.cookie(COOKIE, cookie);
-    }
-
-    private static String session(long user) {
-        Response opened = Http.as("test-" + user).post(SESSION);
-        opened.then().statusCode(200);
-        return opened.getCookie(COOKIE);
-    }
-
-    /**
-     * The preview token of {@code post} for {@code user} at {@code now}, computed as the posts module computes it
-     * (base64url without padding of the first 20 bytes of HMAC-SHA256 over {@code preview|site|post|user|tick} with
-     * the site's secret, the tick being the time in 6 hour steps); the secret is created when the site has none.
-     */
-    private static String token(PostId post, long user, Instant now) {
-        String stored = Jdbc.optionJson(site, "quarkword_preview_secret");
-        if (stored == null) {
-            byte[] secret = new byte[32];
-            new SecureRandom().nextBytes(secret);
-            stored = "\"" + Base64.getEncoder().encodeToString(secret) + "\"";
-            Jdbc.option(site, "quarkword_preview_secret", stored);
-        }
-        byte[] secret = Base64.getDecoder().decode(stored.substring(1, stored.length() - 1));
-        long tick = Math.floorDiv(now.getEpochSecond(), LIFETIME / 2);
-        String message = "preview|" + site.value() + "|" + post.value() + "|" + user + "|" + tick;
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            byte[] full = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-            byte[] truncated = new byte[20];
-            System.arraycopy(full, 0, truncated, 0, 20);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(truncated);
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException(e);
-        }
     }
 
     private static JsonNode json(String body) {

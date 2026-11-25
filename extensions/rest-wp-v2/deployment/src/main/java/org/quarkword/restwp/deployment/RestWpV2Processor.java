@@ -25,7 +25,6 @@ import org.quarkword.restwp.RestRouteProvider;
 import org.quarkword.restwp.RestWpV2Feature;
 import org.quarkword.restwp.SettingsProvider;
 import org.quarkword.restwp.SettingsRegistry;
-import org.quarkword.restwp.runtime.PreviewPage;
 import org.quarkword.restwp.runtime.RestEntryResource;
 import org.quarkword.restwp.runtime.RestPaths;
 import org.quarkword.restwp.runtime.RestWpConfig;
@@ -151,7 +150,7 @@ class RestWpV2Processor {
     /**
      * The beans typed on the revisions module (its revisions and autosaves routes, their field preparation and the post
      * links' revision history), named here as texts so that this processor loads without that module. The latest
-     * autosave the preview page and the editor's settings read is the revisions module's own bean.
+     * autosave the editor's settings read is the revisions module's own bean.
      */
     static final List<String> REVISION_BEANS = List.of(
             "org.quarkword.restwp.runtime.wpv2.RevisionRoutes",
@@ -206,10 +205,9 @@ class RestWpV2Processor {
     }
 
     /**
-     * Where REST requests and front-end page requests are re-routed: the entry resource's and the preview page's paths
-     * below the REST application path (from {@code quarkus.rest.path} or an {@code @ApplicationPath}) and the HTTP
-     * root path. The build fails when Quarkus REST does not deploy either resource, as no REST request (or no
-     * front-end page) could then be served.
+     * Where REST requests are re-routed: the entry resource's path below the REST application path (from
+     * {@code quarkus.rest.path} or an {@code @ApplicationPath}) and the HTTP root path. The build fails when Quarkus
+     * REST does not deploy the resource, as no REST request could then be served.
      */
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
@@ -219,19 +217,15 @@ class RestWpV2Processor {
             Optional<ResteasyReactiveResourceMethodEntriesBuildItem> methods,
             RestWpRecorder recorder) {
         requireDeployed(deployment, methods, RestEntryResource.class.getName(), "no REST request can be served");
-        requireDeployed(deployment, methods, PreviewPage.class.getName(), "no front-end page can be served");
         String root = httpRoot.getRootPath();
         String application = deployment.get().getApplicationPath();
         String entry;
-        String preview;
         try {
             entry = RestPaths.entryPath(root, application);
-            preview = RestPaths.previewPath(root, application);
         } catch (IllegalArgumentException unusable) {
             throw new ConfigurationException("quarkword-rest-wp-v2: " + unusable.getMessage());
         }
         recorder.entryPath(entry);
-        recorder.previewPath(preview);
     }
 
     private static void requireDeployed(

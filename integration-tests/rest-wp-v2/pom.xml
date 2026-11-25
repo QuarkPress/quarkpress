@@ -69,6 +69,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-front</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-jdbc-postgresql</artifactId>
     </dependency>
@@ -177,6 +182,19 @@
     <dependency>
       <groupId>org.quarkword</groupId>
       <artifactId>quarkword-revisions-deployment</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword</groupId>
+      <artifactId>quarkword-front-deployment</artifactId>
       <version>${project.version}</version>
       <type>pom</type>
       <scope>test</scope>

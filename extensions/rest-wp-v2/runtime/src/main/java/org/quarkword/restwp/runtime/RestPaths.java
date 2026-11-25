@@ -16,8 +16,6 @@ public final class RestPaths {
 
     private static volatile String entry = RestEntryResource.PATH;
 
-    private static volatile String preview = PreviewPage.PATH;
-
     private RestPaths() {}
 
     /**
@@ -104,17 +102,6 @@ public final class RestPaths {
         return internalPath(httpRoot, applicationPath, RestEntryResource.PATH, "REST entry");
     }
 
-    /**
-     * The absolute path of the front-end preview page resource: {@link PreviewPage#PATH} below the JAX-RS application
-     * path, itself below the HTTP root path.
-     *
-     * @param httpRoot {@code quarkus.http.root-path}
-     * @param applicationPath the path Quarkus REST deploys the application's resources under
-     */
-    public static String previewPath(String httpRoot, String applicationPath) {
-        return internalPath(httpRoot, applicationPath, PreviewPage.PATH, "preview page");
-    }
-
     private static String internalPath(String httpRoot, String applicationPath, String resource, String what) {
         String path = join(join(httpRoot, applicationPath), resource);
         if (path.indexOf('?') >= 0 || path.indexOf('#') >= 0 || path.indexOf('*') >= 0 || path.indexOf(':') >= 0) {
@@ -141,16 +128,6 @@ public final class RestPaths {
     /** The absolute path REST requests are re-routed to. */
     public static String entryPath() {
         return entry;
-    }
-
-    /** Called once by the extension's recorder with the path {@link #previewPath(String, String)} computed. */
-    public static void installPreviewPath(String path) {
-        preview = path;
-    }
-
-    /** The absolute path front-end page requests are re-routed to. */
-    public static String previewPath() {
-        return preview;
     }
 
     /** Called once by the extension's recorder with Quarkus's non-application root path. */

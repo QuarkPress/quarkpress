@@ -12,8 +12,4 @@ public class RestWpRecorder {
     public void entryPath(String path) {
         RestPaths.installEntryPath(path);
     }
-
-    public void previewPath(String path) {
-        RestPaths.installPreviewPath(path);
-    }
 }
