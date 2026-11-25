@@ -34,6 +34,7 @@ import org.quarkword.posts.TaxClause;
 import org.quarkword.posts.TaxQuery;
 import org.quarkword.posts.runtime.PostEntity;
 import org.quarkword.posts.runtime.PostRepository;
+import org.quarkword.posts.runtime.Slugs;
 import org.quarkword.security.UserProfiles;
 import org.quarkword.taxonomy.Taxonomies;
 import org.quarkword.taxonomy.TermField;
@@ -163,12 +164,14 @@ public class DefaultFrontResolver implements FrontResolver {
         for (String reserved : RESERVED) {
             if (!vars.get(reserved).orElse("").isEmpty()) {
                 return FrontRequest.answered(vars, parsed.flags(), 404, now)
+                        .withQueryVars(afterQuery(parsed, options))
                         .withQueriedObject(notFound.readable(parsed.queriedFromPath(), viewer));
             }
         }
         if (parsed.flags().is404()) {
             int status = error.filter(KNOWN::contains).orElse(200);
             return FrontRequest.answered(vars, parsed.flags(), status, now)
+                    .withQueryVars(afterQuery(parsed, options))
                     .withQueriedObject(notFound.readable(parsed.queriedFromPath(), viewer));
         }
 
@@ -177,6 +180,7 @@ public class DefaultFrontResolver implements FrontResolver {
         QueryVars normalized = parsed.normalized();
         FrontRequest draft = new FrontRequest(
                 vars,
+                afterQuery(parsed, options),
                 parsed.flags(),
                 parsed.queriedFromPath(),
                 Optional.of(main),
@@ -290,6 +294,50 @@ public class DefaultFrontResolver implements FrontResolver {
                 return Optional.empty();
             }
         }
+    }
+
+    // ---- the main query's variables -------------------------------------------------------------------------------
+
+    /**
+     * The parsed variables as WordPress's query leaves them once it ran: a {@code name} sanitised for the lookup; a
+     * {@code pagename} (unless it names the posts page) and an {@code attachment} reduced to their last segment,
+     * sanitised and copied into {@code name}, a {@code pagename} that is an attachment's path also setting
+     * {@code post_type} and {@code attachment_id}; {@code attachment_id}, then {@code page_id} (unless it is the posts
+     * page), copied into {@code p}.
+     */
+    static QueryVars afterQuery(FlagParser.Parsed parsed, SiteOptions options) {
+        QueryVars vars = parsed.normalized();
+        boolean postsPageShown = options.string("show_on_front", "posts").equals("page");
+        long pageForPosts = options.number("page_for_posts", 0);
+        String name = vars.get("name").orElse("");
+        String pagename = vars.get("pagename").orElse("");
+        String attachment = vars.get("attachment").orElse("");
+        if (!name.isEmpty()) {
+            vars = vars.with("name", Slugs.sanitizeTitleForQuery(name));
+        } else if (!pagename.isEmpty()) {
+            Optional<QueriedObject> page = parsed.queriedFromPath();
+            long requested = page.map(QueriedObject::id).orElse(0L);
+            if (!postsPageShown || pageForPosts == 0 || requested != pageForPosts) {
+                String slug = Slugs.sanitizeTitleForQuery(MainQuery.basename(pagename));
+                vars = vars.with("pagename", slug).with("name", slug);
+                if (page.orElse(null) instanceof QueriedObject.Post found
+                        && found.post().type().equals("attachment")) {
+                    vars = vars.with("post_type", "attachment").with("attachment_id", Long.toString(requested));
+                }
+            }
+        } else if (!attachment.isEmpty()) {
+            String slug = Slugs.sanitizeTitleForQuery(MainQuery.basename(attachment));
+            vars = vars.with("attachment", slug).with("name", slug);
+        }
+        long attachmentId = MainQuery.number(vars, "attachment_id");
+        if (attachmentId != 0) {
+            vars = vars.with("p", Long.toString(attachmentId));
+        }
+        long pageId = MainQuery.number(vars, "page_id");
+        if (pageId != 0 && (!postsPageShown || pageForPosts != pageId)) {
+            vars = vars.with("p", Long.toString(pageId));
+        }
+        return vars;
     }
 
     // ---- helpers --------------------------------------------------------------------------------------------------

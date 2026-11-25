@@ -37,6 +37,16 @@ and its date, and the status (200, 404, 403 for a bad preview pair, or the statu
 A request the query parser itself finds not to exist (`?p=-1`, `?monthnum=13`) is answered 200 with the not-found
 flags, as WordPress sends its 404 template with a 200 then.
 
+A resolved request is then checked for WordPress's redirects, in its order: `FrontSiteGate.decide` first (an alias
+domain set to redirect sends a read to the site's address with 301; an archived, spam or deleted site answers 410 with
+WordPress's message), then `OldSlugRedirects.decide` (a not-found post requested by a slug or day it once had: 301 to
+it), then `CanonicalRedirects.decide(request, RequestUrl, viewer)` (`redirect_canonical`: plain query-string forms to
+permalinks, the 404 guess, impossible dates, content and list paging, an attachment to its file when attachment pages
+are off, the end-of-URL normalisations, never towards a post the viewer may not see). `FrontHeaders` gives the answer's
+headers: `text/html; charset=UTF-8`, WordPress's no-cache set for logged-in viewers, previews, 404s and posts with a
+password, the REST API, alternate and shortlink `Link` headers of a page, and `X-Redirect-By` with `Location` for a
+redirect. `RedirectUrls.validate` checks an address a request names (`redirect_to`) as `wp_validate_redirect` does.
+
 ## Configuration
 
 | Key | Default | Meaning |
@@ -58,3 +68,8 @@ flags, as WordPress sends its 404 template with a 200 then.
 | D6 | `orderby=rand`, `comment_count`, `meta_value` and `meta_value_num` are not ordered by: the list falls back to the date (WordPress orders randomly, by comment count, or by the `meta_key` the URL cannot give). |
 | D7 | An `author` list holding 0 (`?author=3,0`) applies no author condition; WordPress excludes the posts without author (`post_author NOT IN (0)`), which QuarkWord does not store. |
 | D8 | A preview pair (`preview_id` with `preview_nonce`) is checked against QuarkWord's preview token of the viewer for that post, not WordPress's nonce of the action `post_preview_<id>`; a bad pair answers 403 "Sorry, you are not allowed to preview drafts." before any query, as WordPress does. |
+| D9 | A front-end read (GET or HEAD) on an alias domain set to redirect answers 301 to the same path and query on the site's address, and an archived, spam or deleted site answers 410 with WordPress's site-check message, as the REST module does; WordPress itself only redirects the `www.` variant of the home host and keeps any other host. |
+| D10 | The 404 guess and the old slug and old date lookups compare slugs exactly on the stored, lower-case form, where WordPress's database collation compares without regard to case or accents; as the requested slug is lower-cased and kept percent-encoded first, the answers agree (`/2025/11/20/HELLO-WO/` is guessed, `/2025/11/20/h%C3%A9llo/` is not, in both). The guess takes the first slug in the order of WordPress's slug index (MySQL's `utf8mb4_unicode_520_ci` over the first 191 characters: `_` before `-` before `%` before digits before letters, case folded), then the lowest id, as MySQL answers WordPress's unordered query through that index (`/jav/` finds `java-17` before `java-21`, and `jav_1` before `jav-2`, `jav%d0%ba`, `jav1` and `java`), on PostgreSQL too; the old slug and old date lookups take the lowest id where WordPress takes whichever row its database returns first. |
+| D11 | The requests of D3 get no canonical or old slug redirect: WordPress redirects `?p=N&feed=rss2` to the post's comment feed, a post's `comment-page-N/` to the post, `wp-register.php` to the sign-up page and the old feed files to `/feed/`, and the old slug redirect keeps an `embed/` ending. |
+| D12 | Without the media module an attachment has no file, so it is never redirected to one: its requests are redirected as with attachment pages on. |
+| D13 | No `X-Pingback` header (QuarkWord has no XML-RPC). A redirect is sent with `X-Redirect-By: QuarkWord`. A preview also gets `X-Robots-Tag: noindex, nofollow`, `Content-Security-Policy: frame-ancestors 'self'` and the no-cache set. An anonymous answer that is not a 404 carries `quarkword.front.cache-control` when it is set. |

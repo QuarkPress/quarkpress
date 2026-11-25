@@ -241,7 +241,7 @@ public class MainQuery {
     }
 
     /** WordPress's {@code wp_basename}: the last path segment, trailing slashes first removed. */
-    private static String basename(String path) {
+    static String basename(String path) {
         int end = path.length();
         while (end > 0 && (path.charAt(end - 1) == '/' || path.charAt(end - 1) == '\\')) {
             end--;
