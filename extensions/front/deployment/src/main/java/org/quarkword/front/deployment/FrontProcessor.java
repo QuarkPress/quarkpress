@@ -6,8 +6,10 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import org.quarkword.core.deployment.spi.QuarkWordConfigKeysBuildItem;
 import org.quarkword.core.deployment.spi.SiteFeatureBuildItem;
 import org.quarkword.front.FrontFeature;
+import org.quarkword.front.FrontResolver;
 import org.quarkword.front.FrontUrls;
 import org.quarkword.front.Permalinks;
+import org.quarkword.front.runtime.DefaultFrontResolver;
 import org.quarkword.front.runtime.DefaultPermalinks;
 import org.quarkword.front.runtime.FrontConfig;
 import org.quarkword.front.runtime.FrontLinkBuilder;
@@ -36,7 +38,9 @@ class FrontProcessor {
                 DefaultPermalinks.class,
                 FrontLinkBuilder.class,
                 LinkBuilder.class,
-                PagePaths.class);
+                PagePaths.class,
+                FrontResolver.class,
+                DefaultFrontResolver.class);
     }
 
     @BuildStep
