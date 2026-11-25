@@ -11,7 +11,7 @@
 $_SERVER['HTTP_HOST'] = 'localhost';
 $_SERVER['SERVER_NAME'] = 'localhost';
 $_SERVER['SERVER_PORT'] = '80';
-if ('1' === ($_SERVER['HTTP_X_QP_PARITY_HTTPS'] ?? '')) {
+if ('1' === ($_SERVER['HTTP_X_QW_PARITY_HTTPS'] ?? '')) {
     // Harness rule: php -S has no TLS; a request carrying X-QW-Parity-Https: 1 is presented as one over HTTPS through
     // the server variable WordPress reads to decide that.
     $_SERVER['HTTPS'] = 'on';
