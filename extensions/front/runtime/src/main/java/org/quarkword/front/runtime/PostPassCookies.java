@@ -67,7 +67,8 @@ public class PostPassCookies {
                     "EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.ENGLISH)
             .withZone(ZoneOffset.UTC);
 
-    private static final SecureRandom RANDOM = new SecureRandom();
+    /** Created with the bean at run time: a static instance would be baked into the native image heap. */
+    private final SecureRandom random = new SecureRandom();
 
     @Inject
     SiteContext site;
@@ -123,7 +124,7 @@ public class PostPassCookies {
      * {@code cookiePath} (its {@code setcookie} throws).
      */
     public Optional<String> setCookie(String password, boolean secure, String cookiePath, Instant now) {
-        return setCookie(cookieName(), password, secure, cookiePath, now, RANDOM);
+        return setCookie(cookieName(), password, secure, cookiePath, now, random);
     }
 
     // ---- the rules, without the site ------------------------------------------------------------------------------
