@@ -1,4 +1,4 @@
-package org.quarkword.restwp.runtime;
+package org.quarkword.posts;
 
 import java.time.Instant;
 import java.util.Optional;

@@ -1,9 +1,10 @@
-package org.quarkword.restwp.runtime;
+package org.quarkword.revisions.runtime;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.Optional;
 import org.quarkword.core.PostId;
+import org.quarkword.posts.AutosaveOverlay;
 import org.quarkword.revisions.Revisions;
 
 /**

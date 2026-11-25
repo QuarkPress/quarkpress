@@ -149,16 +149,15 @@ class RestWpV2Processor {
     }
 
     /**
-     * The beans typed on the revisions module (its revisions and autosaves routes, their field preparation, the post
-     * links' revision history and the preview page's autosave), named here as texts so that this processor loads
-     * without that module.
+     * The beans typed on the revisions module (its revisions and autosaves routes, their field preparation and the post
+     * links' revision history), named here as texts so that this processor loads without that module. The latest
+     * autosave the preview page and the editor's settings read is the revisions module's own bean.
      */
     static final List<String> REVISION_BEANS = List.of(
             "org.quarkword.restwp.runtime.wpv2.RevisionRoutes",
             "org.quarkword.restwp.runtime.wpv2.RevisionFields",
             "org.quarkword.restwp.runtime.wpv2.RevisionHistoryReads",
-            "org.quarkword.restwp.runtime.wpv2.AutosaveRoutes",
-            "org.quarkword.restwp.runtime.LatestAutosaves");
+            "org.quarkword.restwp.runtime.wpv2.AutosaveRoutes");
 
     /**
      * Without the revisions module, the beans typed on it are left out of the application: the posts controller then

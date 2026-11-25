@@ -42,6 +42,7 @@ import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteId;
 import org.quarkword.core.TitleFilter;
 import org.quarkword.core.UserId;
+import org.quarkword.posts.AutosaveOverlay;
 import org.quarkword.posts.FeaturedImages;
 import org.quarkword.posts.PostPasswords;
 import org.quarkword.posts.PostPermissions;
