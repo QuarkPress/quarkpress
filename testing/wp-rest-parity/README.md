@@ -112,7 +112,9 @@ the rewrite table's example paths, for every canonical, old slug and attachment 
 `PAGED`, `ATTACH`, `ATTACH-PAGES`, `FRONT-PAGE`, `G17-trash`), for the query reference's items on a plain-permalink
 site (`FQ-G1` to `FQ-G9`, `FQ-G14`, `FQ-G15`, `FQ-G22`, `FQ-G23`), for the main query's items, some as logged-in
 visitors through `cookie_session` cookies (`FQ-G10` to `FQ-G12`, `FQ-G16` to `FQ-G18`, `FQ-G24`, the content-page and
-`error` answers of the 404 decision), for the password form and the `postpass` cookie (`FQ-G19`, `FQ-G20`), and for
+`error` answers of the 404 decision), for the password form and the `postpass` action (`FQ-G19`, `FQ-G20`: its cookie,
+login headers and redirect for every kind of target, and the form after a wrong and a right password), for the admin
+shorthands (`FR-G21`), and for
 MySQL's `WEEK` numbers of the week archives, into `target/wp-rest-parity/front-facts.json`: per request the status,
 `Location`, `Cache-Control`, `Expires`, `Content-Type`, `Link`, `X-Redirect-By`, `X-Robots-Tag`, `X-Pingback`,
 `Last-Modified`, the first 300 bytes of the body, the document title, a password form, the post titles the page lists,

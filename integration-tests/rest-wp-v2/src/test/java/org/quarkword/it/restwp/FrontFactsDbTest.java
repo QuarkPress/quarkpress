@@ -42,7 +42,8 @@ import org.quarkword.testing.wpscenario.WordPressTree;
  * {@code WEEK} numbers, into {@code target/wp-rest-parity/front-facts.json}: status, {@code Location},
  * {@code Cache-Control}, {@code Expires}, {@code Content-Type}, {@code Link}, {@code X-Redirect-By},
  * {@code X-Robots-Tag}, {@code X-Pingback}, {@code Last-Modified}, the first 300 bytes of the body, the document title,
- * a password form, and the listed post titles of every request. The cast lives on subdirectory sites of the parity
+ * a password form, and the listed post titles of every request; for the {@code postpass} action's answers their
+ * {@code Set-Cookie}, login-page headers and body size. The cast lives on subdirectory sites of the parity
  * network (one per permalink structure); redirects are not followed. Nothing about QuarkWord is asserted.
  * Runs only with {@code -Pwp-parity -Dfront.facts=true}: the property keeps it out of the parity profile's full run.
  */
@@ -742,6 +743,112 @@ class FrontFactsDbTest {
         ArrayNode cookies = entry.putArray("set-cookie");
         pass.headerLines("Set-Cookie").forEach(cookies::add);
         pass.header("Location").ifPresent(location -> entry.put("location", location));
+
+        // the postpass action's answers (Task 11): every redirect target, and the form after a wrong and a right
+        // password; the parity router serves wp-login.php at the network's root only (a sub-site's path runs
+        // index.php), and the cookie's name and path are the network's anyway
+        String lockedLink = "http://localhost" + can + "/2025/11/19/locked/";
+        String postpass = "/wp-login.php?action=postpass";
+        Exchange right = postpass("FQ-G20", postpass, "post_password=s3&redirect_to=" + encode(lockedLink), Map.of());
+        postpass(
+                "FQ-G20",
+                postpass,
+                "post_password=s3&redirect_to=" + encode("https://localhost" + can + "/x/"),
+                Map.of());
+        postpass("FQ-G20", postpass, "post_password=s3&redirect_to=" + encode("https://evil.test/"), Map.of());
+        postpass("FQ-G20", postpass, "post_password=s3&redirect_to=" + encode("//evil.test/x"), Map.of());
+        postpass("FQ-G20", postpass, "post_password=s3&redirect_to=" + encode("javascript:alert(1)"), Map.of());
+        postpass("FQ-G20", postpass, "post_password=s3", Map.of("Referer", lockedLink));
+        postpass("FQ-G20", postpass, "post_password=s3", Map.of());
+        postpass("FQ-G20", postpass, "redirect_to=" + encode(lockedLink), Map.of());
+        postpass(
+                "FQ-G20",
+                "/wp-login.php",
+                "action=postpass&post_password=s3&redirect_to=" + encode(lockedLink),
+                Map.of());
+        postpass("FQ-G20", postpass, "post_password=s3&redirect_to=", Map.of());
+        postpass("FQ-G20", postpass, "post_password=s3&redirect_to=" + encode(" " + lockedLink + " "), Map.of());
+        record("FQ-G20", postpass);
+        Exchange wrong =
+                postpass("FQ-G20", postpass, "post_password=wrong&redirect_to=" + encode(lockedLink), Map.of());
+        String wrongCookie = cookiePair(wrong);
+        String rightCookie = cookiePair(right);
+        recordWith("FQ-G19", can + "/2025/11/19/locked/", Map.of("Cookie", wrongCookie, "Referer", lockedLink));
+        recordWith("FQ-G19", can + "/2025/11/19/locked/", Map.of("Cookie", wrongCookie));
+        recordWith("FQ-G19", can + "/2025/11/19/locked/", Map.of("Cookie", rightCookie));
+        recordWith("FQ-G19", can + "/2025/11/19/locked/?p=" + protectedPost, Map.of("Cookie", rightCookie));
+        recordWith("FQ-G19", can + "/", Map.of("Cookie", wrongCookie));
+        notes.put(
+                "FQ-G19 cookies",
+                "the wrong-password cookie is the s3-cookie request's sibling for 'wrong'; FQ-G19 entries 2 to 6 send"
+                        + " it, or the s3 cookie (entries 4 and 5), as the Cookie header");
+
+        // the admin and login shorthands (routing reference G21, for the deferred-shorthands record)
+        for (String path : new String[] {"/admin", "/login", "/dashboard", "/wp-admin", "/admin/"}) {
+            record("FR-G21", can + path);
+            record("FR-G21", path);
+        }
+    }
+
+    static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    /** The {@code name=value} pair of the answer's post-password cookie. */
+    static String cookiePair(Exchange exchange) {
+        return exchange.headerLines("Set-Cookie").stream()
+                .filter(line -> line.startsWith("wp-postpass_"))
+                .map(line -> line.substring(0, line.indexOf(';')))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /** Sends an anonymous form POST with {@code headers} and records the whole answer under {@code item}. */
+    static Exchange postpass(String item, String target, String form, Map<String, String> headers) throws Exception {
+        RestCall call = new RestCall(
+                "anonymous",
+                "POST",
+                target,
+                Map.of(),
+                Optional.of("application/x-www-form-urlencoded"),
+                Optional.of(form.getBytes(StandardCharsets.UTF_8)));
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            call = call.withHeader(header.getKey(), header.getValue());
+        }
+        Exchange exchange = client.send(call);
+        ArrayNode list = items.has(item) ? (ArrayNode) items.get(item) : items.putArray(item);
+        ObjectNode entry = list.addObject();
+        entry.put("request", "POST " + target + " " + form + (headers.isEmpty() ? "" : " " + headers));
+        entry.put("status", exchange.status());
+        for (String header : POST_HEADERS) {
+            List<String> lines = exchange.headerLines(header);
+            if (!lines.isEmpty()) {
+                ArrayNode values = entry.putArray(header.toLowerCase());
+                lines.forEach(values::add);
+            }
+        }
+        entry.put("bodyBytes", exchange.body().length);
+        return exchange;
+    }
+
+    static final List<String> POST_HEADERS = List.of(
+            "Set-Cookie",
+            "Location",
+            "X-Redirect-By",
+            "Cache-Control",
+            "Expires",
+            "Content-Type",
+            "X-Frame-Options",
+            "Referrer-Policy",
+            "Last-Modified",
+            "Link",
+            "X-Robots-Tag");
+
+    /** Sends an anonymous GET with {@code headers} and records what came back under {@code item}. */
+    static void recordWith(String item, String target, Map<String, String> headers) throws Exception {
+        record(item, target, null, headers);
+        ArrayNode list = (ArrayNode) items.get(item);
+        ((ObjectNode) list.get(list.size() - 1)).put("sent", headers.toString());
     }
 
     /** A post with the given column and extra fields (as {@code post}, by alice). */
@@ -966,9 +1073,17 @@ class FrontFactsDbTest {
 
     /** Sends a GET in {@code session} (anonymous when null) and records what came back under {@code item}. */
     static void record(String item, String target, Session session) throws Exception {
+        record(item, target, session, Map.of());
+    }
+
+    /** {@link #record(String, String, Session)} with more request headers. */
+    static void record(String item, String target, Session session, Map<String, String> headers) throws Exception {
         RestCall call = RestCall.get("anonymous", target);
         if (session != null) {
             call = call.withHeader("Cookie", session.cookie());
+        }
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            call = call.withHeader(header.getKey(), header.getValue());
         }
         Exchange exchange = client.send(call);
         ArrayNode list = items.has(item) ? (ArrayNode) items.get(item) : items.putArray(item);
