@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +19,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -31,15 +34,16 @@ import org.quarkword.testing.wpscenario.ScenarioDatabase;
 import org.quarkword.testing.wpscenario.WordPressTree;
 
 /**
- * Records what WordPress 7.1.3 answers on its front end for the routing reference's verification items (G1, G2, G3,
- * G14, G20), for the rewrite table's example paths, and for the query reference's items on a plain-permalink site
- * (FQ-G1 to FQ-G9, FQ-G14, FQ-G15, FQ-G22, FQ-G23), for the main query's items with logged-in visitors (FQ-G10 to
- * FQ-G12, FQ-G16 to FQ-G18, FQ-G24, FR's G5, G6 and G13, the content-page and {@code error} answers of the 404
- * decision), and for MySQL's {@code WEEK} numbers, into {@code target/wp-rest-parity/front-facts.json}: status,
- * {@code Location}, {@code Cache-Control}, {@code Expires}, {@code Content-Type}, {@code Link}, {@code X-Redirect-By},
- * {@code X-Robots-Tag}, the first 300 bytes of the body, the document title and the listed post titles of every
- * request. The cast lives on subdirectory sites of the parity network (one per permalink structure); redirects are
- * not followed. Nothing about QuarkWord is asserted.
+ * Records what WordPress 7.1.3 answers on its front end for the routing reference's verification items (G1 to G20),
+ * for the rewrite table's example paths, for every canonical, old-slug and attachment example of the redirect task,
+ * for the query reference's items on a plain-permalink site (FQ-G1 to FQ-G9, FQ-G14, FQ-G15, FQ-G22, FQ-G23), for the
+ * main query's items with logged-in visitors (FQ-G10 to FQ-G12, FQ-G16 to FQ-G18, FQ-G24, the content-page and
+ * {@code error} answers of the 404 decision), for the password form and cookie (FQ-G19, FQ-G20), and for MySQL's
+ * {@code WEEK} numbers, into {@code target/wp-rest-parity/front-facts.json}: status, {@code Location},
+ * {@code Cache-Control}, {@code Expires}, {@code Content-Type}, {@code Link}, {@code X-Redirect-By},
+ * {@code X-Robots-Tag}, {@code X-Pingback}, {@code Last-Modified}, the first 300 bytes of the body, the document title,
+ * a password form, and the listed post titles of every request. The cast lives on subdirectory sites of the parity
+ * network (one per permalink structure); redirects are not followed. Nothing about QuarkWord is asserted.
  * Runs only with {@code -Pwp-parity -Dfront.facts=true}: the property keeps it out of the parity profile's full run.
  */
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
@@ -48,8 +52,16 @@ class FrontFactsDbTest {
 
     static final Path FACTS = Path.of("target", "wp-rest-parity", "front-facts.json");
     static final int BODY_BYTES = 300;
-    static final List<String> HEADERS =
-            List.of("Location", "Cache-Control", "Expires", "Content-Type", "Link", "X-Redirect-By", "X-Robots-Tag");
+    static final List<String> HEADERS = List.of(
+            "Location",
+            "Cache-Control",
+            "Expires",
+            "Content-Type",
+            "Link",
+            "X-Redirect-By",
+            "X-Robots-Tag",
+            "X-Pingback",
+            "Last-Modified");
 
     static ScenarioDatabase database;
     static WordPressRestSite site;
@@ -467,6 +479,295 @@ class FrontFactsDbTest {
         record("G13", dated + "/2025/11/23/second-post/2/");
     }
 
+    /**
+     * The routing reference's canonical, old-slug, attachment and header items (G4, G7 to G13, G15 to G19) and every
+     * canonical example of the redirect task, on a dated site {@code /gcan/} with the reference's cast, a
+     * {@code /%postname%/} site {@code /gpn/} and a {@code /%category%/%postname%/} site {@code /gcat/}; the password
+     * form and cookie items of the query reference (FQ-G19, FQ-G20).
+     */
+    @Test
+    void frCanonicalOldSlugAttachmentAndHeaderItems() throws Exception {
+        String can = createSite("gcan", "/%year%/%monthnum%/%day%/%postname%/");
+        option(can, "qw_parity_book_type", TextNode.valueOf("1"));
+        long news = term(can, "categories", "{\"name\":\"News\",\"slug\":\"news\"}");
+        long releases =
+                term(can, "categories", "{\"name\":\"Releases\",\"slug\":\"releases\",\"parent\":" + news + "}");
+        long java = term(can, "tags", "{\"name\":\"Java\",\"slug\":\"java\"}");
+        long helloId = postWith(can, "post", "publish", "Hello world!", "hello", "2025-11-20 10:15:30", args());
+        update(can, helloId, args().put("post_name", "hello-world"));
+        ObjectNode secondTerms = args();
+        secondTerms.putArray("category").add(news).add(releases);
+        secondTerms.putArray("post_tag").add(java);
+        ObjectNode secondFields = args().put("post_content", "One<!--nextpage-->Two");
+        secondFields.set("terms", secondTerms);
+        long secondId =
+                postWith(can, "post", "publish", "Second post", "second-post", "2025-11-01 08:00:00", secondFields);
+        update(can, secondId, args().put("post_date", "2025-11-23 08:00:00"));
+        long draft = postWith(can, "post", "draft", "Draft post", "draft-post", "2025-11-24 08:00:00", args());
+        long secret = postWith(can, "post", "private", "Secret", "secret", "2025-11-24 09:00:00", args());
+        long protectedPost = postWith(
+                can, "post", "publish", "Locked", "locked", "2025-11-19 08:00:00", args().put("post_password", "s3"));
+        long january = postWith(can, "post", "publish", "January", "january", "2025-01-05 08:00:00", args());
+        // a slug that keeps its non-ASCII letters (accents would be folded): stored percent-encoded, lower-case hex
+        long cyrillic = postWith(can, "post", "publish", "Cat", "\u043a\u043e\u0442", "2025-11-20 11:00:00", args());
+        long sample = post(can, "page", "publish", "Sample Page", "sample-page", "2025-11-19 10:00:00", 0, null);
+        long aboutPage = post(can, "page", "publish", "About", "about", "2025-11-20 10:00:00", 0, null);
+        long teamPage = post(can, "page", "publish", "Team", "team", "2025-11-20 10:00:00", aboutPage, null);
+        long photo = post(can, "attachment", "inherit", "Photo", "photo", "2025-11-23 08:30:00", secondId, null);
+        long logo = post(can, "attachment", "inherit", "Logo", "logo", "2025-11-23 08:31:00", 0, null);
+        long draftShot =
+                post(can, "attachment", "inherit", "Draft shot", "draft-shot", "2025-11-24 08:30:00", draft, null);
+        long duneId = postWith(can, "book", "publish", "Dune", "old-dune", "2025-11-23 08:00:00", args());
+        update(can, duneId, args().put("post_name", "dune"));
+        long alice = site.userId("alice");
+        long bob = site.userId("bob");
+        notes.put(
+                "FR canonical cast",
+                "site /gcan/ (default structure): hello-world " + helloId + " (was hello), second-post " + secondId
+                        + " (two content pages, dated 2025-11-01 first, News " + news + " and Releases " + releases
+                        + ", tag Java " + java + "), draft " + draft + ", private secret " + secret + ", locked "
+                        + protectedPost + " (password s3), january " + january + ", the Cyrillic slug " + cyrillic
+                        + "; pages sample-page " + sample + ", about " + aboutPage + ", team " + teamPage
+                        + "; attachments photo " + photo + " (of second-post), logo " + logo + ", draft-shot "
+                        + draftShot + " (of the draft); book dune " + duneId + " (was old-dune); alice " + alice
+                        + ", bob " + bob + " (no posts on the site).");
+        Session aliceSession = login("alice");
+
+        String[] canonical = {
+            "/?p=" + helloId,
+            "/?p=" + helloId + "&utm_source=x",
+            "/?p=" + helloId + "&preview=true",
+            "/?page_id=" + teamPage,
+            "/?page_id=" + sample,
+            "/?m=202511",
+            "/?m=20251123",
+            "/?m=20265",
+            "/?year=2025&monthnum=11",
+            "/?year=2025",
+            "/?monthnum=11",
+            "/?author=" + alice,
+            "/?author=" + bob,
+            "/?author=alice",
+            "/?post_type=book&p=" + duneId,
+            "/?s=java",
+            "/page/1/",
+            "/?paged=1",
+            "/?paged=2",
+            "/category/news/?paged=3",
+            "/category/news/page/2/?paged=3",
+            "/author/alice/page/1/",
+            "/2025/11/20/hello-world",
+            "/category/news",
+            "/about/team",
+            "/index.php",
+            "/index.php/2025/11/20/hello-world/",
+            "/2025/11/20/hello-world/.",
+            "/2025/11/20/hello-world/%20",
+            "/?p=" + helloId + ".",
+            "/?p=" + helloId + "%2E",
+            "/?p=",
+            "/?p=&utm_source=x",
+            "//2025//11//20//hello-world//",
+            "/2025/11/23/second-post/?page=2",
+            "/2025/11/23/second-post/1/",
+            "/2025/11/23/second-post/2/",
+            "/2025/11/23/second-post/3/",
+            "/2025/11/23/second-post/0/",
+            "/?p=" + helloId + "&page=2",
+            "/?p=" + secondId + "&page=2",
+            "/?p=" + helloId + "&paged=2",
+            "/2025/11/20/hello-world/5/",
+            "/2025/11/20/hello-world/15/",
+            "/abou/",
+            "/About/",
+            "/About/Team/",
+            "/about/teem/",
+            "/2025/11/21/hello-world/",
+            "/sec/",
+            "/dra/",
+            "/?p=" + helloId + "&utm_source=nl&x=a%20b",
+            "/?p=" + helloId + "&x=a+b&y=&z",
+            "/?p=" + helloId + "&a%5B%5D=1&a%5B%5D=2&b.c=3",
+            "/?p=" + helloId + "&name=foo",
+            "/2025/11/20/hello-world?replytocom=5",
+            "/2025/11/20/hello-world/?replytocom=5",
+            "/?name=hello-world",
+            "/?name=hello-world&utm=1",
+            "/?pagename=about/team",
+            "/?cat=" + news + "&paged=2",
+            "/?attachment_id=" + photo + "&utm=1",
+            "/?feed=rss2&p=" + helloId,
+            "/2025/11/20/hello-world/%C2%A0"
+        };
+        for (String path : canonical) {
+            record("CANON", can + path);
+        }
+        record("G7", can + "/?book=dune");
+        record("G7", can + "/?book=old-dune");
+        record("G8", can + "/?cat=" + news);
+        record("G8", can + "/?cat=" + news + "&utm_source=x");
+        record("G8", can + "/?tag=java");
+        record("G8", can + "/?category_name=news");
+        record("G8", can + "/?category_name=news/releases");
+        record("G8", can + "/category/news/?cat=" + news);
+        record("G8", can + "/category/news/?utm_source=x");
+        record("G8", can + "/?cat=" + news + "," + releases);
+        record("G10", can + "/2025/11/20/hello-world/page/2/");
+        record("G11", can + "/2025/11/20/%d0%ba%d0%be%d1%82/");
+        record("G11", can + "/2025/11/20/%D0%BA%D0%BE%D1%82/");
+        record("G11", can + "/2025/11/20/%d0%ba%d0%be%d1%82");
+        record("G11", can + "/2025/11/20/%D0%BA%D0%BE%D1%82");
+        record("G11", can + "/?p=" + cyrillic);
+        option(can, "posts_per_page", TextNode.valueOf("1"));
+        record("PAGED", can + "/?paged=2");
+        record("PAGED", can + "/?paged=2&utm=1");
+        record("PAGED", can + "/category/news/?paged=2");
+        record("PAGED", can + "/category/news/page/3/?paged=2");
+        record("PAGED", can + "/page/2/page/3/");
+        record("PAGED", can + "/page/2");
+        record("PAGED", can + "/?p=" + helloId + "&paged=2");
+        record("PAGED", can + "/2025/?paged=2");
+        option(can, "posts_per_page", TextNode.valueOf("10"));
+        record("G12", can + "/?post_type=book");
+        record("G13", can + "/2025/11/23/second-post/0/");
+        record("G15", can + "/nope/");
+        record("G15", can + "/2025/11/20/hello-world/");
+        record("G15", can + "/about/");
+        record("G15", can + "/2025/11/19/locked/");
+        record("G15", can + "/book/dune/");
+        record("G15", can + "/category/news/");
+        record("G15", can + "/author/alice/");
+        record("G15", can + "/");
+        record("G15", can + "/", aliceSession);
+        record("G15", can + "/2025/11/20/hello-world/", aliceSession);
+        record("G16", can + "/?p=" + secret);
+        record("G16", can + "/?p=" + secret, aliceSession);
+        record("G16", can + "/?p=" + draft, aliceSession);
+        record("G16", can + "/?p=" + draft + "&preview=true", aliceSession);
+        record("G17", can + "/2025/11/01/second-post/");
+        record("G17", can + "/2025/11/20/hello/");
+        record("G17", can + "/hello/");
+        record("G17", can + "/2025/11/01/hello/");
+        record("G17", can + "/2025/hello/");
+        record("G17", can + "/2025/11/20/hello/page/2/");
+        record("G17", can + "/book/old-dune/");
+        record("G18", can + "/page/1/");
+        record("G18", can + "/?paged=1");
+        record("G18", can + "/category/news/page/1/");
+        record("G18", can + "/book/page/1/");
+        record("G19", can + "/2025/02/30/");
+        record("G19", can + "/2025/13/");
+        record("G19", can + "/2025/1/5/");
+        record("G19", can + "/2025/01/05/");
+        record("ATTACH", can + "/2025/11/23/second-post/photo/");
+        record("ATTACH", can + "/?attachment_id=" + photo);
+        record("ATTACH", can + "/logo/");
+        record("ATTACH", can + "/?attachment_id=" + draftShot);
+        record("ATTACH", can + "/?attachment_id=" + draftShot, aliceSession);
+        record("ATTACH", can + "/2025/11/20/hello-world/photo/");
+        option(can, "wp_attachment_pages_enabled", TextNode.valueOf("1"));
+        record("ATTACH-PAGES", can + "/?attachment_id=" + photo);
+        record("ATTACH-PAGES", can + "/2025/11/20/hello-world/photo/");
+        record("ATTACH-PAGES", can + "/2025/11/23/second-post/photo/");
+        record("ATTACH-PAGES", can + "/logo/");
+        option(can, "wp_attachment_pages_enabled", TextNode.valueOf("0"));
+        option(can, "show_on_front", TextNode.valueOf("page"));
+        option(can, "page_on_front", TextNode.valueOf(Long.toString(sample)));
+        record("FRONT-PAGE", can + "/sample-page/");
+        record("FRONT-PAGE", can + "/?page_id=" + sample);
+        record("FRONT-PAGE", can + "/?page_id=" + sample + "&page=2");
+        record("FRONT-PAGE", can + "/");
+        record("FRONT-PAGE", can + "/page/2/");
+        option(can, "page_for_posts", TextNode.valueOf(Long.toString(aboutPage)));
+        record("FRONT-PAGE", can + "/?page_id=" + aboutPage);
+        record("FRONT-PAGE", can + "/about/");
+        option(can, "show_on_front", TextNode.valueOf("posts"));
+        option(can, "page_on_front", TextNode.valueOf("0"));
+        option(can, "page_for_posts", TextNode.valueOf("0"));
+        // trashing keeps no old slug: the old URL of a trashed post is not redirected
+        update(can, helloId, args().put("post_status", "trash"));
+        record("G17-trash", can + "/2025/11/20/hello-world/");
+        record("G17-trash", can + "/2025/11/20/hello/");
+
+        String pn = createSite("gpn", "/%postname%/");
+        long java21 = postWith(pn, "post", "publish", "Java 21", "java-21", "2025-11-20 08:00:00", args());
+        long java17 = postWith(pn, "post", "publish", "Java 17", "java-17", "2025-11-21 08:00:00", args());
+        long helloPn = postWith(pn, "post", "publish", "Hello", "hello", "2025-11-20 10:15:30", args());
+        update(pn, helloPn, args().put("post_name", "hello-world"));
+        notes.put(
+                "G4 cast",
+                "site /gpn/ (/%postname%/): java-21 " + java21 + ", java-17 " + java17 + ", hello-world " + helloPn
+                        + " (was hello)");
+        record("G4", pn + "/jav/");
+        record("G4", pn + "/java/");
+        record("G17", pn + "/hello/");
+        record("G4", pn + "/hello-world");
+
+        String cat = createSite("gcat", "/%category%/%postname%/");
+        long catNews = term(cat, "categories", "{\"name\":\"News\",\"slug\":\"news\"}");
+        long catReleases =
+                term(cat, "categories", "{\"name\":\"Releases\",\"slug\":\"releases\",\"parent\":" + catNews + "}");
+        ObjectNode catTerms = args();
+        catTerms.putArray("category").add(catNews).add(catReleases);
+        ObjectNode catFields = args();
+        catFields.set("terms", catTerms);
+        long catSecond =
+                postWith(cat, "post", "publish", "Second post", "second-post", "2025-11-23 08:00:00", catFields);
+        notes.put(
+                "G9 cast",
+                "site /gcat/ (/%category%/%postname%/): second-post " + catSecond + " in News " + catNews
+                        + " and Releases " + catReleases);
+        record("G9", cat + "/news/second-post/");
+        record("G9", cat + "/releases/second-post/");
+        record("G9", cat + "/uncategorized/second-post/");
+        record("G9", cat + "/news/releases/second-post/");
+        record("G9", cat + "/sports/second-post/");
+        record("G9", cat + "/?p=" + catSecond);
+
+        // the password form and cookie (FQ-G19, FQ-G20)
+        record("FQ-G19", can + "/2025/11/19/locked/");
+        Exchange pass = client.send(new RestCall(
+                "anonymous",
+                "POST",
+                "/wp-login.php?action=postpass",
+                Map.of(),
+                Optional.of("application/x-www-form-urlencoded"),
+                Optional.of(("post_password=s3&redirect_to="
+                                + URLEncoder.encode(
+                                        "http://localhost" + can + "/2025/11/19/locked/", StandardCharsets.UTF_8))
+                        .getBytes(StandardCharsets.UTF_8))));
+        ObjectNode entry = items.putArray("FQ-G20").addObject();
+        entry.put("request", "POST /wp-login.php?action=postpass post_password=s3");
+        entry.put("status", pass.status());
+        ArrayNode cookies = entry.putArray("set-cookie");
+        pass.headerLines("Set-Cookie").forEach(cookies::add);
+        pass.header("Location").ifPresent(location -> entry.put("location", location));
+    }
+
+    /** A post with the given column and extra fields (as {@code post}, by alice). */
+    static long postWith(
+            String sitePath, String type, String status, String title, String slug, String date, ObjectNode fields)
+            throws Exception {
+        fields.put("post_name", slug).put("post_date", date);
+        ObjectNode input = args().put("site", sitePath + "/")
+                .put("as", "alice")
+                .put("type", type)
+                .put("status", status)
+                .put("title", title);
+        input.set("fields", fields);
+        return site.operation("post", input).get("id").longValue();
+    }
+
+    /** Updates a post through {@code wp_update_post} as alice, which records old slugs and dates. */
+    static void update(String sitePath, long id, ObjectNode fields) throws Exception {
+        site.operation(
+                "update_post",
+                args().put("site", sitePath + "/")
+                        .put("as", "alice")
+                        .put("id", id)
+                        .set("fields", fields));
+    }
+
     @Test
     void mysqlWeekNumbers() throws Exception {
         try (Connection connection = database.connect("mysql");
@@ -700,6 +1001,14 @@ class FrontFactsDbTest {
         if (html.contains("<rss")) {
             ArrayNode titles = entry.putArray("feedTitles");
             between(html, "<title>", "</title>").forEach(titles::add);
+        }
+        int form = html.indexOf("post-password-form");
+        if (form >= 0) {
+            int open = html.lastIndexOf("<form", form);
+            int close = html.indexOf("</form>", form);
+            if (open >= 0 && close > open) {
+                entry.put("form", html.substring(open, close + "</form>".length()));
+            }
         }
         List<String> listed = between(html, "class=\"wp-block-post-title", "</h");
         if (!listed.isEmpty()) {
