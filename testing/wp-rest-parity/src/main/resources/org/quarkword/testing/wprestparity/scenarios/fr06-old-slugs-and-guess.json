@@ -1,0 +1,167 @@
+{
+  "id": "fr06",
+  "front": true,
+  "rule": "front end, old slugs, old dates and the 404 guess under the default structure (FR G4, G17; ruling R7 and its amendment): REST updates change a post's slug and another's date, and a book's slug; the old address is redirected to the new one, a guess by prefix finds the first slug in slug order, a book's old slug is redirected only from its query variable",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:second",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second post",
+      "fields": {
+        "slug": "second-post",
+        "date_gmt": "2025-11-01T08:00:00"
+      }
+    },
+    {
+      "post": "p:j17",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Java 17",
+      "fields": {
+        "slug": "java-17",
+        "date_gmt": "2025-10-01T08:00:00"
+      }
+    },
+    {
+      "post": "p:j21",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Java 21",
+      "fields": {
+        "slug": "java-21",
+        "date_gmt": "2025-10-02T08:00:00"
+      }
+    },
+    {
+      "post": "p:dune",
+      "as": "alice",
+      "type": "book",
+      "status": "publish",
+      "title": "Dune",
+      "fields": {
+        "slug": "old-dune",
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    },
+    {
+      "update": "p:hello",
+      "type": "post",
+      "as": "alice",
+      "fields": {
+        "slug": "hello-world"
+      }
+    },
+    {
+      "update": "p:second",
+      "type": "post",
+      "as": "alice",
+      "fields": {
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    },
+    {
+      "update": "p:dune",
+      "type": "book",
+      "as": "alice",
+      "fields": {
+        "slug": "dune"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/01/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/23/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/hello/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/hello/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello/page/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/01/hello/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/jav/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/java/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/10/01/jav/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?book=old-dune"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/book/old-dune/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/book/dune/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?name=hello"
+    }
+  ]
+}

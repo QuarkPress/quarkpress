@@ -68,6 +68,52 @@ class RestComparisonTest {
     }
 
     @Test
+    void aCookieIsComparedByNamePathAndAttributeNamesButNotItsValue() {
+        RestCall postpass = RestCall.get("anonymous", "/wp-login.php?action=postpass");
+        Exchange wp = new Exchange(
+                postpass,
+                302,
+                Map.of(
+                        "Set-Cookie",
+                        List.of("wp-postpass_abc=%24P%24Bone; expires=Fri, 05-Dec-2026 10:00:00 GMT; Max-Age=864000;"
+                                + " path=/")),
+                bytes(""));
+        Exchange sameButValues = new Exchange(
+                postpass,
+                302,
+                Map.of(
+                        "Set-Cookie",
+                        List.of("wp-postpass_abc=%24P%24Btwo; Expires=Sat, 06-Dec-2026 11:00:00 GMT; max-age=863999;"
+                                + " Path=/")),
+                bytes(""));
+        Exchange otherPath = new Exchange(
+                postpass,
+                302,
+                Map.of(
+                        "Set-Cookie",
+                        List.of("wp-postpass_abc=x; expires=Fri, 05-Dec-2026 10:00:00 GMT; Max-Age=1;"
+                                + " path=/fr11/")),
+                bytes(""));
+        Exchange secure = new Exchange(
+                postpass,
+                302,
+                Map.of(
+                        "Set-Cookie",
+                        List.of("wp-postpass_abc=x; expires=Fri, 05-Dec-2026 10:00:00 GMT; Max-Age=1;"
+                                + " path=/; secure; HttpOnly")),
+                bytes(""));
+        assertThat(RestComparison.cookies(wp))
+                .isEqualTo("wp-postpass_abc; path=/; attributes=expires,max-age,path")
+                .isEqualTo(RestComparison.cookies(sameButValues));
+        assertThat(RestComparison.cookies(otherPath))
+                .isEqualTo("wp-postpass_abc; path=/fr11/; attributes=expires,max-age,path");
+        assertThat(RestComparison.cookies(secure))
+                .isEqualTo("wp-postpass_abc; path=/; attributes=expires,httponly,max-age,path,secure");
+        assertThat(RestComparison.cookies(new Exchange(postpass, 200, Map.of(), bytes(""))))
+                .isEqualTo(RestComparison.ABSENT);
+    }
+
+    @Test
     void theQuarkWordOnlyNamespaceIsItsOwnAspect() {
         String wp = "{\"namespaces\":[\"wp-block-editor/v1\",\"wp/v2\",\"wp-site-health/v1\"],\"routes\":{}}";
         assertThat(aspects(

@@ -1,0 +1,147 @@
+{
+  "id": "fr09",
+  "front": true,
+  "rule": "front end, terms and the %category% structure (FR G9): a post in News and its child Releases lives at /news/second-post/; the child's path is served, any other category's path is redirected to it, as is the plain id; category and tag archives and their query strings",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%category%/%postname%/"
+    },
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "News"
+    },
+    {
+      "term": "t:releases",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "Releases",
+      "parent": "t:news"
+    },
+    {
+      "term": "t:sports",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "Sports"
+    },
+    {
+      "term": "t:java",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "Java"
+    },
+    {
+      "post": "p:second",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second post",
+      "fields": {
+        "slug": "second-post",
+        "date_gmt": "2025-11-23T08:00:00",
+        "categories": [
+          "t:news",
+          "t:releases"
+        ],
+        "tags": [
+          "t:java"
+        ]
+      }
+    },
+    {
+      "post": "p:plain",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Plain post",
+      "fields": {
+        "slug": "plain-post",
+        "date_gmt": "2025-11-22T08:00:00"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/news/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/news/releases/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/releases/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/uncategorized/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/sports/second-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:second}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/uncategorized/plain-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/news/plain-post/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/releases/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/releases/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat={t:news}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/tag/java/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?tag=java"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/nope/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/news/"
+    }
+  ]
+}

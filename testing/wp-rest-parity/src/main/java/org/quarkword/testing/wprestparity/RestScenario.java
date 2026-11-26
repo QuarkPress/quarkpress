@@ -22,9 +22,21 @@ import java.util.Set;
  * preload comparison (the editor route's GET, whose {@code preload} map both sides answer). {@code editor}
  * marks a scenario that needs an image editor on WordPress's side (PHP's GD): its setup uploads make their sizes, and
  * without GD it cannot run there.
+ *
+ * <p>{@code front} marks a front-end scenario: its requests are page requests of an anonymous visitor (a request's
+ * {@code session} names the user whose login session it carries), its first setup step sets
+ * {@code permalink_structure}, and only its answers' status and a few headers are compared ({@link RestComparison}).
+ * A front-end request's target may hold {@code {preview:p:<ref>}}: the query part of a valid preview link of that
+ * post for the session's user, which each side fetches before sending ({@link Side#resolvePreview}).
  */
 public record RestScenario(
-        String id, String rule, boolean editor, List<SetupStep> setup, List<RestCall> requests, List<Form> forms) {
+        String id,
+        String rule,
+        boolean editor,
+        boolean front,
+        List<SetupStep> setup,
+        List<RestCall> requests,
+        List<Form> forms) {
 
     /** The callers a request may name. */
     public static final List<String> CALLERS = List.of("anonymous", "invalid", "alice", "bob", "carol", "dave", "erin");
@@ -35,6 +47,9 @@ public record RestScenario(
 
     /** The kinds of refs: terms, users, posts, created items ({@code c:}), revisions or autosaves, and media. */
     static final String REF_KINDS = "tupcrm";
+
+    /** The start of a preview placeholder in a front-end request's target: {@code {preview:p:<ref>}}. */
+    public static final String PREVIEW = "{preview:";
 
     /**
      * The keys a media step's {@code fields} may hold: the text fields of the setup upload, and
@@ -186,8 +201,45 @@ public record RestScenario(
         record Term(String ref, String as, String taxonomy, String name, Optional<String> parentRef)
                 implements SetupStep {}
 
-        /** An option of the scenario's site, set directly. */
-        record Option(String name, JsonNode value) implements SetupStep {}
+        /**
+         * An option of the scenario's site, set directly. A value that is one ref in braces ({@code "{p:home}"}) is
+         * that ref's id on each side, as a number ({@code page_on_front}).
+         */
+        record Option(String name, JsonNode value) implements SetupStep {
+            /** The ref the value names ({@code p:home} for {@code "{p:home}"}), when it is one ref in braces. */
+            public Optional<String> ref() {
+                if (value == null || !value.isTextual()) {
+                    return Optional.empty();
+                }
+                String text = value.textValue();
+                return text.length() > 2
+                                && text.charAt(0) == '{'
+                                && text.charAt(text.length() - 1) == '}'
+                                && isRef(text.substring(1, text.length() - 1))
+                        ? Optional.of(text.substring(1, text.length() - 1))
+                        : Optional.empty();
+            }
+
+            /** The value as a side sets it: the ref's id on that side when the value names one. */
+            public JsonNode valueOn(Map<String, Long> refs) {
+                return ref().<JsonNode>map(ref -> JsonNodeFactory.instance.numberNode(Side.refId(refs, ref)))
+                        .orElse(value);
+            }
+        }
+
+        /**
+         * An update of the post {@code postRef} (of {@code type}, as its post step names it) by {@code as} through each
+         * side's REST API ({@code POST /wp/v2/<base>/<id>}), with the REST fields {@code fields} (refs resolved as in
+         * a post step): what an author's edit does, so WordPress records the old slug or date of a published post.
+         */
+        record Update(String postRef, String type, String as, ObjectNode fields) implements SetupStep {
+            public Update {
+                Objects.requireNonNull(postRef, "postRef");
+                Objects.requireNonNull(type, "type");
+                Objects.requireNonNull(as, "as");
+                fields = fields == null ? JsonNodeFactory.instance.objectNode() : fields.deepCopy();
+            }
+        }
 
         /**
          * {@code user} leaves the scenario's site (no role there) and stays a member of the main site: a member of
@@ -206,12 +258,35 @@ public record RestScenario(
             throw new IllegalArgumentException(
                     id + ": " + forms.size() + " request forms for " + requests.size() + " requests");
         }
-        validate(id, setup, requests, forms);
+        validate(id, front, setup, requests, forms);
+    }
+
+    /** A scenario of the REST API (not a front-end one). */
+    public RestScenario(
+            String id, String rule, boolean editor, List<SetupStep> setup, List<RestCall> requests, List<Form> forms) {
+        this(id, rule, editor, false, setup, requests, forms);
     }
 
     /** A scenario without an image editor whose requests are all sent as given. */
     public RestScenario(String id, String rule, List<SetupStep> setup, List<RestCall> requests) {
         this(id, rule, false, setup, requests, List.of());
+    }
+
+    /**
+     * The post type of each post ref the setup defines: a post step's and a draft step's type, {@code attachment} for
+     * a media step's ref.
+     */
+    public Map<String, String> postTypes() {
+        Map<String, String> types = new LinkedHashMap<>();
+        for (SetupStep step : setup) {
+            switch (step) {
+                case SetupStep.Post post -> types.put(post.ref(), post.type());
+                case SetupStep.Draft draft -> types.put(draft.ref(), draft.type());
+                case SetupStep.Media media -> types.put(media.ref(), "attachment");
+                default -> {}
+            }
+        }
+        return types;
     }
 
     /** Whether the scenario uploads anything: a media step, or a request that is an upload or a raw body. */
@@ -225,10 +300,16 @@ public record RestScenario(
     /**
      * Request {@code index} (0-based) as a side sends it: refs resolved ({@link #resolve}); an upload's multipart body
      * built ({@link RestCall#multipart}) from its fixture and resolved fields; a raw request's body the fixture's bytes;
-     * an HTTPS request marked with {@link Side#HTTPS_MARKER}, which each side turns into its own form of the scheme.
+     * an HTTPS request marked with {@link Side#HTTPS_MARKER}, which each side turns into its own form of the scheme. A
+     * preview placeholder {@code {preview:p:<ref>}} stays a placeholder, with the post's REST base and id in place of
+     * the ref ({@code {preview:posts:12}}), for the side to replace by its own preview link
+     * ({@link Side#resolvePreview}).
      */
     public RestCall call(int index, Map<String, Long> refs) {
         RestCall call = resolve(requests.get(index), refs);
+        if (call.target().contains(PREVIEW)) {
+            call = call.withTarget(previewTargets(call.target(), refs, postTypes()));
+        }
         Form form = forms.get(index);
         if (form.upload().isPresent()) {
             Upload upload = form.upload().get();
@@ -288,7 +369,50 @@ public record RestScenario(
                 .map(bytes -> substitute(new String(bytes, StandardCharsets.UTF_8), refs)
                         .getBytes(StandardCharsets.UTF_8));
         return new RestCall(
-                call.as(), call.method(), substitute(call.target(), refs), headers, call.contentType(), body, lines);
+                call.as(),
+                call.method(),
+                substitute(call.target(), refs),
+                headers,
+                call.contentType(),
+                body,
+                lines,
+                call.session());
+    }
+
+    /**
+     * {@code target} with each {@code {preview:<ref>}} written {@code {preview:<rest base>:<id>}}: the post's REST base
+     * by its type ({@link Side#postBase}) and its id among {@code refs}.
+     */
+    static String previewTargets(String target, Map<String, Long> refs, Map<String, String> types) {
+        StringBuilder out = new StringBuilder(target.length());
+        int i = 0;
+        for (String ref : previewRefs(target)) {
+            String placeholder = PREVIEW + ref + "}";
+            int at = target.indexOf(placeholder, i);
+            out.append(target, i, at)
+                    .append(PREVIEW)
+                    .append(Side.postBase(Objects.requireNonNull(types.get(ref), ref)))
+                    .append(':')
+                    .append(Side.refId(refs, ref))
+                    .append('}');
+            i = at + placeholder.length();
+        }
+        return out.append(target.substring(i)).toString();
+    }
+
+    /** The refs of the preview placeholders ({@code {preview:p:<ref>}}) in {@code text}, in order. */
+    static List<String> previewRefs(String text) {
+        List<String> refs = new ArrayList<>();
+        int at = text.indexOf(PREVIEW);
+        while (at >= 0) {
+            int end = text.indexOf('}', at);
+            if (end < 0) {
+                throw new IllegalArgumentException("an unclosed preview placeholder in " + text);
+            }
+            refs.add(text.substring(at + PREVIEW.length(), end));
+            at = text.indexOf(PREVIEW, end);
+        }
+        return refs;
     }
 
     /** {@code text} with each {@code {ref}} replaced by its id; an unknown ref fails. */
@@ -360,7 +484,8 @@ public record RestScenario(
         return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
     }
 
-    private static void validate(String id, List<SetupStep> setup, List<RestCall> requests, List<Form> forms) {
+    private static void validate(
+            String id, boolean front, List<SetupStep> setup, List<RestCall> requests, List<Form> forms) {
         if (id.isEmpty()) {
             throw new IllegalArgumentException("a scenario needs an id");
         }
@@ -369,6 +494,13 @@ public record RestScenario(
             if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')) {
                 throw new IllegalArgumentException("scenario id " + id + ": only a-z, 0-9 and '-' (it is a site path)");
             }
+        }
+        if (front
+                && (setup.isEmpty()
+                        || !(setup.get(0) instanceof SetupStep.Option first)
+                        || !first.name().equals("permalink_structure"))) {
+            throw new IllegalArgumentException(
+                    id + ": a front-end scenario's first setup step sets permalink_structure (no harness default)");
         }
         Set<String> defined = new HashSet<>(STARTING_REFS);
         for (SetupStep step : setup) {
@@ -425,6 +557,29 @@ public record RestScenario(
                     if (option.name().isEmpty()) {
                         throw new IllegalArgumentException(id + ": an option needs a name");
                     }
+                    option.ref().ifPresent(ref -> used(id, defined, ref));
+                }
+                case SetupStep.Update update -> {
+                    caller(id, update.as(), false);
+                    used(id, defined, update.postRef());
+                    postOrMedia(id, update.postRef());
+                    if (update.type().isEmpty()) {
+                        throw new IllegalArgumentException(id + ": an update needs the post's type");
+                    }
+                    for (Iterator<String> it = update.fields().fieldNames(); it.hasNext(); ) {
+                        String key = it.next();
+                        if (key.equals("title") || key.equals("status")) {
+                            if (!update.fields().get(key).isTextual()) {
+                                throw new IllegalArgumentException(id + ": the update field " + key + " is a string");
+                            }
+                        } else if (key.equals("thumbnail_meta")) {
+                            throw new IllegalArgumentException(
+                                    id + ": an update writes REST fields, not thumbnail_meta");
+                        }
+                    }
+                    ObjectNode rest = update.fields().deepCopy();
+                    rest.remove(List.of("title", "status"));
+                    postFields(id, defined, rest);
                 }
                 case SetupStep.Leave leave -> {
                     caller(id, leave.user(), false);
@@ -449,6 +604,24 @@ public record RestScenario(
             RestCall call = requests.get(i);
             Form form = forms.get(i);
             caller(id, call.as(), true);
+            if (front && !call.as().equals("anonymous")) {
+                throw new IllegalArgumentException(id + ": a front-end request is sent by an anonymous visitor (a"
+                        + " logged-in one names a session): " + call.as());
+            }
+            if (call.session().isPresent()) {
+                if (!front) {
+                    throw new IllegalArgumentException(id + ": only a front-end request carries a session");
+                }
+                caller(id, call.session().get(), false);
+            }
+            List<String> previews = previewRefs(call.target());
+            if (!previews.isEmpty() && call.session().isEmpty()) {
+                throw new IllegalArgumentException(id + ": a preview placeholder is the session's preview link");
+            }
+            for (String ref : previews) {
+                used(id, defined, ref);
+                postOrMedia(id, ref);
+            }
             if (form.upload().isPresent() || form.raw().isPresent()) {
                 String what = form.upload().isPresent() ? "an upload" : "a raw body";
                 if (!call.method().equals("POST")) {

@@ -43,6 +43,11 @@ import org.quarkword.testing.wprestparity.RestScenario.SetupStep;
  *               {"as": "bob", "preload": {"type": "post", "post": "{p:draft}"}}]}
  * }</pre>
  *
+ * A front-end scenario ({@code "front": true}, {@link RestScenario#front}) may also update a post
+ * ({@code {"update": "p:hello", "type": "post", "as": "alice", "fields": {"slug": "hello-world"}}}) and send a request
+ * in a user's login session ({@code {"as": "anonymous", "method": "GET", "target": "/?{preview:p:draft}",
+ * "session": "alice"}}).
+ *
  * {@code "editor": true} marks a scenario that needs an image editor on WordPress's side ({@link
  * RestScenario#editor}). Targets are relative to the scenario's site. A request with {@code preload} instead of a
  * method and target is a preload comparison ({@link RestScenario.Preload}): the editor route's GET for that post,
@@ -50,7 +55,8 @@ import org.quarkword.testing.wprestparity.RestScenario.SetupStep;
  */
 public final class RestScenarioJson {
 
-    private static final Set<String> SCENARIO_KEYS = Set.of("id", "rule", "editor", "setup", "requests");
+    private static final Set<String> SCENARIO_KEYS = Set.of("id", "rule", "editor", "front", "setup", "requests");
+    private static final Set<String> UPDATE_KEYS = Set.of("update", "type", "as", "fields");
     private static final Set<String> POST_KEYS = Set.of("post", "as", "type", "status", "title", "fields");
     private static final Set<String> REVISION_KEYS = Set.of("revision", "as", "post", "title", "content");
     private static final Set<String> AUTOSAVE_KEYS = Set.of("autosave", "as", "post", "title", "content");
@@ -73,7 +79,8 @@ public final class RestScenarioJson {
             "upload",
             "raw",
             "https",
-            "preload");
+            "preload",
+            "session");
     private static final Set<String> PRELOAD_REQUEST_KEYS = Set.of("as", "preload", "https");
     private static final Set<String> PRELOAD_KEYS = Set.of("type", "post");
     private static final Set<String> UPLOAD_KEYS = Set.of("fixture", "name", "type", "fields");
@@ -103,6 +110,13 @@ public final class RestScenarioJson {
             }
             editor = root.get("editor").booleanValue();
         }
+        boolean front = false;
+        if (root.has("front")) {
+            if (!root.get("front").isBoolean()) {
+                throw new IllegalArgumentException(id + ": front is true or false");
+            }
+            front = root.get("front").booleanValue();
+        }
         List<SetupStep> setup = new ArrayList<>();
         for (JsonNode step : array(root, "setup", true)) {
             setup.add(step(id, step));
@@ -114,7 +128,7 @@ public final class RestScenarioJson {
             requests.add(request.call());
             forms.add(request.form());
         }
-        return new RestScenario(id, text(root, "rule"), editor, setup, requests, forms);
+        return new RestScenario(id, text(root, "rule"), editor, front, setup, requests, forms);
     }
 
     public static String write(RestScenario scenario) {
@@ -123,6 +137,9 @@ public final class RestScenarioJson {
         root.put("rule", scenario.rule());
         if (scenario.editor()) {
             root.put("editor", true);
+        }
+        if (scenario.front()) {
+            root.put("front", true);
         }
         ArrayNode setup = root.putArray("setup");
         for (SetupStep step : scenario.setup()) {
@@ -167,6 +184,14 @@ public final class RestScenarioJson {
                     node.set("value", option.value());
                 }
                 case SetupStep.Leave leave -> node.put("leave", leave.user());
+                case SetupStep.Update update -> {
+                    node.put("update", update.postRef())
+                            .put("type", update.type())
+                            .put("as", update.as());
+                    if (!update.fields().isEmpty()) {
+                        node.set("fields", update.fields());
+                    }
+                }
                 case SetupStep.Media media -> {
                     node.put("media", media.ref()).put("as", media.as());
                     node.set("fixture", fixture(media.fixture()));
@@ -220,6 +245,7 @@ public final class RestScenarioJson {
             if (form.https()) {
                 node.put("https", true);
             }
+            call.session().ifPresent(session -> node.put("session", session));
         }
         try {
             return OracleJson.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root);
@@ -296,6 +322,17 @@ public final class RestScenarioJson {
             }
             return new SetupStep.Option(text(step, "option"), step.get("value"));
         }
+        if (step.has("update")) {
+            keys(step, UPDATE_KEYS, id + " update step");
+            ObjectNode fields = null;
+            if (step.has("fields")) {
+                if (!step.get("fields").isObject()) {
+                    throw new IllegalArgumentException(id + ": an update step's fields is an object");
+                }
+                fields = (ObjectNode) step.get("fields");
+            }
+            return new SetupStep.Update(text(step, "update"), text(step, "type"), text(step, "as"), fields);
+        }
         if (step.has("leave")) {
             keys(step, LEAVE_KEYS, id + " leave step");
             return new SetupStep.Leave(text(step, "leave"));
@@ -319,7 +356,7 @@ public final class RestScenarioJson {
         }
         throw new IllegalArgumentException(
                 id + ": a setup step is a post, a term, a revision, an autosave, a draft, a lock, an own_site, an"
-                        + " option, a leave or a media: " + step);
+                        + " option, a leave, a media or an update: " + step);
     }
 
     /** A fixture as JSON: {@code {"fixture": <name>, "args": ...}}, without {@code args} when it has none. */
@@ -436,8 +473,9 @@ public final class RestScenarioJson {
             }
             https = request.get("https").booleanValue();
         }
-        RestCall call =
-                new RestCall(text(request, "as"), method, text(request, "target"), headers, contentType, body, lines);
+        Optional<String> session = request.has("session") ? Optional.of(text(request, "session")) : Optional.empty();
+        RestCall call = new RestCall(
+                text(request, "as"), method, text(request, "target"), headers, contentType, body, lines, session);
         return new Request(call, new RestScenario.Form(upload, raw, https));
     }
 

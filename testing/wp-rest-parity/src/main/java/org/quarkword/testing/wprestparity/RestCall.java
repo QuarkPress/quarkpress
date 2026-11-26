@@ -14,7 +14,9 @@ import java.util.Optional;
  * setup operation registered on the site, or {@code "invalid"}, a credential the server must refuse), the method, the
  * target (path and query, starting with {@code /}), extra headers, an optional body with its content type, and header
  * lines sent as given after the headers ({@code headerLines}: one line per value, in order, so a name can be sent
- * twice; empty unless the call was made by {@link #raw}).
+ * twice; empty unless the call was made by {@link #raw}), and the user whose login session the call carries
+ * ({@code session}, a front-end request of a logged-in visitor: each side opens that session and sends its cookie, see
+ * {@link Side}).
  */
 public record RestCall(
         String as,
@@ -23,7 +25,8 @@ public record RestCall(
         Map<String, String> headers,
         Optional<String> contentType,
         Optional<byte[]> body,
-        Map<String, List<String>> headerLines) {
+        Map<String, List<String>> headerLines,
+        Optional<String> session) {
 
     public RestCall {
         Objects.requireNonNull(as, "as");
@@ -32,6 +35,7 @@ public record RestCall(
         Objects.requireNonNull(contentType, "contentType");
         Objects.requireNonNull(body, "body");
         Objects.requireNonNull(headerLines, "headerLines");
+        Objects.requireNonNull(session, "session");
         if (!target.startsWith("/")) {
             throw new IllegalArgumentException("a target starts with '/': " + target);
         }
@@ -40,6 +44,18 @@ public record RestCall(
         Map<String, List<String>> lines = new LinkedHashMap<>();
         headerLines.forEach((name, values) -> lines.put(name, List.copyOf(values)));
         headerLines = Collections.unmodifiableMap(lines);
+    }
+
+    /** A call without a login session. */
+    public RestCall(
+            String as,
+            String method,
+            String target,
+            Map<String, String> headers,
+            Optional<String> contentType,
+            Optional<byte[]> body,
+            Map<String, List<String>> headerLines) {
+        this(as, method, target, headers, contentType, body, headerLines, Optional.empty());
     }
 
     /** A call without header lines (every factory but {@link #raw}). */
@@ -187,6 +203,16 @@ public record RestCall(
             }
         }
         all.put(name, value);
-        return new RestCall(as, method, target, all, contentType, body, headerLines);
+        return new RestCall(as, method, target, all, contentType, body, headerLines, session);
+    }
+
+    /** This call with {@code target} in place of its own; everything else kept. */
+    public RestCall withTarget(String target) {
+        return new RestCall(as, method, target, headers, contentType, body, headerLines, session);
+    }
+
+    /** This call without its login session (once a side has turned the session into its cookie). */
+    public RestCall withoutSession() {
+        return new RestCall(as, method, target, headers, contentType, body, headerLines, Optional.empty());
     }
 }

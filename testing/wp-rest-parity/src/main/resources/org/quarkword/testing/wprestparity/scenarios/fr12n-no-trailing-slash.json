@@ -1,0 +1,103 @@
+{
+  "id": "fr12n",
+  "front": true,
+  "rule": "front end, a structure without a trailing slash, /%year%/%postname% (FR5): links and redirects drop the trailing slash, a request with one is redirected to the form without it",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%postname%"
+    },
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "News"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30",
+        "categories": [
+          "t:news"
+        ]
+      }
+    },
+    {
+      "post": "p:about",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "About",
+      "fields": {
+        "slug": "about"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/hello-world"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/about"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/about/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:about}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat={t:news}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/page/2"
+    }
+  ]
+}

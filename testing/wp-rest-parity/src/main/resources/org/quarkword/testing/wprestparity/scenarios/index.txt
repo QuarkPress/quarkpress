@@ -69,3 +69,20 @@ f06-themes.json
 f07-oembed.json
 f08-media-url.json
 f09-editor-preload.json
+# The front-end scenarios ("front": true): page requests, compared by status and headers.
+fr01-plain-mode.json
+fr02-default-structure.json
+fr03-canonical.json
+fr04-dates.json
+fr05-paging-and-nextpage.json
+fr06-old-slugs-and-guess.json
+fr07-attachments.json
+fr07p-attachment-pages.json
+fr08-authors.json
+fr09-category-structure.json
+fr10-previews.json
+fr11-passwords.json
+fr12-postname-structure.json
+fr12p-pathinfo-structure.json
+fr12n-no-trailing-slash.json
+fr13-headers.json

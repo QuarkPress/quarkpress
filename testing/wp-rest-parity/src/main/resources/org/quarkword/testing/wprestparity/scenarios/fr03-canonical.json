@@ -1,0 +1,261 @@
+{
+  "id": "fr03",
+  "front": true,
+  "rule": "front end, plain to pretty canonical redirects (FR Part F table rows; FR G7, G8, G12, G16, G18; rulings R1 and its amendment): ?p, ?page_id, ?post_type=book&p, term query strings, ?author, ?m, ?paged and a nextpage page are redirected; ?book=, ?post_type=book, ?s= and a term archive asked for by its path are not; a private post is not found anonymously and redirected in alice's session, a draft is shown at its plain link; page 1 is dropped",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "News"
+    },
+    {
+      "term": "t:releases",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "Releases",
+      "parent": "t:news"
+    },
+    {
+      "term": "t:java",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "Java"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:second",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second post",
+      "fields": {
+        "slug": "second-post",
+        "date_gmt": "2025-11-23T08:00:00",
+        "categories": [
+          "t:news"
+        ],
+        "tags": [
+          "t:java"
+        ],
+        "content": "One<!--nextpage-->Two"
+      }
+    },
+    {
+      "post": "p:about",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "About",
+      "fields": {
+        "slug": "about"
+      }
+    },
+    {
+      "post": "p:team",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "Team",
+      "fields": {
+        "slug": "team",
+        "parent": "p:about"
+      }
+    },
+    {
+      "post": "p:dune",
+      "as": "alice",
+      "type": "book",
+      "status": "publish",
+      "title": "Dune",
+      "fields": {
+        "slug": "dune",
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    },
+    {
+      "post": "p:priv",
+      "as": "alice",
+      "type": "post",
+      "status": "private",
+      "title": "Secret",
+      "fields": {
+        "slug": "secret",
+        "date_gmt": "2025-11-24T09:00:00"
+      }
+    },
+    {
+      "post": "p:draft",
+      "as": "alice",
+      "type": "post",
+      "status": "draft",
+      "title": "Draft post",
+      "fields": {
+        "slug": "draft-post"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}&utm_source=x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:team}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?book=dune"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?post_type=book&p={p:dune}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?post_type=book"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat={t:news}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat={t:news}&utm_source=x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?tag=java"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?category_name=news"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?category_name=news/releases"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/?cat={t:news}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/?utm_source=x"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat={t:news},{t:releases}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author={u:alice}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=202511"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=20251120"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=2025"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?s=java"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?paged=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:second}&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:priv}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:priv}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/page/1/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?paged=1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/page/1/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/?paged=2"
+    }
+  ]
+}

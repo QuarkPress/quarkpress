@@ -28,6 +28,15 @@ if (false !== $qw_rest_file && is_dir($qw_rest_file) && str_ends_with($qw_rest_p
 if (false !== $qw_rest_file && (!str_starts_with($qw_rest_file, $qw_rest_root . '/') || !is_file($qw_rest_file))) {
     $qw_rest_file = false;
 }
+if (false === $qw_rest_file && is_string($qw_rest_path)
+    && 1 === preg_match('#^/[_0-9a-zA-Z-]+/([^/]+\.php)$#', $qw_rest_path, $qw_rest_match)
+    && is_file($qw_rest_root . '/' . $qw_rest_match[1])) {
+    // A PHP file of the root under a sub-directory site's path (/site2/wp-login.php) runs that file, as the
+    // sub-directory network's .htaccess rule `^([_0-9a-zA-Z-]+/)?(.*\.php)$ $2` sends it; the request URI keeps the
+    // site's path, from which WordPress picks the site.
+    $qw_rest_file = $qw_rest_root . '/' . $qw_rest_match[1];
+}
+unset($qw_rest_match);
 
 if (false !== $qw_rest_file && !str_ends_with($qw_rest_file, '.php')) {
     // An existing file other than PHP: php -S serves it.

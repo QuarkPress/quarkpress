@@ -1,0 +1,131 @@
+{
+  "id": "fr04",
+  "front": true,
+  "rule": "front end, date archives under the default structure (FR G19; FQ G-3, G-4): an impossible day or month is redirected to the archive above it, a one-digit day is served as it is, query-string dates and m values are redirected to their archives or not found",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "post": "p:winter",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Winter",
+      "fields": {
+        "slug": "winter",
+        "date_gmt": "2025-01-05T08:00:00"
+      }
+    },
+    {
+      "post": "p:valentine",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Valentine",
+      "fields": {
+        "slug": "valentine",
+        "date_gmt": "2025-02-14T08:00:00"
+      }
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/02/30/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/13/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/1/5/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/01/05/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/02/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/02/14/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/03/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2026/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/02/14/valentine/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?year=2026&monthnum=2&day=30"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?day=40"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?monthnum=13"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=20255"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=202513"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=202502"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?year=2025&monthnum=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?year=2025"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "id": "fr13",
+  "front": true,
+  "rule": "front end, the headers of answers under the default structure (FR G15; ruling R12): a not-found page, a post (the API root, alternate and shortlink Link lines), a page, a category, an author, the home page, a book, a password-protected post, a search, HEAD requests, a redirect, and the same pages in alice's session (no-cache)",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "News"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:second",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second post",
+      "fields": {
+        "slug": "second-post",
+        "date_gmt": "2025-11-23T08:00:00",
+        "categories": [
+          "t:news"
+        ]
+      }
+    },
+    {
+      "post": "p:about",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "About",
+      "fields": {
+        "slug": "about"
+      }
+    },
+    {
+      "post": "p:locked",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Locked",
+      "fields": {
+        "slug": "locked",
+        "date_gmt": "2025-11-19T08:00:00",
+        "password": "s3"
+      }
+    },
+    {
+      "post": "p:dune",
+      "as": "alice",
+      "type": "book",
+      "status": "publish",
+      "title": "Dune",
+      "fields": {
+        "slug": "dune",
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/nope/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/2025/11/20/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/about/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/alice/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/book/dune/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/19/locked/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?s=hello"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/search/hello/"
+    },
+    {
+      "as": "anonymous",
+      "method": "HEAD",
+      "target": "/nope/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/nope/",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}",
+      "session": "alice"
+    }
+  ]
+}

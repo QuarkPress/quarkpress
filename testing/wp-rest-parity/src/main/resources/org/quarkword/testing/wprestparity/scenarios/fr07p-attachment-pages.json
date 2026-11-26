@@ -1,0 +1,152 @@
+{
+  "id": "fr07p",
+  "front": true,
+  "rule": "front end, attachments with attachment pages on (wp_attachment_pages_enabled 1, D4): an attachment's plain id and a wrong parent's path are redirected to its page, which is served; the attachment of a draft as in fr07",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "option": "wp_attachment_pages_enabled",
+      "value": "1"
+    },
+    {
+      "post": "p:second",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second post",
+      "fields": {
+        "slug": "second-post",
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "Draft post",
+      "fields": {
+        "slug": "draft-post"
+      }
+    },
+    {
+      "media": "m:photo",
+      "as": "alice",
+      "fixture": {
+        "fixture": "png",
+        "args": [
+          8,
+          8
+        ]
+      },
+      "name": "photo.png",
+      "type": "image/png",
+      "fields": {
+        "title": "photo",
+        "post": "p:second"
+      }
+    },
+    {
+      "media": "m:logo",
+      "as": "alice",
+      "fixture": {
+        "fixture": "png",
+        "args": [
+          8,
+          8
+        ]
+      },
+      "name": "logo.png",
+      "type": "image/png",
+      "fields": {
+        "title": "logo"
+      }
+    },
+    {
+      "media": "m:shot",
+      "as": "carol",
+      "fixture": {
+        "fixture": "png",
+        "args": [
+          8,
+          8
+        ]
+      },
+      "name": "shot.png",
+      "type": "image/png",
+      "fields": {
+        "title": "shot",
+        "post": "p:draft"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/23/second-post/photo/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:photo}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/photo/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/logo/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:logo}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:shot}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:shot}",
+      "session": "carol"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:shot}",
+      "session": "erin"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:shot}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={m:photo}"
+    }
+  ]
+}

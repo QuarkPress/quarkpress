@@ -1,0 +1,98 @@
+{
+  "id": "fr08",
+  "front": true,
+  "rule": "front end, author archives under the default structure (FR G5; FQ G-17): a member with posts, a member without posts, a user who left the site, an unknown name; ?author is redirected to the archive of an author with posts only",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:carol",
+      "as": "carol",
+      "type": "post",
+      "status": "publish",
+      "title": "Carol's post",
+      "fields": {
+        "slug": "carols-post",
+        "date_gmt": "2025-11-22T08:00:00"
+      }
+    },
+    {
+      "leave": "dave"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/alice/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/carol/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/erin/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/dave/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/nobody/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/alice/page/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author={u:alice}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author={u:erin}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author={u:dave}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author=99999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author_name=erin"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author_name=nobody"
+    }
+  ]
+}

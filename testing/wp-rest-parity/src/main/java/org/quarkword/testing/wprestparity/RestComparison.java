@@ -10,10 +10,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import org.quarkword.testing.wporacle.OracleJson;
 import org.quarkword.testing.wporacle.ParityRun;
 
@@ -34,6 +36,12 @@ import org.quarkword.testing.wporacle.ParityRun;
  * {@code req<n>:body:qw-only:<pointer>}. Front-end links ({@code link}, {@code permalink_template},
  * {@code preview_link}, a search item's {@code url}, the {@code rel="alternate"} entry of a {@code Link} header) are
  * compared as they are, as every other value.
+ *
+ * <p>A front-end scenario ({@link RestScenario#front}) compares per request the status and the headers of
+ * {@link #FRONT_HEADERS} only, never the body (the page's markup is the theme's): {@code Set-Cookie} by each cookie's
+ * name, {@code path} and attribute names, in order, never by values, which differ by nature (salts, hashes, expiry
+ * dates). {@code X-Redirect-By}
+ * and {@code X-Pingback} are not compared.
  */
 public final class RestComparison {
 
@@ -53,6 +61,19 @@ public final class RestComparison {
             "access-control-expose-headers",
             "access-control-allow-headers",
             "x-wp-upload-attachment-id");
+
+    /** The headers compared on the answers of a front-end scenario, with the status. */
+    public static final List<String> FRONT_HEADERS = List.of(
+            "location",
+            "cache-control",
+            "expires",
+            "content-type",
+            "link",
+            "x-robots-tag",
+            "x-frame-options",
+            "content-security-policy",
+            "referrer-policy",
+            "set-cookie");
 
     /** The headers compared on the answers to requests that sent an {@code Origin}. */
     public static final List<String> ORIGIN_HEADERS =
@@ -88,6 +109,16 @@ public final class RestComparison {
             Exchange wp = wordpress.get(i);
             Exchange qp = quarkword.get(i);
             run.compare(scenario.id(), prefix + "status", wp.status(), qp.status());
+            if (scenario.front()) {
+                for (String name : FRONT_HEADERS) {
+                    if (name.equals("set-cookie")) {
+                        run.compare(scenario.id(), prefix + "header:set-cookie", cookies(wp), cookies(qp));
+                    } else {
+                        compareHeader(scenario.id(), prefix, name, wp, qp, run);
+                    }
+                }
+                continue;
+            }
             for (String name : HEADERS) {
                 compareHeader(scenario.id(), prefix, name, wp, qp, run);
             }
@@ -98,6 +129,38 @@ public final class RestComparison {
             }
             compareBody(scenario.id(), prefix, wp, qp, run, RAW_SCENARIOS.contains(scenario.id()));
         }
+    }
+
+    /**
+     * The cookies an answer sets, in order, joined with {@code " | "}; {@code <absent>} for none. Each is written as
+     * {@code <name>; path=<path>; attributes=<names>}: its name, its {@code path} attribute as sent ({@code <absent>}
+     * without one) and the sorted, lower-case names of its attributes. Values (the cookie's, {@code expires},
+     * {@code max-age}) are left out, as they differ by nature (salts, hashes, the time of the request).
+     */
+    static String cookies(Exchange exchange) {
+        List<String> cookies = new ArrayList<>();
+        for (String line : exchange.headerLines("Set-Cookie")) {
+            String[] parts = line.split(";");
+            int equals = parts[0].indexOf('=');
+            String name = (equals < 0 ? parts[0] : parts[0].substring(0, equals)).strip();
+            String path = ABSENT;
+            TreeSet<String> attributes = new TreeSet<>();
+            for (int i = 1; i < parts.length; i++) {
+                String part = parts[i].strip();
+                if (part.isEmpty()) {
+                    continue;
+                }
+                int eq = part.indexOf('=');
+                String attribute =
+                        (eq < 0 ? part : part.substring(0, eq)).strip().toLowerCase(Locale.ROOT);
+                attributes.add(attribute);
+                if (attribute.equals("path")) {
+                    path = eq < 0 ? "" : part.substring(eq + 1).strip();
+                }
+            }
+            cookies.add(name + "; path=" + path + "; attributes=" + String.join(",", attributes));
+        }
+        return cookies.isEmpty() ? ABSENT : String.join(" | ", cookies);
     }
 
     private void compareHeader(String caseId, String prefix, String name, Exchange wp, Exchange qp, ParityRun run) {

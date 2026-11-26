@@ -1,0 +1,177 @@
+{
+  "id": "fr10",
+  "front": true,
+  "rule": "front end, previews in login sessions under the default structure (FQ G-10, G-11, G-13 as statuses and headers; FQ27): a draft asked for as a preview by its author, an editor, a subscriber and anonymously; a valid preview pair of alice's for a draft, a published post and a password-protected post; a bad pair; a scheduled post; the attachment of a draft",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "post": "p:draft",
+      "as": "carol",
+      "type": "post",
+      "status": "draft",
+      "title": "Draft",
+      "fields": {
+        "slug": "draft",
+        "content": "draft words"
+      }
+    },
+    {
+      "autosave": "r:auto",
+      "as": "alice",
+      "post": "p:draft",
+      "title": "Autosaved auto",
+      "content": "autosaved"
+    },
+    {
+      "post": "p:sched",
+      "as": "carol",
+      "type": "post",
+      "status": "future",
+      "title": "Scheduled",
+      "fields": {
+        "slug": "scheduled",
+        "date_gmt": "2027-06-01T08:00:00"
+      }
+    },
+    {
+      "post": "p:pub",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Published",
+      "fields": {
+        "slug": "published",
+        "date_gmt": "2025-11-20T08:00:00"
+      }
+    },
+    {
+      "autosave": "r:pubauto",
+      "as": "alice",
+      "post": "p:pub",
+      "title": "Autosaved pubauto",
+      "content": "autosaved"
+    },
+    {
+      "post": "p:locked",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Locked",
+      "fields": {
+        "slug": "locked",
+        "date_gmt": "2025-11-19T08:00:00",
+        "password": "s3"
+      }
+    },
+    {
+      "autosave": "r:lockauto",
+      "as": "alice",
+      "post": "p:locked",
+      "title": "Autosaved lockauto",
+      "content": "autosaved"
+    },
+    {
+      "media": "m:shot",
+      "as": "carol",
+      "fixture": {
+        "fixture": "png",
+        "args": [
+          8,
+          8
+        ]
+      },
+      "name": "shot.png",
+      "type": "image/png",
+      "fields": {
+        "title": "shot",
+        "post": "p:draft"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}&preview=true"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}&preview=true",
+      "session": "carol"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}&preview=true",
+      "session": "erin"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}&preview=true",
+      "session": "bob"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?{preview:p:draft}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:draft}&preview=true&preview_id={p:draft}&preview_nonce=bogusbogus1",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:sched}",
+      "session": "carol"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:sched}",
+      "session": "erin"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:sched}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/published/?{preview:p:pub}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:pub}&preview=true"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/19/locked/?{preview:p:locked}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:shot}",
+      "session": "carol"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?attachment_id={m:shot}",
+      "session": "erin"
+    }
+  ]
+}

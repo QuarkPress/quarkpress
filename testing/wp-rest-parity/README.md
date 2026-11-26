@@ -204,8 +204,10 @@ WordPress's public registration functions and filters only):
 
 The last three serve the content facts run.
 
-The router serves WordPress's front controller and its PHP files; under it a subdirectory site is REST-only: its
-`wp-admin`, `wp-login.php` and static files are not served (the main site's are).
+The router serves WordPress's front controller and its PHP files. A PHP file of the root asked for under a
+subdirectory site's path (`/fr11/wp-login.php`) runs that file with the request URI kept, as the subdirectory
+network's `.htaccess` rule `^([_0-9a-zA-Z-]+/)?(.*\.php)$ $2` does, so WordPress serves it for that site; a
+subdirectory site's `wp-admin` and static files are not served (the main site's are).
 
 ## Scenarios
 
@@ -272,6 +274,20 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   harness's classic `quarkword` theme). The test application always registers its block types and patterns (they
   show only on routes no other scenario requests), so block types, rendering and pattern resolution are compared with
   WordPress's rather than only their errors.
+- A front-end scenario (`"front": true`) sends page requests, `as` an anonymous visitor only, and is compared by
+  status and a few headers (see below). Its first setup step sets `permalink_structure` (the harness gives every
+  scenario site `/%postname%/`, so a front-end scenario always says which structure it means). Its setup may also
+  update a post through each side's REST API as a user (`{"update": "p:hello", "type": "post", "as": "alice",
+  "fields": {"slug": "hello-world"}}`: `POST /wp/v2/<base>/<id>` with the REST fields, refs resolved as in a post
+  step), so WordPress records the old slug or date as an author's edit does; an `option` step whose value is one ref
+  in braces (`{"option": "page_on_front", "value": "{p:home}"}`) sets that ref's id. A request may name `session`, a
+  user whose login session it carries: WordPress's side opens one with rest-setup.php `cookie_session` and sends its
+  two login cookies; QuarkWord's opens a preview session with `POST /wp-json/quarkword/v1/preview/session` as the user
+  and sends the `quarkword_preview` cookie (the front end's logged-in visitor). Neither sends an application password
+  or a token then. A session request's target may hold `{preview:p:<ref>}`: each side replaces it by the query part
+  of that post's preview link as the session's user reads it from the autosaves route in the edit context (WordPress
+  reading in the same login session, so the preview nonce is bound to it; QuarkWord with the user's token), so a
+  valid preview pair is compared although its nonce differs between the sides; the post needs an autosave.
 - The hand-written scenarios come first: one per item of the REST verification list (`d01` to `d28`), then `x01` to
   `x06` for rules found later (among them who writes terms, `x04`, and a member of another site only, `x05`: a
   `{"leave": "<user>"}` setup step takes the user's role on the scenario's site away). The content scenarios follow:
@@ -285,7 +301,13 @@ subdirectory site `/<id>/` on each side, with the five users and their roles the
   follow: `f01` synced patterns (`/wp/v2/blocks`), `f02` pattern categories (`/wp/v2/wp_pattern_category`), `f03`
   block types (with the block-supports probes), `f04` the block renderer, `f05` block patterns and their categories,
   `f06` the themes routes on the harness theme, `f07` the oEmbed proxy's offline answers (`*.invalid` hosts, embed
-  handlers, the site's own URL), `f08` URL-mode upload refusals, `f09` the editor route's preload map. Then 60
+  handlers, the site's own URL), `f08` URL-mode upload refusals, `f09` the editor route's preload map. The front-end
+  scenarios follow: `fr01` plain mode, `fr02` the default structure's singles, pages and archives, `fr03` the plain to
+  pretty canonical redirects, `fr04` date archives, `fr05` paging and nextpage with a static front page, `fr06` old
+  slugs, old dates and the 404 guess, `fr07` and `fr07p` attachments with attachment pages off and on, `fr08` author
+  archives, `fr09` the `%category%` structure, `fr10` previews in login sessions, `fr11` password-protected posts and
+  `wp-login.php?action=postpass`, `fr12` the `/%postname%/` structure, `fr12p` the PATHINFO structure `/index.php/%postname%/`, `fr12n` a structure without a trailing slash,
+  `fr13` the headers of front-end answers. Then 60
   generated scenarios for each of the seeds `rest-a` and `rest-b`, the same on every run: random callers, routes, methods and query
   parameters drawn from each route's declared arguments, keeping clear of requests whose answers differ as a whole (see
   `RestScenarios`).
@@ -315,7 +337,12 @@ order of keys (`d14`, `d21`), a body equal once parsed is also compared byte for
 normalisation changed written as its normalised JSON and every other byte kept. The namespaces, routes and index links
 QuarkWord does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect.
 Front-end links (`link`, `permalink_template`, `preview_link`, a search item's `url`, the `rel="alternate"` entry
-of a `Link` header) are compared as they are: QuarkWord's follow the site's permalink structure as WordPress's do. Every difference is
+of a `Link` header) are compared as they are: QuarkWord's follow the site's permalink structure as WordPress's do. A
+front-end scenario's answers are compared by status and the headers `Location`, `Cache-Control`, `Expires`,
+`Content-Type`, `Link`, `X-Robots-Tag`, `X-Frame-Options`, `Content-Security-Policy`, `Referrer-Policy` and
+`Set-Cookie` only, never by body (the page's markup is the theme's; body parity is a later slice): `Set-Cookie` by
+each cookie's name, `path` and the set of its attribute names, in order, never by values (the cookie's, `expires`,
+`max-age`), which differ by nature; `X-Redirect-By` (`WordPress` against `QuarkWord`) and `X-Pingback` are not compared. Every difference is
 written to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each scenario's answers to
 `target/rest-parity/<id>.json` there.
 
@@ -324,13 +351,15 @@ written to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, an
 `integration-tests/rest-wp-v2/src/test/resources/wp-rest-parity-known-differences.txt` lists the deliberate
 differences, one per line: scenario, aspect, label and reason, with `*` and `?` globs. The label is a row of the
 "Differences from WordPress" table in `extensions/rest-wp-v2/README.md`, and `KnownDifferenceLabelsTest` checks that
-every label used there is a row of it and every row is used. Entries name the aspects that differ, never a whole
+every label used there is a row of it and every row is used. The front-end scenarios' differences are in
+`wp-front-parity-known-differences.txt` beside it, labelled by the rows of `extensions/front/README.md`'s table, which
+`KnownDifferenceLabelsTest` checks the same way; the run reads both files. Entries name the aspects that differ, never a whole
 request, so the rest of a request is still compared. Every entry is asserted: an entry whose comparisons all match WordPress now, or
 that covers no comparison, fails the run. A scenario of `none` documents a difference no scenario can show. Entries
 naming generated scenarios by id are fragile: a change to the generator renumbers them.
 
-The run also needs at least `MIN_COMPARISONS` comparisons (22000, set from the 24483 comparisons of an earlier green
-run; the last green run compared 27392 over 190 scenarios), every scenario of the corpus, and at least one comparison per scenario, so a
+The run also needs at least `MIN_COMPARISONS` comparisons (29750, 98% of the 30367 comparisons of the run that added
+the front-end framing headers and cookie attributes, over 206 scenarios without GD's three editor scenarios), every scenario of the corpus, and at least one comparison per scenario, so a
 harness that silently stops comparing fails; with the `wp-parity` profile on, a missing container runtime fails the run
 instead of skipping it. `-Drest.parity.only=d01,x0` narrows the run to scenarios whose ids start so, for local
 debugging; such a run never passes, since the other scenarios' known differences then match nothing.

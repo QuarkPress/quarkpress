@@ -1,0 +1,174 @@
+{
+  "id": "fr12p",
+  "front": true,
+  "rule": "front end, the PATHINFO structure /index.php/%postname%/ (FR5, FR12; RequestParser matches an index.php/ prefix as it is): a post, a page and its child, a missing trailing slash, a book, date and category archives, the 404 guess, plain ids canonicalised to the index.php/ form, the unprefixed path, and page/2",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/index.php/%postname%/"
+    },
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "News"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:j17",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Java 17",
+      "fields": {
+        "slug": "java-17",
+        "date_gmt": "2025-10-01T08:00:00"
+      }
+    },
+    {
+      "post": "p:j21",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Java 21",
+      "fields": {
+        "slug": "java-21",
+        "date_gmt": "2025-10-02T08:00:00"
+      }
+    },
+    {
+      "post": "p:about",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "About",
+      "fields": {
+        "slug": "about"
+      }
+    },
+    {
+      "post": "p:team",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "Team",
+      "fields": {
+        "slug": "team",
+        "parent": "p:about"
+      }
+    },
+    {
+      "post": "p:dune",
+      "as": "alice",
+      "type": "book",
+      "status": "publish",
+      "title": "Dune",
+      "fields": {
+        "slug": "dune",
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/hello-world"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/about/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/about/team/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/book/dune/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/book/dune/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/2025/11/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/category/news/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/jav/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:team}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat={t:news}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/hello-world/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/page/2/"
+    }
+  ]
+}

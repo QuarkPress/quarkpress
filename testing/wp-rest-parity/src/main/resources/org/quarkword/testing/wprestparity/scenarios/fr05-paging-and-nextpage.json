@@ -1,0 +1,227 @@
+{
+  "id": "fr05",
+  "front": true,
+  "rule": "front end, paging and nextpage under the default structure with a static front page and a posts page of 3 posts each (FR G10, G13, G18; FQ G-6, G-18, G-21 statuses): page/2 of a single is redirected, /0/ is served, a content page past the last is not found, the front page's page 2 is served, the posts page's last page is served and the one after it is not found, page 1 and the plain ids of both pages are redirected",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "post": "p:p1",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "First",
+      "fields": {
+        "slug": "first",
+        "date_gmt": "2025-11-01T08:00:00"
+      }
+    },
+    {
+      "post": "p:p2",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second",
+      "fields": {
+        "slug": "second",
+        "date_gmt": "2025-11-02T08:00:00"
+      }
+    },
+    {
+      "post": "p:p3",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Third",
+      "fields": {
+        "slug": "third",
+        "date_gmt": "2025-11-03T08:00:00"
+      }
+    },
+    {
+      "post": "p:p4",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Fourth",
+      "fields": {
+        "slug": "fourth",
+        "date_gmt": "2025-11-04T08:00:00"
+      }
+    },
+    {
+      "post": "p:p5",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Fifth",
+      "fields": {
+        "slug": "fifth",
+        "date_gmt": "2025-11-05T08:00:00"
+      }
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:long",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Long story",
+      "fields": {
+        "slug": "long-story",
+        "date_gmt": "2025-11-21T08:00:00",
+        "content": "Intro<!--more-->A<!--nextpage-->B<!--nextpage-->C"
+      }
+    },
+    {
+      "post": "p:front",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "Home",
+      "fields": {
+        "slug": "home"
+      }
+    },
+    {
+      "post": "p:blog",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "Blog",
+      "fields": {
+        "slug": "blog"
+      }
+    },
+    {
+      "option": "posts_per_page",
+      "value": 3
+    },
+    {
+      "option": "show_on_front",
+      "value": "page"
+    },
+    {
+      "option": "page_on_front",
+      "value": "{p:front}"
+    },
+    {
+      "option": "page_for_posts",
+      "value": "{p:blog}"
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/page/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/0/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/21/long-story/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/21/long-story/3/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/21/long-story/4/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:long}&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}&page=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/page/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?paged=2"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/blog/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/blog/page/2/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/blog/page/3/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/blog/page/4/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/blog/page/1/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:front}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:blog}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/home/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:front}&page=2"
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "id": "fr02",
+  "front": true,
+  "rule": "front end, the default structure (FR G2, G3, G14; FR6 example paths): singles, pages and their children, mis-cased paths served without a redirect, index.php in the path, a missing trailing slash, a book, category, tag, date and author archives, a search path and a not-found path",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": "/%year%/%monthnum%/%day%/%postname%/"
+    },
+    {
+      "term": "t:news",
+      "as": "alice",
+      "taxonomy": "category",
+      "name": "News"
+    },
+    {
+      "term": "t:java",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "Java"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:second",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Second post",
+      "fields": {
+        "slug": "second-post",
+        "date_gmt": "2025-11-23T08:00:00",
+        "categories": [
+          "t:news"
+        ],
+        "tags": [
+          "t:java"
+        ]
+      }
+    },
+    {
+      "post": "p:about",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "About",
+      "fields": {
+        "slug": "about"
+      }
+    },
+    {
+      "post": "p:team",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "Team",
+      "fields": {
+        "slug": "team",
+        "parent": "p:about"
+      }
+    },
+    {
+      "post": "p:dune",
+      "as": "alice",
+      "type": "book",
+      "status": "publish",
+      "title": "Dune",
+      "fields": {
+        "slug": "dune",
+        "date_gmt": "2025-11-23T08:00:00"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/Hello-World/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/HELLO-WO/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/about/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/about/team/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/About/Team/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php/2025/11/20/hello-world/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/index.php"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/hello-world"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/book/dune/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/category/news/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/tag/java/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/2025/11/20/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/author/alice/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/search/java/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/nope/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/"
+    }
+  ]
+}

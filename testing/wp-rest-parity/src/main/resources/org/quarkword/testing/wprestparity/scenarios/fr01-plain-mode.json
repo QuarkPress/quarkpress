@@ -1,0 +1,270 @@
+{
+  "id": "fr01",
+  "front": true,
+  "rule": "front end, plain mode (FR G1; FQ G-1, G-2, G-3, G-4, G-8, G-9, G-15, G-16, G-17, G-22, G-23 as HTTP statuses; FR16 error, FR G16): with an empty permalink_structure the path is ignored and nothing is redirected; an empty search, p=-1 (200 with the 404 template), p=abc, a negative cat, tag lists, post_type=any and attachment, pagename lookups, p with page_id, a private post anonymously and in alice's session, error=403/404, author archives of a member without posts and of unknown users, impossible dates and m values",
+  "setup": [
+    {
+      "option": "permalink_structure",
+      "value": ""
+    },
+    {
+      "term": "t:cars",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "cars"
+    },
+    {
+      "term": "t:food",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "food"
+    },
+    {
+      "term": "t:paint",
+      "as": "alice",
+      "taxonomy": "post_tag",
+      "name": "paint"
+    },
+    {
+      "post": "p:hello",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Hello world",
+      "fields": {
+        "slug": "hello-world",
+        "date_gmt": "2025-11-20T10:15:30"
+      }
+    },
+    {
+      "post": "p:red",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Red car",
+      "fields": {
+        "slug": "red-car",
+        "date_gmt": "2025-11-21T09:00:00",
+        "tags": [
+          "t:cars",
+          "t:paint"
+        ]
+      }
+    },
+    {
+      "post": "p:meal",
+      "as": "alice",
+      "type": "post",
+      "status": "publish",
+      "title": "Meal",
+      "fields": {
+        "slug": "meal",
+        "date_gmt": "2025-11-22T09:00:00",
+        "tags": [
+          "t:food",
+          "t:cars"
+        ]
+      }
+    },
+    {
+      "post": "p:about",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "About",
+      "fields": {
+        "slug": "about"
+      }
+    },
+    {
+      "post": "p:team",
+      "as": "alice",
+      "type": "page",
+      "status": "publish",
+      "title": "Team",
+      "fields": {
+        "slug": "team",
+        "parent": "p:about"
+      }
+    },
+    {
+      "post": "p:priv",
+      "as": "alice",
+      "type": "post",
+      "status": "private",
+      "title": "Private notes",
+      "fields": {
+        "slug": "private-notes",
+        "date_gmt": "2025-11-23T09:00:00"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/anything/"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/anything/?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}&error=404"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?s="
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?s=car"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p=-1"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p=abc"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?cat=-{t:uncategorized}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?tag=cars,food"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?tag=cars+paint"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?tag=cars+food"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?post_type=any"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?post_type=attachment"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?pagename=team"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?pagename=about/team"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?pagename=ABOUT"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?page_id={p:about}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:hello}&page_id={p:about}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:priv}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?p={p:priv}",
+      "session": "alice"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?error=403"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?error=404"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author={u:erin}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author={u:alice}"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author=99999"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?author_name=nobody"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?year=2026&monthnum=2&day=30"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?day=40"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?monthnum=13"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=20255"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=202513"
+    },
+    {
+      "as": "anonymous",
+      "method": "GET",
+      "target": "/?m=202511"
+    }
+  ]
+}

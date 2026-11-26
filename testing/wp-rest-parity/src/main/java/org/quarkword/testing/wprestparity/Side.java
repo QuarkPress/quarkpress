@@ -23,7 +23,11 @@ import org.quarkword.testing.wprestparity.RestScenario.SetupStep;
 /**
  * One side of the comparison: WordPress ({@code php -S}) or QuarkWord (the test application). Each scenario gets a
  * fresh subdirectory site with the five users, {@code /%postname%/} permalinks and the custom type {@code book}; the
- * setup runs through the side's own API; then the requests are sent.
+ * setup runs through the side's own API; then the requests are sent. A request carrying a login session
+ * ({@link RestCall#session}) is sent with the cookie of a session of that user that the side opens for it: WordPress's
+ * login cookies, QuarkWord's preview session cookie (the front end's logged-in visitor); its preview placeholders
+ * ({@link RestScenario#call}) are replaced first by the query part of the post's preview link as that session's user
+ * reads it ({@link #resolvePreview}).
  */
 public interface Side extends AutoCloseable {
 
@@ -120,6 +124,74 @@ public interface Side extends AutoCloseable {
     @Override
     void close();
 
+    /**
+     * The REST base of a post type: {@code posts}, {@code pages} and {@code media} for WordPress's post, page and
+     * attachment, the type's key otherwise ({@code book} is the exception the scenarios know: {@code books}).
+     */
+    static String postBase(String type) {
+        return switch (type) {
+            case "post" -> "posts";
+            case "page" -> "pages";
+            case "attachment" -> "media";
+            case "book" -> "books";
+            default -> type;
+        };
+    }
+
+    /** What a preview placeholder names once refs are resolved ({@code {preview:posts:12}}): a REST base and an id. */
+    record PreviewTarget(String base, long id) {}
+
+    /** The preview link of a post as the session's user reads it. */
+    @FunctionalInterface
+    interface PreviewLinks {
+        String of(PreviewTarget post) throws Exception;
+    }
+
+    /**
+     * {@code target} with each resolved preview placeholder ({@code {preview:<base>:<id>}}) replaced by the query part
+     * of the post's preview link that {@code links} answers (WordPress: {@code p=…&preview_id=…&preview_nonce=…
+     * &preview=true}, its nonce bound to the session; QuarkWord: the same with its preview token).
+     */
+    static String resolvePreview(String target, PreviewLinks links) throws Exception {
+        StringBuilder out = new StringBuilder(target.length());
+        int i = 0;
+        int at = target.indexOf(RestScenario.PREVIEW);
+        while (at >= 0) {
+            int end = target.indexOf('}', at);
+            String[] parts =
+                    target.substring(at + RestScenario.PREVIEW.length(), end).split(":");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("not a resolved preview placeholder in " + target);
+            }
+            String link = links.of(new PreviewTarget(parts[0], Long.parseLong(parts[1])));
+            int question = link.indexOf('?');
+            if (question < 0) {
+                throw new IllegalStateException("the preview link " + link + " has no query");
+            }
+            int hash = link.indexOf('#', question);
+            out.append(target, i, at).append(link, question + 1, hash < 0 ? link.length() : hash);
+            i = end + 1;
+            at = target.indexOf(RestScenario.PREVIEW, i);
+        }
+        return out.append(target.substring(i)).toString();
+    }
+
+    /**
+     * The {@code preview_link} of the first autosave in an autosaves list answer (the post's autosaves in the edit
+     * context, read as the session's user, whose preview pair it carries).
+     */
+    static String previewLink(Exchange autosaves, PreviewTarget post) {
+        JsonNode list = autosaves.status() == 200 ? autosaves.json() : null;
+        if (list == null
+                || !list.isArray()
+                || list.isEmpty()
+                || !list.get(0).path("preview_link").isTextual()) {
+            throw new IllegalStateException("no preview link for " + post + ": the post needs an autosave ("
+                    + autosaves.status() + " " + autosaves.text() + ")");
+        }
+        return list.get(0).get("preview_link").textValue();
+    }
+
     /** The REST base of a setup term's taxonomy. */
     static String restBase(String taxonomy) {
         return switch (taxonomy) {
@@ -140,7 +212,8 @@ public interface Side extends AutoCloseable {
                 call.headers(),
                 call.contentType(),
                 call.body(),
-                call.headerLines());
+                call.headerLines(),
+                call.session());
     }
 
     /** The path of the site a user gets by an own-site step of the scenario at {@code sitePath}. */
@@ -202,6 +275,15 @@ public interface Side extends AutoCloseable {
             fields.put("generate_sub_sizes", "false");
         }
         return fields;
+    }
+
+    /**
+     * The JSON body of an update step's REST request: its fields with every ref replaced by its id on this side
+     * ({@code parent}, {@code featured_media}, the term lists).
+     */
+    static ObjectNode updateFields(SetupStep.Update update, Map<String, Long> refs) {
+        return resolvedFields(
+                new SetupStep.Post(update.postRef(), update.as(), update.type(), "", "", update.fields()), refs);
     }
 
     /** The JSON body of a term step's REST request, with the parent's id when it has one. */
@@ -340,8 +422,23 @@ public interface Side extends AutoCloseable {
                     case SetupStep.Option option -> {
                         ObjectNode args = OracleJson.MAPPER.createObjectNode();
                         args.put("site", sitePath).put("name", option.name());
-                        args.set("value", option.value());
+                        args.set("value", option.valueOn(known));
                         site.operation("option", args);
+                    }
+                    case SetupStep.Update update -> {
+                        // the rest_route form reaches the REST API whatever permalinks an earlier option step set
+                        Exchange answer = send(
+                                sitePath,
+                                RestCall.json(
+                                        update.as(),
+                                        "POST",
+                                        "/?rest_route=/wp/v2/" + postBase(update.type()) + "/"
+                                                + refId(known, update.postRef()),
+                                        updateFields(update, known).toString()));
+                        if (answer.status() != 200) {
+                            throw new IllegalStateException(
+                                    "WordPress setup update " + update + ": " + answer.status() + " " + answer.text());
+                        }
                     }
                     case SetupStep.Leave leave -> {
                         ObjectNode args = OracleJson.MAPPER.createObjectNode();
@@ -415,12 +512,50 @@ public interface Side extends AutoCloseable {
          * with the preload map WordPress's edit screen would build for that post and caller ({@link #preload}).
          */
         @Override
-        public Exchange send(String sitePath, RestCall call) throws IOException, InterruptedException {
+        public Exchange send(String sitePath, RestCall call) throws Exception {
             Optional<EditorPreloadPaths.Target> target = EditorPreloadPaths.parse(call.target());
             if (target.isPresent()) {
                 return preload(sitePath, call, target.get());
             }
+            if (call.session().isPresent()) {
+                return client.send(underSite(sitePath, inSession(sitePath, call)));
+            }
             return client.send(underSite(sitePath, call));
+        }
+
+        /**
+         * The call in a new login session of its session's user ({@code cookie_session}, the two cookies
+         * {@code wp-login.php} sets, harness rule): its preview placeholders resolved through the autosaves route read
+         * in that session (cookie and REST nonce, so the preview nonce is the session's), then the cookies as its
+         * {@code Cookie} header.
+         */
+        private RestCall inSession(String sitePath, RestCall call) throws Exception {
+            String user = call.session().orElseThrow();
+            JsonNode session = site.operation(
+                    "cookie_session", OracleJson.MAPPER.createObjectNode().put("user", user));
+            StringBuilder cookie = new StringBuilder();
+            for (JsonNode entry : session.path("cookies")) {
+                if (!cookie.isEmpty()) {
+                    cookie.append("; ");
+                }
+                cookie.append(entry.path("name").asText())
+                        .append('=')
+                        .append(entry.path("value").asText());
+            }
+            String nonce = session.path("rest_nonce").asText();
+            String target = resolvePreview(
+                    call.target(),
+                    post -> previewLink(
+                            client.send(underSite(
+                                    sitePath,
+                                    RestCall.get(
+                                                    user,
+                                                    "/?rest_route=/wp/v2/" + post.base() + "/" + post.id()
+                                                            + "/autosaves&context=edit")
+                                            .withHeader("Cookie", cookie.toString())
+                                            .withHeader("X-WP-Nonce", nonce))),
+                            post));
+            return call.withTarget(target).withoutSession().withHeader("Cookie", cookie.toString());
         }
 
         /**

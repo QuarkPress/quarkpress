@@ -229,6 +229,17 @@ function qw_prepare_site(): array
     return ['users' => $users];
 }
 
+/**
+ * Harness rule: the current site's types of the must-use plugin (book) registered before its rewrite rules are
+ * flushed from the command line, so the stored rules hold their permastructs as the served site's flush would.
+ */
+function qw_register_site_types(): void
+{
+    if (function_exists('qw_parity_register_book')) {
+        qw_parity_register_book();
+    }
+}
+
 function qw_option(array $input): array
 {
     global $wp_rewrite;
@@ -236,7 +247,12 @@ function qw_option(array $input): array
     update_option($input['name'], $input['value']);
     if ('permalink_structure' === $input['name']) {
         // Harness rule: what saving the permalink settings screen does, so the rewrite rules follow the structure.
+        // The screen's flush runs on a fresh request, where every permastruct (categories, tags, formats, the site's
+        // own types) is registered under the new structure's front (/index.php/ for a PATHINFO structure); here they
+        // were registered under the old one, so the rewrite is initialised first and they are registered again.
         $wp_rewrite->init();
+        create_initial_taxonomies();
+        qw_register_site_types();
         flush_rewrite_rules();
     }
     $value = get_option($input['name']);
@@ -290,10 +306,12 @@ function qw_create_site(array $input): array
     // Harness rule: the scenario site has the main site's /%postname%/ permalinks (a network's subdirectory site
     // defaults to a dated structure) and holds the custom type book, as QuarkWord's test application does.
     global $wp_rewrite;
+    update_option('qw_parity_book_type', '1');
     update_option('permalink_structure', '/%postname%/');
     $wp_rewrite->init();
+    create_initial_taxonomies();
+    qw_register_site_types();
     flush_rewrite_rules();
-    update_option('qw_parity_book_type', '1');
     $refs = ['t:uncategorized' => (int) get_option('default_category')];
     foreach (['alice', 'bob', 'carol', 'dave', 'erin'] as $login) {
         $refs['u:' . $login] = qw_user_id(['user' => $login]);
