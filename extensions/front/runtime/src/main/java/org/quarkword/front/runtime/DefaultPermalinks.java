@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.quarkword.core.PostId;
 import org.quarkword.core.PostStatusDefinition;
 import org.quarkword.core.PostTypeDefinition;
@@ -144,7 +145,8 @@ public class DefaultPermalinks implements Permalinks {
         String status = attachmentStatus(attachment, parent);
         if (!plain() && !plainForced(attachment, status, false)) {
             if (attachment.parent().isEmpty()) {
-                return pretty(attachment.slug());
+                // the sample form of an unattached attachment is the plain one
+                return sample ? urls.home("?attachment_id=" + attachment.id().value()) : pretty(attachment.slug());
             }
             boolean parentViewable = parent.flatMap(found -> types.find(found.type()))
                     .filter(PostPermissions::typeViewable)
@@ -196,12 +198,19 @@ public class DefaultPermalinks implements Permalinks {
         return urls.home("?post_type=" + type.key() + "&p=" + post.id().value());
     }
 
+    /** The statuses {@code get_sample_permalink} reads as published. */
+    private static final Set<String> SAMPLE_AS_PUBLISHED = Set.of("draft", "pending", "auto-draft", "future");
+
     /**
      * WordPress's {@code wp_force_plain_post_permalink} for {@code status}: a missing status or type forces a plain
      * link; a viewable status never does; a private one does unless the visitor may read the post; a protected one
-     * does unless the editor's template is wanted.
+     * does unless the editor's template is wanted. For the editor's template a draft, pending, scheduled or
+     * auto-draft post reads as published, as {@code get_sample_permalink} makes it.
      */
     private boolean plainForced(PostSnapshot post, String status, boolean sample) {
+        if (sample && SAMPLE_AS_PUBLISHED.contains(status)) {
+            return false;
+        }
         Optional<PostStatusDefinition> definition = statuses.find(status);
         if (definition.isEmpty() || types.find(post.type()).isEmpty()) {
             return true;

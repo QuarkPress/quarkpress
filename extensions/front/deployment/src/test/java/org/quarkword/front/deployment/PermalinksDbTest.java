@@ -51,6 +51,7 @@ class PermalinksDbTest {
     static PostId noCategory;
     static PostId orphanAuthor;
     static PostId draft;
+    static PostId autoDraft;
     static PostId secret;
     static PostId coming;
     static PostId trashed;
@@ -116,6 +117,7 @@ class PermalinksDbTest {
             noCategory = post("post", "publish", "no-category", alice, null, "2025-11-23T08:00:00Z");
             orphanAuthor = post("post", "publish", "orphan-author", null, null, "2025-11-23T08:00:00Z");
             draft = floating("post", "draft", "draft-post", alice, "2025-11-23T09:00:00Z");
+            autoDraft = floating("post", "auto-draft", "", alice, "2025-11-23T09:30:00Z");
             secret = post("post", "private", "secret", alice, null, "2025-11-22T09:00:00Z");
             coming = post("post", "future", "coming", alice, null, "2026-01-05T09:00:00Z");
             trashed = post("post", "trash", "trashed", alice, null, "2025-11-23T08:00:00Z");
@@ -215,6 +217,9 @@ class PermalinksDbTest {
             assertThat(post(secret)).isEqualTo(HOME + "/?p=" + id(secret));
             assertThat(post(pattern)).isEqualTo(HOME + "/2025/11/23/pattern/");
             assertThat(sample(draft)).isEqualTo(HOME + "/2025/11/23/%postname%/");
+            // get_sample_permalink reads an auto-draft as published, as it reads a draft
+            assertThat(post(autoDraft)).isEqualTo(HOME + "/?p=" + id(autoDraft));
+            assertThat(sample(autoDraft)).isEqualTo(HOME + "/2025/11/23/%postname%/");
             assertThat(sample(hello)).isEqualTo(HOME + "/2025/11/20/%postname%/");
             assertThat(sample(coming)).isEqualTo(HOME + "/2026/01/05/%postname%/");
             assertThat(sample(secret)).isEqualTo(HOME + "/?p=" + id(secret));
@@ -248,6 +253,7 @@ class PermalinksDbTest {
             assertThat(sample(photo)).isEqualTo(HOME + "/2025/11/23/second-post/%postname%/");
             assertThat(sample(seven)).isEqualTo(HOME + "/2025/11/23/second-post/%postname%/");
             assertThat(sample(draftPhoto)).isEqualTo(HOME + "/?attachment_id=" + id(draftPhoto));
+            assertThat(sample(logo)).isEqualTo(HOME + "/?attachment_id=" + id(logo));
             assertThat(post(draftStatusPhoto)).isEqualTo(HOME + "/2025/11/23/second-post/draft-status-photo/");
             assertThat(post(exponentPhoto)).isEqualTo(HOME + "/2025/11/23/second-post/attachment/1e5/");
             return null;
