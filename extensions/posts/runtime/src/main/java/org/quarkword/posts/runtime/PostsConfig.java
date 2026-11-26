@@ -40,4 +40,13 @@ public interface PostsConfig {
      */
     @WithDefault("10")
     int previewSessions();
+
+    /**
+     * The most ranges of dates a week or date unit condition is written as: one per year, per month or per matching
+     * post date, each turned into instants in the site's zone. Above it, and when a time unit would have more than
+     * sixteen times as many post dates to look through, the condition compares the local post date the database
+     * computes instead (at least 0: always).
+     */
+    @WithDefault("512")
+    int queryDateSpans();
 }

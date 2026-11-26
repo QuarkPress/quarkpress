@@ -224,10 +224,13 @@ included), authors, parents, ids, slug, exact title, menu order, search, date co
 `DateBound`s on `DateColumn`s), a week of the year (`week(week, startOfWeek)`: WordPress's `w`, the local post
 date's week number as MySQL's `WEEK` counts it under the site's `start_of_week` — mode 1 for 1, mode 0 for 0 and any
 value outside 1 to 6, the date n days earlier in mode 0 for 2 to 6 — in any year, computed in Java into one span of
-dates per year the site's posts are dated in, so both databases give MySQL's numbers), units of the local post date
-compared one by one (`units(DateUnits)`: WordPress's `MONTH(post_date) = 5`, `DAYOFMONTH`, `HOUR`, `MINUTE`,
-`SECOND` and `YEAR`, whatever the units not given; days are enumerated over the years the site's posts are dated in,
-times around the site's post dates that have every unit, all as spans of instants in the site's zone), ordering
+dates per year the posts the query can find are dated in, so both databases give MySQL's numbers), units of the local
+post date compared one by one (`units(DateUnits)`: WordPress's `MONTH(post_date) = 5`, `DAYOFMONTH`, `HOUR`, `MINUTE`,
+`SECOND` and `YEAR`, whatever the units not given; days are enumerated over the years the posts the query can find
+are dated in, times around those posts' dates that have every unit, all as spans of instants in the site's zone; a
+draft or another type's post the query cannot return never widens the years; above
+`quarkword.posts.query-date-spans` spans, the database computes the local date and compares its units or week number,
+D38), ordering
 (`OrderKey`, then the id in the first key's direction), paging with the
 site's `posts_per_page` option as default, and sticky posts first (`stickyFirst`, off by default as in `get_posts`).
 It also takes a slug list (`nameIn`, ordered by `OrderKey.NAME_IN`), the columns a search looks in (`searchColumns`),
@@ -327,6 +330,7 @@ not), never null; one that throws stops the call.
 | `quarkword.posts.empty-trash-days` | `30` | WordPress's `EMPTY_TRASH_DAYS`. `0` turns the trash off: `trash` deletes at once, and `delete` no longer trashes first. A negative value keeps the trash on here, as WordPress's constant does, while the REST API, which trashes only with a positive value, answers a delete without `force` with 501 before anything is trashed. |
 | `quarkword.posts.lock-window` | `150s` | WordPress's `wp_check_post_lock_window`: how long an editor's post lock stays fresh after it was taken or refreshed. |
 | `quarkword.posts.preview-lifetime` | `12h` | How long a preview session and a lock release token live, and the span of a preview token: the token changes every half of this duration and stays valid for the half it was issued in and the one after (at least the lifetime, at most twice as long), as WordPress's nonce lifetime does. |
+| `quarkword.posts.query-date-spans` | `512` | The most ranges of dates a week or date unit condition of a query is written as (one per year, month or matching post date, each turned into instants in the site's zone); an hour, minute or second unit also reads at most sixteen times as many distinct post dates. Above, the condition compares the local post date the database computes (D38). `0` always does. |
 | `quarkword.posts.preview-sessions` | `10` | How many preview sessions a user keeps open on a site: opening one more closes the user's oldest ones there (a value below 1 counts as 1). |
 
 The module also reads the site options WordPress's post code reads: `default_comment_status`, `default_ping_status`,
@@ -452,6 +456,7 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D35 | With the media module, only attachments of an image type can be featured images; any other attachment removes the featured image, as WordPress does. Without it, any attachment counts as an image. `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkWord's window. |
 | D36 | Preview links carry a computed token: HMAC-SHA256 over the site, the post, the user and a tick of half `quarkword.posts.preview-lifetime` with a per-site secret (`quarkword_preview_secret`), valid for the current and the previous tick and only for the user it was issued to, who must hold `edit_post` now. WordPress's `preview_nonce` (10 hexadecimal characters) is derived from the action `post_preview_{id}`, the user id, the user's login session token and a tick of half the nonce life (one day by default), and is likewise valid for the current and the previous tick, 12 to 24 hours; QuarkWord's token has no session token in its message, so logging out does not revoke a token by itself (the preview session's user still has to be the token's user and hold `edit_post` now), while deleting the option revokes every link of the site at once, which WordPress has no counterpart for. |
 | D37 | The viewer of the front module's preview pages comes from a QuarkWord preview session (`PreviewSessions`, a random token stored as a hash and bound to the site) rather than WordPress's login cookie, and the editor's unlock nonce is a one-time `LockReleaseTokens` token bound to the post, the user and the lock value, consumed on first use whatever the outcome; WordPress's unlock nonce (`update-post_{id}`) is an ordinary nonce, reusable any number of times within its 12 to 24 hours and not bound to a lock value (the release itself compares the stored lock with the value sent). |
+| D38 | A week or date unit condition that would need more than `quarkword.posts.query-date-spans` ranges of dates compares the local post date the database computes, as WordPress compares `post_date`: PostgreSQL's `timezone` with the site's zone; MySQL's `CONVERT_TZ`, which needs MySQL's time-zone tables for a named zone (without them, the zone's standard offset applies, so the summer hour is off) and converts only dates from 1970 to 3000 (outside them, the zone's standard offset of 1970 or 3001 applies). On PostgreSQL a date before 15 October 1582 is written through the JDBC driver's Julian calendar, so the database reads it some days off the date QuarkWord shows. Within the limit, the ranges are computed in Java and give the same rows on both databases. |
 
 The parity tests (`-Pwp-parity`) compare slugs, slug truncation, keys, post type and status registration, local and
 GMT date conversions, the save filters of titles, content and excerpts, and the search tokenizer with WordPress

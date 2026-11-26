@@ -69,6 +69,15 @@ public class PostQueries {
     /** The page size when the site has no {@code posts_per_page} option (WordPress's default). */
     private static final long DEFAULT_PER_PAGE = 10;
 
+    /** A leap year whose 1 January falls on each day of the week, from Sunday. */
+    private static final int[] LEAP_YEARS_BY_FIRST_DAY = {2012, 2024, 2008, 2020, 2004, 2016, 2028};
+
+    /** The first instant MySQL's {@code CONVERT_TZ} converts. */
+    private static final Instant MYSQL_CONVERTED_FROM = Instant.parse("1970-01-01T00:00:01Z");
+
+    /** A day before the last instant MySQL's {@code CONVERT_TZ} converts (3001-01-18 23:59:59 UTC). */
+    private static final Instant MYSQL_CONVERTED_UNTIL = Instant.parse("3001-01-18T00:00:00Z");
+
     @Inject
     PostRepository posts;
 
@@ -80,6 +89,9 @@ public class PostQueries {
 
     @Inject
     SiteContext site;
+
+    @Inject
+    PostsConfig config;
 
     @Inject
     Acting acting;
@@ -248,8 +260,8 @@ public class PostQueries {
         for (DateCondition condition : query.dates()) {
             dateCondition(condition, where);
         }
-        query.week().ifPresent(week -> weekCondition(siteId, week, where));
-        query.units().ifPresent(units -> unitCondition(siteId, units, where));
+        query.week().ifPresent(week -> weekCondition(week, where));
+        query.units().ifPresent(units -> unitCondition(units, where));
         if (!termConditions(siteId, query, where) || !moduleConditions(siteId, query, where)) {
             return new PostPage(stickyFirst(siteId, requested, query, queriedTypes, perPage(query), List.of()), 0, 0);
         }
@@ -831,19 +843,24 @@ public class PostQueries {
 
     /**
      * The week condition: the local post date (as {@link #dateCondition} reads it) within the days that have the week
-     * number, in one of the years the site's posts are dated in. A week number names one range of days per year
-     * ({@link Weeks#range}), so the condition is one span of instants per year, from the year before the oldest post's
-     * (a shifted start of the week counts early January in the year before) to the newest post's; a site without posts
-     * matches nothing.
+     * number, in one of the years the posts the query can find so far are dated in. A week number names one range of
+     * days per year ({@link Weeks#range}), so the condition is one span of instants per year, from the year before the
+     * oldest post's (a shifted start of the week counts early January in the year before) to the newest post's; with
+     * more years than {@link PostsConfig#queryDateSpans}, the database computes the week number ({@link
+     * #sqlWeek}). No such post matches nothing.
      */
-    private void weekCondition(SiteId siteId, PostQuery.WeekCondition week, Where where) {
-        Optional<LocalDateTime[]> dated = datedBetween(siteId);
+    private void weekCondition(PostQuery.WeekCondition week, Where where) {
+        Optional<LocalDateTime[]> dated = datedBetween(where);
         if (dated.isEmpty()) {
             where.and("1 = 0");
             return;
         }
         int firstYear = dated.get()[0].getYear() - 1;
         int lastYear = dated.get()[1].getYear();
+        if (lastYear - firstYear + 1 > mostSpans()) {
+            where.and(sqlWeek(week, where));
+            return;
+        }
         List<LocalDateTime[]> walls = new ArrayList<>();
         for (int year = firstYear; year <= lastYear; year++) {
             Weeks.range(year, week.week(), week.startOfWeek())
@@ -856,25 +873,31 @@ public class PostQueries {
 
     /**
      * The unit condition: the local post date (as {@link #dateCondition} reads it) has every unit given. Without a
-     * time unit, the days that have the year, month and day are enumerated from the site's oldest post's year to its
-     * newest's, one span of instants per run of days (a month alone is one span a year, a day alone one a month).
-     * With a time unit, the spans are the given finest unit's (an hour, minute or second) around each of the site's
-     * post dates that has every unit: the dates are read first, as a condition on the time of every day would be a
-     * span a day. Wall times become spans of instants in the site's zone, so a repeated hour of an autumn night
-     * counts both of its instants. A site without posts matches nothing.
+     * time unit, the days that have the year, month and day are enumerated from the oldest year to the newest of the
+     * posts the query can find so far, one span of instants per run of days (a month alone is one span a year, a day
+     * alone one a month). With a time unit, the spans are the given finest unit's (an hour, minute or second) around
+     * each of those posts' dates that has every unit: the dates are read first, as a condition on the time of every
+     * day would be a span a day. Wall times become spans of instants in the site's zone, so a repeated hour of an
+     * autumn night counts both of its instants. With more spans than {@link PostsConfig#queryDateSpans} (or more
+     * dates to read than sixteen times that), the database compares the units of the local date it computes ({@link
+     * #localDate}). No such post matches nothing.
      */
-    private void unitCondition(SiteId siteId, PostQuery.DateUnits units, Where where) {
-        List<LocalDateTime[]> walls = units.timed() ? timeWalls(siteId, units) : dayWalls(siteId, units);
-        where.and(wallSpans(walls, where));
+    private void unitCondition(PostQuery.DateUnits units, Where where) {
+        Optional<List<LocalDateTime[]>> walls = units.timed() ? timeWalls(units, where) : dayWalls(units, where);
+        where.and(walls.isPresent() ? wallSpans(walls.get(), where) : sqlUnits(units, where));
     }
 
-    /** The runs of days that have the units' year, month and day, within the years the site's posts are dated in. */
-    private List<LocalDateTime[]> dayWalls(SiteId siteId, PostQuery.DateUnits units) {
+    /**
+     * The runs of days that have the units' year, month and day, within the years the posts the query can find so far
+     * are dated in; empty when they are more than {@link PostsConfig#queryDateSpans}.
+     */
+    private Optional<List<LocalDateTime[]>> dayWalls(PostQuery.DateUnits units, Where where) {
         List<LocalDateTime[]> walls = new ArrayList<>();
-        Optional<LocalDateTime[]> dated = datedBetween(siteId);
+        Optional<LocalDateTime[]> dated = datedBetween(where);
         if (dated.isEmpty()) {
-            return walls;
+            return Optional.of(walls);
         }
+        int most = mostSpans();
         int firstYear = dated.get()[0].getYear();
         int lastYear = dated.get()[1].getYear();
         if (units.year().isPresent()) {
@@ -902,30 +925,39 @@ public class PostQueries {
                 LocalDateTime[] last = walls.isEmpty() ? null : walls.get(walls.size() - 1);
                 if (last != null && last[1].equals(start)) {
                     last[1] = end;
+                } else if (walls.size() == most) {
+                    return Optional.empty();
                 } else {
                     walls.add(new LocalDateTime[] {start, end});
                 }
             }
         }
-        return walls;
+        return Optional.of(walls);
     }
 
     /**
-     * The spans of the finest time unit given (the second, else the minute, else the hour) around each of the site's
-     * local post dates that has every unit given.
+     * The spans of the finest time unit given (the second, else the minute, else the hour) around each local date of
+     * the posts the query can find so far that has every unit given; empty when they are more than {@link
+     * PostsConfig#queryDateSpans}, or the distinct dates to read more than sixteen times that.
      */
-    private List<LocalDateTime[]> timeWalls(SiteId siteId, PostQuery.DateUnits units) {
+    private Optional<List<LocalDateTime[]>> timeWalls(PostQuery.DateUnits units, Where where) {
         ChronoUnit finest = units.second().isPresent()
                 ? ChronoUnit.SECONDS
                 : units.minute().isPresent() ? ChronoUnit.MINUTES : ChronoUnit.HOURS;
+        int most = mostSpans();
+        int read = (int) Math.min(16L * most, Integer.MAX_VALUE - 1);
         ZoneId zone = site.zone();
-        Set<LocalDateTime> starts = new TreeSet<>();
-        List<Instant> dates = posts.getEntityManager()
+        TypedQuery<Instant> select = posts.getEntityManager()
                 .createQuery(
-                        "select distinct " + expression(OrderKey.DATE) + " from PostEntity p where p.siteId = :site",
+                        "select distinct " + expression(OrderKey.DATE) + " from PostEntity p where " + where.text(),
                         Instant.class)
-                .setParameter("site", TenantIds.param(siteId))
-                .getResultList();
+                .setMaxResults(read + 1);
+        where.bindConditions(select);
+        List<Instant> dates = select.getResultList();
+        if (dates.size() > read) {
+            return Optional.empty();
+        }
+        Set<LocalDateTime> starts = new TreeSet<>();
         for (Instant date : dates) {
             if (date == null) {
                 continue;
@@ -940,11 +972,19 @@ public class PostQueries {
                 starts.add(local.truncatedTo(finest));
             }
         }
+        if (starts.size() > most) {
+            return Optional.empty();
+        }
         List<LocalDateTime[]> walls = new ArrayList<>();
         for (LocalDateTime start : starts) {
             walls.add(new LocalDateTime[] {start, start.plus(1, finest)});
         }
-        return walls;
+        return Optional.of(walls);
+    }
+
+    /** {@link PostsConfig#queryDateSpans}, at least 0. */
+    private int mostSpans() {
+        return Math.max(0, config.queryDateSpans());
     }
 
     private static boolean has(OptionalInt unit, int value) {
@@ -952,17 +992,18 @@ public class PostQueries {
     }
 
     /**
-     * The local dates of the site's oldest and newest posts (as {@link #dateCondition} reads them); empty without
-     * posts.
+     * The local dates of the oldest and newest posts the conditions so far find (as {@link #dateCondition} reads
+     * them), so that a post the query cannot return (another type's, a draft) does not widen the years looked
+     * through; empty without such posts.
      */
-    private Optional<LocalDateTime[]> datedBetween(SiteId siteId) {
+    private Optional<LocalDateTime[]> datedBetween(Where where) {
         String date = expression(OrderKey.DATE);
-        Object[] dated = posts.getEntityManager()
+        TypedQuery<Object[]> select = posts.getEntityManager()
                 .createQuery(
-                        "select min(" + date + "), max(" + date + ") from PostEntity p where p.siteId = :site",
-                        Object[].class)
-                .setParameter("site", TenantIds.param(siteId))
-                .getSingleResult();
+                        "select min(" + date + "), max(" + date + ") from PostEntity p where " + where.text(),
+                        Object[].class);
+        where.bindConditions(select);
+        Object[] dated = select.getSingleResult();
         if (dated[0] == null || dated[1] == null) {
             return Optional.empty();
         }
@@ -970,6 +1011,99 @@ public class PostQueries {
         return Optional.of(new LocalDateTime[] {
             PostDates.toLocal((Instant) dated[0], zone), PostDates.toLocal((Instant) dated[1], zone)
         });
+    }
+
+    /** Each unit given equal to that unit of the local post date the database computes ({@link #localDate}). */
+    private String sqlUnits(PostQuery.DateUnits units, Where where) {
+        String local = localDate(where);
+        List<String> parts = new ArrayList<>();
+        units.year().ifPresent(value -> parts.add("extract(year from " + local + ") = " + where.param(value)));
+        units.month().ifPresent(value -> parts.add("extract(month from " + local + ") = " + where.param(value)));
+        units.day().ifPresent(value -> parts.add("extract(day from " + local + ") = " + where.param(value)));
+        units.hour().ifPresent(value -> parts.add("extract(hour from " + local + ") = " + where.param(value)));
+        units.minute().ifPresent(value -> parts.add("extract(minute from " + local + ") = " + where.param(value)));
+        units.second()
+                .ifPresent(value -> parts.add("floor(extract(second from " + local + ")) = " + where.param(value)));
+        return parts.isEmpty() ? "1 = 1" : String.join(" and ", parts);
+    }
+
+    /**
+     * The week number of the local post date the database computes ({@link #localDate}), as {@link Weeks} counts it:
+     * the date is moved back by the start of the week's shift, and its day of the year compared with the days that
+     * have the number in a year starting on the same day of the week (a week's days depend on nothing else; a year's
+     * end is left open, so a leap year's last day counts).
+     */
+    private String sqlWeek(PostQuery.WeekCondition week, Where where) {
+        if (week.week() < 0 || week.week() > Weeks.MAX_WEEK) {
+            return "1 = 0";
+        }
+        int shift = week.startOfWeek() >= 2 && week.startOfWeek() <= 6 ? (int) week.startOfWeek() : 0;
+        String counted = shift == 0 ? localDate(where) : "(" + localDate(where) + " - " + where.param(shift) + " day)";
+        String dayOfYear = "extract(day of year from " + counted + ")";
+        // the day of the week of 1 January, from 0 (Sunday) to 6, out of the date's own (1 for Sunday) and day of year
+        String firstWeekday = "mod(extract(day of week from " + counted + ") - " + dayOfYear + " + 371, 7)";
+        List<String> years = new ArrayList<>();
+        for (int weekday = 0; weekday < 7; weekday++) {
+            int year = LEAP_YEARS_BY_FIRST_DAY[weekday];
+            Optional<Weeks.Range> range = Weeks.range(year, week.week(), week.startOfWeek());
+            if (range.isEmpty()) {
+                continue;
+            }
+            LocalDate from = range.get().from().minusDays(shift);
+            LocalDate until = range.get().until().minusDays(shift);
+            int fromDay = from.getDayOfYear();
+            int untilDay = until.getYear() > year ? 367 : until.getDayOfYear();
+            years.add(firstWeekday + " = " + where.param(weekday) + " and " + dayOfYear + " >= " + where.param(fromDay)
+                    + " and " + dayOfYear + " < " + where.param(untilDay));
+        }
+        return years.isEmpty() ? "1 = 0" : "(" + String.join(") or (", years) + ")";
+    }
+
+    /**
+     * The local post date (as {@link #dateCondition} reads it) as the database computes it in the site's zone, to the
+     * second: PostgreSQL's {@code timezone} with the zone's name, or its offset as a POSIX zone; MySQL's {@code
+     * CONVERT_TZ} with the zone's name (which needs MySQL's time zone tables: without them, the zone's latest standard
+     * offset) or its offset, and the zone's standard offset of 1970 or 3001 for a date outside the years {@code
+     * CONVERT_TZ} converts.
+     */
+    private String localDate(Where where) {
+        String date = expression(OrderKey.DATE);
+        ZoneId zone = site.zone();
+        boolean fixed = zone.getRules().isFixedOffset();
+        if (Dialects.postgresql(posts.getSession())) {
+            String name = fixed ? posixZone(zone.getRules().getOffset(Instant.EPOCH)) : zone.getId();
+            return "cast(timezone(" + where.param(name) + ", " + date + ") as LocalDateTime)";
+        }
+        String standard = where.param(offsetText(zone.getRules().getStandardOffset(PostDates.STORABLE_UNTIL)));
+        String converted = fixed
+                ? "convert_tz(" + date + ", '+00:00', " + standard + ")"
+                : "coalesce(convert_tz(" + date + ", '+00:00', " + where.param(zone.getId()) + "), convert_tz(" + date
+                        + ", '+00:00', " + standard + "))";
+        return "cast(case when " + date + " < " + where.param(MYSQL_CONVERTED_FROM) + " then "
+                + shifted(date, zone.getRules().getStandardOffset(MYSQL_CONVERTED_FROM), where) + " when " + date
+                + " >= " + where.param(MYSQL_CONVERTED_UNTIL) + " then "
+                + shifted(date, zone.getRules().getStandardOffset(MYSQL_CONVERTED_UNTIL), where) + " else " + converted
+                + " end as LocalDateTime)";
+    }
+
+    /** {@code date}, read in UTC, moved by {@code offset}. */
+    private static String shifted(String date, ZoneOffset offset, Where where) {
+        return "(" + date + " + " + where.param(offset.getTotalSeconds()) + " second)";
+    }
+
+    /** MySQL's offset text, {@code +hh:mm}; seconds are dropped. */
+    private static String offsetText(ZoneOffset offset) {
+        int seconds = offset.getTotalSeconds();
+        int minutes = Math.abs(seconds) / 60;
+        return (seconds < 0 ? "-" : "+") + String.format("%02d:%02d", minutes / 60, minutes % 60);
+    }
+
+    /** A POSIX zone for PostgreSQL, whose offsets count west of Greenwich: {@code +05:30} is {@code UTC-05:30:00}. */
+    private static String posixZone(ZoneOffset offset) {
+        int seconds = offset.getTotalSeconds();
+        int west = Math.abs(seconds);
+        return "UTC" + (seconds > 0 ? "-" : "+")
+                + String.format("%02d:%02d:%02d", west / 3600, west / 60 % 60, west % 60);
     }
 
     /**
