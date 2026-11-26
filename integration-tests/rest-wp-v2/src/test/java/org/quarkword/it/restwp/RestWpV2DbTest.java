@@ -752,7 +752,8 @@ class RestWpV2DbTest {
                 .then()
                 .statusCode(200)
                 .body("title.rendered", equalTo(title))
-                .body("link", equalTo("http://localhost/?p=" + id))
+                // the main site has the default structure: the dated permalink of the post's local date
+                .body("link", equalTo(datedLink(created.path("date"), created.path("slug"))))
                 .body("content.rendered", containsString("<p>x</p>"))
                 .body("_links.self[0].href", equalTo("http://localhost/wp-json/wp/v2/posts/" + id))
                 .body("_links.about[0].href", equalTo("http://localhost/wp-json/wp/v2/types/post"))
@@ -884,7 +885,7 @@ class RestWpV2DbTest {
         as(null).get("/wp-json/wp/v2/pages/" + child + "?_embed")
                 .then()
                 .statusCode(200)
-                .body("link", equalTo("http://localhost/?page_id=" + child))
+                .body("link", equalTo("http://localhost/parent-" + word + "/child-" + word + "/"))
                 .body("_embedded.up[0].id", equalTo(parent));
         as(null).get("/wp-json/wp/v2/pages?parent=" + parent)
                 .then()
@@ -951,7 +952,7 @@ class RestWpV2DbTest {
         as(null).get("/wp-json/wp/v2/books/" + id)
                 .then()
                 .statusCode(200)
-                .body("link", equalTo("http://localhost/?book=book-" + word))
+                .body("link", equalTo("http://localhost/book/book-" + word + "/"))
                 .body("meta.book_rating", equalTo(5))
                 .body("meta.book_tags", contains("red", "blue"));
         as("carol")
@@ -1058,7 +1059,11 @@ class RestWpV2DbTest {
                 .body("id", contains(id))
                 .body("[0].type", equalTo("post"))
                 .body("[0].subtype", equalTo("post"))
-                .body("[0].url", equalTo("http://localhost/?p=" + id))
+                .body(
+                        "[0].url",
+                        equalTo(datedLink(
+                                as(null).get("/wp-json/wp/v2/posts/" + id).path("date"),
+                                as(null).get("/wp-json/wp/v2/posts/" + id).path("slug"))))
                 .body("[0]._links.self[0].href", equalTo("http://localhost/wp-json/wp/v2/posts/" + id));
         as(null).get("/wp-json/wp/v2/search?search=" + word + "&_embed")
                 .then()
@@ -1100,7 +1105,7 @@ class RestWpV2DbTest {
                 .statusCode(200)
                 .body("id", contains("aside"))
                 .body("[0].title", equalTo("Aside"))
-                .body("[0].url", equalTo("http://localhost/?post_format=aside"))
+                .body("[0].url", equalTo("http://localhost/type/aside/"))
                 .body("[0].type", equalTo("post-format"));
         as(null).get("/wp-json/wp/v2/search?type=nope")
                 .then()
@@ -1518,5 +1523,14 @@ class RestWpV2DbTest {
                 .statusCode(403)
                 .body("code", equalTo("rest_forbidden"))
                 .body("message", equalTo("Sorry, you are not allowed to make proxied oEmbed requests."));
+    }
+
+    /**
+     * The main site's permalink of a post under the default structure, {@code /%year%/%monthnum%/%day%/%postname%/},
+     * from its local {@code date} ({@code yyyy-MM-ddTHH:mm:ss}) and slug.
+     */
+    static String datedLink(String date, String slug) {
+        return "http://localhost/" + date.substring(0, 4) + "/" + date.substring(5, 7) + "/" + date.substring(8, 10)
+                + "/" + slug + "/";
     }
 }
