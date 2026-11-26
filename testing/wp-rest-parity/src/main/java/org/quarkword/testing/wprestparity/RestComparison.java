@@ -31,19 +31,9 @@ import org.quarkword.testing.wporacle.ParityRun;
  * QuarkWord does not serve yet: each of those WordPress lists is dropped and recorded as its own aspect
  * {@code req<n>:body:wp-only:<pointer>}, a difference the known-differences file must list; likewise a namespace only
  * QuarkWord serves ({@link #QUARKWORD_ONLY_NAMESPACES}) is dropped from QuarkWord's list as
- * {@code req<n>:body:qw-only:<pointer>}. A front-end link
- * ({@code link}, {@code permalink_template}, {@code preview_link}, a search item's {@code url}) that differs while
- * both sides have one is recorded as {@code req<n>:body:link-form:<pointer>}; WordPress's pretty form is then mapped
- * to the plain form QuarkWord writes ({@link #plainLink}: {@code /author/<slug>/} to {@code ?author=<id>},
- * {@code /category/.../<slug>/} to {@code ?cat=<id>}, {@code /tag/<slug>/} to {@code ?tag=<slug>}, {@code /<slug>/}
- * of a post to {@code ?p=<id>}, {@code /<parents>/<slug>/} of a page to {@code ?page_id=<id>}, {@code /book/<slug>/}
- * to {@code ?book=<slug>}, {@code /type/<slug>/} to {@code ?post_format=<slug>}, a permalink template's
- * {@code %postname%} and {@code %pagename%} likewise, a preview link's query kept; the slug checked against the
- * object's own, the id the object's normalised one), so the body comparison still sees a wrong host, site, id or
- * slug. A link whose object lacks the id or the slug compares equal only to a plain link of the scenario's site
- * that names the object; any other link WordPress writes in a form the mapping does not know still differs. The
- * {@code rel="alternate"} entry of the compared {@code Link} header is mapped the same way (from the body, or from the
- * request's route for a HEAD); the other entries are compared as they are.
+ * {@code req<n>:body:qw-only:<pointer>}. Front-end links ({@code link}, {@code permalink_template},
+ * {@code preview_link}, a search item's {@code url}, the {@code rel="alternate"} entry of a {@code Link} header) are
+ * compared as they are, as every other value.
  */
 public final class RestComparison {
 
@@ -73,13 +63,6 @@ public final class RestComparison {
 
     static final String ABSENT = "<absent>";
 
-    /** The body keys holding a front-end link of the object. */
-    static final Set<String> LINK_KEYS = Set.of("link", "permalink_template", "preview_link");
-
-    /** The post types whose links the mapping knows, and the plain query key of each. */
-    private static final Map<String, String> POST_QUERY_KEYS =
-            Map.of("post", "p", "page", "page_id", "attachment", "attachment_id");
-
     private final Normalizer normalizer = new Normalizer();
     private final Normalizer.Refs wordpressRefs;
     private final Normalizer.Refs quarkwordRefs;
@@ -105,27 +88,22 @@ public final class RestComparison {
             Exchange wp = wordpress.get(i);
             Exchange qp = quarkword.get(i);
             run.compare(scenario.id(), prefix + "status", wp.status(), qp.status());
-            JsonNode alternate = alternateObject(wp);
             for (String name : HEADERS) {
-                compareHeader(scenario.id(), prefix, name, wp, qp, run, alternate);
+                compareHeader(scenario.id(), prefix, name, wp, qp, run);
             }
             if (wp.call().headers().keySet().stream().anyMatch(h -> h.equalsIgnoreCase("Origin"))) {
                 for (String name : ORIGIN_HEADERS) {
-                    compareHeader(scenario.id(), prefix, name, wp, qp, run, alternate);
+                    compareHeader(scenario.id(), prefix, name, wp, qp, run);
                 }
             }
             compareBody(scenario.id(), prefix, wp, qp, run, RAW_SCENARIOS.contains(scenario.id()));
         }
     }
 
-    private void compareHeader(
-            String caseId, String prefix, String name, Exchange wp, Exchange qp, ParityRun run, JsonNode alternate) {
+    private void compareHeader(String caseId, String prefix, String name, Exchange wp, Exchange qp, ParityRun run) {
         String wpValue = wp.header(name)
                 .map(v -> normalizer.header(name, v, wordpressRefs, sitePath))
                 .orElse(ABSENT);
-        if (name.equals("link") && wp.header(name).isPresent()) {
-            wpValue = mapAlternate(wpValue, alternate);
-        }
         run.compare(
                 caseId,
                 prefix + "header:" + name,
@@ -133,92 +111,6 @@ public final class RestComparison {
                 qp.header(name)
                         .map(v -> normalizer.header(name, v, quarkwordRefs, sitePath))
                         .orElse(ABSENT));
-    }
-
-    /**
-     * The object the {@code rel="alternate"} entry of WordPress's {@code Link} header belongs to: the normalised body
-     * when it is an object with an id (with the type the request's route names when {@code _fields} left its
-     * {@code type} out), else (a HEAD, or a body without its id) the id and type the request's route names
-     * ({@code /wp/v2/posts/<id>} is a post, {@code pages} a page, {@code books} a book, {@code media} an
-     * attachment), else nothing.
-     */
-    private JsonNode alternateObject(Exchange wp) {
-        Optional<JsonNode> body = json(wp.body());
-        Optional<ObjectNode> routed = routeObject(wp.call().target());
-        if (body.isPresent() && body.get().isObject() && body.get().has("id")) {
-            JsonNode normalised = normalizer.body(
-                    body.get(),
-                    wordpressRefs,
-                    sitePath,
-                    Normalizer.Kind.ofTarget(wp.call().target()),
-                    Optional.of(wp.sentAt()));
-            if (normalised.isObject() && !normalised.has("type") && routed.isPresent()) {
-                ((ObjectNode) normalised).put("type", routed.get().get("type").asText());
-            }
-            return normalised;
-        }
-        return routed.map(JsonNode.class::cast).orElse(MissingNode.getInstance());
-    }
-
-    /** The id and post type an item route ({@code /wp/v2/<posts|pages|books|media>/<id>}) names; none otherwise. */
-    private Optional<ObjectNode> routeObject(String target) {
-        int query = target.indexOf('?');
-        // the target is a path: as a URL of the local host its ids are normalised
-        String path = normalizer.text(
-                "http://localhost" + (query < 0 ? target : target.substring(0, query)), wordpressRefs, sitePath);
-        int base = path.indexOf("/wp/v2/");
-        if (base < 0) {
-            return Optional.empty();
-        }
-        String rest = path.substring(base + "/wp/v2/".length());
-        int slash = rest.indexOf('/');
-        if (slash < 0 || rest.indexOf('/', slash + 1) >= 0) {
-            return Optional.empty();
-        }
-        String type = switch (rest.substring(0, slash)) {
-            case "posts" -> "post";
-            case "pages" -> "page";
-            case "books" -> "book";
-            case "media" -> "attachment";
-            default -> null;
-        };
-        if (type == null) {
-            return Optional.empty();
-        }
-        return Optional.of(OracleJson.MAPPER
-                .createObjectNode()
-                .put("id", rest.substring(slash + 1))
-                .put("type", type));
-    }
-
-    /**
-     * The normalised {@code Link} header value with the URL of its {@code rel="alternate"} entry (if any) in its plain
-     * form for {@code object}, when the mapping knows it; other entries are kept as they are.
-     */
-    static String mapAlternate(String header, JsonNode object) {
-        StringBuilder out = new StringBuilder(header.length());
-        int i = 0;
-        while (i < header.length()) {
-            int open = header.indexOf('<', i);
-            int close = open < 0 ? -1 : header.indexOf('>', open);
-            if (close < 0) {
-                out.append(header, i, header.length());
-                break;
-            }
-            int next = header.indexOf('<', close);
-            int paramsEnd = next < 0 ? header.length() : next;
-            String url = header.substring(open + 1, close);
-            String params = header.substring(close + 1, paramsEnd);
-            out.append(header, i, open + 1);
-            if (params.contains("rel=\"alternate\"") && object.isObject()) {
-                out.append(plainLink(url, object).orElse(url));
-            } else {
-                out.append(url);
-            }
-            out.append(header, close, paramsEnd);
-            i = paramsEnd;
-        }
-        return out.toString();
     }
 
     private void compareBody(String caseId, String prefix, Exchange wp, Exchange qp, ParityRun run, boolean raw) {
@@ -264,11 +156,6 @@ public final class RestComparison {
         }
         for (String pointer : quarkwordOnly) {
             run.compare(caseId, prefix + "body:qw-only:" + pointer, ABSENT, "listed");
-        }
-        List<String[]> links = new ArrayList<>();
-        linkForms("", wpBody, qpBody, links);
-        for (String[] link : links) {
-            run.compare(caseId, prefix + "body:link-form:" + link[0], link[1], link[2]);
         }
         if (wpBody.equals(qpBody)) {
             run.compare(caseId, prefix + "body", "same", "same");
@@ -483,284 +370,6 @@ public final class RestComparison {
         namespaces.removeAll();
         namespaces.addAll(kept);
         return dropped;
-    }
-
-    /**
-     * Where both sides have a front-end link (a text under one of {@link #LINK_KEYS}, or {@code url} of a search item,
-     * an object with a {@code type}) and the two differ, records the pair as {@code <pointer>} and puts in WordPress's
-     * body the plain form of its link ({@link #plainLink}), so the comparison of the bodies sees whether it is
-     * QuarkWord's; when the object has no slug or id to tell the plain form, puts QuarkWord's link in WordPress's
-     * body if it is a plain link of the scenario's site naming the object ({@link #localPlainLink}); any other link is
-     * left as it is, and differs.
-     */
-    static void linkForms(String pointer, JsonNode wordpress, JsonNode quarkword, List<String[]> out) {
-        if (wordpress.isObject() && quarkword.isObject()) {
-            for (Iterator<String> it = wordpress.fieldNames(); it.hasNext(); ) {
-                String key = it.next();
-                JsonNode a = wordpress.get(key);
-                JsonNode b = quarkword.get(key);
-                if (b == null) {
-                    continue;
-                }
-                String child = pointer + "/" + escape(key);
-                boolean linkKey = LINK_KEYS.contains(key)
-                        || (key.equals("url") && wordpress.path("type").isTextual());
-                if (linkKey && a.isTextual() && b.isTextual()) {
-                    if (!a.equals(b)) {
-                        out.add(new String[] {child, a.toString(), b.toString()});
-                        Optional<String> plain = plainLink(a.textValue(), wordpress);
-                        if (plain.isPresent()) {
-                            ((ObjectNode) wordpress).put(key, plain.get());
-                        } else if ((!wordpress.path("slug").isTextual()
-                                        || !wordpress.has("id")
-                                        || !wordpress.get("id").isValueNode())
-                                && localPlainLink(b.textValue(), key.equals("link") ? quarkword : null)) {
-                            // the object does not tell what the plain form would be: QuarkWord's plain link of the
-                            // scenario's site stands for WordPress's
-                            ((ObjectNode) wordpress).put(key, b.textValue());
-                        }
-                    }
-                } else {
-                    linkForms(child, a, b, out);
-                }
-            }
-        } else if (wordpress.isArray() && quarkword.isArray()) {
-            for (int i = 0; i < Math.min(wordpress.size(), quarkword.size()); i++) {
-                linkForms(pointer + "/" + i, wordpress.get(i), quarkword.get(i), out);
-            }
-        }
-    }
-
-    /** The query parameters of a plain front-end link that name an object by its id. */
-    private static final Set<String> ID_PARAMS = Set.of("p", "page_id", "attachment_id", "cat", "author", "preview_id");
-
-    /**
-     * Whether a normalised link is a plain front-end link of the scenario's site: {@code {host}{site}/} (after an
-     * {@code http://} or {@code https://} scheme, if any) followed by nothing or by a query, naming no unknown id
-     * ({@code #?}), and whose id parameters name the object's own {@code id} when {@code object} is given and has one
-     * (a {@code link} names its own object; a {@code preview_link} of an autosave names the parent).
-     */
-    static boolean localPlainLink(String link, JsonNode object) {
-        String local = "{host}{site}/";
-        String rest;
-        if (link.startsWith(local)) {
-            rest = link.substring(local.length());
-        } else if (link.startsWith("http://" + local)) {
-            rest = link.substring(("http://" + local).length());
-        } else if (link.startsWith("https://" + local)) {
-            rest = link.substring(("https://" + local).length());
-        } else {
-            return false;
-        }
-        if (rest.isEmpty()) {
-            return true;
-        }
-        if (rest.charAt(0) != '?' || rest.contains("#?")) {
-            return false;
-        }
-        String id = object != null && object.path("id").isValueNode()
-                ? object.get("id").asText()
-                : null;
-        int start = 1;
-        while (start <= rest.length()) {
-            int end = rest.indexOf('&', start);
-            if (end < 0) {
-                end = rest.length();
-            }
-            String pair = rest.substring(start, end);
-            int equals = pair.indexOf('=');
-            String name = equals < 0 ? pair : pair.substring(0, equals);
-            if (ID_PARAMS.contains(name)
-                    && id != null
-                    && !pair.substring(equals + 1).equals(id)) {
-                return false;
-            }
-            start = end + 1;
-        }
-        return true;
-    }
-
-    /**
-     * The plain-permalink form of WordPress's pretty front-end link {@code link} (normalised, so starting with
-     * {@code {site}/}) of {@code object}, where the id is the object's normalised {@code id} and a slug in the link
-     * must be the object's {@code slug} when the object has one.
-     *
-     * <p>Terms and authors (an object without a post type): {@code <base>/author/<slug>/} is
-     * {@code <base>/?author=<id>}, {@code <base>/category/<parents>/<slug>/} is {@code <base>/?cat=<id>} and
-     * {@code <base>/tag/<slug>/} is {@code <base>/?tag=<slug>}; a search item names its taxonomy as {@code type}
-     * ({@code category}, {@code post_tag}), a post format ({@code type} {@code post-format}) has
-     * {@code <base>/type/<slug>/} for {@code <base>/?post_format=<slug>}.
-     *
-     * <p>Posts (an object whose {@code type}, or a search item's {@code subtype}, names a post type):
-     * {@code <base>/<slug>/} and the dated {@code <base>/<yyyy>/<mm>/<dd>/<slug>/} of a post are
-     * {@code <base>/?p=<id>}, {@code <base>/<parents>/<slug>/} of a page {@code <base>/?page_id=<id>}, an
-     * attachment's {@code <base>/[<parent's path>/][attachment/]<slug>/} {@code <base>/?attachment_id=<id>},
-     * {@code <base>/book/<slug>/} of a book {@code <base>/?book=<slug>}; a permalink template's {@code %postname%} and
-     * {@code %pagename%} map the same way, a book's template to its plain link ({@code ?book=<slug>} when published,
-     * {@code ?post_type=book&p=<id>} otherwise); a preview link's pretty base before its query is mapped and the query
-     * kept. Empty for any other link, for a link that is plain already, or when the object has no {@code id} where one
-     * is needed.
-     */
-    static Optional<String> plainLink(String link, JsonNode object) {
-        int site = link.indexOf("{site}/");
-        if (site < 0) {
-            return Optional.empty();
-        }
-        String base = link.substring(0, site + "{site}/".length());
-        String path = link.substring(base.length());
-        int query = path.indexOf('?');
-        if (query >= 0) {
-            // a preview link: the pretty base is mapped, the query kept
-            return path.indexOf('#') >= 0 || query == 0
-                    ? Optional.empty()
-                    : plainLink(base + path.substring(0, query), object)
-                            .map(plain -> plain + "&" + path.substring(query + 1));
-        }
-        if (!path.endsWith("/") || path.indexOf('#') >= 0) {
-            return Optional.empty();
-        }
-        List<String> segments = new ArrayList<>();
-        int start = 0;
-        for (int i = 0; i < path.length(); i++) {
-            if (path.charAt(i) == '/') {
-                segments.add(path.substring(start, i));
-                start = i + 1;
-            }
-        }
-        if (segments.isEmpty() || segments.stream().anyMatch(String::isEmpty)) {
-            return Optional.empty();
-        }
-        String last = segments.get(segments.size() - 1);
-        JsonNode subject = subjectOf(object);
-        JsonNode slug = subject.get("slug");
-        JsonNode id = subject.get("id");
-        boolean hasId = id != null && id.isValueNode();
-        String postType = postTypeOf(subject);
-        if (postType != null) {
-            return postLink(base, segments, last, postType, object, hasId ? id.asText() : null, slug);
-        }
-        String kind = segments.get(0);
-        String type = object.path("type").asText("");
-        if (type.equals("post-format")) {
-            return kind.equals("type") && segments.size() == 2
-                    ? Optional.of(base + "?post_format=" + last)
-                    : Optional.empty();
-        }
-        if (segments.size() < 2) {
-            return Optional.empty();
-        }
-        boolean ownSlug = slug == null
-                ? !type.isEmpty()
-                : slug.isTextual() && slug.textValue().equals(last);
-        if (kind.equals("tag") && segments.size() == 2 && (type.isEmpty() || type.equals("post_tag"))) {
-            return Optional.of(base + "?tag=" + last);
-        }
-        if (!ownSlug || !hasId) {
-            return Optional.empty();
-        }
-        if (kind.equals("author") && segments.size() == 2 && type.isEmpty()) {
-            return Optional.of(base + "?author=" + id.asText());
-        }
-        if (kind.equals("category") && (type.isEmpty() || type.equals("category"))) {
-            return Optional.of(base + "?cat=" + id.asText());
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * The object a link belongs to: the object itself, or for a revision or autosave (no {@code type}, a
-     * {@code parent} and a {@code _links.parent} href naming the parent's route) its parent post, whose type the route
-     * names ({@code posts}, {@code pages}, {@code books}) and whose slug the revision does not tell.
-     */
-    private static JsonNode subjectOf(JsonNode object) {
-        if (object.has("type")
-                || !object.has("parent")
-                || !object.path("parent").isValueNode()) {
-            return object;
-        }
-        String href = object.path("_links").path("parent").path(0).path("href").asText("");
-        int base = href.indexOf("/wp/v2/");
-        if (base < 0) {
-            return object;
-        }
-        String rest = href.substring(base + "/wp/v2/".length());
-        int slash = rest.indexOf('/');
-        String type = switch (slash < 0 ? rest : rest.substring(0, slash)) {
-            case "posts" -> "post";
-            case "pages" -> "page";
-            case "books" -> "book";
-            case "media" -> "attachment";
-            default -> null;
-        };
-        if (type == null) {
-            return object;
-        }
-        return OracleJson.MAPPER
-                .createObjectNode()
-                .put("id", object.get("parent").asText())
-                .put("type", type);
-    }
-
-    /**
-     * The post type an object's link belongs to: its {@code type}, or a search item's {@code subtype}; null for
-     * none.
-     */
-    private static String postTypeOf(JsonNode object) {
-        String type = object.path("type").asText("");
-        if (type.equals("post") && object.path("subtype").isTextual()) {
-            type = object.get("subtype").textValue();
-        }
-        return POST_QUERY_KEYS.containsKey(type) || type.equals("book") ? type : null;
-    }
-
-    /** The plain form of a post's pretty link or permalink template; see {@link #plainLink}. */
-    private static Optional<String> postLink(
-            String base, List<String> segments, String last, String type, JsonNode object, String id, JsonNode slug) {
-        boolean template = last.equals("%postname%") || last.equals("%pagename%");
-        boolean ownSlug = template
-                || slug == null
-                || !slug.isTextual()
-                || slug.textValue().equals(last);
-        if (!ownSlug) {
-            return Optional.empty();
-        }
-        if (type.equals("book")) {
-            if (segments.size() != 2 || !segments.get(0).equals("book")) {
-                return Optional.empty();
-            }
-            if (!template) {
-                return Optional.of(base + "?book=" + last);
-            }
-            if (object.path("status").asText("").equals("publish") && slug != null && slug.isTextual()) {
-                return Optional.of(base + "?book=" + slug.textValue());
-            }
-            return id == null ? Optional.empty() : Optional.of(base + "?post_type=book&p=" + id);
-        }
-        if (id == null) {
-            return Optional.empty();
-        }
-        if (type.equals("post")) {
-            boolean dated = segments.size() == 4
-                    && (template
-                            ? segments.get(0).equals("%year%")
-                                    && segments.get(1).equals("%monthnum%")
-                                    && segments.get(2).equals("%day%")
-                            : allDigits(segments.get(0)) && allDigits(segments.get(1)) && allDigits(segments.get(2)));
-            return segments.size() == 1 || dated ? Optional.of(base + "?p=" + id) : Optional.empty();
-        }
-        return Optional.of(base + "?" + POST_QUERY_KEYS.get(type) + "=" + id);
-    }
-
-    private static boolean allDigits(String text) {
-        if (text.isEmpty()) {
-            return false;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) < '0' || text.charAt(i) > '9') {
-                return false;
-            }
-        }
-        return true;
     }
 
     /** Appends one {pointer, wordpress, quarkword} entry per differing leaf. */

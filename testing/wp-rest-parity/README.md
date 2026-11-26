@@ -314,16 +314,9 @@ ignored), anything else as text; one aspect per differing JSON leaf. For the sce
 order of keys (`d14`, `d21`), a body equal once parsed is also compared byte for byte (`body:raw`), each value the
 normalisation changed written as its normalised JSON and every other byte kept. The namespaces, routes and index links
 QuarkWord does not serve yet are a fixed, named list: each one WordPress lists is recorded as a `wp-only` aspect.
-Front-end links (`link`, `permalink_template`, `preview_link`, a search item's `url`) that differ while both sides
-have one are recorded as `link-form` aspects, and WordPress's pretty form is then compared in the plain form QuarkWord
-writes (`/author/<slug>/` as `?author=<id>`, `/category/.../<slug>/` as `?cat=<id>`, `/tag/<slug>/` as `?tag=<slug>`,
-a post's `/<slug>/` as `?p=<id>`, a page's `/<parents>/<slug>/` as `?page_id=<id>`, `/book/<slug>/` as
-`?book=<slug>`, `/type/<slug>/` as `?post_format=<slug>`, a permalink template's `%postname%` and `%pagename%`
-likewise, a preview link's query kept), the slug checked against the object's own and the id normalised, so a wrong
-host, site, id or slug differs; only a link whose object lacks the id or the slug compares as equal. The
-`rel="alternate"` entry of a compared `Link` header is mapped the same way (from the body, or from the request's route
-for a HEAD). Every difference is written
-to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each scenario's answers to
+Front-end links (`link`, `permalink_template`, `preview_link`, a search item's `url`, the `rel="alternate"` entry
+of a `Link` header) are compared as they are: QuarkWord's follow the site's permalink structure as WordPress's do. Every difference is
+written to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each scenario's answers to
 `target/rest-parity/<id>.json` there.
 
 ## Known differences

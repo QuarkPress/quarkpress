@@ -25,9 +25,9 @@ import org.quarkword.testing.wprestparity.WordPressRestSite;
 /**
  * The QuarkWord side of the REST parity comparison: this test application, reached over HTTP with the dev realm's
  * Keycloak tokens, every request naming {@code localhost} as its host (the network's domain). A scenario's site is
- * created by alice through the setup resource, with the five users given their WordPress roles there; posts (with
- * their fields), revisions, autosaves, locks, own sites, options and a user's leaving the site go through the setup
- * resource on that site, terms through the REST API, attachments through the setup resource's upload (the media
+ * created by alice through the setup resource, with {@code /%postname%/} permalinks as on WordPress's side and the
+ * five users given their WordPress roles there; posts (with their fields), revisions, autosaves, locks, own sites,
+ * options and a user's leaving the site go through the setup resource on that site, terms through the REST API, attachments through the setup resource's upload (the media
  * module's own upload, as the caller). The application registers the custom types {@code book} and {@code qw_hidden}
  * itself. A call marked for HTTPS ({@link Side#HTTPS_MARKER}) is sent with {@code X-Forwarded-Proto: https} instead,
  * which the application honours from the loopback proxy. A preload comparison (the editor route's target,
@@ -110,6 +110,12 @@ final class QuarkWordSide implements Side {
         String path = "/" + scenarioId + "/";
         ObjectNode site = OracleJson.MAPPER.createObjectNode().put("path", path).put("title", "Scenario " + scenarioId);
         expect(send("/", RestCall.json("alice", "POST", "/it/sites", site.toString())), 200, "create site " + path);
+        // the harness rule WordPress's side follows: the scenario site has /%postname%/ permalinks, where a network's
+        // new site defaults to a dated structure
+        expect(
+                send(path, RestCall.json("alice", "PUT", "/it/options/permalink_structure", "\"/%postname%/\"")),
+                200,
+                "permalinks of " + path);
         Map<String, Long> refs = new LinkedHashMap<>();
         for (Map.Entry<String, Long> user : userIds.entrySet()) {
             ObjectNode membership = OracleJson.MAPPER

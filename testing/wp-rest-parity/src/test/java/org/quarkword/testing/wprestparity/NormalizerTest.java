@@ -276,54 +276,12 @@ class NormalizerTest {
     }
 
     @Test
-    void differingLinksAreRecordedOnceAndAMissingLinkStillDiffers() {
+    void aDifferingLinkAndAMissingLinkAreDifferingLeaves() {
         assertThat(aspects(
                         "/wp-json/wp/v2/tags",
                         "[{\"link\":\"http://localhost/s1/tag/a/\",\"name\":\"a\"},{\"link\":\"x\"},{\"link\":\"y\"}]",
                         "[{\"link\":\"http://localhost/s1/?tag=a\",\"name\":\"a\"},{\"link\":\"x\"},{}]"))
-                .containsExactly("req1:body:link-form:/0/link", "req1:body:/2/link");
-    }
-
-    @Test
-    void wordPresssPrettyLinksAreComparedInTheirPlainForm() {
-        // the plain form of each pretty link equals QuarkWord's: only the link-form aspect is recorded
-        assertThat(aspects(
-                        "/wp-json/wp/v2/categories",
-                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/category/a/b/\"},"
-                                + "{\"id\":3,\"slug\":\"carol\",\"link\":\"http://localhost/s1/author/carol/\"},"
-                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/tag/t/\"}]",
-                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/?cat=7\"},"
-                                + "{\"id\":3,\"slug\":\"carol\",\"link\":\"http://localhost/s1/?author=3\"},"
-                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/?tag=t\"}]"))
-                .containsExactly(
-                        "req1:body:link-form:/0/link", "req1:body:link-form:/1/link", "req1:body:link-form:/2/link");
-        // a wrong id, slug, host or site in QuarkWord's link differs
-        assertThat(aspects(
-                        "/wp-json/wp/v2/categories",
-                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/category/b/\"},"
-                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/tag/t/\"},"
-                                + "{\"id\":3,\"slug\":\"c\",\"link\":\"http://localhost/s1/author/c/\"}]",
-                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/?cat=8\"},"
-                                + "{\"slug\":\"t\",\"link\":\"http://localhost/s1/?tag=u\"},"
-                                + "{\"id\":3,\"slug\":\"c\",\"link\":\"http://localhost/s2/?author=3\"}]"))
-                .containsExactly(
-                        "req1:body:link-form:/0/link",
-                        "req1:body:link-form:/1/link",
-                        "req1:body:link-form:/2/link",
-                        "req1:body:/0/link",
-                        "req1:body:/1/link",
-                        "req1:body:/2/link");
-        // a pretty link whose slug is not the object's own is not mapped, and differs
-        assertThat(aspects(
-                        "/wp-json/wp/v2/categories",
-                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/category/x/\"}]",
-                        "[{\"id\":7,\"slug\":\"b\",\"link\":\"http://localhost/s1/?cat=7\"}]"))
-                .containsExactly("req1:body:link-form:/0/link", "req1:body:/0/link");
-        assertThat(RestComparison.plainLink(
-                        "http://{host}{site}/category/a/b/", json("{\"id\":\"t:b\",\"slug\":\"b\"}")))
-                .contains("http://{host}{site}/?cat=t:b");
-        assertThat(RestComparison.plainLink("http://{host}{site}/category/b/", json("{\"slug\":\"b\"}")))
-                .isEmpty();
+                .containsExactly("req1:body:/0/link", "req1:body:/2/link");
     }
 
     @Test
