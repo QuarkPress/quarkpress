@@ -259,6 +259,11 @@ class PostPassDbTest {
                 .post("/wp-login.php");
         formAction.then().statusCode(404);
         assertThat(formAction.headers().getValues("Set-Cookie")).isEmpty();
+        // a body announced far over the bound is not read at all, with the same answer
+        Response announced =
+                postpass(http().header("Referer", permalink), "post_password=s3&pad=" + "a".repeat(2 * 1024 * 1024));
+        announced.then().statusCode(302).header("Location", permalink).body(emptyString());
+        assertThat(announced.headers().getValues("Set-Cookie")).isEmpty();
         // at the bound the form is read
         String form = "post_password=s3&redirect_to=" + encode(permalink) + "&pad=";
         Response atBound = postpass(form + "a".repeat(PostPassEndpoint.MAX_FORM_BYTES - form.length()));

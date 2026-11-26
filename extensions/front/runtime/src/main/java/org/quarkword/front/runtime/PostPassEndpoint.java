@@ -2,6 +2,9 @@ package org.quarkword.front.runtime;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,20 +63,49 @@ public class PostPassEndpoint {
     QuarkWordClock clock;
 
     /**
-     * The answer to {@code entry} with {@code body} (read only for a {@code POST}) of {@code contentType} and the
-     * {@code referer} header; empty when it is no {@code postpass} request of the current site (another path, another
-     * action), which the front end answers 404: QuarkWord serves no login page.
+     * The form body of a {@code POST}, read with a bound: empty, without reading anything, when its
+     * {@code Content-Length} is over {@link #MAX_FORM_BYTES}; else read up to one byte past the bound, and empty when
+     * that byte comes (a body sent without a length, or longer than its length). An empty body for none.
+     */
+    static Optional<byte[]> readForm(Optional<String> contentLength, InputStream body) {
+        if (contentLength.isPresent() && announcedOver(contentLength.get().trim())) {
+            return Optional.empty();
+        }
+        if (body == null) {
+            return Optional.of(new byte[0]);
+        }
+        try {
+            byte[] read = body.readNBytes(MAX_FORM_BYTES + 1);
+            return read.length > MAX_FORM_BYTES ? Optional.empty() : Optional.of(read);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Whether a {@code Content-Length} of digits is over the bound; anything else announces nothing. */
+    private static boolean announcedOver(String length) {
+        if (length.isEmpty() || !length.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            return false;
+        }
+        return length.length() > 9 || Long.parseLong(length) > MAX_FORM_BYTES;
+    }
+
+    /**
+     * The answer to {@code entry} with {@code body} (read only for a {@code POST}; empty when it was over
+     * {@link #MAX_FORM_BYTES} and not read) of {@code contentType} and the {@code referer} header; empty when it is no
+     * {@code postpass} request of the current site (another path, another action), which the front end answers 404:
+     * QuarkWord serves no login page.
      */
     public Optional<FrontAnswer> answer(
-            FrontRoute.Entry entry, byte[] body, Optional<String> contentType, Optional<String> referer) {
+            FrontRoute.Entry entry, Optional<byte[]> body, Optional<String> contentType, Optional<String> referer) {
         if (!onSitePath(entry.rawPath(), site.site().path())) {
             return Optional.empty();
         }
         Map<String, Object> get = PhpUrls.parseStr(PhpUrls.bytes(entry.rawQuery()));
         Map<String, Object> post = entry.method().equals("POST")
-                        && body.length <= MAX_FORM_BYTES
+                        && body.isPresent()
                         && contentType.map(PostPassEndpoint::isForm).orElse(false)
-                ? PhpUrls.parsePost(new String(body, StandardCharsets.ISO_8859_1))
+                ? PhpUrls.parsePost(new String(body.get(), StandardCharsets.ISO_8859_1))
                 : Map.of();
         Object action = post.containsKey("action") ? post.get("action") : get.get("action");
         if (!ACTION.equals(action) || get.containsKey("key") || get.containsKey("checkemail")) {

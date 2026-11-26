@@ -11,6 +11,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
+import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -123,7 +124,7 @@ public class FrontPage {
      */
     @POST
     @Path(POSTPASS)
-    public Response postpass(@Context RoutingContext context, byte[] body) {
+    public Response postpass(@Context RoutingContext context, InputStream body) {
         if (!(context.get(FrontRoute.ENTRY) instanceof FrontRoute.Entry entry)
                 || !entry.method().equals("POST")
                 || !site.isResolved()) {
@@ -138,9 +139,11 @@ public class FrontPage {
         if (!site.features().isEnabled(FrontFeature.KEY) || !RequestLimits.check(entry.rawPath(), entry.rawQuery())) {
             return Response.status(404).build();
         }
+        // the body is streamed to this blocking method: a form over the bound is not read, or read only up to it
         return postPass.answer(
                         entry,
-                        body == null ? new byte[0] : body,
+                        PostPassEndpoint.readForm(
+                                Optional.ofNullable(context.request().getHeader("Content-Length")), body),
                         Optional.ofNullable(contentType),
                         Optional.ofNullable(context.request().getHeader("Referer")))
                 .map(answer -> response(answer, false))
@@ -177,7 +180,7 @@ public class FrontPage {
             // WordPress runs wp-login.php for a read too: only its postpass action is served
             return postPass.answer(
                             entry,
-                            new byte[0],
+                            Optional.of(new byte[0]),
                             Optional.empty(),
                             Optional.ofNullable(context.request().getHeader("Referer")))
                     .map(answer -> response(answer, head))
