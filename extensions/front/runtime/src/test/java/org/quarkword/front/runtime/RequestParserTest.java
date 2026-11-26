@@ -123,10 +123,19 @@ class RequestParserTest {
     }
 
     @Test
-    void indexPhpIsTheHomeAndAPathInfoPrefixIsDropped() {
+    void indexPhpIsTheHomeAndAPathInfoPrefixIsMatchedAsItIs() {
+        // WordPress without PATH_INFO (scratch/t13/index-php.out): the prefix stays in the request
         assertThat(parse(DEFAULT, "/index.php")).isEqualTo(QueryVars.empty());
+        assertThat(parse(DEFAULT, "/index.php/")).isEqualTo(QueryVars.empty());
         assertThat(parse(DEFAULT, "/")).isEqualTo(QueryVars.empty());
-        assertThat(parse(DEFAULT, "/index.php/2025/11/20/hello-world/").asMap()).isEqualTo(HELLO);
+        assertThat(parse(DEFAULT, "/index.php/2025/11/20/hello-world/").asMap())
+                .isEqualTo(Map.of("pagename", "index.php/2025/11/20/hello-world", "page", ""));
+        String pathinfo = "/index.php/%postname%/";
+        assertThat(parse(pathinfo, "/index.php/hello-world/").asMap())
+                .isEqualTo(Map.of("name", "hello-world", "page", ""));
+        assertThat(parse(pathinfo, "/index.php/2025/").asMap()).isEqualTo(Map.of("year", "2025"));
+        assertThat(parse(pathinfo, "/index.php/category/news/").asMap()).isEqualTo(Map.of("category_name", "news"));
+        assertThat(parse(pathinfo, "/hello-world/").error404()).isTrue();
     }
 
     @Test

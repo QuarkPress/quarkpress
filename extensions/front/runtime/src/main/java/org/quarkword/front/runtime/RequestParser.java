@@ -139,7 +139,9 @@ public final class RequestParser {
 
     /**
      * The request path WordPress matches: the raw path without its slashes, the home path removed from its start
-     * (ignoring case), {@code index.php} alone meaning the home and an {@code index.php/} prefix removed.
+     * (ignoring case), {@code index.php} alone meaning the home. An {@code index.php/} prefix stays: as WordPress
+     * without {@code PATH_INFO}, the request is matched with it, which a PATHINFO structure's rules carry and any
+     * other structure's rules do not.
      */
     static String requestPath(String rawPath, String homePath) {
         String path = rawPath;
@@ -152,13 +154,7 @@ public final class RequestParser {
         if (!home.isEmpty() && path.regionMatches(true, 0, home, 0, home.length())) {
             path = trimSlashes(path.substring(home.length()));
         }
-        if (path.equals(INDEX)) {
-            return "";
-        }
-        if (path.startsWith(INDEX + "/")) {
-            path = trimSlashes(path.substring(INDEX.length() + 1));
-        }
-        return path;
+        return path.equals(INDEX) ? "" : path;
     }
 
     private static boolean pageAccepts(PagePaths pages, String path) {
