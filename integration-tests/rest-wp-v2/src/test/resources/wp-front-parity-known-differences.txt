@@ -10,21 +10,25 @@
 none * D1 WP_HOME, WP_SITEURL and FORCE_SSL_ADMIN are configuration keys; the parity network sets none of them
 none * D2 is_ssl from the effective request scheme: the scenarios' requests are plain http on both sides
 none * D3 feeds, embeds, trackbacks, robots.txt, the favicon, sitemaps and comment pages answer 404; no scenario asks for them
-none * D4 the request bounds (R17): no scenario sends a path or query outside them
+none * D4 the request bounds: no scenario sends a path or query outside them
 none * D5 date units compared on the local date: the scenarios' site zone is UTC, where both compare the same dates
 none * D6 orderby=rand, comment_count and the meta orders are not asked for by a scenario
 none * D7 an author list holding 0 is not asked for by a scenario
 none * D8 the preview pair is QuarkWord's token: each side resolves {preview:...} to its own valid pair, and a bad pair answers 403 on both
-none * D9 alias domains and archived sites (R8): the parity router presents every request on the network's own host
-none * D10 the guess and the old slug lookups take the first slug in WordPress's index order, then the lowest id (R7); the scenarios' slugs order the same on both sides
+none * D9 alias domains and archived sites: the parity router presents every request on the network's own host
+none * D10 the guess and the old slug lookups take the first slug in WordPress's index order, then the lowest id; the scenarios' slugs order the same on both sides
 none * D11 the requests of D3 get no canonical or old slug redirect; no scenario asks for them
 none * D12 the IT application has the media module, so attachments have files
 none * D14 array-valued query parameters are not sent by a scenario
 none * D16 the password form is a body difference; bodies are not compared
+none * D17 routing hooks: neither side registers a rewrite, query-variable, request or redirect hook in the scenarios
+none * D18 the rewrite table is not stored: the scenarios set the structure on both sides before their requests
+none * D19 front-end requests other than GET, HEAD and the postpass POST are not sent by a scenario
+none * D20 a host ExceptionMapper for NotFoundException: the IT application registers none
 
 # D13: a preview (a draft, a scheduled post or the attachment of a draft shown to a user who may edit it, or a valid
-# preview pair) also gets X-Robots-Tag: noindex, nofollow and Content-Security-Policy: frame-ancestors 'self' (ruling
-# R10); WordPress sends neither. No X-Pingback (H16) and
+# preview pair) also gets X-Robots-Tag: noindex, nofollow and Content-Security-Policy: frame-ancestors 'self';
+# WordPress sends neither. No X-Pingback and
 # X-Redirect-By: QuarkWord are not compared.
 fr03 req25:header:x-robots-tag D13 alice sees the draft at its plain link: a preview, with QuarkWord's robots header
 fr03 req25:header:content-security-policy D13 alice sees the draft at its plain link: a preview, with QuarkWord's frame-ancestors header
