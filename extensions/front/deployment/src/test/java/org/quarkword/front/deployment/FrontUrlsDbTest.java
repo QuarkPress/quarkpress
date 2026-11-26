@@ -45,6 +45,18 @@ class FrontUrlsDbTest {
     }
 
     @Test
+    void aHomeOutsideUriSyntaxIsReadAsPhpParsesIt() {
+        // parse_url('http://front.test/my site|x^', PHP_URL_PATH) is '/my site|x^'; a request is still answered
+        TestData.textOption(dataSource, TestData.MAIN, "home", "http://front.test/my site|x^");
+        assertThat(probe(http(), "")).endsWith("|my site|x^");
+        http().get("/").then().statusCode(200);
+        // parse_url('http:///x') fails: WordPress finds no home path
+        TestData.textOption(dataSource, TestData.MAIN, "home", "http:///x");
+        assertThat(probe(http(), "")).endsWith("|");
+        http().get("/").then().statusCode(200);
+    }
+
+    @Test
     void overHttpTheStoredSchemesAreKept() {
         assertThat(probe(http(), ""))
                 .isEqualTo("http://front.test|http://front.test/|http://front.test/?p=1|http://front.test/wp"

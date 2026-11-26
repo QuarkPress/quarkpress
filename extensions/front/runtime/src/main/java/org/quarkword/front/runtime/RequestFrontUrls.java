@@ -4,7 +4,6 @@ import io.quarkus.vertx.http.runtime.CurrentVertxRequest;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
-import java.net.URI;
 import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quarkword.core.SiteContext;
@@ -48,9 +47,13 @@ public class RequestFrontUrls implements FrontUrls {
         return withPath(home(), path);
     }
 
+    /**
+     * The path of {@code home} as WordPress's request parsing reads it: PHP's {@code parse_url}, which takes any
+     * character as is (a space, {@code |}), and no path when it fails on the address.
+     */
     @Override
     public String homePath() {
-        String path = URI.create(home()).getRawPath();
+        String path = PhpUrls.parseUrl(home()).map(parts -> parts.path).orElse(null);
         if (path == null) {
             return "";
         }
