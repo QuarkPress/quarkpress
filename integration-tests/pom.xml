@@ -39,6 +39,7 @@
     <module>media</module>
     <module>media-s3</module>
     <module>keycloak</module>
+    <module>front</module>
   </modules>
 
   <dependencyManagement>
