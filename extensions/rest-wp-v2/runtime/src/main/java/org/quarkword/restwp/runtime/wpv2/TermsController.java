@@ -15,6 +15,7 @@ import org.quarkword.core.PostTypeDefinition;
 import org.quarkword.core.SiteContext;
 import org.quarkword.core.TaxonomyDefinition;
 import org.quarkword.core.TermId;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostTypes;
 import org.quarkword.posts.SlugContext;
 import org.quarkword.posts.SlugSanitizer;
@@ -80,6 +81,9 @@ public class TermsController implements RestRouteProvider {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    LinkBuilder permalinks;
 
     @Inject
     SiteContext site;
@@ -437,7 +441,7 @@ public class TermsController implements RestRouteProvider {
             data.put("description", found.description());
         }
         if (fields.includesExactly("link")) {
-            data.put("link", link(term.taxonomy(), found, urls));
+            data.put("link", permalinks.term(term.key(), found.id(), found.slug()));
         }
         if (fields.includesExactly("name")) {
             data.put("name", found.name());
@@ -459,25 +463,6 @@ public class TermsController implements RestRouteProvider {
             response = response.withLinks(links(term, found));
         }
         return response;
-    }
-
-    /**
-     * The term's archive link in plain permalinks (QuarkWord has no pretty permalinks yet): {@code ?cat=<id>} for a
-     * category, {@code ?<query variable>=<slug>} for a taxonomy that has a query variable, else {@code
-     * ?taxonomy=<taxonomy>&term=<slug>}; the slug is the stored one, already percent-encoded. A taxonomy that is not
-     * publicly queryable has no query variable; a publicly queryable one has WordPress's default, its key ({@code tag}
-     * for tags), since QuarkWord registrations name no other. Shared with the search results.
-     */
-    static String link(TaxonomyDefinition taxonomy, TermSnapshot found, RestUrls urls) {
-        String home = urls.home();
-        return switch (taxonomy.key()) {
-            case "category" -> home + "?cat=" + found.id().value();
-            case "post_tag" -> home + "?tag=" + found.slug();
-            default ->
-                taxonomy.publiclyQueryable()
-                        ? home + "?" + taxonomy.key() + "=" + found.slug()
-                        : home + "?taxonomy=" + taxonomy.key() + "&term=" + found.slug();
-        };
     }
 
     /**

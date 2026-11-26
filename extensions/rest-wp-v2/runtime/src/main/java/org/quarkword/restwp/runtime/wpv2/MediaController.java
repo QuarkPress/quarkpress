@@ -546,8 +546,7 @@ public class MediaController implements RestRouteProvider, MediaRoutesPresent {
         RestResponse response = fields.prepare(
                 media, attachment, selection, request.context(), request, new AttachmentMarkup.Counters());
         return response.withHeader(
-                "Link",
-                "<" + postFields.link(media.type(), attachment.post()) + ">; rel=\"alternate\"; type=text/html");
+                "Link", "<" + postFields.link(attachment.post()) + ">; rel=\"alternate\"; type=text/html");
     }
 
     /** The {@code password} of the query string alone, when it is a text that is not empty in PHP's sense. */

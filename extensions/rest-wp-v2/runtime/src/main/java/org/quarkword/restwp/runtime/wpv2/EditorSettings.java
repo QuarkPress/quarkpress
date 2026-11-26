@@ -22,10 +22,10 @@ import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteOptions;
 import org.quarkword.core.UserId;
 import org.quarkword.posts.AutosaveOverlay;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostLocks;
 import org.quarkword.posts.PostSnapshot;
 import org.quarkword.restwp.RestRequest;
-import org.quarkword.restwp.RestUrls;
 import org.quarkword.restwp.runtime.RestJson;
 import org.quarkword.restwp.runtime.RestWpConfig;
 import org.quarkword.security.Capabilities;
@@ -116,7 +116,7 @@ public class EditorSettings {
     BlockTypeRegistry blocks;
 
     @Inject
-    RestUrls urls;
+    LinkBuilder permalinks;
 
     /**
      * The admin screens' path below each site, the admin module's setting: present only when a module that declares
@@ -337,12 +337,16 @@ public class EditorSettings {
 
     /**
      * The configured dashboard URL with its trailing slash; otherwise WordPress's {@code admin_url('/')}: the site's
-     * URL followed by the admin path ({@value #ADMIN_PATH} when set, {@code wp-admin/} otherwise).
+     * {@code siteurl} in the admin scheme followed by the admin path ({@value #ADMIN_PATH} when set, {@code wp-admin/}
+     * otherwise).
      */
     private String dashboard(RestWpConfig.Editor editor) {
         return editor.dashboardUrl()
                 .map(url -> url.endsWith("/") ? url : url + "/")
-                .orElseGet(() -> urls.home() + adminFolder(adminPath));
+                .orElseGet(() -> {
+                    String admin = permalinks.admin("");
+                    return admin.substring(0, admin.length() - "wp-admin/".length()) + adminFolder(adminPath);
+                });
     }
 
     /**

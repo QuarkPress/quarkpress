@@ -131,21 +131,11 @@ public class SettingsController implements RestRouteProvider {
      */
     private JsonNode stored(SettingDefinition setting) {
         if (BuiltInSettings.isSiteAddress(setting)) {
-            return TextNode.valueOf(siteAddress());
+            return TextNode.valueOf(BuiltInSettings.siteAddress(site));
         }
         return site.options()
                 .get(setting.optionName())
                 .orElseGet(() -> setting.defaultValue().orElse(BooleanNode.FALSE));
-    }
-
-    /** The site's own address without trailing slashes, as the index's {@code url} gives it. */
-    private String siteAddress() {
-        String home = urls.home();
-        int end = home.length();
-        while (end > 0 && home.charAt(end - 1) == '/') {
-            end--;
-        }
-        return home.substring(0, end);
     }
 
     private RestResponse update(List<SettingDefinition> settings, RestRequest request) {

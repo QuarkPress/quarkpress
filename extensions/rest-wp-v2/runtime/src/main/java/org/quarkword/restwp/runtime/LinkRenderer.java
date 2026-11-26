@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.quarkword.core.SiteNotResolvedException;
 import org.quarkword.restwp.Links;
 import org.quarkword.restwp.RestRequest;
@@ -25,23 +26,26 @@ public final class LinkRenderer {
     static final String API_RELATIONS = "https://api.w.org/";
 
     /** A renderer that resolves no link: no target hints, no embedding. */
-    private static final LinkRenderer UNRESOLVED = new LinkRenderer(null, null);
+    private static final LinkRenderer UNRESOLVED = new LinkRenderer(null, null, null);
 
     /** Where a link leads in this site's API: a route path and the query of the link. */
     public record Target(String route, ObjectNode query) {}
 
     private final RouteTable table;
     private final RestUrls urls;
+    private final Supplier<String> homeUrl;
     private String root;
     private String home;
 
     /**
      * @param table the routes links are matched against for their target hints
-     * @param urls the site whose API root and home a link must start with to be resolved
+     * @param urls the site whose API root a link must start with to be resolved
+     * @param home the site's home URL with a trailing slash, below which a {@code rest_route} link is resolved
      */
-    public LinkRenderer(RouteTable table, RestUrls urls) {
+    public LinkRenderer(RouteTable table, RestUrls urls, Supplier<String> home) {
         this.table = table;
         this.urls = urls;
+        this.homeUrl = home;
     }
 
     /**
@@ -230,7 +234,7 @@ public final class LinkRenderer {
         if (root == null) {
             try {
                 root = urls.root();
-                home = urls.home();
+                home = homeUrl.get();
             } catch (SiteNotResolvedException unresolved) {
                 return false;
             }

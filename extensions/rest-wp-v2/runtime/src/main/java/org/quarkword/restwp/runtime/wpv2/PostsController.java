@@ -471,8 +471,7 @@ public class PostsController implements RestRouteProvider {
         Fields.Selection selection = Fields.forResponse(request, routes.schema());
         RestResponse response = fields.prepare(routes, post, selection, request.context(), request, lifted);
         if (PostPermissions.typeViewable(routes.type())) {
-            response = response.withHeader(
-                    "Link", "<" + fields.link(routes.type(), post) + ">; rel=\"alternate\"; type=text/html");
+            response = response.withHeader("Link", "<" + fields.link(post) + ">; rel=\"alternate\"; type=text/html");
         }
         return response;
     }

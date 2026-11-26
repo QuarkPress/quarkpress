@@ -19,6 +19,7 @@ import org.quarkword.core.PostTypeDefinition;
 import org.quarkword.core.RoleDefinition;
 import org.quarkword.core.SiteContext;
 import org.quarkword.core.UserId;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostAuthors;
 import org.quarkword.posts.PostPermissions;
 import org.quarkword.posts.PostTypes;
@@ -113,6 +114,9 @@ public class UsersController implements RestRouteProvider {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    LinkBuilder permalinks;
 
     @Inject
     SiteContext site;
@@ -452,7 +456,7 @@ public class UsersController implements RestRouteProvider {
             data.put("description", profile.bio().orElse(""));
         }
         if (fields.includesExactly("link")) {
-            data.put("link", urls.home() + "?author=" + id.value());
+            data.put("link", permalinks.author(id));
         }
         if (fields.includesExactly("locale")) {
             data.put("locale", "en_US");

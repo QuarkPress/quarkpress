@@ -26,6 +26,7 @@ import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteId;
 import org.quarkword.core.TitleFilter;
 import org.quarkword.core.UserId;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostSnapshot;
 import org.quarkword.restwp.Fields;
 import org.quarkword.restwp.Links;
@@ -88,6 +89,9 @@ class RevisionFields {
     RestUrls urls;
 
     @Inject
+    LinkBuilder permalinks;
+
+    @Inject
     MetaFields meta;
 
     @Inject
@@ -133,7 +137,7 @@ class RevisionFields {
                 gmt,
                 parent,
                 parent + (revision.autosave() ? "-autosave-v1" : "-revision-v1"),
-                urls.home() + "?p=" + revision.id().value(),
+                permalinks.home() + "/?p=" + revision.id().value(),
                 revision.title(),
                 revision.content(),
                 revision.excerpt(),

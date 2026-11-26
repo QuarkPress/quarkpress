@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.quarkword.posts.runtime.Slugs;
 import org.quarkword.restwp.Arg;
 import org.quarkword.restwp.Endpoint;
 import org.quarkword.restwp.Links;
@@ -45,17 +46,12 @@ class LinkRendererTest {
                 char separator = '?';
                 for (Map.Entry<String, String> entry : query.entrySet()) {
                     url.append(separator)
-                            .append(RequestRestUrls.urlencode(entry.getKey()))
+                            .append(Slugs.phpUrlencode(entry.getKey()))
                             .append('=')
-                            .append(RequestRestUrls.urlencode(entry.getValue()));
+                            .append(Slugs.phpUrlencode(entry.getValue()));
                     separator = '&';
                 }
                 return url.toString();
-            }
-
-            @Override
-            public String home() {
-                return home;
             }
         };
     }
@@ -161,7 +157,7 @@ class LinkRendererTest {
     @Test
     void linksLeadOnlyIntoThisSite() {
         RouteTable table = table();
-        LinkRenderer main = new LinkRenderer(table, URLS);
+        LinkRenderer main = new LinkRenderer(table, URLS, () -> "http://localhost/");
         // another site's path on the same host: neither its API root nor its home counts
         assertThat(main.target("http://localhost/news/wp-json/qw-test/v1/things/3"))
                 .isEmpty();
@@ -182,7 +178,7 @@ class LinkRendererTest {
         // two slashes after the root would name a host to PHP: nowhere
         assertThat(main.target("http://localhost/wp-json//elsewhere/qw-test/v1/things/3"))
                 .isEmpty();
-        LinkRenderer news = new LinkRenderer(table, urls("http://localhost/news/"));
+        LinkRenderer news = new LinkRenderer(table, urls("http://localhost/news/"), () -> "http://localhost/news/");
         assertThat(news.target("http://localhost/wp-json/qw-test/v1/things/3")).isEmpty();
         assertThat(news.target("http://localhost/?rest_route=/qw-test/v1/things/3"))
                 .isEmpty();
@@ -200,7 +196,7 @@ class LinkRendererTest {
     /** An anonymous caller whose links resolve against a table with the things' routes. */
     private static StubRequest caller() {
         return new StubRequest(RestJson.NODES.objectNode(), URLS.route("/qw-test/v1/things"), Set.of())
-                .withLinkRenderer(new LinkRenderer(table(), URLS));
+                .withLinkRenderer(new LinkRenderer(table(), URLS, () -> "http://localhost/"));
     }
 
     private static RouteTable table() {

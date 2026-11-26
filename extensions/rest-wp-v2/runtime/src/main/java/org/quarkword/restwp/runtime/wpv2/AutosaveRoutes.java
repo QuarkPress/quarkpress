@@ -240,8 +240,7 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
                 yield withPreviewLink(
                         fields.prepareOwnDraft(routes, draft.post(), selection, "edit"),
                         selection,
-                        () -> PreviewLinks.of(
-                                routes, draft.post(), postFields.link(routes.type(), draft.post()), Optional.empty()));
+                        () -> PreviewLinks.of(routes, draft.post(), postFields.link(draft.post()), Optional.empty()));
             }
             case AutosaveResult.Stored autosave ->
                 withPreviewLink(
@@ -282,7 +281,7 @@ class AutosaveRoutes implements TypeRouteExtension.Autosaves {
                 Optional<String> token = PostPermissions.typeViewable(routes.type())
                         ? request.user().map(user -> previewTokens.issue(post.id(), user))
                         : Optional.empty();
-                computed[0] = PreviewLinks.of(routes, post, postFields.link(routes.type(), post), token);
+                computed[0] = PreviewLinks.of(routes, post, postFields.link(post), token);
             }
             return computed[0];
         };

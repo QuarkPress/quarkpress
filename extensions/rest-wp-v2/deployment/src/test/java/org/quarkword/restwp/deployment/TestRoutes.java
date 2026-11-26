@@ -34,6 +34,7 @@ import org.quarkword.core.PostId;
 import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteFeatureDisabledException;
 import org.quarkword.core.TermId;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostException;
 import org.quarkword.restwp.Arg;
 import org.quarkword.restwp.Endpoint;
@@ -134,6 +135,9 @@ public class TestRoutes implements RestRouteProvider {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    LinkBuilder permalinks;
 
     @Inject
     Capabilities capabilities;
@@ -417,7 +421,7 @@ public class TestRoutes implements RestRouteProvider {
                                 embeddable)
                         .add("elsewhere", "http://elsewhere.example/wp-json/qw-test/v1/nodes/1", embeddable)
                         .add("elsewhere", "http://elsewhere.example/?rest_route=/qw-test/v1/nodes/1", embeddable)
-                        .add("local", urls.home() + "?rest_route=/qw-test/v1/nodes/1", embeddable);
+                        .add("local", permalinks.home() + "/?rest_route=/qw-test/v1/nodes/1", embeddable);
             default -> {}
         }
         return links;
@@ -514,7 +518,7 @@ public class TestRoutes implements RestRouteProvider {
         body.put("site", site.isResolved() ? site.siteId().value() : 0);
         body.put("root", urls.root());
         body.put("link", urls.route("/qw-test/v1/items", Map.of("a b", "c&d/" + new String(Character.toChars(0xE9)))));
-        body.put("home", urls.home());
+        body.put("home", permalinks.home() + "/");
         return RestResponse.ok(body);
     }
 

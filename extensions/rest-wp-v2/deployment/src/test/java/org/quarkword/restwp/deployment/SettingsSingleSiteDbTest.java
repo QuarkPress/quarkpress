@@ -187,6 +187,21 @@ class SettingsSingleSiteDbTest {
     }
 
     @Test
+    void urlIsTheStoredSiteurlOptionWithoutTrailingSlashes() {
+        // WordPress: get_option('siteurl') untrailingslashes the stored value and keeps its scheme; home is home_url()
+        String homeOption = Jdbc.optionJson(MAIN, "home");
+        assertThat(json(Http.as(null).get("/wp-json/").asString()).get("home"))
+                .isEqualTo(TextNode.valueOf("http://localhost"));
+        Jdbc.option(MAIN, "siteurl", "\"https://static.example.test/wp//\"");
+        JsonNode index = json(Http.as(null).get("/wp-json/").asString());
+        assertThat(index.get("url")).isEqualTo(TextNode.valueOf("https://static.example.test/wp"));
+        assertThat(index.get("home")).isEqualTo(TextNode.valueOf("http://localhost"));
+        JsonNode settings = json(Http.as("test-" + administrator).get(SETTINGS).asString());
+        assertThat(settings.get("url")).isEqualTo(TextNode.valueOf("https://static.example.test/wp"));
+        assertThat(Jdbc.optionJson(MAIN, "home")).isEqualTo(homeOption);
+    }
+
+    @Test
     void applicationSettingsAreValidatedSanitizedAndHiddenOnesUnreachable() {
         Http.as("test-" + administrator)
                 .contentType("application/json")

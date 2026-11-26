@@ -92,4 +92,22 @@ class WithoutFrontDbTest {
                 .statusCode(200)
                 .header("Set-Cookie", not(containsString("Secure")));
     }
+
+    @Test
+    void anUntrustedForwardedSchemeLeavesThePlainLinksOnHttp() {
+        // the https case behind a trusted proxy is PreviewSessionDbTest's
+        PostId published = PostFixtures.published(data, TestData.MAIN, carol, "Plain title", "2026-01-12T10:00:00Z");
+        Http.as(null)
+                .header("X-Forwarded-Proto", "https")
+                .get("/wp-json/wp/v2/posts/" + published.value())
+                .then()
+                .statusCode(200)
+                .body("link", equalTo("http://localhost/?p=" + published.value()));
+        Http.as(null)
+                .header("X-Forwarded-Proto", "https")
+                .get("/wp-json/")
+                .then()
+                .statusCode(200)
+                .body("home", equalTo("http://localhost"));
+    }
 }

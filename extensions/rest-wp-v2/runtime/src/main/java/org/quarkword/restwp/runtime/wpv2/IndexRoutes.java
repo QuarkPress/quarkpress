@@ -15,6 +15,7 @@ import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteOptions;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.restwp.Arg;
 import org.quarkword.restwp.Endpoint;
 import org.quarkword.restwp.Fields;
@@ -54,6 +55,9 @@ public class IndexRoutes implements RestRouteProvider, RouteTable.NamespaceIndex
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    LinkBuilder permalinks;
 
     @Inject
     SiteContext site;
@@ -114,9 +118,8 @@ public class IndexRoutes implements RestRouteProvider, RouteTable.NamespaceIndex
         ObjectNode data = RestJson.NODES.objectNode();
         data.set("name", text(options, "blogname"));
         data.set("description", text(options, "blogdescription"));
-        String home = withoutTrailingSlash(urls.home());
-        data.put("url", home);
-        data.put("home", home);
+        data.put("url", BuiltInSettings.siteAddress(site));
+        data.put("home", permalinks.home());
         data.set("gmt_offset", text(options, "gmt_offset"));
         data.set("timezone_string", text(options, "timezone_string"));
         data.put("page_for_posts", integer(options, "page_for_posts"));
@@ -229,13 +232,5 @@ public class IndexRoutes implements RestRouteProvider, RouteTable.NamespaceIndex
     /** An option as PHP's {@code (int)} reads it; 0 when it is not set. */
     private static long integer(SiteOptions options, String name) {
         return options.get(name).map(PhpValues::toLong).orElse(0L);
-    }
-
-    private static String withoutTrailingSlash(String url) {
-        int end = url.length();
-        while (end > 0 && url.charAt(end - 1) == '/') {
-            end--;
-        }
-        return url.substring(0, end);
     }
 }

@@ -6,16 +6,16 @@ import io.vertx.core.net.HostAndPort;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.quarkword.core.SiteContext;
-import org.quarkword.core.SiteInfo;
+import org.quarkword.posts.LinkBuilder;
+import org.quarkword.posts.runtime.Slugs;
 import org.quarkword.restwp.RestUrls;
 
 /**
- * The current site's REST URLs: the site's domain and path (the request's host and {@code /} when no site is
- * resolved), {@code https} when the request came over https for that host, else {@code http}.
+ * The current site's REST URLs, built on its home URL as WordPress's {@code rest_url} builds them: the posts module's
+ * {@link LinkBuilder#home()} followed by the configured base, {@code https} when the request came over https. With no
+ * site resolved, the request's host and {@code /} stand for the home.
  */
 @RequestScoped
 public class RequestRestUrls implements RestUrls {
@@ -27,11 +27,14 @@ public class RequestRestUrls implements RestUrls {
     RestWpConfig config;
 
     @Inject
+    LinkBuilder links;
+
+    @Inject
     CurrentVertxRequest current;
 
     @Override
     public String root() {
-        return home() + RestPaths.normalizeBase(config.path()).substring(1) + "/";
+        return home() + RestPaths.normalizeBase(config.path()) + "/";
     }
 
     @Override
@@ -44,27 +47,24 @@ public class RequestRestUrls implements RestUrls {
         StringBuilder url = new StringBuilder(route(path));
         char separator = '?';
         for (Map.Entry<String, String> entry : query.entrySet()) {
-            url.append(separator).append(urlencode(entry.getKey())).append('=').append(urlencode(entry.getValue()));
+            url.append(separator)
+                    .append(Slugs.phpUrlencode(entry.getKey()))
+                    .append('=')
+                    .append(Slugs.phpUrlencode(entry.getValue()));
             separator = '&';
         }
         return url.toString();
     }
 
-    @Override
-    public String home() {
-        String host = requestHost();
-        String domain;
-        String path;
-        if (site.isResolved()) {
-            SiteInfo info = site.site();
-            domain = info.domain();
-            path = info.path();
-        } else {
-            domain = host == null ? "localhost" : host;
-            path = "/";
+    /** The home URL without trailing slash, in the request's scheme when that is https. */
+    private String home() {
+        if (!site.isResolved()) {
+            String host = requestHost();
+            return (secure() ? "https" : "http") + "://" + (host == null ? "localhost" : host);
         }
-        String scheme = secure() && domain.equalsIgnoreCase(host) ? "https" : "http";
-        return scheme + "://" + domain + path;
+        String home = links.home();
+        int scheme = home.indexOf("://");
+        return secure() && scheme > 0 ? "https" + home.substring(scheme) : home;
     }
 
     private HttpServerRequest request() {
@@ -81,28 +81,5 @@ public class RequestRestUrls implements RestUrls {
     private boolean secure() {
         HttpServerRequest request = request();
         return request != null && "https".equals(request.scheme());
-    }
-
-    /** PHP's urlencode: letters, digits and {@code -_.} as they are, space as {@code +}, other bytes as %XX. */
-    static String urlencode(String text) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        for (byte b : text.getBytes(StandardCharsets.UTF_8)) {
-            int c = b & 0xFF;
-            if ((c >= 'a' && c <= 'z')
-                    || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9')
-                    || c == '-'
-                    || c == '_'
-                    || c == '.') {
-                out.write(c);
-            } else if (c == ' ') {
-                out.write('+');
-            } else {
-                out.write('%');
-                out.write("0123456789ABCDEF".charAt(c >> 4));
-                out.write("0123456789ABCDEF".charAt(c & 0xF));
-            }
-        }
-        return out.toString(StandardCharsets.US_ASCII);
     }
 }

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.quarkword.core.SiteContext;
 import org.quarkword.restwp.SettingDefinition;
 
 /**
@@ -19,6 +20,21 @@ import org.quarkword.restwp.SettingDefinition;
 public final class BuiltInSettings {
 
     private BuiltInSettings() {}
+
+    /**
+     * The site's address as WordPress's {@code get_option('siteurl')} reads it: the {@code siteurl} option as stored
+     * without trailing slashes, else the site record's {@code http} address without them (the posts module's plain
+     * links fall back the same way).
+     */
+    static String siteAddress(SiteContext site) {
+        String stored = site.options().string("siteurl", "");
+        String url = stored.isEmpty() ? site.site().url("http").toString() : stored;
+        int end = url.length();
+        while (end > 0 && url.charAt(end - 1) == '/') {
+            end--;
+        }
+        return url.substring(0, end);
+    }
 
     /**
      * Whether {@code setting} is the single-site {@code url}, the site's address. QuarkWord takes the address from the

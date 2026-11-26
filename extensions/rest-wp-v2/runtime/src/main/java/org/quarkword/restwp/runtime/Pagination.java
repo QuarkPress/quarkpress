@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.quarkword.posts.runtime.Slugs;
 
 /**
  * WordPress's pagination headers for a collection: the totals, and one {@code Link} line holding the previous and the
@@ -120,7 +121,7 @@ public final class Pagination {
             }
             started[0] = true;
             out.append(name);
-            String encoded = RequestRestUrls.urlencode(PhpValues.toPhpString(value));
+            String encoded = Slugs.phpUrlencode(PhpValues.toPhpString(value));
             work[0] += encoded.length();
             if (!encoded.isEmpty()) {
                 out.append('=').append(encoded);

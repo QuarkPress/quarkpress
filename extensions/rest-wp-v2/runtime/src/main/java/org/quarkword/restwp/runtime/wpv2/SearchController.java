@@ -24,6 +24,7 @@ import org.quarkword.core.SiteId;
 import org.quarkword.core.TaxonomyDefinition;
 import org.quarkword.core.TermId;
 import org.quarkword.core.TitleFilter;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.OrderKey;
 import org.quarkword.posts.PostPage;
 import org.quarkword.posts.PostQuery;
@@ -106,6 +107,9 @@ public class SearchController implements RestRouteProvider {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    LinkBuilder permalinks;
 
     @Inject
     @All
@@ -266,7 +270,7 @@ public class SearchController implements RestRouteProvider {
                             : "");
         }
         if (selection.includesExactly("url")) {
-            data.put("url", fields.link(routes.type(), post));
+            data.put("url", fields.link(post));
         }
         if (selection.includesExactly("type")) {
             data.put("type", TYPE_POST);
@@ -323,7 +327,7 @@ public class SearchController implements RestRouteProvider {
         return new Page(items, total);
     }
 
-    /** A term's item: id, its name as the title, its plain link and the taxonomy as the type; no subtype. */
+    /** A term's item: id, its name as the title, its link and the taxonomy as the type; no subtype. */
     private RestResponse term(
             TaxonomyDefinition taxonomy, TermSnapshot term, Fields.Selection selection, String context) {
         ObjectNode data = RestJson.NODES.objectNode();
@@ -334,7 +338,7 @@ public class SearchController implements RestRouteProvider {
             data.put("title", term.name());
         }
         if (selection.includesExactly("url")) {
-            data.put("url", TermsController.link(taxonomy, term, urls));
+            data.put("url", permalinks.term(taxonomy.key(), term.id(), term.slug()));
         }
         if (selection.includesExactly("type")) {
             data.put("type", taxonomy.key());
@@ -383,7 +387,7 @@ public class SearchController implements RestRouteProvider {
         return new Page(items, matched.size());
     }
 
-    /** A format's item: the slug as a string id, the label, the format archive's plain link; a collection link only. */
+    /** A format's item: the slug as a string id, the label, the format archive's link; a collection link only. */
     private RestResponse postFormat(String slug, Fields.Selection selection, String context) {
         ObjectNode data = RestJson.NODES.objectNode();
         if (selection.includesExactly("id")) {
@@ -393,7 +397,7 @@ public class SearchController implements RestRouteProvider {
             data.put("title", PostFormats.LABELS.get(slug));
         }
         if (selection.includesExactly("url")) {
-            data.put("url", urls.home() + "?post_format=" + slug);
+            data.put("url", permalinks.postFormat(slug));
         }
         if (selection.includesExactly("type")) {
             data.put("type", TYPE_FORMAT);

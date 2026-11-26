@@ -30,7 +30,6 @@ import org.quarkword.core.ContentFilter;
 import org.quarkword.core.ExcerptFilter;
 import org.quarkword.core.Filters;
 import org.quarkword.core.PostId;
-import org.quarkword.core.PostTypeDefinition;
 import org.quarkword.core.RenderContext;
 import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteId;
@@ -39,6 +38,7 @@ import org.quarkword.core.TitleFilter;
 import org.quarkword.core.UserId;
 import org.quarkword.lib.wpkses.Kses;
 import org.quarkword.posts.FeaturedImages;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PageTemplates;
 import org.quarkword.posts.PostPasswords;
 import org.quarkword.posts.PostSnapshot;
@@ -49,7 +49,6 @@ import org.quarkword.posts.runtime.BuiltInMetaKeys;
 import org.quarkword.restwp.Fields;
 import org.quarkword.restwp.RestRequest;
 import org.quarkword.restwp.RestResponse;
-import org.quarkword.restwp.RestUrls;
 import org.quarkword.restwp.runtime.ContextFilter;
 import org.quarkword.restwp.runtime.PhpValues;
 import org.quarkword.restwp.runtime.RestJson;
@@ -65,11 +64,11 @@ import org.quarkword.taxonomy.Terms;
  * empty excerpt is the content's text cut to {@code excerpt_length} words, {@value #DEFAULT_EXCERPT_LENGTH} by
  * default, followed by WordPress's ellipsis); a post with a password (a stored {@code 0} or nothing is none, as for
  * WordPress) renders its content and excerpt as empty text unless the request lifted its protection, and says they
- * are protected either way. The link is the post's plain
- * permalink. A stored template {@code default} reads as none. The post's links come with the fields when the
- * request selects them. The derived fields of a viewable public type are the
- * permalink template (the plain link), the slug the title would generate (made unique as for a published post, the
- * post itself never colliding with it) and the front-end class list of the post. Synced patterns have no rendered
+ * are protected either way. The link is the post's permalink (the posts module's {@link LinkBuilder}). A stored
+ * template {@code default} reads as none. The post's links come with the fields when the request selects them. The
+ * derived fields of a viewable public type are the permalink template (the sample permalink, {@code %postname%} or
+ * {@code %pagename%} left in it), the slug the title would generate (made unique as for a published post, the post
+ * itself never colliding with it) and the front-end class list of the post. Synced patterns have no rendered
  * title or content, and their sync status is moved out of {@code meta} ({@link #liftSyncStatus}).
  */
 @ApplicationScoped
@@ -86,16 +85,13 @@ class PostFields {
 
     private static final String BLOCK_DELIMITER = "<!-- wp:";
 
-    /** The statuses whose link is the plain id form even for a type with a query variable. */
-    private static final Set<String> DRAFT_LIKE = Set.of("draft", "pending", "auto-draft", "future");
-
     private record Rendering(SiteId site) implements RenderContext {}
 
     @Inject
     SiteContext site;
 
     @Inject
-    RestUrls urls;
+    LinkBuilder permalinks;
 
     @Inject
     Terms terms;
@@ -230,7 +226,7 @@ class PostFields {
             data.put("type", post.type());
         }
         if (fields.includes("link")) {
-            data.put("link", link(routes.type(), post));
+            data.put("link", link(post));
         }
         boolean protectedPost = PostPasswords.required(post);
         boolean hidden = protectedPost && !lifted;
@@ -323,7 +319,7 @@ class PostFields {
         // the derived fields cost lookups: skipped in the contexts where the filter would drop them
         boolean edit = context.equals("edit");
         if (edit && routes.has("permalink_template") && fields.includes("permalink_template")) {
-            data.put("permalink_template", link(routes.type(), post));
+            data.put("permalink_template", permalinks.postSample(post));
         }
         if (edit && routes.has("generated_slug") && fields.includes("generated_slug")) {
             data.put("generated_slug", generatedSlug(post));
@@ -550,25 +546,9 @@ class PostFields {
         return DATE.format(LocalDateTime.ofInstant(instant, ZoneOffset.UTC));
     }
 
-    /**
-     * The plain permalink: {@code ?p=<id>} for posts, {@code ?page_id=<id>} for pages, {@code ?attachment_id=<id>}
-     * for attachments, and for another type
-     * {@code ?<type>=<slug>} when the type is public and the post is neither a draft, pending, scheduled nor an
-     * auto-draft and has a slug, else {@code ?post_type=<type>&p=<id>}.
-     */
-    String link(PostTypeDefinition type, PostSnapshot post) {
-        String home = urls.home();
-        return switch (type.key()) {
-            case "post" -> home + "?p=" + post.id().value();
-            case "page" -> home + "?page_id=" + post.id().value();
-            case "attachment" -> home + "?attachment_id=" + post.id().value();
-            default ->
-                type.publicly()
-                                && !DRAFT_LIKE.contains(post.status())
-                                && !post.slug().isEmpty()
-                        ? home + "?" + type.key() + "=" + post.slug()
-                        : home + "?post_type=" + type.key() + "&p=" + post.id().value();
-        };
+    /** The post's front-end link: its permalink, plain when the site has no permalink structure or its status asks. */
+    String link(PostSnapshot post) {
+        return permalinks.post(post);
     }
 
     /**

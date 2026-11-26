@@ -32,6 +32,7 @@ import java.util.function.Supplier;
 import org.quarkword.core.SiteContext;
 import org.quarkword.core.SiteNotResolvedException;
 import org.quarkword.core.UserId;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.restwp.Arg;
 import org.quarkword.restwp.Endpoint;
 import org.quarkword.restwp.Fields;
@@ -96,6 +97,9 @@ public class RestServer {
 
     @Inject
     RestUrls urls;
+
+    @Inject
+    LinkBuilder permalinks;
 
     @Inject
     RestWpConfig config;
@@ -441,7 +445,7 @@ public class RestServer {
                 incoming.query(),
                 match.urlParams(),
                 defaults(match));
-        LinkRenderer links = new LinkRenderer(table(), urls);
+        LinkRenderer links = new LinkRenderer(table(), urls, () -> permalinks.home() + "/");
         Served request = served(
                 method,
                 match.matchedRoute(),
@@ -619,7 +623,7 @@ public class RestServer {
                 incoming.route(),
                 sources,
                 incoming.query(),
-                new LinkRenderer(table(), urls),
+                new LinkRenderer(table(), urls, () -> permalinks.home() + "/"),
                 incoming);
         ObjectNode data = RouteData.of(matched.route(), "help", urls);
         RestResponse answer = withFields(

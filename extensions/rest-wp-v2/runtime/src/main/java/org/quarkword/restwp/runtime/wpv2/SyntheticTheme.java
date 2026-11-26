@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Optional;
+import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostPermissions;
 import org.quarkword.posts.PostTypes;
 import org.quarkword.restwp.Links;
@@ -38,6 +39,9 @@ import org.quarkword.security.Capabilities;
  */
 @ApplicationScoped
 public class SyntheticTheme {
+
+    @Inject
+    LinkBuilder permalinks;
 
     /** The theme's directory name, its {@code stylesheet} and {@code template}. */
     public static final String STYLESHEET = "quarkword";
@@ -117,7 +121,7 @@ public class SyntheticTheme {
         theme.put("status", "active");
         theme.set("theme_supports", supports.deepCopy());
         theme.put("is_block_theme", false);
-        String directory = urls.home() + "wp-content/themes/" + STYLESHEET;
+        String directory = permalinks.siteUrl() + "/wp-content/themes/" + STYLESHEET;
         theme.put("stylesheet_uri", directory);
         theme.put("template_uri", directory);
         ObjectNode lists = defaults;

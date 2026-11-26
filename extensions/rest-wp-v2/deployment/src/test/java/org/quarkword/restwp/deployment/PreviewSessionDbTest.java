@@ -186,6 +186,49 @@ class PreviewSessionDbTest {
                 .doesNotContain(SECRET_OPTION);
     }
 
+    /**
+     * Without the front module, the plain links follow an https request as WordPress's {@code home_url},
+     * {@code site_url} and {@code admin_url} do under {@code is_ssl()}; the index's {@code url} stays the stored
+     * address. The request is https through this application's trusted proxy header.
+     */
+    @Test
+    void plainLinksFollowAnHttpsRequestWithoutTheFrontModule() {
+        PostId post = PostFixtures.published(data, site, UserId.of(carol), "Secure title", "2026-01-11T10:00:00Z");
+        as(null).header("X-Forwarded-Proto", "https")
+                .get("/wp-json/wp/v2/posts/" + post.value())
+                .then()
+                .statusCode(200)
+                .body("link", equalTo("https://localhost/?p=" + post.value()));
+        as(null).header("X-Forwarded-Proto", "https")
+                .get("/wp-json/")
+                .then()
+                .statusCode(200)
+                .body("home", equalTo("https://localhost"))
+                .body("url", equalTo("http://localhost"));
+        as(carol)
+                .header("X-Forwarded-Proto", "https")
+                .get("/wp-json/quarkword/v1/editor/post/" + post.value())
+                .then()
+                .statusCode(200)
+                .body("settings.__experimentalDashboardLink", equalTo("https://localhost/wp-admin/"));
+        as(alice)
+                .header("X-Forwarded-Proto", "https")
+                .get("/wp-json/wp/v2/themes?status=active")
+                .then()
+                .statusCode(200)
+                .body("[0].stylesheet_uri", equalTo("https://localhost/wp-content/themes/quarkword"));
+        // a plain http request keeps http
+        as(null).get("/wp-json/wp/v2/posts/" + post.value())
+                .then()
+                .statusCode(200)
+                .body("link", equalTo("http://localhost/?p=" + post.value()));
+        as(alice)
+                .get("/wp-json/wp/v2/themes?status=active")
+                .then()
+                .statusCode(200)
+                .body("[0].stylesheet_uri", equalTo("http://localhost/wp-content/themes/quarkword"));
+    }
+
     // ---- helpers
 
     /** A REST request to the main site as the user with this id, or anonymous when null. */

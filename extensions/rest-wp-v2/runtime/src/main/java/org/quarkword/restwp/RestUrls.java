@@ -13,7 +13,4 @@ public interface RestUrls {
 
     /** {@link #route(String)} with {@code query} appended, keys and values URL-encoded as PHP's urlencode does. */
     String route(String path, Map<String, String> query);
-
-    /** The site's home URL with a trailing slash, for plain front-end links. */
-    String home();
 }

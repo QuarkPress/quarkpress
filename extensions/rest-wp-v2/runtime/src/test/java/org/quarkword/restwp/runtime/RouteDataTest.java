@@ -32,11 +32,6 @@ class RouteDataTest {
         public String route(String path, Map<String, String> query) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public String home() {
-            return "http://localhost/";
-        }
     };
 
     @Test
