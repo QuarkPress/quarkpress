@@ -342,7 +342,6 @@ public class DefaultFrontResolver implements FrontResolver {
 
     // ---- helpers --------------------------------------------------------------------------------------------------
 
-    /** Whether the preview pair is the viewer's valid token of the post {@code preview_id} names. */
     /** Whether the query carries the preview pair ({@code preview_id} and {@code preview_nonce}, both given). */
     static boolean hasPair(Map<String, List<String>> query) {
         return query.containsKey("preview_id") && query.containsKey("preview_nonce");

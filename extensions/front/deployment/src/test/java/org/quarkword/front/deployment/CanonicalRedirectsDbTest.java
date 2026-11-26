@@ -258,6 +258,12 @@ class CanonicalRedirectsDbTest {
         // check cancels it
         assertThat(cast.canonical("alias.test", "/?p=" + cast.hello.value(), Viewer.anonymous()))
                 .isEmpty();
+        // any other host is kept too, as WordPress keeps it: a redirect stays on the host the request named, so an
+        // HTTP cache must key on Host
+        assertThat(cast.canonical("evil.test", "/2025/11/20/hello-world/", Viewer.anonymous()))
+                .isEmpty();
+        assertThat(cast.canonical("evil.test", "/2025/11/20/hello-world", Viewer.anonymous()))
+                .isEqualTo(to("http://evil.test/2025/11/20/hello-world/"));
         // a port home does not have is dropped
         assertThat(cast.canonical("wp.test:8080", "/2025/11/20/hello-world/", Viewer.anonymous()))
                 .isEqualTo(to(HELLO));
