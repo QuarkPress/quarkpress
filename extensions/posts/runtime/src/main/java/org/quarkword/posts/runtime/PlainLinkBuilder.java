@@ -1,7 +1,11 @@
 package org.quarkword.posts.runtime;
 
+import io.quarkus.arc.Arc;
 import io.quarkus.arc.DefaultBean;
+import io.quarkus.vertx.http.runtime.CurrentVertxRequest;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.Locale;
 import java.util.Optional;
@@ -14,12 +18,18 @@ import org.quarkword.core.UserId;
 import org.quarkword.posts.LinkBuilder;
 import org.quarkword.posts.PostSnapshot;
 import org.quarkword.posts.PostTypes;
+import org.quarkword.posts.TermQueryVariables;
 
 /**
  * WordPress's links with an empty permalink structure: every link is the home URL followed by {@code /?} and a
  * query string. The home and site URLs come from the {@code home} and {@code siteurl} options, or from the site
- * record with the {@code http} scheme when a site has no such option. Only the built-in taxonomies' query variables
- * are known here; another taxonomy's term links name the taxonomy and the term.
+ * record with the {@code http} scheme when a site has no such option. As WordPress's {@code home_url}, {@code site_url}
+ * and {@code admin_url}, they take the request's scheme: on an https request every link is https; otherwise the home
+ * keeps its stored scheme, the site URL is http, and the admin URL is https only when the site URL is stored with
+ * https. The request's scheme is the HTTP request's after the proxy headers the server trusts; outside a request
+ * nothing is https. A term link uses the taxonomy's query variable
+ * ({@link TermQueryVariables}, from the taxonomy module); a taxonomy without one, or any taxonomy but the built-in ones
+ * when that module is absent, names the taxonomy and the term.
  */
 @DefaultBean
 @ApplicationScoped
@@ -34,19 +44,28 @@ public class PlainLinkBuilder implements LinkBuilder {
     @Inject
     PostTypes types;
 
+    @Inject
+    Instance<TermQueryVariables> queryVariables;
+
+    @Inject
+    Instance<CurrentVertxRequest> requests;
+
     @Override
     public String home() {
-        return address("home");
+        String stored = address("home");
+        return isSsl() ? withScheme(stored, "https") : stored;
     }
 
     @Override
     public String siteUrl() {
-        return address("siteurl");
+        return withScheme(address("siteurl"), isSsl() ? "https" : "http");
     }
 
     @Override
     public String admin(String path) {
-        return siteUrl() + "/wp-admin/" + withoutLeadingSlashes(path);
+        String stored = address("siteurl");
+        boolean https = isSsl() || stored.startsWith("https://");
+        return withScheme(stored, https ? "https" : "http") + "/wp-admin/" + withoutLeadingSlashes(path);
     }
 
     @Override
@@ -83,7 +102,13 @@ public class PlainLinkBuilder implements LinkBuilder {
             case "category" -> home() + "/?cat=" + term.value();
             case "post_tag" -> home() + "/?tag=" + slug;
             case "post_format" -> home() + "/?post_format=" + slug;
-            default -> home() + "/?taxonomy=" + taxonomy + "&term=" + slug;
+            default -> {
+                Optional<String> queryVar =
+                        queryVariables.isResolvable() ? queryVariables.get().of(taxonomy) : Optional.empty();
+                yield queryVar.isPresent()
+                        ? home() + "/?" + queryVar.get() + "=" + slug
+                        : home() + "/?taxonomy=" + taxonomy + "&term=" + slug;
+            }
         };
     }
 
@@ -133,6 +158,37 @@ public class PlainLinkBuilder implements LinkBuilder {
             end--;
         }
         return url.substring(0, end);
+    }
+
+    /** Whether the current HTTP request came over https; false outside a request. */
+    private boolean isSsl() {
+        if (!Arc.container().requestContext().isActive() || !requests.isResolvable()) {
+            return false;
+        }
+        RoutingContext context = requests.get().getCurrent();
+        return context != null && "https".equals(context.request().scheme());
+    }
+
+    /**
+     * {@code url} with {@code scheme} in place of its own; a protocol-relative {@code //host/...} gets it too, and a
+     * value without a scheme is left as it is.
+     */
+    private static String withScheme(String url, String scheme) {
+        if (url.startsWith("//")) {
+            return scheme + ":" + url;
+        }
+        int separator = url.indexOf("://");
+        if (separator <= 0) {
+            return url;
+        }
+        for (int i = 0; i < separator; i++) {
+            char c = url.charAt(i);
+            boolean word = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+            if (!word) {
+                return url;
+            }
+        }
+        return scheme + url.substring(separator);
     }
 
     private static String withoutLeadingSlashes(String path) {

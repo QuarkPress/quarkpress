@@ -31,6 +31,7 @@ import org.quarkword.taxonomy.runtime.BuiltInTaxonomies;
 import org.quarkword.taxonomy.runtime.DefaultTerms;
 import org.quarkword.taxonomy.runtime.JpaTerms;
 import org.quarkword.taxonomy.runtime.PostTermObserver;
+import org.quarkword.taxonomy.runtime.RegisteredTermQueryVariables;
 import org.quarkword.taxonomy.runtime.TaxonomyJson;
 import org.quarkword.taxonomy.runtime.TaxonomyQueryVars;
 import org.quarkword.taxonomy.runtime.TaxonomyRecorder;
@@ -62,7 +63,8 @@ class TaxonomyProcessor {
                 Terms.class,
                 JpaTerms.class,
                 TermQueries.class,
-                TermPermissions.class);
+                TermPermissions.class,
+                RegisteredTermQueryVariables.class);
     }
 
     @BuildStep

@@ -142,6 +142,10 @@ class LinkBuilderDbTest {
             assertThat(links.postTypeArchive("post")).contains("https://posts.test/blog/?page_id=21");
             assertThat(links.post(snapshot(secure, 7, "post", "publish", "hello")))
                     .isEqualTo("https://posts.test/blog/?p=7");
+            // outside an https request, as WordPress's site_url and admin_url: the site URL is http, the admin URL
+            // https because the site URL is stored with https
+            assertThat(links.siteUrl()).isEqualTo("http://posts.test/blog");
+            assertThat(links.admin("")).isEqualTo("https://posts.test/blog/wp-admin/");
             return null;
         });
     }
