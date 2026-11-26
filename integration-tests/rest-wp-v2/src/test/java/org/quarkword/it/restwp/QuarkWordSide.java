@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.test.keycloak.client.KeycloakTestClient;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +33,10 @@ import org.quarkword.testing.wprestparity.WordPressRestSite;
  * itself. A call marked for HTTPS ({@link Side#HTTPS_MARKER}) is sent with {@code X-Forwarded-Proto: https} instead,
  * which the application honours from the loopback proxy. A preload comparison (the editor route's target,
  * {@link EditorPreloadPaths}) is answered with the route's {@code preload} map alone, so it compares with the map
- * WordPress's side builds from its live answers.
+ * WordPress's side builds from its live answers. A post's update goes through the REST API as the user. A request in a
+ * login session is sent with the {@code quarkword_preview} cookie of a session the user opens through
+ * {@code POST /wp-json/quarkword/v1/preview/session} (the front end's logged-in visitor), after its preview
+ * placeholders are replaced by the query part of the post's preview link read as that user from the autosaves route.
  */
 final class QuarkWordSide implements Side {
 
@@ -84,6 +88,11 @@ final class QuarkWordSide implements Side {
             }
             userIds.put(user, me.json().get("user").longValue());
         }
+    }
+
+    /** The five users' ids, in WordPress's order of creation. */
+    Map<String, Long> userIds() {
+        return Collections.unmodifiableMap(userIds);
     }
 
     private Optional<String> authorization(String as) {
@@ -263,11 +272,23 @@ final class QuarkWordSide implements Side {
                                                 "alice",
                                                 "PUT",
                                                 "/it/options/" + option.name(),
-                                                option.value().toString())),
+                                                option.valueOn(known).toString())),
                                 200,
                                 "option " + option.name());
                     }
                 }
+                case SetupStep.Update update ->
+                    expect(
+                            send(
+                                    sitePath,
+                                    RestCall.json(
+                                            update.as(),
+                                            "POST",
+                                            "/wp-json/wp/v2/" + Side.postBase(update.type()) + "/"
+                                                    + Side.refId(known, update.postRef()),
+                                            Side.updateFields(update, known).toString())),
+                            200,
+                            "update " + update);
                 case SetupStep.Media media -> {
                     Exchange answer = expect(
                             send(
@@ -304,6 +325,9 @@ final class QuarkWordSide implements Side {
 
     @Override
     public Exchange send(String sitePath, RestCall call) throws Exception {
+        if (call.session().isPresent()) {
+            return sendAsIs(sitePath, inSession(sitePath, call));
+        }
         Exchange exchange = sendAsIs(sitePath, call);
         if (EditorPreloadPaths.isEditorTarget(call.target()) && exchange.status() == 200) {
             // the editor route's answer reduced to its preload map, as WordPress's side answers a preload comparison
@@ -311,6 +335,45 @@ final class QuarkWordSide implements Side {
             return new Exchange(call, 200, Map.of(), preload, exchange.sentAt());
         }
         return exchange;
+    }
+
+    /**
+     * The call in a new preview session of its session's user: its preview placeholders resolved through the
+     * autosaves route read as that user, then the session's cookie as its {@code Cookie} header.
+     */
+    private RestCall inSession(String sitePath, RestCall call) throws Exception {
+        String user = call.session().orElseThrow();
+        Exchange opened = expect(
+                sendAsIs(
+                        sitePath,
+                        new RestCall(
+                                user,
+                                "POST",
+                                "/wp-json/quarkword/v1/preview/session",
+                                Map.of(),
+                                Optional.empty(),
+                                Optional.empty())),
+                200,
+                "preview session of " + user);
+        String cookie = null;
+        for (String line : opened.headerLines("Set-Cookie")) {
+            if (line.startsWith("quarkword_preview=")) {
+                cookie = line.substring(0, line.indexOf(';'));
+            }
+        }
+        if (cookie == null) {
+            throw new IllegalStateException("the preview session of " + user + " set no cookie: " + opened.headers());
+        }
+        String target = Side.resolvePreview(
+                call.target(),
+                post -> Side.previewLink(
+                        sendAsIs(
+                                sitePath,
+                                RestCall.get(
+                                        user,
+                                        "/wp-json/wp/v2/" + post.base() + "/" + post.id() + "/autosaves?context=edit")),
+                        post));
+        return call.withTarget(target).withoutSession().withHeader("Cookie", cookie);
     }
 
     private Exchange sendAsIs(String sitePath, RestCall call) throws Exception {

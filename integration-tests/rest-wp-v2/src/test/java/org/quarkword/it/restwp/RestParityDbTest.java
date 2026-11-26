@@ -43,7 +43,9 @@ import org.quarkword.testing.wpscenario.WordPressTree;
  * The REST API (wp/v2) against WordPress 7.1.3 over HTTP: every scenario of {@link RestScenarios#all()} runs on a fresh
  * subdirectory site on both sides (WordPress served by {@code php -S} on its own MySQL container, QuarkWord this
  * test application with Keycloak tokens), and the answers are compared after normalisation. Deliberate differences
- * are listed in {@code wp-rest-parity-known-differences.txt}, each with its README label; a listed difference that no
+ * are listed in {@code wp-rest-parity-known-differences.txt} (the REST API's, labelled by the REST extension's README)
+ * and {@code wp-front-parity-known-differences.txt} (the front-end scenarios', labelled by the front extension's
+ * README), each with its README label; a listed difference that no
  * longer differs fails the run, and so does a scenario that compared nothing (every aspect of it known to differ), a
  * missing scenario, or fewer comparisons than {@link #MIN_COMPARISONS}. Runs with {@code -Pwp-parity} only, and then
  * fails without a container runtime instead of skipping.
@@ -62,13 +64,19 @@ import org.quarkword.testing.wpscenario.WordPressTree;
 @EnabledIfSystemProperty(named = "wp.version", matches = ".+")
 class RestParityDbTest {
 
-    /** 90% of the comparisons of the last green run (27392), rounded down to a multiple of 50. */
-    static final int MIN_COMPARISONS = 24650;
+    /**
+     * 98% of the comparisons of the run that compared the front-end answers' framing and referrer headers and their
+     * cookies' paths and attributes (30367 over 206 scenarios, without GD's editor scenarios), rounded down to a
+     * multiple of 50.
+     */
+    static final int MIN_COMPARISONS = 29750;
 
     static final String EDITOR_SKIP =
             "SKIPPED (needs an image editor): php8.4-gd is not installed on this host; the CI parity cell installs it";
 
     static final Path KNOWN = Path.of("src", "test", "resources", "wp-rest-parity-known-differences.txt");
+
+    static final Path KNOWN_FRONT = Path.of("src", "test", "resources", "wp-front-parity-known-differences.txt");
     static final Path DUMPS = Path.of("target", "rest-parity");
 
     @TestHTTPResource("/")
@@ -107,9 +115,10 @@ class RestParityDbTest {
         List<String> comparedNothing = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
         ParityRun run;
-        try (ScenarioDatabase database = ScenarioDatabase.start();
-                Side wordpress = Side.wordpress(start(database));
-                Side quarkword = new QuarkWordSide(root.toURI(), keycloak)) {
+        try (QuarkWordSide quarkword = new QuarkWordSide(root.toURI(), keycloak);
+                ScenarioDatabase database = ScenarioDatabase.start();
+                Side wordpress = Side.wordpress(start(database))) {
+            assertUsersInWordPressOrder(quarkword.userIds());
             JsonNode extensions =
                     ((Side.WordPress) wordpress).site().operation("extensions", OracleJson.MAPPER.createObjectNode());
             boolean gd = extensions.path("gd").asBoolean();
@@ -127,8 +136,10 @@ class RestParityDbTest {
                     skipped.add(scenario.id());
                 }
             }
+            List<String> knownLines = new ArrayList<>(Files.readAllLines(KNOWN, StandardCharsets.UTF_8));
+            knownLines.addAll(Files.readAllLines(KNOWN_FRONT, StandardCharsets.UTF_8));
             MediaKnownDifferences.Effective known = MediaKnownDifferences.effective(
-                    Files.readAllLines(KNOWN, StandardCharsets.UTF_8),
+                    knownLines,
                     skipped,
                     extensions.path("gd_webp").asBoolean(),
                     extensions.path("gd_avif").asBoolean());
@@ -178,6 +189,25 @@ class RestParityDbTest {
         assertThat(comparedNothing)
                 .as("scenarios every aspect of which is a known difference")
                 .isEmpty();
+    }
+
+    /**
+     * Fails unless the five users' QuarkWord ids rise in WordPress's order of creation (alice, bob, carol, dave, erin),
+     * as the scenarios' id-ordered answers ({@code users?orderby=id}) need. The test application creates the five
+     * profiles in that order at start ({@code ItFixtureUsers}); a test that logged in a user first would otherwise
+     * decide the order.
+     */
+    static void assertUsersInWordPressOrder(Map<String, Long> ids) {
+        List<String> order = List.of("alice", "bob", "carol", "dave", "erin");
+        assertThat(ids.keySet()).as("the five users").containsExactlyElementsOf(order);
+        List<Long> values = order.stream().map(ids::get).toList();
+        assertThat(values)
+                .as(
+                        "QuarkWord ids of %s must rise in WordPress's order of creation, or every id-ordered user list"
+                                + " differs; got %s (a test provisioned a user before the test application's start did)",
+                        order, ids)
+                .isSorted()
+                .doesNotHaveDuplicates();
     }
 
     /** WordPress with the installing super admin as the current user while its template network is created. */

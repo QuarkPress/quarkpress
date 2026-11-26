@@ -147,6 +147,65 @@ class PrettyLinksDbTest {
     }
 
     @Test
+    void tagsBooksFormatsAttachedMediaAndRevisionsFollowTheStructure() {
+        String path = site();
+        String home = "http://localhost" + path;
+        int java = as("alice")
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "Java " + token()))
+                .post(path + "wp-json/wp/v2/tags")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        String javaSlug = get(null, path + "wp-json/wp/v2/tags/" + java).getString("slug");
+        // tag 9 => http://wp.test/tag/java/
+        assertThat(get(null, path + "wp-json/wp/v2/tags/" + java).getString("link"))
+                .isEqualTo(home + "tag/" + javaSlug + "/");
+
+        // the parity network's book (no rewrite argument, so the slug is the key): /book/dune/
+        String book = "dune-" + token();
+        long dune = post(path, "book", "publish", Map.of("slug", book, "date_gmt", "2026-03-04T10:00:00"));
+        assertThat(get(null, path + "wp-json/wp/v2/books/" + dune).getString("link"))
+                .isEqualTo(home + "book/" + book + "/");
+
+        // post format aside => http://wp.test/type/aside/
+        String slug = "aside-" + token();
+        long aside = post(path, "post", "publish", Map.of("slug", slug, "date_gmt", "2026-03-04T10:00:00"));
+        as("alice")
+                .contentType(ContentType.JSON)
+                .body(Map.of("format", "aside"))
+                .post(path + "wp-json/wp/v2/posts/" + aside)
+                .then()
+                .statusCode(200);
+        assertThat(get(null, path + "wp-json/wp/v2/search?type=post-format&search=aside&_fields=url")
+                        .getList("url"))
+                .containsExactly(home + "type/aside/");
+
+        // attachment 30 (parent second-post) => http://wp.test/2025/11/23/second-post/photo/
+        Response upload = as("alice")
+                .multiPart("file", "shot-" + token() + ".jpg", MediaFixtures.jpeg(16, 12), "image/jpeg")
+                .multiPart("post", String.valueOf(aside))
+                .post(path + "wp-json/wp/v2/media");
+        upload.then().statusCode(201);
+        int photo = upload.path("id");
+        String photoSlug = upload.path("slug");
+        assertThat(get(null, path + "wp-json/wp/v2/media/" + photo).getString("link"))
+                .isEqualTo(home + "2026/03/04/" + slug + "/" + photoSlug + "/");
+
+        // revision 61 => http://wp.test/?p=61
+        as("alice")
+                .contentType(ContentType.JSON)
+                .body(Map.of("title", "Revised " + token(), "content", "revised words"))
+                .post(path + "wp-json/wp/v2/posts/" + aside)
+                .then()
+                .statusCode(200);
+        JsonPath revisions = get("alice", path + "wp-json/wp/v2/posts/" + aside + "/revisions?context=edit");
+        long revision = revisions.getLong("[0].id");
+        assertThat(revisions.getString("[0].guid.rendered")).isEqualTo(home + "?p=" + revision);
+    }
+
+    @Test
     void theIndexNamesTheSiteurlOptionAndTheHome() {
         String path = site();
         String home = "http://localhost" + path.substring(0, path.length() - 1);
