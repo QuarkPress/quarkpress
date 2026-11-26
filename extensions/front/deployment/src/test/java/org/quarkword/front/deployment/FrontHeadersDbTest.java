@@ -146,5 +146,14 @@ class FrontHeadersDbTest {
                         entry("Content-Type", List.of(HTML)),
                         entry("X-Redirect-By", List.of("QuarkWord")),
                         entry("Location", List.of("http://wp.test/2025/11/23/second-post/")));
+        // an index.php/ prefix under a structure without it matches the page rule and is not found, then the redirect
+        // drops it (G14: WordPress's 301 carries the no-cache set)
+        assertThat(cast.redirectHeaders("/index.php/2025/11/20/hello-world/", Viewer.anonymous()))
+                .containsExactly(
+                        entry("Expires", List.of(EXPIRES)),
+                        entry("Cache-Control", List.of(NO_CACHE)),
+                        entry("Content-Type", List.of(HTML)),
+                        entry("X-Redirect-By", List.of("QuarkWord")),
+                        entry("Location", List.of(hello)));
     }
 }

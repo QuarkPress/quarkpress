@@ -126,6 +126,7 @@ class PostPassDbTest {
                 .header("Cache-Control", NO_CACHE)
                 .header("Expires", EXPIRES)
                 .header("X-Frame-Options", "SAMEORIGIN")
+                .header("Content-Security-Policy", "frame-ancestors 'self';")
                 .header("Referrer-Policy", "strict-origin-when-cross-origin")
                 .body(emptyString());
         String cookie = postPassCookie(response);
@@ -299,6 +300,8 @@ class PostPassDbTest {
                 .statusCode(200)
                 .header("Cache-Control", NO_CACHE)
                 .header("X-Frame-Options", "SAMEORIGIN")
+                .header("Content-Security-Policy", "frame-ancestors 'self';")
+                .header("Referrer-Policy", "strict-origin-when-cross-origin")
                 .header("Location", nullValue())
                 .body(emptyString());
         assertThat(get.headers().getValues("Set-Cookie")).isEmpty();

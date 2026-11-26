@@ -169,6 +169,7 @@ public class PostPassEndpoint {
         headers.put("Cache-Control", List.of(FrontHeaders.NO_CACHE));
         headers.put("Content-Type", List.of(FrontHeaders.HTML));
         headers.put("X-Frame-Options", List.of("SAMEORIGIN"));
+        headers.put("Content-Security-Policy", List.of("frame-ancestors 'self';"));
         headers.put("Referrer-Policy", List.of("strict-origin-when-cross-origin"));
         return headers;
     }
