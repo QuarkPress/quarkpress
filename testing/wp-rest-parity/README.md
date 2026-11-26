@@ -84,8 +84,8 @@ patterns, the `wp_pattern_category` taxonomy, block types, the block renderer, b
 keys) and `c01` (the `key` of a refused REST-named meta field), each on a subdirectory site of its own (`/fb01/`,
 `/fv01/`, ...) except the editor page items `v07`-`v10`, which open `wp-admin` on the main site through cookie
 sessions; the values the page hands the editor (preload map, block categories, server block definitions, settings)
-are read out of it by marker text and noted. It saves the OPTIONS bodies of the nine routes the slice serves under
-`options/`. Every site serves the harness's classic theme `quarkword` (`php/qw-theme/`: `style.css` with only a name
+are read out of it by marker text and noted. It saves the OPTIONS bodies of the nine editor-extras routes QuarkWord
+serves under `options/`. Every site serves the harness's classic theme `quarkword` (`php/qw-theme/`: `style.css` with only a name
 and a description, an empty `index.php`, and a `functions.php` declaring the theme supports QuarkWord's synthetic
 theme has by default), which `WordPressRestSite` writes into `wp-content/themes/quarkword/` beside the must-use
 plugin and removes with it. The plugin's switches for this run, site options set to `"1"` by the item and switched off
@@ -107,22 +107,22 @@ items never run here.
 
 `FrontFactsDbTest` in `integration-tests/rest-wp-v2` (run with
 `mvn -pl integration-tests/rest-wp-v2 -am verify -Pwp-parity -Dfront.facts=true -Dtest=FrontFactsDbTest -Dsurefire.failIfNoSpecifiedTests=false`)
-records what WordPress answers on its front end for the routing reference's verification items (`G1` to `G20`), for
-the rewrite table's example paths, for every canonical, old slug and attachment example of the redirect task (`CANON`,
-`PAGED`, `ATTACH`, `ATTACH-PAGES`, `FRONT-PAGE`, `G17-trash`), for the query reference's items on a plain-permalink
-site (`FQ-G1` to `FQ-G9`, `FQ-G14`, `FQ-G15`, `FQ-G22`, `FQ-G23`), for the main query's items, some as logged-in
-visitors through `cookie_session` cookies (`FQ-G10` to `FQ-G12`, `FQ-G16` to `FQ-G18`, `FQ-G24`, the content-page and
+records what WordPress answers on its front end for a fixed list of routing requests (keyed `G1` to `G20`), for
+the rewrite table's example paths, for a fixed list of canonical, old slug and attachment redirects (`CANON`,
+`PAGED`, `ATTACH`, `ATTACH-PAGES`, `FRONT-PAGE`, `G17-trash`), for a fixed list of query-variable requests on a
+plain-permalink site (`FQ-G1` to `FQ-G9`, `FQ-G14`, `FQ-G15`, `FQ-G22`, `FQ-G23`), for the main query's items, some
+as logged-in visitors through `cookie_session` cookies (`FQ-G10` to `FQ-G12`, `FQ-G16` to `FQ-G18`, `FQ-G24`, the content-page and
 `error` answers of the 404 decision), for the password form and the `postpass` action (`FQ-G19`, `FQ-G20`: its cookie,
 login headers and redirect for every kind of target, and the form after a wrong and a right password), for the admin
 shorthands (`FR-G21`), and for
 MySQL's `WEEK` numbers of the week archives, into `target/wp-rest-parity/front-facts.json`: per request the status,
 `Location`, `Cache-Control`, `Expires`, `Content-Type`, `Link`, `X-Redirect-By`, `X-Robots-Tag`, `X-Pingback`,
 `Last-Modified`, the first 300 bytes of the body, the document title, a password form, the post titles the page lists,
-the `<time datetime>` values and a feed's titles, and who asked, redirects not followed. The cast (the reference's
+the `<time datetime>` values and a feed's titles, and who asked, redirects not followed. The cast (the requests'
 posts, pages, attachments, terms and the `book` type, with old slugs and old dates recorded by `update_post`) lives on
 subdirectory sites of the network, one per permalink structure (`/gdef/` and `/gcan/` dated, `/gplain/` plain,
 `/site2/` and `/gpn/` with `/%postname%/`, `/gcat/` with `/%category%/%postname%/`, `/gq/` and `/gm/` plain with the
-query reference's cast, `/gm/` with its authors, drafts and attachments of drafts), created
+query-variable requests' cast, `/gm/` with its authors, drafts and attachments of drafts), created
 with the `create_site`, `option`, `post`, `update_post` and `outsider` setup operations. It asserts nothing about
 QuarkWord. It needs `-Dfront.facts=true` as well as the profile: without that property the class is skipped, which is
 what CI's `-Pwp-parity` cell relies on, so the parity run never records the front facts by itself.
@@ -340,7 +340,7 @@ Front-end links (`link`, `permalink_template`, `preview_link`, a search item's `
 of a `Link` header) are compared as they are: QuarkWord's follow the site's permalink structure as WordPress's do. A
 front-end scenario's answers are compared by status and the headers `Location`, `Cache-Control`, `Expires`,
 `Content-Type`, `Link`, `X-Robots-Tag`, `X-Frame-Options`, `Content-Security-Policy`, `Referrer-Policy` and
-`Set-Cookie` only, never by body (the page's markup is the theme's; body parity is a later slice): `Set-Cookie` by
+`Set-Cookie` only, never by body (the page's markup is the theme's, and the body is not compared until it is QuarkWord's to match): `Set-Cookie` by
 each cookie's name, `path` and the set of its attribute names, in order, never by values (the cookie's, `expires`,
 `max-age`), which differ by nature; `X-Redirect-By` (`WordPress` against `QuarkWord`) and `X-Pingback` are not compared. Every difference is
 written to `integration-tests/rest-wp-v2/target/rest-parity/differences.tsv`, and each scenario's answers to
