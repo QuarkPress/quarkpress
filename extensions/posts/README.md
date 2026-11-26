@@ -71,7 +71,7 @@ postMeta.add(post.id(), "rating", IntNode.valueOf(5), true);
   `wp-config.php`, with a network option that `wp_salt` creates when one is missing; creating a WordPress site writes
   none. Deleting the option revokes every
   preview link of the site, and a malformed value refuses every preview with `IllegalStateException` until it is deleted.
-- `PreviewSessions` names the user of a preview page as WordPress's login cookie does: `open(user)` (the caller must be
+- `PreviewSessions` names the user of the front module's preview pages as WordPress's login cookie does: `open(user)` (the caller must be
   `user` and a member of the site, or a super admin) answers a random token (43 characters) and its lifetime,
   `user(token)` the user of an unexpired session of this site, `close(token)` revokes it and `closeAll(user)` (the
   caller must be `user`) revokes every session of the user on the site. `LockReleaseTokens` are the one-time tokens
@@ -307,15 +307,18 @@ not), never null; one that throws stops the call.
   it, or the whole of it for an exact search). Each key is provided by one bean only; two beans providing one key stop
   the application at start.
 - `LinkBuilder` is the front-end link SPI (WordPress's link template): `home()` and `siteUrl()` (the `home` and
-  `siteurl` options without trailing slash, else the site record's `http` address), `admin(path)`, `rest(route)`,
+  `siteurl` options without trailing slash, else the site record's `http` address, with the request's scheme as
+  WordPress's `home_url` and `site_url` take it: on an https request both are https; otherwise `home()` keeps its
+  stored scheme and `siteUrl()` is http), `admin(path)` (https also when `siteurl` is stored with https), `rest(route)`,
   `post(post)`, `postSample(post)` (the editor's template with `%postname%`/`%pagename%` literal), `term`, `author`,
   `postTypeArchive`, `postFormat`, `date` and `search`. The default bean, `PlainLinkBuilder`, writes the links of an
   empty permalink structure (`home/?p=7`, `home/?page_id=21`, `home/?book=dune` for a custom type with a query
   variable and a slug outside the draft, pending, scheduled and auto-draft statuses, else `home/?post_type=book&p=40`,
   `home/?cat=4`, `home/?tag=java`, `home/?taxonomy=genre&term=scifi` for a taxonomy whose query variable this module
   does not know, `home/?author=1`, `home/?m=202511`, `home/?s=java+21`, `home/index.php?rest_route=/wp/v2/posts`,
-  `siteurl/wp-admin/`); the front module replaces it with one that follows the site's permalink structure. The guid of
-  a new post comes from it.
+  `siteurl/wp-admin/`); the request's scheme is the one after the proxy headers the server trusts, and outside a
+  request nothing is made https. The front module replaces it with one that follows the site's permalink structure.
+  The guid of a new post comes from it.
 
 ### Configuration
 
@@ -341,7 +344,7 @@ SHA-256 hashes (unique per site), with the release tokens following their post t
 `(site_id, post_id)`; expired rows are deleted, at most 500 at a time, when a session is opened or a release token is
 issued, and opening a session closes the user's sessions on the site beyond `quarkword.posts.preview-sessions`. A
 token row's user has no foreign key: the sessions of a deleted profile stay until they expire, naming nobody (the
-preview page then has an anonymous viewer, and every token check reads the user's rights again). Preview tokens are
+front module's preview page then has an anonymous viewer, and every token check reads the user's rights again). Preview tokens are
 computed from the site's `quarkword_preview_secret` option and have no row. The module's migrations are the `V4_*`
 band.
 
@@ -448,7 +451,7 @@ for a save. A lock refresh therefore takes the site's post lock for a moment eve
 | D34 | The system identity holds every capability but `unfiltered_html`, the type's publish capability included, so a pending post it saves keeps its typed slug; WordPress's user 0 can publish nothing, so its pending posts lose the typed slug. |
 | D35 | With the media module, only attachments of an image type can be featured images; any other attachment removes the featured image, as WordPress does. Without it, any attachment counts as an image. `PostLocks.release` answers `false` when the stored value no longer equals the expected one, where WordPress's `wp-remove-post-lock` answers `1`; and the release value is `"<now - window + 5>:<user>"` as WordPress writes it, with QuarkWord's window. |
 | D36 | Preview links carry a computed token: HMAC-SHA256 over the site, the post, the user and a tick of half `quarkword.posts.preview-lifetime` with a per-site secret (`quarkword_preview_secret`), valid for the current and the previous tick and only for the user it was issued to, who must hold `edit_post` now. WordPress's `preview_nonce` (10 hexadecimal characters) is derived from the action `post_preview_{id}`, the user id, the user's login session token and a tick of half the nonce life (one day by default), and is likewise valid for the current and the previous tick, 12 to 24 hours; QuarkWord's token has no session token in its message, so logging out does not revoke a token by itself (the preview session's user still has to be the token's user and hold `edit_post` now), while deleting the option revokes every link of the site at once, which WordPress has no counterpart for. |
-| D37 | The preview page's viewer comes from a QuarkWord preview session (`PreviewSessions`, a random token stored as a hash and bound to the site) rather than WordPress's login cookie, and the editor's unlock nonce is a one-time `LockReleaseTokens` token bound to the post, the user and the lock value, consumed on first use whatever the outcome; WordPress's unlock nonce (`update-post_{id}`) is an ordinary nonce, reusable any number of times within its 12 to 24 hours and not bound to a lock value (the release itself compares the stored lock with the value sent). |
+| D37 | The viewer of the front module's preview pages comes from a QuarkWord preview session (`PreviewSessions`, a random token stored as a hash and bound to the site) rather than WordPress's login cookie, and the editor's unlock nonce is a one-time `LockReleaseTokens` token bound to the post, the user and the lock value, consumed on first use whatever the outcome; WordPress's unlock nonce (`update-post_{id}`) is an ordinary nonce, reusable any number of times within its 12 to 24 hours and not bound to a lock value (the release itself compares the stored lock with the value sent). |
 
 The parity tests (`-Pwp-parity`) compare slugs, slug truncation, keys, post type and status registration, local and
 GMT date conversions, the save filters of titles, content and excerpts, and the search tokenizer with WordPress
