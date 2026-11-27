@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -53,6 +54,20 @@ class HostileInputTest {
         String pairs = "<a " + "xy".repeat(500_000) + ">";
         assertThat(bounded(pairs, () -> Formatting.replaceInHtmlTags(pairs, Map.of("x", "1", "xy", "2", "y", "3"))))
                 .isEqualTo("<a " + "2".repeat(500_000) + ">");
+    }
+
+    // final review: the replacement table is built once per call, not once per markup chunk
+    @Test
+    void replaceInHtmlTagsBuildsItsTableOncePerCall() {
+        Map<String, String> table = new LinkedHashMap<>();
+        table.put("a", "b");
+        for (int i = 0; i < 999; i++) {
+            table.put("a" + i, "never"); // shares the "a" prefix, so each tag walks one step further and gives up
+        }
+        assertThat(table).hasSize(1_000);
+        String tags = "<a>".repeat(300_000);
+        assertThat(bounded(tags, () -> Formatting.replaceInHtmlTags(tags, table)))
+                .isEqualTo("<b>".repeat(300_000));
     }
 
     // Task 2
@@ -238,21 +253,21 @@ class HostileInputTest {
     void smiliesAreLinear() {
         Smilies smilies = Smilies.wordPress("https://example.com/wp-includes/images/smilies/");
         String spaced = ":) ".repeat(350_000);
-        assertThat(bounded(spaced, () -> smilies.convert(spaced))).isEqualTo("\uD83D\uDE42 ".repeat(350_000));
+        assertThat(bounded(spaced, () -> smilies.apply(spaced))).isEqualTo("\uD83D\uDE42 ".repeat(350_000));
         String colons = ":".repeat(1_000_000);
-        assertThat(bounded(colons, () -> smilies.convert(colons))).isEqualTo(colons);
+        assertThat(bounded(colons, () -> smilies.apply(colons))).isEqualTo(colons);
         String pres = "<pre>".repeat(200_000) + ":)";
-        assertThat(bounded(pres, () -> smilies.convert(pres))).isEqualTo(pres);
+        assertThat(bounded(pres, () -> smilies.apply(pres))).isEqualTo(pres);
         String lessThans = "<".repeat(1_000_000);
-        assertThat(bounded(lessThans, () -> smilies.convert(lessThans))).isEqualTo(lessThans);
+        assertThat(bounded(lessThans, () -> smilies.apply(lessThans))).isEqualTo(lessThans);
 
         // the shapes of the parity cases t5-tags-1mb, t5-touching-1mb and t5-mixed-1mb (WordPress's answers)
         String tags = "<b>:)</b>".repeat(110_000);
-        assertThat(bounded(tags, () -> smilies.convert(tags))).isEqualTo("<b>\uD83D\uDE42</b>".repeat(110_000));
+        assertThat(bounded(tags, () -> smilies.apply(tags))).isEqualTo("<b>\uD83D\uDE42</b>".repeat(110_000));
         String touching = ":):)".repeat(250_000);
-        assertThat(bounded(touching, () -> smilies.convert(touching))).isEqualTo(touching);
+        assertThat(bounded(touching, () -> smilies.apply(touching))).isEqualTo(touching);
         String mixed = ":mrgreen: &nbsp;:-|&nbsp;\n<code>:)</code>:???:\u00a0".repeat(20_000);
-        assertThat(bounded(mixed, () -> smilies.convert(mixed)))
+        assertThat(bounded(mixed, () -> smilies.apply(mixed)))
                 .isEqualTo(("<img src=\"https://example.com/wp-includes/images/smilies/mrgreen.png\" alt=\":mrgreen:\""
                                 + " class=\"wp-smiley\" style=\"height: 1em; max-height: 1em;\" /> &nbsp;\uD83D\uDE10&nbsp;\n"
                                 + "<code>:)</code>\uD83D\uDE15\u00a0")

@@ -182,6 +182,7 @@ artifactIds below omit the `quarkword-` prefix for brevity unless shown.
 |---|---|---|
 | `lib-php-serialize` | Read/write PHP `serialize()` format | 1.0 |
 | `lib-wp-blocks` | Parse/serialize Gutenberg block markup (`<!-- wp:name {json} -->`) | 1.0 |
+| `lib-wp-formatting` | WordPress's text formatters (wpautop, wptexturize, smilies, convert_chars, capital_P_dangit, force_balance_tags, excerpts) with WordPress's output | 1.0 |
 | `lib-wp-shortcode` | Parse WordPress shortcodes (`[gallery ids="1,2"]`) | 1.0 |
 | `lib-wxr` | Streaming read/write of WordPress eXtended RSS export files | 1.0 |
 | `lib-wp-password` | Verify WordPress password hashes (phpass portable `$P$`, bcrypt, WP 6.8+ `$wp$` format) | 1.0 |
@@ -318,7 +319,7 @@ artifactIds below omit the `quarkword-` prefix for brevity unless shown.
 
 - WordPress's text formatters with WordPress's output: `wpautop`, `wptexturize`, `convert_smilies`, `convert_chars`, `capital_P_dangit` (both modes), `force_balance_tags`/`balanceTags`, `wp_trim_words`, `wp_html_excerpt`, `excerpt_remove_footnotes`, the excerpt `wp_trim_excerpt` builds, `wp_html_split` and `wp_replace_in_html_tags`.
 - Settings are arguments and immutable builders with WordPress's defaults (no-texturize tags and shortcodes, quote strings, smiley image base URL, word-count type, excerpt length and "more" text); steps that need other libraries (`strip_shortcodes`, `excerpt_remove_blocks`, the `the_content` filters) are caller hooks. The library runs no filter chain itself: `blocks-render` composes `the_content`, `the_title` and the excerpt chains in WordPress's order, with `shortcode_unautop` and `do_shortcode` from `lib-wp-shortcode`.
-- Linear time, no regular expressions, explicit stacks. Where WordPress's regular expressions hit PCRE limits and return empty text, the library formats the input; typed `<pre>` placeholders whose output would grow quadratically are refused above a configurable cap. Each difference is listed in the lib README and its parity skip list (§7.7).
+- Linear time for a given configuration (exact bounds in the lib README), no regular expressions, explicit stacks. Where WordPress's regular expressions hit PCRE limits and fail (with empty text, an error, or unbalanced output), the library formats the input; typed `<pre>` placeholders whose output would grow quadratically are refused above a configurable cap. Each difference is listed in the lib README and its parity skip list (§7.7).
 - Depends only on `lib-wp-kses` (for `wp_strip_all_tags`).
 
 ---

@@ -23,7 +23,8 @@ public final class Formatting {
      * {@code wp_replace_in_html_tags}: replaces text inside markup only (tags, comments and CDATA), never in the
      * text between them. With one pair every occurrence of its key is replaced; with several, all are applied at
      * once and the longest key wins at each position. Empty keys are ignored. Returns {@code haystack} itself when
-     * nothing changed.
+     * nothing changed. The table is built once per call, so the cost is O(length of {@code haystack} × longest key)
+     * plus the total length of the keys.
      */
     public static String replaceInHtmlTags(String haystack, Map<String, String> pairs) {
         Objects.requireNonNull(haystack, "haystack");
@@ -39,6 +40,7 @@ public final class Formatting {
         if (table.isEmpty()) {
             return haystack;
         }
+        Strtr strtr = Strtr.compile(table);
         StringBuilder out = new StringBuilder();
         boolean[] changed = {false};
         HtmlSplitter.forEachChunk(haystack, (start, end, markup) -> {
@@ -47,7 +49,7 @@ public final class Formatting {
                 return;
             }
             String chunk = haystack.substring(start, end);
-            String replaced = Strtr.apply(chunk, table);
+            String replaced = strtr.replace(chunk);
             if (!replaced.equals(chunk)) {
                 changed[0] = true;
             }
@@ -60,7 +62,9 @@ public final class Formatting {
      * {@code wpautop} with line breaks on: blank lines become paragraphs and single newlines {@code <br />}, with
      * WordPress's handling of block tags, {@code <pre>} blocks, script, style, svg and math, and markup. Text that
      * holds only spaces, tabs, line feeds, carriage returns, NULs and vertical tabs gives {@code ""}; any other
-     * result ends with a line feed.
+     * result ends with a line feed. The default output limit of {@link AutopOptions} applies.
+     *
+     * @throws FormattingLimitException when the text it would build is longer than the default output limit
      */
     public static String autop(String text) {
         return autop(text, true);
@@ -70,6 +74,8 @@ public final class Formatting {
      * {@code wpautop}: as {@link #autop(String)}; with {@code br} false single newlines stay as they are. Line
      * breaks right after a block tag or right before a paragraph, list or table tag are removed either way. The
      * default output limit of {@link AutopOptions} applies.
+     *
+     * @throws FormattingLimitException when the text it would build is longer than the default output limit
      */
     public static String autop(String text, boolean br) {
         Objects.requireNonNull(text, "text");
@@ -80,6 +86,8 @@ public final class Formatting {
      * {@code wpautop} with the given options. Throws {@link FormattingLimitException} when the text it would build
      * is longer than the options' output limit; with {@code <pre>} blocks this is known, and thrown, before the
      * blocks are put back.
+     *
+     * @throws FormattingLimitException when the text it would build is longer than the options' output limit
      */
     public static String autop(String text, AutopOptions options) {
         Objects.requireNonNull(text, "text");

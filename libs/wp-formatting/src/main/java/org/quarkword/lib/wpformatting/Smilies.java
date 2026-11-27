@@ -49,7 +49,7 @@ public final class Smilies {
     }
 
     /** The text with its smileys replaced; the text itself when disabled or when it holds no smiley. */
-    public String convert(String text) {
+    public String apply(String text) {
         Objects.requireNonNull(text, "text");
         if (!enabled || text.isEmpty()) {
             return text;
@@ -75,7 +75,7 @@ public final class Smilies {
 
         private Builder() {}
 
-        /** WordPress's {@code use_smilies} option: false makes {@link #convert} return its input. Default true. */
+        /** WordPress's {@code use_smilies} option: false makes {@link Smilies#apply} return its input. Default true. */
         public Builder enabled(boolean useSmilies) {
             this.enabled = useSmilies;
             return this;

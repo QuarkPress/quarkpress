@@ -4,7 +4,8 @@ WordPress's text formatters for plain Java: `wpautop`, `wptexturize`, `convert_s
 `capital_P_dangit`, `force_balance_tags`, `wp_trim_words`, `wp_html_excerpt`, `excerpt_remove_footnotes`, the excerpt
 `wp_trim_excerpt` builds, `wp_html_split` and `wp_replace_in_html_tags`, with the output of WordPress 7.1.3, odd cases
 included. Immutable, thread-safe, no global state, settings as arguments and builders instead of options and filters.
-Every function runs in linear time without regular expressions. One dependency: `quarkword-lib-wp-kses`, for
+Every function runs without regular expressions, in time linear in its input for a given configuration (exact
+bounds under [Performance and safety](#performance-and-safety)). One dependency: `quarkword-lib-wp-kses`, for
 `wp_strip_all_tags`.
 
 ## Coordinates
@@ -55,7 +56,7 @@ UnaryOperator<String> chain = content -> {
     html = shortcodes.unautop(html);                                     // shortcode_unautop  (10)
     html = Formatting.capitalPDangit(html, CapitalPMode.JUDICIOUS);      // capital_P_dangit   (11)
     html = shortcodes.apply(html);                                       // do_shortcode       (11)
-    return smilies.convert(html);                                        // convert_smilies    (20)
+    return smilies.apply(html);                                          // convert_smilies    (20)
 };
 String body = chain.apply("\"Hello\" -- it's [year].\n\nWordpress :)");
 
@@ -71,7 +72,7 @@ String excerpt = Excerpts.trimExcerpt("", postContent, ExcerptOptions.builder()
         .shortcodeStripper(shortcodes::strip)                           // strip_shortcodes
         .contentFilter(chain)                                           // the_content without do_blocks
         .build());
-excerpt = Formatting.autop(Formatting.convertChars(smilies.convert(texturize.apply(excerpt))));
+excerpt = Formatting.autop(Formatting.convertChars(smilies.apply(texturize.apply(excerpt))));
 excerpt = shortcodes.unautop(excerpt);
 
 String words = Excerpts.trimWords("one two three four", 2);               // "one two&hellip;"
@@ -92,7 +93,7 @@ String cut = Excerpts.htmlExcerpt("<b>Hello</b> &amp; world", 8, "...");   // "H
 | `Texturize.Builder.noTexturizeShortcodes`, `Texturize.DEFAULT_NO_TEXTURIZE_SHORTCODES` | `no_texturize_shortcodes` |
 | `Texturize.Builder.registeredShortcodes` | the registered names in `$shortcode_tags` |
 | `TexturizeStrings.english()`, `withCockney` | the en_US strings, `$cockney` and `$cockneyreplace` |
-| `Smilies.wordPress(base)`, `Smilies.convert` | `convert_smilies` with the default `$wpsmiliestrans` |
+| `Smilies.wordPress(base)`, `Smilies.apply` | `convert_smilies` with the default `$wpsmiliestrans` |
 | `Smilies.Builder.enabled` | `use_smilies` |
 | `Smilies.Builder.imageBaseUrl` | `includes_url('images/smilies/')` |
 | `Smilies.codes()` | the keys of the default `$wpsmiliestrans` |
@@ -203,7 +204,17 @@ so a cut never splits a surrogate pair.
 
 ## Performance and safety
 
-Every function is linear in its input. The scanners are hand-written over `String` and `StringBuilder`, with no
+Every function is linear in its input for a given configuration. Where the caller supplies the strings that are
+searched for, their length enters the bound:
+
+- `replaceInHtmlTags` builds its replacement table once per call: O(length × longest key), plus the total length of
+  the keys.
+- `Texturize` with a custom cockney list (`TexturizeStrings.withCockney`) makes one literal pass per entry over each
+  text segment, as WordPress's `str_replace` does: O(length × entries × longest key), where the length is the
+  segment as earlier entries have grown it. WordPress's English list has 11 short entries.
+- `capitalPDangit` with custom `TexturizeStrings` is O(length × opening double quote length).
+
+The scanners are hand-written over `String` and `StringBuilder`, with no
 `java.util.regex` anywhere in the main code (a test enforces this), forward searches that never rescan, and explicit
 stacks instead of recursion. The cases where WordPress's regular expressions give up (D1, D2, D5, D6, D11) are
 formatted normally here. The only output that can grow faster than the input, typed `<pre>` placeholders, is measured
@@ -217,8 +228,8 @@ outputs are pinned.
 ## Parity testing
 
 `mvn verify -Pwp-parity` (needs `php` 8.4 and network) downloads the pinned WordPress 7.1.3 files into
-`.cache/wp-source/` and compares every formatter and the `the_content`, `the_title` and excerpt chains with
-WordPress, on the behavior references' examples and the large shapes in `src/test/resources/wp-parity-cases.json`
+`.cache/wp-source/` and compares every formatter, the `the_title` chain, `the_content` without shortcodes (`wpautop`
+then `capital_P_dangit`) and the excerpt chains (without shortcodes) with WordPress, on the behavior references' examples and the large shapes in `src/test/resources/wp-parity-cases.json`
 (about 550 cases, also checked without `php` in the normal build) and on about 18,000 generated inputs. Differences
 are shrunk to a small input and written to `target/wp-parity-failures.json`. The run ends with a line such as
 `lib-wp-formatting parity: 19129 cases, 19668 comparisons, 0 differences`. In CI the parity step also fails when

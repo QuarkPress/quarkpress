@@ -39,31 +39,38 @@ public final class ExcerptOptions {
         return new Builder();
     }
 
-    UnaryOperator<String> shortcodeStripper() {
+    /** The {@code strip_shortcodes} hook. */
+    public UnaryOperator<String> shortcodeStripper() {
         return shortcodeStripper;
     }
 
-    UnaryOperator<String> blockRemover() {
+    /** The {@code excerpt_remove_blocks} hook. */
+    public UnaryOperator<String> blockRemover() {
         return blockRemover;
     }
 
-    UnaryOperator<String> contentFilter() {
+    /** The {@code the_content} hook run on the stripped content. */
+    public UnaryOperator<String> contentFilter() {
         return contentFilter;
     }
 
-    int length() {
+    /** The {@code excerpt_length}, in words or characters. */
+    public int length() {
         return length;
     }
 
-    String more() {
+    /** The {@code excerpt_more} text appended to a shortened excerpt. */
+    public String more() {
         return more;
     }
 
-    WordCountType wordCountType() {
+    /** The locale's word-count type. */
+    public WordCountType wordCountType() {
         return wordCountType;
     }
 
-    boolean utf8Charset() {
+    /** Whether the blog charset is UTF-8. */
+    public boolean utf8Charset() {
         return utf8Charset;
     }
 

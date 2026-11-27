@@ -35,7 +35,7 @@ final class Functions {
             case "title_chain" -> NODES.textNode(titleChain(in));
             case "content_chain" -> NODES.textNode(contentChain(in));
             // Task 5
-            case "smilies" -> NODES.textNode(smilies(args).convert(in));
+            case "smilies" -> NODES.textNode(smilies(args).apply(in));
             // Task 6
             case "trim_words" -> NODES.textNode(trimWords(in, args));
             case "html_excerpt" ->
@@ -163,7 +163,7 @@ final class Functions {
      * convert_smilies, convert_chars, wpautop and shortcode_unautop at 10.
      */
     static String excerptChain(String in) {
-        String text = EXCERPT_SMILIES.convert(Texturize.wordPress().apply(in));
+        String text = EXCERPT_SMILIES.apply(Texturize.wordPress().apply(in));
         return Formatting.autop(Formatting.convertChars(text));
     }
 
@@ -175,7 +175,7 @@ final class Functions {
     static String generatedExcerpt(String content, int length) {
         ExcerptOptions options = ExcerptOptions.builder()
                 .length(length)
-                .contentFilter(text -> EXCERPT_SMILIES.convert(Formatting.capitalPDangit(
+                .contentFilter(text -> EXCERPT_SMILIES.apply(Formatting.capitalPDangit(
                         Formatting.autop(Texturize.wordPress().apply(text)), CapitalPMode.JUDICIOUS)))
                 .build();
         return Excerpts.trimExcerpt("", content, options);
@@ -193,7 +193,7 @@ final class Functions {
                 .more(textOrNull(args, "more"))
                 .wordCountType(WordCountType.fromWordPress(args.path("type").asText("words")))
                 .utf8Charset(isUtf8Charset(args.path("charset").asText("UTF-8")))
-                .contentFilter(text -> EXCERPT_SMILIES.convert(Formatting.capitalPDangit(
+                .contentFilter(text -> EXCERPT_SMILIES.apply(Formatting.capitalPDangit(
                         Formatting.autop(Texturize.wordPress().apply(text)), CapitalPMode.JUDICIOUS)))
                 .build();
         return Excerpts.trimExcerpt(args.path("raw").asText(""), content, options);

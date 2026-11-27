@@ -69,7 +69,10 @@ public final class AutopOptions {
 
         /**
          * A fixed output limit in chars, replacing the default. A call whose text would grow longer throws
-         * {@link FormattingLimitException}; with {@code <pre>} blocks it does so before building the text.
+         * {@link FormattingLimitException}; with {@code <pre>} blocks it does so before building the text. Without
+         * {@code <pre>} blocks the limit is checked on the finished text, so a cap close to the input length makes
+         * ordinary posts throw: every paragraph adds {@code <p>} and {@code </p>\n}, and every single newline
+         * {@code <br />}. Keep a custom cap well above the longest expected input.
          */
         public Builder maxOutputLength(long chars) {
             if (chars < 0) {

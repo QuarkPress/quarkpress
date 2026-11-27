@@ -63,7 +63,11 @@ public record TexturizeStrings(
                 cockney);
     }
 
-    /** A copy whose cockney list is exactly {@code replacements}, in its iteration order. */
+    /**
+     * A copy whose cockney list is exactly {@code replacements}, in its iteration order. Each entry is one literal
+     * pass over each text segment, as in WordPress, so texturizing costs O(length × entries × longest key), with the
+     * length as earlier entries have grown it.
+     */
     public TexturizeStrings withCockney(Map<String, String> replacements) {
         return new TexturizeStrings(
                 openingDoubleQuote,

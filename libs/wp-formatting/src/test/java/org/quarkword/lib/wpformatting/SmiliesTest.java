@@ -27,7 +27,7 @@ class SmiliesTest {
         assertThat(c.fn()).as("fn of %s", id).isEqualTo("smilies");
         assertThat(c.in()).as("input of %s", id).isEqualTo(input);
         assertThat(c.out()).as("recorded output of %s", id).isNotNull();
-        assertThat(Functions.smilies(c.args()).convert(input))
+        assertThat(Functions.smilies(c.args()).apply(input))
                 .as(id)
                 .isEqualTo(c.out().asText());
     }
@@ -93,7 +93,7 @@ class SmiliesTest {
 
     @Test
     void imageUsesTheBaseVerbatim() { // FT34, DC4
-        String img = Smilies.wordPress("//cdn.test/s/?a=1&amp;b=").convert(":mrgreen:");
+        String img = Smilies.wordPress("//cdn.test/s/?a=1&amp;b=").apply(":mrgreen:");
         assertThat(img)
                 .isEqualTo("<img src=\"//cdn.test/s/?a=1&amp;b=mrgreen.png\" alt=\":mrgreen:\" class=\"wp-smiley\""
                         + " style=\"height: 1em; max-height: 1em;\" />");
@@ -103,9 +103,9 @@ class SmiliesTest {
     void disabledReturnsItsInput() { // FT30, B-G148
         Smilies off = Smilies.builder().enabled(false).build();
         String text = ":) :mrgreen:";
-        assertThat(off.convert(text)).isSameAs(text);
+        assertThat(off.apply(text)).isSameAs(text);
         String plain = "no smiley here";
-        assertThat(Smilies.wordPress(BASE).convert(plain)).isEqualTo(plain);
+        assertThat(Smilies.wordPress(BASE).apply(plain)).isEqualTo(plain);
     }
 
     @Test
@@ -113,7 +113,7 @@ class SmiliesTest {
         assertThatNullPointerException().isThrownBy(() -> Smilies.wordPress(null));
         assertThatNullPointerException().isThrownBy(() -> Smilies.builder().imageBaseUrl(null));
         assertThatNullPointerException()
-                .isThrownBy(() -> Smilies.wordPress(BASE).convert(null));
+                .isThrownBy(() -> Smilies.wordPress(BASE).apply(null));
         assertThatIllegalStateException().isThrownBy(() -> Smilies.builder().build());
     }
 }

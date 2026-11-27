@@ -6,7 +6,8 @@ import java.util.Objects;
 
 /**
  * PHP's {@code strtr} with a replacement table: at each position the longest matching key is replaced, replaced
- * text is never scanned again, and an empty key is ignored. A trie keeps the cost at O(length × longest key).
+ * text is never scanned again, and an empty key is ignored. A table is compiled once into a trie and can then be
+ * applied to any number of texts; each application costs O(length × longest key).
  */
 final class Strtr {
 
@@ -15,10 +16,20 @@ final class Strtr {
         String replacement;
     }
 
-    private Strtr() {}
+    private final Node root;
 
+    private Strtr(Node root) {
+        this.root = root;
+    }
+
+    /** {@code strtr($text, $pairs)}: compiles {@code pairs} and applies them once. */
     static String apply(String text, Map<String, String> pairs) {
         Objects.requireNonNull(text, "text");
+        return compile(pairs).replace(text);
+    }
+
+    /** Compiles {@code pairs} into a reusable table; the cost is the total length of the keys. */
+    static Strtr compile(Map<String, String> pairs) {
         Node root = new Node();
         boolean any = false;
         for (Map.Entry<String, String> pair : pairs.entrySet()) {
@@ -34,7 +45,13 @@ final class Strtr {
             node.replacement = value;
             any = true;
         }
-        if (!any) {
+        return new Strtr(any ? root : null);
+    }
+
+    /** Applies the compiled table to {@code text}; returns {@code text} itself when nothing matched. */
+    String replace(String text) {
+        Objects.requireNonNull(text, "text");
+        if (root == null) {
             return text;
         }
         StringBuilder out = null;
