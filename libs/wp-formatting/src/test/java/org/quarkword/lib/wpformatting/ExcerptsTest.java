@@ -120,7 +120,8 @@ class ExcerptsTest {
         assertCase(
                 "t6-ch-collapse",
                 "  a \n\t b  \u00a0",
-                () -> Excerpts.trimWords("  a \n\t b  \u00a0", 5, null, WordCountType.CHARACTERS_INCLUDING_SPACES, true));
+                () -> Excerpts.trimWords(
+                        "  a \n\t b  \u00a0", 5, null, WordCountType.CHARACTERS_INCLUDING_SPACES, true));
     }
 
     @Test
