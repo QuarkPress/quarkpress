@@ -165,6 +165,15 @@ function qw_excerpt_chain(string $text): string
     return apply_filters('the_excerpt', $text);
 }
 
+// Task 7: tag balancing
+
+/** balanceTags with the case's use_balanceTags option (1 or 0) and force flag. */
+function qw_balance_tags(string $text, array $args): string
+{
+    $GLOBALS['qw_options']['use_balanceTags'] = ($args['option'] ?? false) ? 1 : 0;
+    return balanceTags($text, $args['force'] ?? false);
+}
+
 qw_run(function (array $in): array {
     $GLOBALS['qw_options'] = [];
     $GLOBALS['qw_word_count_type'] = 'words';
@@ -189,5 +198,8 @@ qw_run(function (array $in): array {
         'html_excerpt' => wp_html_excerpt($in['in'], $args['count'], $args['more'] ?? null),
         'remove_footnotes' => excerpt_remove_footnotes($in['in']),
         'excerpt_chain' => qw_excerpt_chain($in['in']),
+        // Task 7
+        'force_balance' => force_balance_tags($in['in']),
+        'balance_tags' => qw_balance_tags($in['in'], $args),
     }];
 });

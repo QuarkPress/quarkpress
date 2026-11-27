@@ -176,7 +176,37 @@ class FormattingParityTest {
                 "It's \"great\" :) & more -- yes\n\n".repeat(30_000),
                 NODES.objectNode(),
                 null));
+        // Task 7: force_balance_tags on large inputs (the shapes of HostileInputTest.balanceIsLinear and
+        // balanceAdversarialShapes)
+        cases.add(forceBalance("fa-g161", "<b>".repeat(20_000) + "x"));
+        cases.add(forceBalance("fa-b-1mb", "<b>".repeat(350_000) + "x"));
+        cases.add(forceBalance("t7-lt-1mb", "<".repeat(1_000_000)));
+        cases.add(forceBalance("t7-deep-div", "<div>".repeat(100_000) + "x" + "</div>".repeat(100_000)));
+        cases.add(forceBalance("t7-deep-upper-div", "<DIV>".repeat(100_000) + "x" + "</div>".repeat(100_000)));
+        cases.add(forceBalance("t7-deep-span", "<span>".repeat(100_000) + "x"));
+        cases.add(forceBalance("t7-deep-p", "<p>".repeat(100_000) + "x"));
+        cases.add(forceBalance("t7-unclosed-mixed", "<i><b>".repeat(50_000) + "x"));
+        cases.add(forceBalance("t7-voids", "<br>".repeat(100_000) + "<img src=x/>".repeat(25_000)));
+        cases.add(forceBalance("t7-lt-attr", "<a b=\"<i>\">".repeat(100_000)));
+        cases.add(forceBalance("t7-comments", "<!-- <b> -->".repeat(100_000)));
+        cases.add(forceBalance("t7-stray-closers", "</b>".repeat(300_000)));
+        cases.add(forceBalance("t7-stray-deep", "<b>".repeat(50_000) + "</i>".repeat(50_000)));
+        cases.add(forceBalance("t7-crossed-deep", "<b><i>".repeat(50_000) + "</b>".repeat(50_000)));
+        cases.add(forceBalance("t7-malformed-closers", "</ b></></A-b><//b></b x></b/>".repeat(30_000)));
+        cases.add(forceBalance("t7-long-name", "<" + "a".repeat(1_000_000)));
+        cases.add(forceBalance("t7-long-attr", "<a " + "x".repeat(1_000_000)));
+        cases.add(forceBalance("t7-open-attrs-50k", "<a ".repeat(50_000)));
+        cases.add(forceBalance("t7-comment-escapes", "< !--".repeat(200_000) + "<    !--".repeat(100_000)));
+        cases.add(forceBalance("t7-digits-1mb", "<3".repeat(500_000)));
+        // 17 characters after the hyphen of a name that does not end a tag still balance (t7-custom-tail-17 in the
+        // case file); with 18 WordPress's backtrack limit stops the scan there (D11)
+        cases.add(forceBalance("t7-custom-tail-18", "<b>x<a-" + "b".repeat(18) + "=<i>y"));
+        cases.add(forceBalance("t7-custom-tail-closer", "<b>x</a-" + "b".repeat(40) + "=<i>y<p>z"));
         return cases;
+    }
+
+    private static ParityCase forceBalance(String id, String in) {
+        return new ParityCase(id, "force_balance", in, NODES.objectNode(), null);
     }
 
     private static ParityCase autop(String id, String in) {

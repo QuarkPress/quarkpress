@@ -46,6 +46,13 @@ final class Functions {
                         args.path("generated").asBoolean(false)
                                 ? generatedExcerpt(in, args.path("length").asInt())
                                 : in));
+            // Task 7
+            case "force_balance" -> NODES.textNode(Formatting.forceBalanceTags(in));
+            case "balance_tags" ->
+                NODES.textNode(Formatting.balanceTags(
+                        in,
+                        args.path("force").asBoolean(false),
+                        args.path("option").asBoolean(false)));
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -71,7 +78,10 @@ final class Functions {
             "trim_words",
             "html_excerpt",
             "remove_footnotes",
-            "excerpt_chain");
+            "excerpt_chain",
+            // Task 7
+            "force_balance",
+            "balance_tags");
 
     /** The shortcodes WordPress core registers; a texturize case gives its own list in {@code shortcodes}. */
     static final List<String> CORE_SHORTCODES =

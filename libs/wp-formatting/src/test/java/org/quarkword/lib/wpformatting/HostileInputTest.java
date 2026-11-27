@@ -289,6 +289,79 @@ class HostileInputTest {
                 .isEqualTo(nearMisses);
     }
 
+    // Task 7: A-G161 and larger; b is not nestable, so each new <b> first closes the one before it
+    @Test
+    void balanceIsLinear() {
+        String g161 = "<b>".repeat(20_000) + "x";
+        String g161Out = bounded(g161, () -> Formatting.forceBalanceTags(g161));
+        assertThat(g161Out).hasSize(140_001).isEqualTo("<b></b>".repeat(19_999) + "<b>x</b>");
+        assertThat(count(g161Out, "</b>")).isEqualTo(20_000);
+        String large = "<b>".repeat(350_000) + "x";
+        assertThat(bounded(large, () -> Formatting.forceBalanceTags(large)))
+                .hasSize(2_450_001)
+                .isEqualTo("<b></b>".repeat(349_999) + "<b>x</b>");
+        String lessThans = "<".repeat(1_000_000);
+        assertThat(bounded(lessThans, () -> Formatting.forceBalanceTags(lessThans)))
+                .isEqualTo(lessThans);
+    }
+
+    // Task 7: the shapes of the t7-* parity cases (WordPress's answers at these sizes, except t7-open-attrs-50k)
+    @Test
+    void balanceAdversarialShapes() {
+        int n = 100_000;
+        String deep = "<div>".repeat(n) + "x" + "</div>".repeat(n);
+        assertThat(bounded(deep, () -> Formatting.forceBalanceTags(deep))).isEqualTo(deep);
+        String upper = "<DIV>".repeat(n) + "x" + "</div>".repeat(n);
+        assertThat(bounded(upper, () -> Formatting.forceBalanceTags(upper))).isEqualTo(deep);
+        String spans = "<span>".repeat(n) + "x";
+        assertThat(bounded(spans, () -> Formatting.forceBalanceTags(spans))).isEqualTo(spans + "</span>".repeat(n));
+        String paragraphs = "<p>".repeat(n) + "x";
+        assertThat(bounded(paragraphs, () -> Formatting.forceBalanceTags(paragraphs)))
+                .isEqualTo("<p></p>".repeat(n - 1) + "<p>x</p>");
+        String unclosed = "<i><b>".repeat(50_000) + "x";
+        assertThat(bounded(unclosed, () -> Formatting.forceBalanceTags(unclosed)))
+                .isEqualTo(unclosed + "</b></i>".repeat(50_000));
+
+        String voids = "<br>".repeat(100_000) + "<img src=x/>".repeat(25_000);
+        assertThat(bounded(voids, () -> Formatting.forceBalanceTags(voids)))
+                .isEqualTo("<br />".repeat(100_000) + "<img src=x/>".repeat(25_000));
+
+        String attributes = "<a b=\"<i>\">".repeat(n);
+        assertThat(bounded(attributes, () -> Formatting.forceBalanceTags(attributes)))
+                .isEqualTo("<a b=\"<i>\">" + "</a><a b=\"<i>\">".repeat(n - 1) + "</a>");
+        String comments = "<!-- <b> -->".repeat(n);
+        assertThat(bounded(comments, () -> Formatting.forceBalanceTags(comments)))
+                .isEqualTo("<!-- <b> -->" + "<!-- </b><b> -->".repeat(n - 1) + "</b>");
+
+        String strays = "</b>".repeat(300_000);
+        assertThat(bounded(strays, () -> Formatting.forceBalanceTags(strays))).isEmpty();
+        String strayUnderDeep = "<b>".repeat(50_000) + "</i>".repeat(50_000);
+        assertThat(bounded(strayUnderDeep, () -> Formatting.forceBalanceTags(strayUnderDeep)))
+                .isEqualTo("<b></b>".repeat(50_000));
+        String crossed = "<b><i>".repeat(50_000) + "</b>".repeat(50_000);
+        assertThat(bounded(crossed, () -> Formatting.forceBalanceTags(crossed)))
+                .isEqualTo("<b><i>".repeat(50_000) + "</i></b>".repeat(50_000));
+        String malformed = "</ b></></A-b><//b></b x></b/>".repeat(30_000);
+        assertThat(bounded(malformed, () -> Formatting.forceBalanceTags(malformed)))
+                .isEqualTo("</ b></></A-b><//b>".repeat(30_000));
+
+        String longName = "<" + "a".repeat(1_000_000);
+        assertThat(bounded(longName, () -> Formatting.forceBalanceTags(longName)))
+                .isEqualTo(longName);
+        String longAttributes = "<a " + "x".repeat(1_000_000);
+        assertThat(bounded(longAttributes, () -> Formatting.forceBalanceTags(longAttributes)))
+                .isEqualTo(longAttributes);
+        // no ">" anywhere: WordPress takes 16 s on this size, so its parity case is 50,000 openers
+        String openAttributes = "<a ".repeat(300_000);
+        assertThat(bounded(openAttributes, () -> Formatting.forceBalanceTags(openAttributes)))
+                .isEqualTo(openAttributes);
+
+        String escapes = "< !--".repeat(200_000) + "<    !--".repeat(100_000);
+        assertThat(bounded(escapes, () -> Formatting.forceBalanceTags(escapes))).isEqualTo("< !--".repeat(300_000));
+        String digits = "<3".repeat(500_000);
+        assertThat(bounded(digits, () -> Formatting.forceBalanceTags(digits))).isEqualTo("&lt;3".repeat(500_000));
+    }
+
     private static int count(String text, String needle) {
         int n = 0;
         for (int i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length())) {

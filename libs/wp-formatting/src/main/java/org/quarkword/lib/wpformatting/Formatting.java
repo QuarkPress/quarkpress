@@ -123,6 +123,29 @@ public final class Formatting {
         return CapitalP.apply(text, mode, strings.openingDoubleQuote());
     }
 
+    /**
+     * {@code force_balance_tags}: closes every element left open, innermost first, and drops closing tags of
+     * elements that are not open. A closing tag for an element further down closes the ones above it first; a new
+     * element of the same name as the innermost open one closes it, except for article, aside, blockquote, details,
+     * div, figure, object, q, section and span. Void tags such as {@code <br>} and {@code <img>} become
+     * self-closing, and any other self-closed tag such as {@code <div/>} becomes an empty element. Tag names are
+     * written in ASCII lower case; attributes keep their text but lose surrounding whitespace. A {@code <} before
+     * an ASCII digit becomes {@code &lt;}. Comments are not skipped: tags inside them are balanced too.
+     */
+    public static String forceBalanceTags(String text) {
+        Objects.requireNonNull(text, "text");
+        return BalanceTags.apply(text);
+    }
+
+    /**
+     * {@code balanceTags}: {@link #forceBalanceTags(String)} when {@code force} is true or the site option
+     * {@code use_balanceTags} is on ({@code useBalanceTagsOption}); otherwise {@code text} itself, unchanged.
+     */
+    public static String balanceTags(String text, boolean force, boolean useBalanceTagsOption) {
+        Objects.requireNonNull(text, "text");
+        return force || useBalanceTagsOption ? BalanceTags.apply(text) : text;
+    }
+
     /** PHP's {@code trim}: removes spaces, tabs, line feeds, carriage returns, NULs and vertical tabs at both ends. */
     public static String phpTrim(String text) {
         Objects.requireNonNull(text, "text");
