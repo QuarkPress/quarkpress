@@ -21,6 +21,7 @@ Project home: <https://quarkword.org>
 | `libs/` | Plain Java libraries (`org.quarkword.lib`), zero Quarkus dependency |
 | `libs/php-serialize/` | Reader/writer for the PHP `serialize()` format |
 | `libs/wp-blocks/` | Parser and serializer for Gutenberg block markup |
+| `libs/wp-formatting/` | WordPress's text formatters: autop, texturize, smilies, `convert_chars`, `capital_P_dangit` and excerpts, with WordPress's output |
 | `libs/wp-kses/` | WordPress's kses HTML sanitizer: the same allowlists, URL protocols, inline-CSS filtering and output as WordPress |
 | `libs/wp-shortcode/` | WordPress shortcodes: register handlers, then expand, strip, find and parse `[shortcodes]` as WordPress does |
 | `libs/wp-password/` | Verifier for passwords stored by WordPress (MD5, phpass, bcrypt, `$wp$`, application passwords) |

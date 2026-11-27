@@ -314,6 +314,13 @@ artifactIds below omit the `quarkword-` prefix for brevity unless shown.
 - Every standalone lib is checked against the real WordPress code it mirrors: a test-only module downloads a pinned WordPress release at test time, runs its PHP functions with the local `php`, and compares results with the Java library on hand-written, fixture and generated inputs.
 - Known, deliberate differences are listed per lib with a reason; any new difference fails the build. The parity profile runs in CI.
 
+### 7.8 `lib-wp-formatting`
+
+- WordPress's text formatters with WordPress's output: `wpautop`, `wptexturize`, `convert_smilies`, `convert_chars`, `capital_P_dangit` (both modes), `force_balance_tags`/`balanceTags`, `wp_trim_words`, `wp_html_excerpt`, `excerpt_remove_footnotes`, the excerpt `wp_trim_excerpt` builds, `wp_html_split` and `wp_replace_in_html_tags`.
+- Settings are arguments and immutable builders with WordPress's defaults (no-texturize tags and shortcodes, quote strings, smiley image base URL, word-count type, excerpt length and "more" text); steps that need other libraries (`strip_shortcodes`, `excerpt_remove_blocks`, the `the_content` filters) are caller hooks. The library runs no filter chain itself: `blocks-render` composes `the_content`, `the_title` and the excerpt chains in WordPress's order, with `shortcode_unautop` and `do_shortcode` from `lib-wp-shortcode`.
+- Linear time, no regular expressions, explicit stacks. Where WordPress's regular expressions hit PCRE limits and return empty text, the library formats the input; typed `<pre>` placeholders whose output would grow quadratically are refused above a configurable cap. Each difference is listed in the lib README and its parity skip list (§7.7).
+- Depends only on `lib-wp-kses` (for `wp_strip_all_tags`).
+
 ---
 
 ## 8. Security
@@ -453,7 +460,7 @@ Contributors confirm the policy in the PR template. Get a legal review before 1.
 - `media` + fs/S3 storage, `rest-wp-v2` (§9), `quarkword-admin-gutenberg` repo, `quarkword-keycloak`.
 
 ### M3 — Publishing → **1.0**
-- `theme-qute`, `blocks-render`, `import-wxr`, starter theme, migration guide.
+- `theme-qute`, `blocks-render`, `import-wxr`, `lib-wp-formatting`, starter theme, migration guide.
 - Legal review of the source policy and licensing setup.
 
 ### Post-1.0 (rough order)
