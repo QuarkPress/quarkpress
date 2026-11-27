@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.quarkword.lib</groupId>
+    <artifactId>quarkword-libs-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>quarkword-lib-wp-formatting</artifactId>
+
+  <name>QuarkWord :: lib :: WP formatting</name>
+  <description>WordPress's text formatters (autop, texturize, smilies, excerpts) with WordPress's output</description>
+
+  <properties>
+    <automatic.module.name>org.quarkword.lib.wpformatting</automatic.module.name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.quarkword.lib</groupId>
+      <artifactId>quarkword-lib-wp-kses</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.quarkword.testing</groupId>
+      <artifactId>quarkword-test-wp-oracle</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -45,6 +45,11 @@
       </dependency>
       <dependency>
         <groupId>org.quarkword.lib</groupId>
+        <artifactId>quarkword-lib-wp-formatting</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkword.lib</groupId>
         <artifactId>quarkword-lib-wp-kses</artifactId>
         <version>${project.version}</version>
       </dependency>
