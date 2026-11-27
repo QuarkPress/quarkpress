@@ -90,7 +90,33 @@ class FormattingParityTest {
 
     /** Inputs too large for the case file; Tasks 2 to 7 add theirs. */
     private static List<ParityCase> programmaticCases() {
-        return List.of();
+        List<ParityCase> cases = new ArrayList<>();
+        // Task 2: the readers' large and hostile wpautop inputs
+        cases.add(autop("fa-g153", "Line of text\n".repeat(20_000) + "\n" + "Para\n\n".repeat(20_000)));
+        cases.add(autop("fa-g154", "a" + " ".repeat(200_000) + "b"));
+        cases.add(autop("fa-g155", "< x\n\n".repeat(50_000)));
+        cases.add(autop("fa-g156", "<script>".repeat(20_000) + "x\n".repeat(1_000)));
+        cases.add(autop("fa-g157", "<blockquote " + "\"a\" ".repeat(50_000)));
+        cases.add(autop("fa-g159", "word ".repeat(1_000_000)));
+        // the largest <li paragraph WordPress still formats: one more char and its backtrack limit gives ""
+        cases.add(autop("fa-li-1mb", "<li>" + "x".repeat(999_999)));
+        cases.add(autop("fa-g160", "<li>" + "x".repeat(3_000_000)));
+        // repeated "<p><li" hits the same limit much sooner: 27,778 still formats, 27,779 (166,674 chars) gives ""
+        cases.add(autop("fa-p-li-27778", "<p><li".repeat(27_778)));
+        cases.add(autop("fa-p-li-100k", "<p><li".repeat(100_000)));
+        // a script, style, svg or math opener without a closer: 999,992 chars after it still format, 999,993 give ""
+        cases.add(autop("fa-script-999992", "<script>" + "x".repeat(999_992)));
+        cases.add(autop("fa-script-1mb", "<script>" + "x".repeat(1_000_000)));
+        cases.add(autop("fa-style-999992", "<style>" + "x".repeat(999_992)));
+        cases.add(autop("fa-style-1mb", "<style>" + "x".repeat(1_000_000)));
+        // with blank lines after the opener far less is needed: 111,111 "x\n\n" still format, 111,112 give ""
+        cases.add(autop("fa-svg-333k-below", "<svg>" + "x\n\n".repeat(111_111)));
+        cases.add(autop("fa-svg-333k", "<svg>" + "x\n\n".repeat(111_112)));
+        return cases;
+    }
+
+    private static ParityCase autop(String id, String in) {
+        return new ParityCase(id, "autop", in, NODES.objectNode(), null);
     }
 
     /** Generated inputs (Task 8). */

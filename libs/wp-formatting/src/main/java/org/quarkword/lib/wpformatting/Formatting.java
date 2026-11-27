@@ -56,6 +56,37 @@ public final class Formatting {
         return changed[0] ? out.toString() : haystack;
     }
 
+    /**
+     * {@code wpautop} with line breaks on: blank lines become paragraphs and single newlines {@code <br />}, with
+     * WordPress's handling of block tags, {@code <pre>} blocks, script, style, svg and math, and markup. Text that
+     * holds only spaces, tabs, line feeds, carriage returns, NULs and vertical tabs gives {@code ""}; any other
+     * result ends with a line feed.
+     */
+    public static String autop(String text) {
+        return autop(text, true);
+    }
+
+    /**
+     * {@code wpautop}: as {@link #autop(String)}; with {@code br} false single newlines stay as they are. Line
+     * breaks right after a block tag or right before a paragraph, list or table tag are removed either way. The
+     * default output limit of {@link AutopOptions} applies.
+     */
+    public static String autop(String text, boolean br) {
+        Objects.requireNonNull(text, "text");
+        return Autop.autop(text, br, AutopOptions.defaults().outputLimit(text.length()));
+    }
+
+    /**
+     * {@code wpautop} with the given options. Throws {@link FormattingLimitException} when the text it would build
+     * is longer than the options' output limit; with {@code <pre>} blocks this is known, and thrown, before the
+     * blocks are put back.
+     */
+    public static String autop(String text, AutopOptions options) {
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(options, "options");
+        return Autop.autop(text, options.lineBreaks(), options.outputLimit(text.length()));
+    }
+
     /** PHP's {@code trim}: removes spaces, tabs, line feeds, carriage returns, NULs and vertical tabs at both ends. */
     public static String phpTrim(String text) {
         Objects.requireNonNull(text, "text");

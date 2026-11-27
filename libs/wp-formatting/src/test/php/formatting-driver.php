@@ -54,5 +54,8 @@ qw_run(function (array $in): array {
     return ['out' => match ($in['fn']) {
         'html_split' => wp_html_split($in['in']),
         'replace_in_html_tags' => wp_replace_in_html_tags($in['in'], $args['pairs']),
+        // Task 2
+        'autop' => wpautop($in['in'], $args['br'] ?? true),
+        'autop_newline_helper' => _autop_newline_preservation_helper([$in['in']]),
     }];
 });

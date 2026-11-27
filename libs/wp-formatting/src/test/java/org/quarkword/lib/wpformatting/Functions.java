@@ -20,6 +20,9 @@ final class Functions {
             // Task 1
             case "html_split" -> texts(Formatting.htmlSplit(in));
             case "replace_in_html_tags" -> NODES.textNode(Formatting.replaceInHtmlTags(in, pairs(args.get("pairs"))));
+            // Task 2
+            case "autop" -> NODES.textNode(Formatting.autop(in, args.path("br").asBoolean(true)));
+            case "autop_newline_helper" -> NODES.textNode(Autop.preserveNewlines(in));
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -27,7 +30,11 @@ final class Functions {
     /** Every {@code fn} that {@link #ours} dispatches; each task adds its own. */
     static final Set<String> FNS = Set.of(
             // Task 1
-            "html_split", "replace_in_html_tags");
+            "html_split",
+            "replace_in_html_tags",
+            // Task 2
+            "autop",
+            "autop_newline_helper");
 
     static Map<String, String> pairs(JsonNode object) {
         Map<String, String> pairs = new LinkedHashMap<>();
