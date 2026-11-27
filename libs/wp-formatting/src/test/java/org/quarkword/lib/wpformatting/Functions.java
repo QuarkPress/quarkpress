@@ -36,6 +36,16 @@ final class Functions {
             case "content_chain" -> NODES.textNode(contentChain(in));
             // Task 5
             case "smilies" -> NODES.textNode(smilies(args).convert(in));
+            // Task 6
+            case "trim_words" -> NODES.textNode(trimWords(in, args));
+            case "html_excerpt" ->
+                NODES.textNode(Excerpts.htmlExcerpt(in, args.get("count").asInt(), textOrNull(args, "more")));
+            case "remove_footnotes" -> NODES.textNode(Excerpts.removeFootnotes(in));
+            case "excerpt_chain" ->
+                NODES.textNode(excerptChain(
+                        args.path("generated").asBoolean(false)
+                                ? generatedExcerpt(in, args.path("length").asInt())
+                                : in));
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -56,7 +66,12 @@ final class Functions {
             "title_chain",
             "content_chain",
             // Task 5
-            "smilies");
+            "smilies",
+            // Task 6
+            "trim_words",
+            "html_excerpt",
+            "remove_footnotes",
+            "excerpt_chain");
 
     /** The shortcodes WordPress core registers; a texturize case gives its own list in {@code shortcodes}. */
     static final List<String> CORE_SHORTCODES =
@@ -104,6 +119,57 @@ final class Functions {
                 .enabled(args.path("useSmilies").asBoolean(true))
                 .imageBaseUrl(siteUrl + "/wp-includes/images/smilies/")
                 .build();
+    }
+
+    /**
+     * wp_trim_words as the driver calls it: {@code num} (default 55), {@code more} (absent means WordPress's default),
+     * {@code type} (the locale's word-count type, default {@code words}) and {@code charset} (blog_charset, default
+     * {@code UTF-8}).
+     */
+    static String trimWords(String in, JsonNode args) {
+        return Excerpts.trimWords(
+                in,
+                args.path("num").asInt(Excerpts.DEFAULT_WORDS),
+                textOrNull(args, "more"),
+                WordCountType.fromWordPress(args.path("type").asText("words")),
+                isUtf8Charset(args.path("charset").asText("UTF-8")));
+    }
+
+    /** WordPress's test of blog_charset: {@code utf8} or {@code utf-8} in any ASCII case, a final line feed allowed. */
+    static boolean isUtf8Charset(String charset) {
+        String name = charset.endsWith("\n") ? charset.substring(0, charset.length() - 1) : charset;
+        return name.equalsIgnoreCase("utf8") || name.equalsIgnoreCase("utf-8");
+    }
+
+    /** The smiley converter of the excerpt chains: smilies on, images below {@code https://example.com}. */
+    static final Smilies EXCERPT_SMILIES = Smilies.wordPress("https://example.com/wp-includes/images/smilies/");
+
+    /**
+     * {@code the_excerpt} without shortcodes, wp_replace_insecure_home_url and wp_filter_content_tags: wptexturize,
+     * convert_smilies, convert_chars, wpautop and shortcode_unautop at 10.
+     */
+    static String excerptChain(String in) {
+        String text = EXCERPT_SMILIES.convert(Texturize.wordPress().apply(in));
+        return Formatting.autop(Formatting.convertChars(text));
+    }
+
+    /**
+     * The excerpt wp_trim_excerpt generates from a post's content with {@code length} words, where the content filter
+     * is the_content without shortcodes and blocks: wptexturize and wpautop at 10, capital_P_dangit at 11,
+     * convert_smilies at 20.
+     */
+    static String generatedExcerpt(String content, int length) {
+        ExcerptOptions options = ExcerptOptions.builder()
+                .length(length)
+                .contentFilter(text -> EXCERPT_SMILIES.convert(Formatting.capitalPDangit(
+                        Formatting.autop(Texturize.wordPress().apply(text)), CapitalPMode.JUDICIOUS)))
+                .build();
+        return Excerpts.trimExcerpt("", content, options);
+    }
+
+    private static String textOrNull(JsonNode args, String name) {
+        JsonNode value = args.get(name);
+        return value == null || value.isNull() ? null : value.asText();
     }
 
     static List<String> strings(JsonNode array) {

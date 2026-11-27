@@ -259,6 +259,36 @@ class HostileInputTest {
                         .repeat(20_000));
     }
 
+    // Task 6
+    @Test
+    void excerptsAreLinear() {
+        String spaces = " ".repeat(1_000_000) + "a";
+        assertThat(bounded(spaces, () -> Excerpts.trimWords(spaces, 55))).isEqualTo("a");
+        String words = "w ".repeat(500_000);
+        assertThat(bounded(words, () -> Excerpts.trimWords(words, Integer.MAX_VALUE)))
+                .isEqualTo("w ".repeat(499_999) + "w");
+        String amps = "&".repeat(1_000_000);
+        // the cut keeps 999,999 "&"; the last seven are a partial entity
+        assertThat(bounded(amps, () -> Excerpts.htmlExcerpt(amps, 999_999))).isEqualTo("&".repeat(999_992));
+        String starts = "<sup data-fn=\"".repeat(100_000);
+        assertThat(bounded(starts, () -> Excerpts.removeFootnotes(starts))).isEqualTo(starts);
+        String chars = "a\uD83D\uDE00\u4E2D ".repeat(250_000);
+        assertThat(bounded(
+                        chars,
+                        () -> Excerpts.trimWords(
+                                chars, 500_000, null, WordCountType.CHARACTERS_INCLUDING_SPACES, true)))
+                .isEqualTo("a\uD83D\uDE00\u4E2D ".repeat(125_000) + "&hellip;");
+
+        // the shapes of the parity cases t6-unlimited-1mb, t6-footnotes-1mb and t6-near-footnotes-1mb
+        assertThat(bounded(words, () -> Excerpts.trimWords(words, -1))).isEqualTo("w ".repeat(499_998) + "w&hellip;");
+        String note = "<sup data-fn=\"f\" class=\"fn\"><a href=\"#f\" id=\"f-link\">1</a></sup>";
+        String notes = ("x" + note).repeat(15_000);
+        assertThat(bounded(notes, () -> Excerpts.removeFootnotes(notes))).isEqualTo("x".repeat(15_000));
+        String nearMisses = note.substring(0, note.length() - 1).repeat(15_000);
+        assertThat(bounded(nearMisses, () -> Excerpts.removeFootnotes(nearMisses)))
+                .isEqualTo(nearMisses);
+    }
+
     private static int count(String text, String needle) {
         int n = 0;
         for (int i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length())) {

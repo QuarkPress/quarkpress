@@ -139,6 +139,32 @@ function qw_smilies(string $text, array $args): string
     return convert_smilies($text);
 }
 
+// Task 6: excerpts; excerpt_remove_footnotes is loaded alone from blocks.php.
+qw_load_functions(QW_WP . 'blocks.php', ['excerpt_remove_footnotes']);
+
+/** wp_trim_words with the case's word-count type (the locale's, default "words") and blog_charset. */
+function qw_trim_words(string $text, array $args): string
+{
+    $GLOBALS['qw_word_count_type'] = $args['type'] ?? 'words';
+    $GLOBALS['qw_options']['blog_charset'] = $args['charset'] ?? 'UTF-8';
+    return wp_trim_words($text, $args['num'] ?? 55, $args['more'] ?? null);
+}
+
+/** the_excerpt as core registers it, without wp_replace_insecure_home_url and wp_filter_content_tags. */
+function qw_excerpt_chain(string $text): string
+{
+    qw_texturize_defaults();
+    $GLOBALS['qw_options']['use_smilies'] = '1';
+    $GLOBALS['qw_options']['siteurl'] = 'https://example.com';
+    remove_all_filters('the_excerpt');
+    add_filter('the_excerpt', 'wptexturize');
+    add_filter('the_excerpt', 'convert_smilies');
+    add_filter('the_excerpt', 'convert_chars');
+    add_filter('the_excerpt', 'wpautop');
+    add_filter('the_excerpt', 'shortcode_unautop');
+    return apply_filters('the_excerpt', $text);
+}
+
 qw_run(function (array $in): array {
     $GLOBALS['qw_options'] = [];
     $GLOBALS['qw_word_count_type'] = 'words';
@@ -158,5 +184,10 @@ qw_run(function (array $in): array {
         'content_chain' => qw_content_chain($in['in']),
         // Task 5
         'smilies' => qw_smilies($in['in'], $args),
+        // Task 6
+        'trim_words' => qw_trim_words($in['in'], $args),
+        'html_excerpt' => wp_html_excerpt($in['in'], $args['count'], $args['more'] ?? null),
+        'remove_footnotes' => excerpt_remove_footnotes($in['in']),
+        'excerpt_chain' => qw_excerpt_chain($in['in']),
     }];
 });

@@ -157,6 +157,25 @@ class FormattingParityTest {
         cases.add(smilies("t5-mixed-1mb", ":mrgreen: &nbsp;:-|&nbsp;\n<code>:)</code>:???:\u00a0".repeat(20_000)));
         cases.add(
                 smilies("t5-all-codes-lines", String.join("\n", Smilies.codes()).repeat(5_000)));
+        // Task 6: excerpts on large inputs (the shapes of HostileInputTest.excerptsAreLinear)
+        cases.add(trimWords("t6-spaces-1mb", " ".repeat(1_000_000) + "a", 55, "words"));
+        cases.add(trimWords("t6-words-1mb", "w ".repeat(500_000), Integer.MAX_VALUE, "words"));
+        cases.add(trimWords("t6-unlimited-1mb", "w ".repeat(500_000), -1, "words"));
+        cases.add(trimWords(
+                "t6-chars-1mb", "a\uD83D\uDE00\u4E2D ".repeat(250_000), 500_000, "characters_including_spaces"));
+        cases.add(htmlExcerpt("t6-amps-1mb", "&".repeat(1_000_000), 999_999));
+        cases.add(htmlExcerpt("t6-text-1mb", "ab &amp; <b>c</b>\n".repeat(60_000), 700_000));
+        String note = "<sup data-fn=\"f\" class=\"fn\"><a href=\"#f\" id=\"f-link\">1</a></sup>";
+        cases.add(removeFootnotes("t6-starts-1mb", "<sup data-fn=\"".repeat(100_000)));
+        cases.add(removeFootnotes("t6-footnotes-1mb", ("x" + note).repeat(15_000)));
+        cases.add(removeFootnotes(
+                "t6-near-footnotes-1mb", note.substring(0, note.length() - 1).repeat(15_000)));
+        cases.add(new ParityCase(
+                "t6-excerpt-chain-1mb",
+                "excerpt_chain",
+                "It's \"great\" :) & more -- yes\n\n".repeat(30_000),
+                NODES.objectNode(),
+                null));
         return cases;
     }
 
@@ -190,6 +209,23 @@ class FormattingParityTest {
         args.put("siteUrl", "https://example.com");
         args.put("useSmilies", true);
         return new ParityCase(id, "smilies", in, args, null);
+    }
+
+    private static ParityCase trimWords(String id, String in, int num, String type) {
+        ObjectNode args = NODES.objectNode();
+        args.put("num", num);
+        args.put("type", type);
+        return new ParityCase(id, "trim_words", in, args, null);
+    }
+
+    private static ParityCase htmlExcerpt(String id, String in, int count) {
+        ObjectNode args = NODES.objectNode();
+        args.put("count", count);
+        return new ParityCase(id, "html_excerpt", in, args, null);
+    }
+
+    private static ParityCase removeFootnotes(String id, String in) {
+        return new ParityCase(id, "remove_footnotes", in, NODES.objectNode(), null);
     }
 
     /** Generated inputs (Task 8). */

@@ -16,4 +16,6 @@ none none D7 TexturizeStrings values are inserted literally and an empty closing
 # Task 4: convert_chars and capital_P_dangit
 none none D8 capital_P_dangit takes its mode and opening double quote as arguments (CapitalPMode, TexturizeStrings); WordPress reads the mode from the running filter and translates the quote once, keeping it for the rest of the request even after a locale switch
 # Task 5: convert_smilies
-none none D9 the smiley table is WordPress's default 43 codes; the smilies filter and a preset $wpsmiliestrans are not offered, and the image URL is the caller's base without smilies_src or esc_url; the image URL is the caller's base, already escaped, used verbatim without smilies_src or esc_url
+none none D9 the smiley table is WordPress's default 43 codes; the smilies filter and a preset $wpsmiliestrans are not offered, and the image URL is the caller's base, already escaped, used verbatim without smilies_src or esc_url
+# Task 6: excerpts
+none none D10 wp_trim_words and the wp_trim_excerpt helper take the word-count type, the UTF-8 charset flag, the excerpt length and the more text as arguments, and the shortcode, block and content steps as caller hooks; WordPress reads the locale's type and blog_charset, runs get_the_content and the_content itself, and applies the wp_trim_words, excerpt_length, excerpt_more and wp_trim_excerpt filters
