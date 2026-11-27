@@ -1,0 +1,3 @@
+# Deliberate differences between lib-wp-formatting and WordPress 7.1.3 (README "Differences from WordPress").
+# Format: <case-id-or-glob> <aspect-or-glob> <item> <reason>. A case of "none" documents a difference no oracle
+# case can show. An entry whose comparisons all match WordPress fails the run: delete it.
