@@ -8,7 +8,9 @@ import java.util.Objects;
 /**
  * The strings texturize puts in place of straight quotes, primes and dashes, and its list of words that start with
  * an apostrophe ("cockney" words, replaced literally in list order). {@link #english()} gives WordPress's English
- * defaults. A string equal to the ASCII character it replaces is rejected.
+ * defaults. A string equal to the ASCII character it replaces is rejected, and so is an empty closing quote
+ * (WordPress fails on one). Every string is inserted literally: WordPress reads {@code $1}, {@code ${1}} or
+ * {@code \1} in the prime, double-prime, closing-quote and dash strings as a backreference, QuarkWord does not.
  */
 public record TexturizeStrings(
         String openingDoubleQuote,
@@ -30,11 +32,13 @@ public record TexturizeStrings(
     public TexturizeStrings {
         notAscii(openingDoubleQuote, "openingDoubleQuote", "\"");
         notAscii(closingDoubleQuote, "closingDoubleQuote", "\"");
+        notEmpty(closingDoubleQuote, "closingDoubleQuote");
         notAscii(apostrophe, "apostrophe", "'");
         notAscii(prime, "prime", "'");
         notAscii(doublePrime, "doublePrime", "\"");
         notAscii(openingSingleQuote, "openingSingleQuote", "'");
         notAscii(closingSingleQuote, "closingSingleQuote", "'");
+        notEmpty(closingSingleQuote, "closingSingleQuote");
         notAscii(enDash, "enDash", "-");
         notAscii(emDash, "emDash", "-");
         cockney = copy(cockney);
@@ -72,6 +76,12 @@ public record TexturizeStrings(
                 enDash,
                 emDash,
                 replacements);
+    }
+
+    private static void notEmpty(String value, String name) {
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException(name + " must not be empty");
+        }
     }
 
     private static void notAscii(String value, String name, String ascii) {

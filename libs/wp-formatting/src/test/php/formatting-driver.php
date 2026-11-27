@@ -47,6 +47,44 @@ function includes_url($path = '', $scheme = null)
     return $url;
 }
 
+/** Core's registered shortcode names; a texturize case may give its own list in "shortcodes". */
+const QW_CORE_SHORTCODES = ['wp_caption', 'caption', 'gallery', 'playlist', 'audio', 'video', 'embed'];
+
+/**
+ * wptexturize with the case's shortcode registry, cockney map and no-texturize lists, tables rebuilt. null means
+ * WordPress failed: its split hit the PCRE backtrack limit and PHP threw a TypeError.
+ */
+function qw_texturize(string $text, array $args): ?string
+{
+    $GLOBALS['shortcode_tags'] = [];
+    foreach ($args['shortcodes'] ?? QW_CORE_SHORTCODES as $name) {
+        $GLOBALS['shortcode_tags'][$name] = static fn() => '';
+    }
+    if (isset($args['cockney'])) {
+        $GLOBALS['wp_cockneyreplace'] = $args['cockney'];
+    } else {
+        unset($GLOBALS['wp_cockneyreplace']);
+    }
+    remove_all_filters('no_texturize_tags');
+    if (array_key_exists('noTexturizeTags', $args)) {
+        $tags = $args['noTexturizeTags'];
+        add_filter('no_texturize_tags', static fn() => $tags);
+    }
+    remove_all_filters('no_texturize_shortcodes');
+    if (array_key_exists('noTexturizeShortcodes', $args)) {
+        $names = $args['noTexturizeShortcodes'];
+        add_filter('no_texturize_shortcodes', static fn() => $names);
+    }
+    try {
+        return wptexturize($text, true);
+    } catch (TypeError $e) {
+        if (!str_starts_with($e->getMessage(), 'implode():')) {
+            throw $e;
+        }
+        return null;
+    }
+}
+
 qw_run(function (array $in): array {
     $GLOBALS['qw_options'] = [];
     $GLOBALS['qw_word_count_type'] = 'words';
@@ -57,5 +95,7 @@ qw_run(function (array $in): array {
         // Task 2
         'autop' => wpautop($in['in'], $args['br'] ?? true),
         'autop_newline_helper' => _autop_newline_preservation_helper([$in['in']]),
+        // Task 3
+        'texturize' => qw_texturize($in['in'], $args),
     }];
 });

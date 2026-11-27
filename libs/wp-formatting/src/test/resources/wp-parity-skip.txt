@@ -8,3 +8,8 @@ fa-script-1mb autop D2 WordPress's backtrack limit makes wpautop return "" when 
 fa-style-1mb autop D2 WordPress's backtrack limit makes wpautop return "" when a script, style, svg or math opener without a closer is followed by 999,993 characters, or by as little as 333,336 of repeated x and a blank line; QuarkWord formats it
 fa-svg-333k autop D2 WordPress's backtrack limit makes wpautop return "" when a script, style, svg or math opener without a closer is followed by 999,993 characters, or by as little as 333,336 of repeated x and a blank line; QuarkWord formats it
 none none D3 wpautop refuses, with FormattingLimitException, input whose typed pre placeholders would expand past a configurable output cap (default: the larger of 16 MiB or 64 times the input); WordPress builds the text until PHP's memory_limit kills the request
+# Task 3: wptexturize
+none none D4 run_wptexturize is a per-instance option (Texturize.Builder.enabled); WordPress keeps a false answer for the rest of the process, even across resets
+ft-comment-1m texturize D5 WordPress's backtrack limit makes the wptexturize split fail on a comment holding 999,996 or more hyphens, and PHP then throws a TypeError; QuarkWord texturizes the text around the comment
+ft-times-1m texturize D6 WordPress's backtrack limit makes wptexturize return "" when the second number of a product such as 1x1 runs 999,999 or more digits into a letter or underscore; QuarkWord returns the text with that product unchanged
+none none D7 TexturizeStrings values are inserted literally and an empty closing quote is rejected; WordPress reads $1, ${1} or \1 in the prime, double-prime, closing-quote and dash strings as regex backreferences and fails on an empty closing quote

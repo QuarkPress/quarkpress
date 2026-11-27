@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
@@ -133,6 +134,78 @@ class HostileInputTest {
         String smallOut = bounded(small, () -> Formatting.autop(small));
         String largeOut = bounded(large, () -> Formatting.autop(large));
         assertThat(largeOut).isEqualTo(smallOut.replace("x".repeat(1_000_000), "x".repeat(3_000_000)));
+    }
+
+    // Task 3: B-G179 to B-G181 and the other large texturize inputs (each one is a parity case compared in full)
+    @Test
+    void texturizeIsLinear() {
+        Texturize wordPress = Texturize.wordPress();
+        Texturize code =
+                Texturize.builder().registeredShortcodes(List.of("code")).build();
+
+        String quotes = "\"a' ".repeat(20_000);
+        String curled = bounded(quotes, () -> wordPress.apply(quotes));
+        assertThat(curled).hasSize(320_000).isEqualTo("&#8220;a&#8217; ".repeat(20_000));
+        String manyQuotes = "\"a' ".repeat(250_000);
+        assertThat(bounded(manyQuotes, () -> wordPress.apply(manyQuotes)))
+                .isEqualTo("&#8220;a&#8217; ".repeat(250_000));
+
+        String openTag = "<" + "a".repeat(200_000);
+        assertThat(bounded(openTag, () -> wordPress.apply(openTag))).isEqualTo(openTag);
+        String openComment = "<!--" + "-".repeat(200_000);
+        assertThat(bounded(openComment, () -> wordPress.apply(openComment))).isEqualTo(openComment);
+        String openShortcode = "[code " + "a".repeat(100_000);
+        assertThat(bounded(openShortcode, () -> code.apply(openShortcode))).isEqualTo(openShortcode);
+
+        String pres = "<pre>".repeat(10_000) + "\"a\"";
+        assertThat(bounded(pres, () -> wordPress.apply(pres))).isEqualTo(pres);
+
+        String dashes = "-".repeat(100_001);
+        assertThat(bounded(dashes, () -> wordPress.apply(dashes))).isEqualTo("&#8212;".repeat(33_333) + "&#8211;");
+
+        String lessThans = "a<".repeat(500_000);
+        assertThat(bounded(lessThans, () -> wordPress.apply(lessThans))).isEqualTo(lessThans);
+
+        String codes = "<code>".repeat(10_000) + "x";
+        assertThat(bounded(codes, () -> wordPress.apply(codes))).isEqualTo(codes);
+        String shortcodes = "[code]".repeat(200_000);
+        assertThat(bounded(shortcodes, () -> code.apply(shortcodes))).isEqualTo(shortcodes);
+    }
+
+    // Task 3: more adversarial wptexturize shapes, each checked against WordPress at this size
+    @Test
+    void texturizeAdversarialShapes() {
+        Texturize wordPress = Texturize.wordPress();
+        Texturize code =
+                Texturize.builder().registeredShortcodes(List.of("code")).build();
+
+        String singles = "'".repeat(1_000_000);
+        assertThat(bounded(singles, () -> wordPress.apply(singles))).isEqualTo("&#8221;".repeat(500_000));
+        String doubles = "\"".repeat(1_000_000);
+        assertThat(bounded(doubles, () -> wordPress.apply(doubles))).isEqualTo("&#8220;" + "&#8221;".repeat(999_999));
+        String ampersands = "&".repeat(1_000_000);
+        assertThat(bounded(ampersands, () -> wordPress.apply(ampersands))).isEqualTo("&#038;".repeat(1_000_000));
+        String brackets = "[".repeat(1_000_000);
+        assertThat(bounded(brackets, () -> code.apply(brackets))).isEqualTo(brackets);
+
+        // one opening quote per sentence, each with a closing quote and a prime to decide
+        String singleSentences = "' a' b9' ".repeat(125_000);
+        assertThat(bounded(singleSentences, () -> wordPress.apply(singleSentences)))
+                .isEqualTo("&#8216; a&#8217; b9&#8242; ".repeat(125_000));
+        String doubleSentences = "\"a\" 9\" ".repeat(125_000);
+        assertThat(bounded(doubleSentences, () -> wordPress.apply(doubleSentences)))
+                .isEqualTo("&#8220;a&#8221; 9&#8243; ".repeat(125_000));
+        String mixed = "\"a\" 'b' 9' 10\" -- x 1x2 & ".repeat(30_000);
+        String mixedOut = bounded(mixed, () -> wordPress.apply(mixed));
+        assertThat(mixedOut).hasSize(2_310_000);
+        assertThat(md5(mixedOut)).isEqualTo("be89d3b286f8dc5fb826f0a5013fec15");
+
+        // WordPress fails on these two (D5, D6) but completes one size below them, with the same shape
+        String comment = "<!--" + "-".repeat(1_000_000) + "-->\"a\"";
+        assertThat(bounded(comment, () -> wordPress.apply(comment)))
+                .isEqualTo("<!--" + "-".repeat(1_000_000) + "-->&#8220;a&#8221;");
+        String product = "1x1" + "1".repeat(1_000_000) + "a";
+        assertThat(bounded(product, () -> wordPress.apply(product))).isEqualTo(product);
     }
 
     private static int count(String text, String needle) {

@@ -112,11 +112,44 @@ class FormattingParityTest {
         // with blank lines after the opener far less is needed: 111,111 "x\n\n" still format, 111,112 give ""
         cases.add(autop("fa-svg-333k-below", "<svg>" + "x\n\n".repeat(111_111)));
         cases.add(autop("fa-svg-333k", "<svg>" + "x\n\n".repeat(111_112)));
+        // Task 3: the readers' hostile wptexturize inputs and larger ones (WordPress completes on all of them)
+        cases.add(texturize("ft-g179", "\"a' ".repeat(20_000), false));
+        cases.add(texturize("ft-quotes-1mb", "\"a' ".repeat(250_000), false));
+        cases.add(texturize("ft-g180a", "<" + "a".repeat(200_000), false));
+        cases.add(texturize("ft-g180b", "<!--" + "-".repeat(200_000), false));
+        cases.add(texturize("ft-g180c", "[code " + "a".repeat(100_000), true));
+        cases.add(texturize("ft-g181", "<pre>".repeat(10_000) + "\"a\"", false));
+        cases.add(texturize("ft-dashes", "-".repeat(100_001), false));
+        cases.add(texturize("ft-lt-1mb", "a<".repeat(500_000), false));
+        cases.add(texturize("ft-singles-1mb", "'".repeat(1_000_000), false));
+        cases.add(texturize("ft-doubles-1mb", "\"".repeat(1_000_000), false));
+        cases.add(texturize("ft-amps-1mb", "&".repeat(1_000_000), false));
+        cases.add(texturize("ft-brackets-1mb", "[".repeat(1_000_000), true));
+        cases.add(texturize("ft-single-sentences", "' a' b9' ".repeat(125_000), false));
+        cases.add(texturize("ft-double-sentences", "\"a\" 9\" ".repeat(125_000), false));
+        cases.add(texturize("ft-mixed", "\"a\" 'b' 9' 10\" -- x 1x2 & ".repeat(30_000), false));
+        // a comment with 999,995 hyphens still splits; with 999,996 WordPress's split fails and PHP throws (D5)
+        cases.add(texturize("ft-comment-999995", "<!--" + "-".repeat(999_995) + "-->\"a\"", false));
+        cases.add(texturize("ft-comment-1m", "<!--" + "-".repeat(1_000_000) + "-->\"a\"", false));
+        // a second factor of 999,998 digits before a letter still works; 999,999 make WordPress return "" (D6)
+        cases.add(texturize("ft-times-999998", "1x1" + "1".repeat(999_997) + "a", false));
+        cases.add(texturize("ft-times-1m", "1x1" + "1".repeat(1_000_000) + "a", false));
         return cases;
     }
 
     private static ParityCase autop(String id, String in) {
         return new ParityCase(id, "autop", in, NODES.objectNode(), null);
+    }
+
+    /** A texturize case with core's shortcodes, plus {@code code} when {@code codeRegistered}. */
+    private static ParityCase texturize(String id, String in, boolean codeRegistered) {
+        ObjectNode args = NODES.objectNode();
+        if (codeRegistered) {
+            var names = NODES.arrayNode();
+            Functions.CORE_SHORTCODES.forEach(names::add);
+            args.set("shortcodes", names.add("code"));
+        }
+        return new ParityCase(id, "texturize", in, args, null);
     }
 
     /** Generated inputs (Task 8). */
