@@ -87,6 +87,42 @@ public final class Formatting {
         return Autop.autop(text, options.lineBreaks(), options.outputLimit(text.length()));
     }
 
+    /**
+     * {@code convert_chars}: each {@code &} becomes {@code &#038;} unless it ends the text, is followed by
+     * {@code #}, or looks like a named reference. That test takes the char after {@code &} as it is and then wants
+     * 1 to 8 ASCII letters or digits 1 to 4 and a {@code ;}, so {@code &abcdefghi;} is kept and {@code &a;} is
+     * not. An {@code &} before a non-ASCII char is always escaped. The char after an {@code &} is never itself
+     * checked, so {@code &&amp;} is kept. Text without {@code &} is returned as it is.
+     */
+    public static String convertChars(String content) {
+        Objects.requireNonNull(content, "content");
+        return ConvertChars.apply(content);
+    }
+
+    /**
+     * {@code capital_P_dangit} with WordPress's English opening curly double quote ({@code &#8220;}). See
+     * {@link #capitalPDangit(String, CapitalPMode, TexturizeStrings)}.
+     */
+    public static String capitalPDangit(String text, CapitalPMode mode) {
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(mode, "mode");
+        return CapitalP.apply(text, mode, CapitalP.ENGLISH_OPENING_DOUBLE_QUOTE);
+    }
+
+    /**
+     * {@code capital_P_dangit}: corrects the case-sensitive spelling "Wordpress" to "WordPress". In
+     * {@link CapitalPMode#SIMPLE} mode every occurrence is corrected, even inside a word. In
+     * {@link CapitalPMode#JUDICIOUS} mode only those right after a space, {@code &#8216;}, the opening double quote of
+     * {@code strings}, {@code >} or {@code (} are, one prefix after the other in that order; a "Wordpress" at the
+     * start of the text stays. Text without "Wordpress" is returned as it is.
+     */
+    public static String capitalPDangit(String text, CapitalPMode mode, TexturizeStrings strings) {
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(strings, "strings");
+        return CapitalP.apply(text, mode, strings.openingDoubleQuote());
+    }
+
     /** PHP's {@code trim}: removes spaces, tabs, line feeds, carriage returns, NULs and vertical tabs at both ends. */
     public static String phpTrim(String text) {
         Objects.requireNonNull(text, "text");

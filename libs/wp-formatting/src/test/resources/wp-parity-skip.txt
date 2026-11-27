@@ -13,3 +13,5 @@ none none D4 run_wptexturize is a per-instance option (Texturize.Builder.enabled
 ft-comment-1m texturize D5 WordPress's backtrack limit makes the wptexturize split fail on a comment holding 999,996 or more hyphens, and PHP then throws a TypeError; QuarkWord texturizes the text around the comment
 ft-times-1m texturize D6 WordPress's backtrack limit makes wptexturize return "" when the second number of a product such as 1x1 runs 999,999 or more digits into a letter or underscore; QuarkWord returns the text with that product unchanged
 none none D7 TexturizeStrings values are inserted literally and an empty closing quote is rejected; WordPress reads $1, ${1} or \1 in the prime, double-prime, closing-quote and dash strings as regex backreferences and fails on an empty closing quote
+# Task 4: convert_chars and capital_P_dangit
+none none D8 capital_P_dangit takes its mode and opening double quote as arguments (CapitalPMode, TexturizeStrings); WordPress reads the mode from the running filter and translates the quote once, keeping it for the rest of the request even after a locale switch

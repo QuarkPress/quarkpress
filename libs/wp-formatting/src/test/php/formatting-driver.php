@@ -85,6 +85,47 @@ function qw_texturize(string $text, array $args): ?string
     }
 }
 
+/** capital_P_dangit run as a callback of the named filter, so the real current_filter() selects the mode. */
+function qw_capital_p(string $text, string $filter): string
+{
+    remove_all_filters($filter);
+    add_filter($filter, 'capital_P_dangit', 11);
+    return apply_filters($filter, $text);
+}
+
+/** wptexturize's defaults of the title and content chains: no shortcodes, no cockney map, default lists. */
+function qw_texturize_defaults(): void
+{
+    $GLOBALS['shortcode_tags'] = [];
+    unset($GLOBALS['wp_cockneyreplace']);
+    remove_all_filters('no_texturize_tags');
+    remove_all_filters('no_texturize_shortcodes');
+    wptexturize('x', true);
+}
+
+/** the_title as core registers it: wptexturize, convert_chars and trim at 10, then capital_P_dangit at 11. */
+function qw_title_chain(string $text): string
+{
+    qw_texturize_defaults();
+    remove_all_filters('the_title');
+    add_filter('the_title', 'wptexturize');
+    add_filter('the_title', 'convert_chars');
+    add_filter('the_title', 'trim');
+    add_filter('the_title', 'capital_P_dangit', 11);
+    return apply_filters('the_title', $text);
+}
+
+/** the_content without shortcodes: wpautop and shortcode_unautop at 10, then capital_P_dangit at 11. */
+function qw_content_chain(string $text): string
+{
+    $GLOBALS['shortcode_tags'] = [];
+    remove_all_filters('the_content');
+    add_filter('the_content', 'wpautop');
+    add_filter('the_content', 'shortcode_unautop');
+    add_filter('the_content', 'capital_P_dangit', 11);
+    return apply_filters('the_content', $text);
+}
+
 qw_run(function (array $in): array {
     $GLOBALS['qw_options'] = [];
     $GLOBALS['qw_word_count_type'] = 'words';
@@ -97,5 +138,10 @@ qw_run(function (array $in): array {
         'autop_newline_helper' => _autop_newline_preservation_helper([$in['in']]),
         // Task 3
         'texturize' => qw_texturize($in['in'], $args),
+        // Task 4
+        'convert_chars' => convert_chars($in['in']),
+        'capital_p' => qw_capital_p($in['in'], $args['filter']),
+        'title_chain' => qw_title_chain($in['in']),
+        'content_chain' => qw_content_chain($in['in']),
     }];
 });

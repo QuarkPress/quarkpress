@@ -134,6 +134,19 @@ class FormattingParityTest {
         // a second factor of 999,998 digits before a letter still works; 999,999 make WordPress return "" (D6)
         cases.add(texturize("ft-times-999998", "1x1" + "1".repeat(999_997) + "a", false));
         cases.add(texturize("ft-times-1m", "1x1" + "1".repeat(1_000_000) + "a", false));
+        // Task 4: convert_chars and capital_P_dangit on large inputs
+        cases.add(convertChars("t4-amps-1mb", "&".repeat(1_000_000)));
+        cases.add(convertChars("t4-names-1mb", "&ab;&#1;&&amp;&\u00e9&".repeat(60_000)));
+        cases.add(capitalP("t4-wordpress-title", "Wordpress".repeat(120_000), "the_title"));
+        cases.add(capitalP("t4-wordpress-content", "Wordpress".repeat(120_000), "the_content"));
+        cases.add(capitalP(
+                "t4-prefixes-content", " Wordpress(Wordpress>Wordpress&#8220;Wordpress".repeat(30_000), "the_content"));
+        cases.add(new ParityCase(
+                "t4-title-1mb",
+                "title_chain",
+                " \"Wordpress\" & it's -- R&D ".repeat(35_000),
+                NODES.objectNode(),
+                null));
         return cases;
     }
 
@@ -150,6 +163,16 @@ class FormattingParityTest {
             args.set("shortcodes", names.add("code"));
         }
         return new ParityCase(id, "texturize", in, args, null);
+    }
+
+    private static ParityCase convertChars(String id, String in) {
+        return new ParityCase(id, "convert_chars", in, NODES.objectNode(), null);
+    }
+
+    private static ParityCase capitalP(String id, String in, String filter) {
+        ObjectNode args = NODES.objectNode();
+        args.put("filter", filter);
+        return new ParityCase(id, "capital_p", in, args, null);
     }
 
     /** Generated inputs (Task 8). */

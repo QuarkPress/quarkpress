@@ -27,6 +27,13 @@ final class Functions {
             case "autop_newline_helper" -> NODES.textNode(Autop.preserveNewlines(in));
             // Task 3
             case "texturize" -> NODES.textNode(texturize(args).apply(in));
+            // Task 4
+            case "convert_chars" -> NODES.textNode(Formatting.convertChars(in));
+            case "capital_p" ->
+                NODES.textNode(Formatting.capitalPDangit(
+                        in, CapitalPMode.forFilter(args.get("filter").asText())));
+            case "title_chain" -> NODES.textNode(titleChain(in));
+            case "content_chain" -> NODES.textNode(contentChain(in));
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -40,7 +47,12 @@ final class Functions {
             "autop",
             "autop_newline_helper",
             // Task 3
-            "texturize");
+            "texturize",
+            // Task 4
+            "convert_chars",
+            "capital_p",
+            "title_chain",
+            "content_chain");
 
     /** The shortcodes WordPress core registers; a texturize case gives its own list in {@code shortcodes}. */
     static final List<String> CORE_SHORTCODES =
@@ -64,6 +76,18 @@ final class Functions {
             builder.noTexturizeShortcodes(strings(args.get("noTexturizeShortcodes")));
         }
         return builder.build();
+    }
+
+    /** {@code the_title}: texturize, convert_chars and PHP trim at 10, then capital_P_dangit (simple) at 11. */
+    static String titleChain(String in) {
+        String text = Texturize.wordPress().apply(in);
+        text = Formatting.phpTrim(Formatting.convertChars(text));
+        return Formatting.capitalPDangit(text, CapitalPMode.SIMPLE);
+    }
+
+    /** {@code the_content} without shortcodes: wpautop and shortcode_unautop at 10, then capital_P_dangit at 11. */
+    static String contentChain(String in) {
+        return Formatting.capitalPDangit(Formatting.autop(in), CapitalPMode.JUDICIOUS);
     }
 
     static List<String> strings(JsonNode array) {

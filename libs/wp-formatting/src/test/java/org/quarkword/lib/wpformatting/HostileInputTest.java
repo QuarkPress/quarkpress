@@ -208,6 +208,31 @@ class HostileInputTest {
         assertThat(bounded(product, () -> wordPress.apply(product))).isEqualTo(product);
     }
 
+    // Task 4
+    @Test
+    void convertCharsAndCapitalPAreLinear() {
+        // the full output is compared with WordPress's by the parity case t4-amps-1mb
+        String ampersands = "&".repeat(1_000_000);
+        assertThat(bounded(ampersands, () -> Formatting.convertChars(ampersands)))
+                .hasSize(3_500_000)
+                .isEqualTo("&#038;&".repeat(500_000));
+
+        String words = "Wordpress".repeat(120_000);
+        assertThat(bounded(words, () -> Formatting.capitalPDangit(words, CapitalPMode.SIMPLE)))
+                .isEqualTo("WordPress".repeat(120_000));
+        // judicious mode: no occurrence has one of its prefixes
+        assertThat(bounded(words, () -> Formatting.capitalPDangit(words, CapitalPMode.JUDICIOUS)))
+                .isSameAs(words);
+
+        // the shapes of the parity cases t4-names-1mb and t4-prefixes-content (WordPress's answers)
+        String names = "&ab;&#1;&&amp;&é&".repeat(60_000);
+        assertThat(bounded(names, () -> Formatting.convertChars(names)))
+                .isEqualTo("&ab;&#1;&&amp;&#038;é&".repeat(60_000));
+        String prefixes = " Wordpress(Wordpress>Wordpress&#8220;Wordpress".repeat(30_000);
+        assertThat(bounded(prefixes, () -> Formatting.capitalPDangit(prefixes, CapitalPMode.JUDICIOUS)))
+                .isEqualTo(" WordPress(WordPress>WordPress&#8220;WordPress".repeat(30_000));
+    }
+
     private static int count(String text, String needle) {
         int n = 0;
         for (int i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length())) {
