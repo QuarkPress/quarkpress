@@ -126,6 +126,19 @@ function qw_content_chain(string $text): string
     return apply_filters('the_content', $text);
 }
 
+// smilies_init builds WordPress's search pattern once per process, with smilies on (the install default).
+qw_load_functions(QW_WP . 'functions.php', ['smilies_init']);
+$GLOBALS['qw_options'] = ['use_smilies' => '1'];
+smilies_init();
+
+/** convert_smilies with the case's use_smilies and siteurl options. */
+function qw_smilies(string $text, array $args): string
+{
+    $GLOBALS['qw_options']['use_smilies'] = ($args['useSmilies'] ?? true) ? '1' : '0';
+    $GLOBALS['qw_options']['siteurl'] = $args['siteUrl'] ?? 'https://example.com';
+    return convert_smilies($text);
+}
+
 qw_run(function (array $in): array {
     $GLOBALS['qw_options'] = [];
     $GLOBALS['qw_word_count_type'] = 'words';
@@ -143,5 +156,7 @@ qw_run(function (array $in): array {
         'capital_p' => qw_capital_p($in['in'], $args['filter']),
         'title_chain' => qw_title_chain($in['in']),
         'content_chain' => qw_content_chain($in['in']),
+        // Task 5
+        'smilies' => qw_smilies($in['in'], $args),
     }];
 });

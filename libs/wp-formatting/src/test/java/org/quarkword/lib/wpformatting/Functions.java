@@ -34,6 +34,8 @@ final class Functions {
                         in, CapitalPMode.forFilter(args.get("filter").asText())));
             case "title_chain" -> NODES.textNode(titleChain(in));
             case "content_chain" -> NODES.textNode(contentChain(in));
+            // Task 5
+            case "smilies" -> NODES.textNode(smilies(args).convert(in));
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -52,7 +54,9 @@ final class Functions {
             "convert_chars",
             "capital_p",
             "title_chain",
-            "content_chain");
+            "content_chain",
+            // Task 5
+            "smilies");
 
     /** The shortcodes WordPress core registers; a texturize case gives its own list in {@code shortcodes}. */
     static final List<String> CORE_SHORTCODES =
@@ -88,6 +92,18 @@ final class Functions {
     /** {@code the_content} without shortcodes: wpautop and shortcode_unautop at 10, then capital_P_dangit at 11. */
     static String contentChain(String in) {
         return Formatting.capitalPDangit(Formatting.autop(in), CapitalPMode.JUDICIOUS);
+    }
+
+    /**
+     * The converter a smilies case describes: {@code useSmilies} (default true) and {@code siteUrl} (default
+     * {@code https://example.com}), whose smiley images WordPress serves from {@code /wp-includes/images/smilies/}.
+     */
+    static Smilies smilies(JsonNode args) {
+        String siteUrl = args.path("siteUrl").asText("https://example.com");
+        return Smilies.builder()
+                .enabled(args.path("useSmilies").asBoolean(true))
+                .imageBaseUrl(siteUrl + "/wp-includes/images/smilies/")
+                .build();
     }
 
     static List<String> strings(JsonNode array) {

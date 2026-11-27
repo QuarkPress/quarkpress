@@ -233,6 +233,32 @@ class HostileInputTest {
                 .isEqualTo(" WordPress(WordPress>WordPress&#8220;WordPress".repeat(30_000));
     }
 
+    // Task 5
+    @Test
+    void smiliesAreLinear() {
+        Smilies smilies = Smilies.wordPress("https://example.com/wp-includes/images/smilies/");
+        String spaced = ":) ".repeat(350_000);
+        assertThat(bounded(spaced, () -> smilies.convert(spaced))).isEqualTo("\uD83D\uDE42 ".repeat(350_000));
+        String colons = ":".repeat(1_000_000);
+        assertThat(bounded(colons, () -> smilies.convert(colons))).isEqualTo(colons);
+        String pres = "<pre>".repeat(200_000) + ":)";
+        assertThat(bounded(pres, () -> smilies.convert(pres))).isEqualTo(pres);
+        String lessThans = "<".repeat(1_000_000);
+        assertThat(bounded(lessThans, () -> smilies.convert(lessThans))).isEqualTo(lessThans);
+
+        // the shapes of the parity cases t5-tags-1mb, t5-touching-1mb and t5-mixed-1mb (WordPress's answers)
+        String tags = "<b>:)</b>".repeat(110_000);
+        assertThat(bounded(tags, () -> smilies.convert(tags))).isEqualTo("<b>\uD83D\uDE42</b>".repeat(110_000));
+        String touching = ":):)".repeat(250_000);
+        assertThat(bounded(touching, () -> smilies.convert(touching))).isEqualTo(touching);
+        String mixed = ":mrgreen: &nbsp;:-|&nbsp;\n<code>:)</code>:???:\u00a0".repeat(20_000);
+        assertThat(bounded(mixed, () -> smilies.convert(mixed)))
+                .isEqualTo(("<img src=\"https://example.com/wp-includes/images/smilies/mrgreen.png\" alt=\":mrgreen:\""
+                                + " class=\"wp-smiley\" style=\"height: 1em; max-height: 1em;\" /> &nbsp;\uD83D\uDE10&nbsp;\n"
+                                + "<code>:)</code>\uD83D\uDE15\u00a0")
+                        .repeat(20_000));
+    }
+
     private static int count(String text, String needle) {
         int n = 0;
         for (int i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length())) {

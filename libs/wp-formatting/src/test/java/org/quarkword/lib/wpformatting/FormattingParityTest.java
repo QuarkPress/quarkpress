@@ -147,6 +147,16 @@ class FormattingParityTest {
                 " \"Wordpress\" & it's -- R&D ".repeat(35_000),
                 NODES.objectNode(),
                 null));
+        // Task 5: convert_smilies on large inputs
+        cases.add(smilies("t5-spaced-1mb", ":) ".repeat(350_000)));
+        cases.add(smilies("t5-colons-1mb", ":".repeat(1_000_000)));
+        cases.add(smilies("t5-pres-1mb", "<pre>".repeat(200_000) + ":)"));
+        cases.add(smilies("t5-lt-1mb", "<".repeat(1_000_000)));
+        cases.add(smilies("t5-tags-1mb", "<b>:)</b>".repeat(110_000)));
+        cases.add(smilies("t5-touching-1mb", ":):)".repeat(250_000)));
+        cases.add(smilies("t5-mixed-1mb", ":mrgreen: &nbsp;:-|&nbsp;\n<code>:)</code>:???:\u00a0".repeat(20_000)));
+        cases.add(
+                smilies("t5-all-codes-lines", String.join("\n", Smilies.codes()).repeat(5_000)));
         return cases;
     }
 
@@ -173,6 +183,13 @@ class FormattingParityTest {
         ObjectNode args = NODES.objectNode();
         args.put("filter", filter);
         return new ParityCase(id, "capital_p", in, args, null);
+    }
+
+    private static ParityCase smilies(String id, String in) {
+        ObjectNode args = NODES.objectNode();
+        args.put("siteUrl", "https://example.com");
+        args.put("useSmilies", true);
+        return new ParityCase(id, "smilies", in, args, null);
     }
 
     /** Generated inputs (Task 8). */

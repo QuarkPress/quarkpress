@@ -15,3 +15,5 @@ ft-times-1m texturize D6 WordPress's backtrack limit makes wptexturize return ""
 none none D7 TexturizeStrings values are inserted literally and an empty closing quote is rejected; WordPress reads $1, ${1} or \1 in the prime, double-prime, closing-quote and dash strings as regex backreferences and fails on an empty closing quote
 # Task 4: convert_chars and capital_P_dangit
 none none D8 capital_P_dangit takes its mode and opening double quote as arguments (CapitalPMode, TexturizeStrings); WordPress reads the mode from the running filter and translates the quote once, keeping it for the rest of the request even after a locale switch
+# Task 5: convert_smilies
+none none D9 the smiley table is WordPress's default 43 codes; the smilies filter and a preset $wpsmiliestrans are not offered, and the image URL is the caller's base without smilies_src or esc_url; the image URL is the caller's base, already escaped, used verbatim without smilies_src or esc_url
