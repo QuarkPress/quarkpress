@@ -5,12 +5,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.quarkword.testing.gen.Gen;
+import org.quarkword.testing.wporacle.DeltaShrinker;
+import org.quarkword.testing.wporacle.GeneratedCases;
 import org.quarkword.testing.wporacle.ParityRun;
 import org.quarkword.testing.wporacle.ParitySkipList;
 import org.quarkword.testing.wporacle.PhpOracle;
@@ -39,7 +46,9 @@ class FormattingParityTest {
         "wp-includes/html-api/html5-named-character-references.php",
         "wp-includes/html-api/class-wp-html-decoder.php"
     };
-    static final int MIN_COMPARISONS = 1;
+    static final int MIN_COMPARISONS = 19_500;
+    static final int SHRUNK_CASES = 3;
+    static final int SHRINK_ROUNDS = 12;
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
 
     /** One case for the oracle; {@code out} is the recorded output or {@code null}. */
@@ -66,18 +75,96 @@ class FormattingParityTest {
         Map<String, JsonNode> results = oracle.run(DRIVER, batch);
 
         ParityRun run = new ParityRun("lib-wp-formatting", ParitySkipList.load(SKIPS), FAILURES);
+        List<String> throwsSeen = new ArrayList<>();
+        Map<String, ParityCase> generated = new LinkedHashMap<>();
         for (ParityCase c : cases) {
             JsonNode wp = results.get(c.id());
             assertThat(wp).as("WordPress's answer for %s", c.id()).isNotNull();
-            JsonNode ours = Functions.ours(c.fn(), c.in(), c.args());
-            run.compare(c.id(), c.fn(), wp.get("out"), ours);
+            if (c.id().startsWith(GENERATED)) {
+                run.generated(c.id(), c.in());
+                generated.put(c.id(), c);
+            }
+            run.compare(c.id(), c.fn(), wp.get("out"), ours(c, throwsSeen));
             if (c.out() != null) {
                 run.compare(c.id(), "recorded", wp.get("out"), c.out());
             }
         }
+        for (String id : run.failedGeneratedCases().stream().limit(SHRUNK_CASES).toList()) {
+            ParityCase c = generated.get(id);
+            run.shrunk(
+                    id, DeltaShrinker.shrink(c.in(), candidates -> stillDiffer(oracle, c, candidates), SHRINK_ROUNDS));
+        }
         System.out.println("lib-wp-formatting parity: " + cases.size() + " cases, " + run.comparisons()
                 + " comparisons, " + run.mismatches().size() + " differences");
         run.assertParity(MIN_COMPARISONS);
+        // a skip entry may excuse a difference from WordPress, never a QuarkWord exception
+        assertThat(throwsSeen).as("cases where QuarkWord threw").isEmpty();
+    }
+
+    /**
+     * QuarkWord's answer; an exception is an answer too, so a generated input that makes us throw is reported as a
+     * difference and recorded in {@code throwsSeen}, which the run asserts empty whatever the skip list says.
+     */
+    private static JsonNode ours(ParityCase c, List<String> throwsSeen) {
+        try {
+            return Functions.ours(c.fn(), c.in(), c.args());
+        } catch (RuntimeException e) {
+            throwsSeen.add(c.id() + " (" + c.fn() + "): " + e);
+            return NODES.textNode("threw " + e);
+        }
+    }
+
+    /** One oracle run for a shrinking round: which candidates, with the case's fn and args, still differ. */
+    private static List<Boolean> stillDiffer(PhpOracle oracle, ParityCase c, List<String> candidates) {
+        try {
+            List<PhpOracle.Case> batch = new ArrayList<>();
+            for (int i = 0; i < candidates.size(); i++) {
+                // a cut through a surrogate pair cannot travel as JSON to PHP; such a candidate does not count
+                if (!hasUnpairedSurrogate(candidates.get(i))) {
+                    batch.add(new PhpOracle.Case("shrink-" + i, payload(shrinkCase(c, candidates.get(i)))));
+                }
+            }
+            Map<String, JsonNode> results = oracle.run(DRIVER, batch);
+            List<Boolean> verdicts = new ArrayList<>();
+            for (int i = 0; i < candidates.size(); i++) {
+                JsonNode wp = results.get("shrink-" + i);
+                if (wp == null) {
+                    verdicts.add(false);
+                    continue;
+                }
+                ParityRun probe =
+                        new ParityRun("shrink", ParitySkipList.empty(), Path.of("target/wp-parity-shrink.json"));
+                ParityCase candidate = shrinkCase(c, candidates.get(i));
+                probe.compare(candidate.id(), candidate.fn(), wp.get("out"), ours(candidate, new ArrayList<>()));
+                verdicts.add(!probe.mismatches().isEmpty());
+            }
+            return verdicts;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static ParityCase shrinkCase(ParityCase c, String in) {
+        return new ParityCase(c.id(), c.fn(), in, c.args(), null);
+    }
+
+    private static boolean hasUnpairedSurrogate(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (Character.isHighSurrogate(ch)) {
+                if (i + 1 < s.length() && Character.isLowSurrogate(s.charAt(i + 1))) {
+                    i++;
+                } else {
+                    return true;
+                }
+            } else if (Character.isLowSurrogate(ch)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ObjectNode payload(ParityCase c) {
@@ -258,8 +345,95 @@ class FormattingParityTest {
         return new ParityCase(id, "remove_footnotes", in, NODES.objectNode(), null);
     }
 
-    /** Generated inputs (Task 8). */
+    /** The id prefix of generated cases: {@code gen/<fn>-<i>}. */
+    static final String GENERATED = "gen/";
+
+    /**
+     * Generated inputs (Task 8): {@code count} values of {@code inputs} for {@code fn}, seeded
+     * {@code lib-wp-formatting-<fn>}, with the arguments {@code args} gives the {@code i}-th case.
+     */
+    private static void generate(
+            List<ParityCase> cases, String fn, Gen<String> inputs, int count, IntFunction<ObjectNode> args) {
+        List<String> values = GeneratedCases.sample(inputs, "lib-wp-formatting-" + fn, count);
+        for (int i = 0; i < values.size(); i++) {
+            cases.add(new ParityCase(GENERATED + fn + "-" + i, fn, values.get(i), args.apply(i), null));
+        }
+    }
+
+    /** Generated inputs with generated arguments: input and arguments are drawn from one seeded sample. */
+    private static void generate(
+            List<ParityCase> cases, String fn, Gen<String> inputs, Gen<ObjectNode> args, int count) {
+        Gen<ParityCase> both = random -> new ParityCase("", fn, inputs.next(random), args.next(random), null);
+        List<ParityCase> values = GeneratedCases.sample(both, "lib-wp-formatting-" + fn, count);
+        for (int i = 0; i < values.size(); i++) {
+            ParityCase c = values.get(i);
+            cases.add(new ParityCase(GENERATED + fn + "-" + i, fn, c.in(), c.args(), null));
+        }
+    }
+
     private static List<ParityCase> generatedCases() {
-        return List.of();
+        List<ParityCase> cases = new ArrayList<>();
+        Gen<String> html = FormattingArbitraries.html();
+        generate(cases, "autop", html, 3_000, i -> {
+            ObjectNode args = NODES.objectNode();
+            if (i % 4 == 3) {
+                args.put("br", false);
+            }
+            return args;
+        });
+        generate(cases, "texturize", html, 3_000, i -> {
+            ObjectNode args = NODES.objectNode();
+            if (i % 3 == 2) {
+                var names = NODES.arrayNode();
+                Functions.CORE_SHORTCODES.forEach(names::add);
+                args.set("shortcodes", names.add("code"));
+            }
+            if (i % 7 == 6) {
+                var tags = NODES.arrayNode();
+                Texturize.DEFAULT_NO_TEXTURIZE_TAGS.forEach(tags::add);
+                args.set("noTexturizeTags", tags.add("span"));
+            }
+            return args;
+        });
+        // smilies: every 5th case with use_smilies off, every 3rd with a site URL that has a path
+        generate(cases, "smilies", html, 1_500, i -> {
+            ObjectNode args = NODES.objectNode();
+            if (i % 5 == 4) {
+                args.put("useSmilies", false);
+            }
+            if (i % 3 == 1) {
+                args.put("siteUrl", "https://example.com/blog/sub");
+            }
+            return args;
+        });
+        generate(cases, "convert_chars", html, 1_000, i -> NODES.objectNode());
+        List<String> filters = List.of("the_title", "the_content", "document_title");
+        generate(cases, "capital_p", html, 1_000, i -> NODES.objectNode().put("filter", filters.get(i % 3)));
+        generate(cases, "title_chain", html, 500, i -> NODES.objectNode());
+        generate(cases, "content_chain", html, 500, i -> NODES.objectNode());
+        generate(cases, "excerpt_chain", html, 1_000, i -> NODES.objectNode());
+        generate(cases, "trim_words", FormattingArbitraries.words(), FormattingArbitraries.trimArgs(), 1_500);
+        generate(cases, "html_excerpt", FormattingArbitraries.words(), FormattingArbitraries.excerptArgs(), 1_000);
+        generate(cases, "remove_footnotes", html, 500, i -> NODES.objectNode());
+        generate(cases, "html_split", html, 1_000, i -> NODES.objectNode());
+        generate(cases, "replace_in_html_tags", html, 500, i -> {
+            ObjectNode pairs = NODES.objectNode();
+            if (i % 2 == 0) {
+                pairs.put("\n", " <!-- wpnl --> ");
+            } else {
+                pairs.put("x", "1").put("xy", "2").put("y", "3");
+            }
+            return NODES.objectNode().set("pairs", pairs);
+        });
+        generate(cases, "force_balance", html, 1_000, i -> NODES.objectNode());
+        // balanceTags: the force flag and the use_balanceTags option cycle through all four combinations
+        generate(
+                cases,
+                "balance_tags",
+                html,
+                500,
+                i -> NODES.objectNode().put("force", i % 2 == 1).put("option", i % 4 >= 2));
+        generate(cases, "trim_excerpt", html, FormattingArbitraries.trimExcerptArgs(), 1_000);
+        return cases;
     }
 }

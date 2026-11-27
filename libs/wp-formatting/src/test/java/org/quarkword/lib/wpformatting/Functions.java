@@ -53,6 +53,8 @@ final class Functions {
                         in,
                         args.path("force").asBoolean(false),
                         args.path("option").asBoolean(false)));
+            // Task 8
+            case "trim_excerpt" -> NODES.textNode(trimExcerpt(in, args));
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -81,7 +83,9 @@ final class Functions {
             "excerpt_chain",
             // Task 7
             "force_balance",
-            "balance_tags");
+            "balance_tags",
+            // Task 8
+            "trim_excerpt");
 
     /** The shortcodes WordPress core registers; a texturize case gives its own list in {@code shortcodes}. */
     static final List<String> CORE_SHORTCODES =
@@ -175,6 +179,24 @@ final class Functions {
                         Formatting.autop(Texturize.wordPress().apply(text)), CapitalPMode.JUDICIOUS)))
                 .build();
         return Excerpts.trimExcerpt("", content, options);
+    }
+
+    /**
+     * wp_trim_excerpt as the driver calls it: the case's input is the post's content, {@code raw} the given excerpt
+     * (default empty), {@code length} the excerpt_length (default 55), {@code more} the excerpt_more (absent means the
+     * default), {@code type} and {@code charset} as for {@link #trimWords}; no shortcodes are registered, blocks are
+     * left in, and the content filter is the_content without shortcodes (as in {@link #generatedExcerpt}).
+     */
+    static String trimExcerpt(String content, JsonNode args) {
+        ExcerptOptions options = ExcerptOptions.builder()
+                .length(args.path("length").asInt(Excerpts.DEFAULT_WORDS))
+                .more(textOrNull(args, "more"))
+                .wordCountType(WordCountType.fromWordPress(args.path("type").asText("words")))
+                .utf8Charset(isUtf8Charset(args.path("charset").asText("UTF-8")))
+                .contentFilter(text -> EXCERPT_SMILIES.convert(Formatting.capitalPDangit(
+                        Formatting.autop(Texturize.wordPress().apply(text)), CapitalPMode.JUDICIOUS)))
+                .build();
+        return Excerpts.trimExcerpt(args.path("raw").asText(""), content, options);
     }
 
     private static String textOrNull(JsonNode args, String name) {

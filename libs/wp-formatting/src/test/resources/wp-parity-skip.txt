@@ -22,3 +22,5 @@ none none D10 wp_trim_words and the wp_trim_excerpt helper take the word-count t
 # Task 7: force_balance_tags
 t7-custom-tail-18 force_balance D11 WordPress's backtrack limit stops force_balance_tags at a custom-element-like name with 18 or more characters after its first hyphen that does not end a tag: the rest of the text is copied unbalanced and only the elements already open are closed; QuarkWord balances the rest
 t7-custom-tail-closer force_balance D11 WordPress's backtrack limit stops force_balance_tags at a custom-element-like name with 18 or more characters after its first hyphen that does not end a tag: the rest of the text is copied unbalanced and only the elements already open are closed; QuarkWord balances the rest
+# Task 8: generated parity
+none none D12 strings are UTF-16: invalid UTF-8 cannot reach the library, and a lone surrogate passes through as one code point, except where Kses.stripAllTags runs (wp_trim_words, wp_html_excerpt, the wp_trim_excerpt helper), which turns it into U+FFFD

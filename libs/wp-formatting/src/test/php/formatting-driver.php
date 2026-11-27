@@ -174,6 +174,56 @@ function qw_balance_tags(string $text, array $args): string
     return balanceTags($text, $args['force'] ?? false);
 }
 
+// Task 8: the wp_trim_excerpt helper on a post whose content is the case's input
+
+/** Environment stub: no post object; the content comes from the case. */
+function get_post($post = null, $output = 'OBJECT', $filter = 'raw')
+{
+    return null;
+}
+
+/** Environment stub: the post content is the case's input. */
+function get_the_content($more_link_text = null, $strip_teaser = false, $post = null)
+{
+    return $GLOBALS['qw_content'];
+}
+
+/** Environment stub: blocks are left in (QuarkWord takes excerpt_remove_blocks as a caller hook). */
+function excerpt_remove_blocks($content)
+{
+    return $content;
+}
+
+/**
+ * wp_trim_excerpt with the case's raw excerpt, excerpt_length, excerpt_more, word-count type and blog_charset; no
+ * shortcodes are registered and the_content is core's without shortcodes: wptexturize, wpautop and
+ * shortcode_unautop at 10, capital_P_dangit at 11, convert_smilies at 20.
+ */
+function qw_trim_excerpt(string $content, array $args): string
+{
+    qw_texturize_defaults();
+    $GLOBALS['qw_content'] = $content;
+    $GLOBALS['qw_word_count_type'] = $args['type'] ?? 'words';
+    $GLOBALS['qw_options']['blog_charset'] = $args['charset'] ?? 'UTF-8';
+    $GLOBALS['qw_options']['use_smilies'] = '1';
+    $GLOBALS['qw_options']['siteurl'] = 'https://example.com';
+    remove_all_filters('the_content');
+    add_filter('the_content', 'wptexturize');
+    add_filter('the_content', 'wpautop');
+    add_filter('the_content', 'shortcode_unautop');
+    add_filter('the_content', 'capital_P_dangit', 11);
+    add_filter('the_content', 'convert_smilies', 20);
+    remove_all_filters('excerpt_length');
+    $length = $args['length'] ?? 55;
+    add_filter('excerpt_length', static fn() => $length);
+    remove_all_filters('excerpt_more');
+    if (array_key_exists('more', $args)) {
+        $more = $args['more'];
+        add_filter('excerpt_more', static fn() => $more);
+    }
+    return wp_trim_excerpt($args['raw'] ?? '');
+}
+
 qw_run(function (array $in): array {
     $GLOBALS['qw_options'] = [];
     $GLOBALS['qw_word_count_type'] = 'words';
@@ -201,5 +251,7 @@ qw_run(function (array $in): array {
         // Task 7
         'force_balance' => force_balance_tags($in['in']),
         'balance_tags' => qw_balance_tags($in['in'], $args),
+        // Task 8
+        'trim_excerpt' => qw_trim_excerpt($in['in'], $args),
     }];
 });
