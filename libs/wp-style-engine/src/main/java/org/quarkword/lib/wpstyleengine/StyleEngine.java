@@ -1,7 +1,10 @@
 package org.quarkword.lib.wpstyleengine;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -105,20 +108,54 @@ public final class StyleEngine {
      * declaration that passes the sanitiser on its own, and a background image URL is put in {@code url('...')}
      * without escaping.
      *
+     * <p>With a context store and a selector other than {@code null}, {@code ""} or {@code "0"}, the declarations
+     * are also added, unsanitised, to the store's rule for that selector, without a rules group, whether or not any
+     * of them renders; a value that is not text is left out, as in {@link CssDeclarations#fromJson(JsonNode)}.
+     * Without a selector nothing is stored.
+     *
      * @param blockStyles the block style object; {@code null}, a non-array or an empty array gives
      *     {@link StyleResult#EMPTY}
+     * @throws IllegalArgumentException when there is a context store and the selector is empty after trimming
      */
     public static StyleResult getStyles(JsonNode blockStyles, StyleOptions options) {
         Objects.requireNonNull(options, "options");
         BlockStyles.Parsed parsed = BlockStyles.parse(blockStyles, options.convertVarsToClassnames());
         String css = "";
         if (!parsed.declarations().isEmpty()) {
-            com.fasterxml.jackson.databind.node.ObjectNode raw =
-                    com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+            ObjectNode raw = JsonNodeFactory.instance.objectNode();
             parsed.declarations().forEach(raw::set);
             css = compileCss(raw, options.selector());
+            if (options.context() != null) {
+                storeCssRule(options.context(), options.selector(), raw, null, null);
+            }
         }
-        String classnames = String.join(" ", new java.util.LinkedHashSet<>(parsed.classnames()));
+        String classnames = String.join(" ", new LinkedHashSet<>(parsed.classnames()));
         return new StyleResult(css, parsed.declarations(), classnames);
+    }
+
+    /**
+     * The stylesheet of every rule in {@code store}, in the store's order, as WordPress renders a context's rules.
+     * The options' context is not used, and the store is not changed.
+     */
+    public static String stylesheetFromStore(StyleStore store, StylesheetOptions options) {
+        Objects.requireNonNull(store, "store");
+        Objects.requireNonNull(options, "options");
+        return new StyleProcessor()
+                .addRules(new ArrayList<>(store.rules().values()))
+                .css(options.optimize(), options.prettify());
+    }
+
+    /**
+     * The stylesheet of the store called {@code context} in {@code stores}, as WordPress's
+     * {@code wp_style_engine_get_stylesheet_from_context} gives it. Like WordPress, an unknown name creates an empty
+     * store and gives {@code ""}. The options' context is not used.
+     *
+     * @throws IllegalArgumentException when {@code context} is {@code ""} or {@code "0"}
+     */
+    public static String stylesheetFromContext(StyleStores stores, String context, StylesheetOptions options) {
+        Objects.requireNonNull(stores, "stores");
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(options, "options");
+        return stylesheetFromStore(stores.store(context), options);
     }
 }

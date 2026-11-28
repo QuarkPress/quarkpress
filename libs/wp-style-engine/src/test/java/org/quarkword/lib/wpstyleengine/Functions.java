@@ -2,6 +2,7 @@ package org.quarkword.lib.wpstyleengine;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,9 +32,15 @@ final class Functions {
             case "safecss" -> NODES.textNode(KSES.safeCss(in.asText()));
             // Task 3
             case "processor" -> Task3.processor(in);
-            case "stylesheet_from_rules" -> Task3.stylesheetFromRules(in, args);
+            case "stylesheet_from_rules" ->
+                Php.get(args, "context") != null
+                        ? Task5.stylesheetFromRules(in, args)
+                        : Task3.stylesheetFromRules(in, args);
             // Task 4
             case "get_styles" -> Task4.getStyles(in, args);
+            // Task 5
+            case "styles_then_context" -> Task5.stylesThenContext(in, args);
+            case "stylesheet_from_context" -> Task5.stylesheetFromContext(in, args);
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -54,7 +61,10 @@ final class Functions {
             "processor",
             "stylesheet_from_rules",
             // Task 4
-            "get_styles");
+            "get_styles",
+            // Task 5
+            "styles_then_context",
+            "stylesheet_from_context");
 
     /** A protected WordPress helper, or a driver-local one, by the name the driver maps it to. */
     private static JsonNode protectedHelper(String name, JsonNode args) {
@@ -139,6 +149,16 @@ final class Functions {
 
     private static JsonNode store(JsonNode ops) {
         StyleStores stores = new StyleStores();
+        List<Object> nulls = storeOps(stores, ops);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("nulls", nulls);
+        out.put("stores", stores.names());
+        out.put("rules", dumpRules(stores));
+        return PhpJson.map(out);
+    }
+
+    /** Runs the store ops on {@code stores}; for each add_rule, whether WordPress's add_rule returns null. */
+    private static List<Object> storeOps(StyleStores stores, JsonNode ops) {
         List<Object> nulls = new ArrayList<>();
         for (JsonNode op : ops) {
             String name = op.get(1).asText();
@@ -168,6 +188,11 @@ final class Functions {
                 default -> throw new IllegalArgumentException("unknown store op " + op);
             }
         }
+        return nulls;
+    }
+
+    /** Every store's rules: name to [[key, selector, rules group, declarations, important]]. */
+    private static JsonNode dumpRules(StyleStores stores) {
         Map<String, Object> rules = new LinkedHashMap<>();
         for (String name : stores.names()) {
             List<Object> list = new ArrayList<>();
@@ -181,11 +206,7 @@ final class Functions {
                             List.copyOf(rule.declarations().important()))));
             rules.put(name, list);
         }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("nulls", nulls);
-        out.put("stores", stores.names());
-        out.put("rules", PhpJson.map(rules));
-        return PhpJson.map(out);
+        return PhpJson.map(rules);
     }
 
     // Task 4: get_styles and its protected helpers
@@ -195,7 +216,11 @@ final class Functions {
 
         /** WordPress's result array: {@code []} when empty, otherwise the keys it keeps. */
         static JsonNode getStyles(JsonNode in, JsonNode args) {
-            JsonNode options = args == null ? null : args.get("options");
+            return result(StyleEngine.getStyles(in, options(args == null ? null : args.get("options"))));
+        }
+
+        /** The options the driver passes: a text selector, and convert_vars_to_classnames when strictly true. */
+        static StyleOptions options(JsonNode options) {
             StyleOptions o = StyleOptions.defaults();
             if (Php.isArray(options)) {
                 JsonNode selector = Php.get(options, "selector");
@@ -204,11 +229,14 @@ final class Functions {
                 }
                 o = o.withConvertVarsToClassnames(Php.isStrictTrue(Php.get(options, "convert_vars_to_classnames")));
             }
-            StyleResult r = StyleEngine.getStyles(in, o);
+            return o;
+        }
+
+        static JsonNode result(StyleResult r) {
             if (r.isEmpty()) {
                 return NODES.arrayNode();
             }
-            com.fasterxml.jackson.databind.node.ObjectNode out = NODES.objectNode();
+            ObjectNode out = NODES.objectNode();
             if (!r.css().isEmpty()) {
                 out.put("css", r.css());
             }
@@ -350,6 +378,11 @@ final class Functions {
         }
 
         static JsonNode stylesheetFromRules(JsonNode in, JsonNode args) {
+            return NODES.textNode(StyleEngine.stylesheetFromCssRules(entries(in), options(args)));
+        }
+
+        /** The entries as the driver builds them. */
+        static List<CssRuleEntry> entries(JsonNode in) {
             List<CssRuleEntry> entries = new ArrayList<>();
             if (in != null) {
                 for (JsonNode e : in) {
@@ -366,10 +399,92 @@ final class Functions {
                     }
                 }
             }
-            StylesheetOptions options = StylesheetOptions.defaults()
+            return entries;
+        }
+
+        /** Optimize when strictly true, prettify when truthy; no context. */
+        static StylesheetOptions options(JsonNode args) {
+            return StylesheetOptions.defaults()
                     .withOptimize(Php.isStrictTrue(Php.get(args, "optimize")))
                     .withPrettify(Php.isTruthy(Php.get(args, "prettify")));
-            return NODES.textNode(StyleEngine.stylesheetFromCssRules(entries, options));
+        }
+    }
+
+    // Task 5: stores in the entry points
+    private static final class Task5 {
+
+        private Task5() {}
+
+        /**
+         * get_styles calls into the context store (or the store a call's options name, or none with "noContext"),
+         * then the context's stylesheet plain and prettified, the store names and every store's rules.
+         */
+        static JsonNode stylesThenContext(JsonNode in, JsonNode args) {
+            String context = in.get("context").asText();
+            StyleStores stores = new StyleStores();
+            List<Object> results = new ArrayList<>();
+            for (JsonNode call : in.get("calls")) {
+                JsonNode styles = call.get(0);
+                JsonNode options = call.get(1);
+                StyleOptions o = Task4.options(options);
+                String name = null;
+                if (!Php.isTruthy(Php.get(options, "noContext"))) {
+                    JsonNode own = Php.get(options, "context");
+                    // the driver's ??= keeps a call's own context unless it is missing or null
+                    name = own == null || own.isNull() ? context : own.asText();
+                }
+                if (!Php.isEmpty(name)) {
+                    // WordPress fetches, and so creates, the store only when it has a rule to add to it
+                    StyleStore store = stores.find(name).orElse(null);
+                    if (store == null
+                            && !Php.isEmpty(o.selector())
+                            && !StyleEngine.getStyles(styles, o).declarations().isEmpty()) {
+                        store = stores.store(name);
+                    }
+                    if (store != null) {
+                        o = o.withContext(store);
+                    }
+                }
+                results.add(Task4.result(StyleEngine.getStyles(styles, o)));
+            }
+            StylesheetOptions plain =
+                    StylesheetOptions.defaults().withOptimize(Php.isStrictTrue(Php.get(args, "optimize")));
+            String css = StyleEngine.stylesheetFromContext(stores, context, plain);
+            String pretty = StyleEngine.stylesheetFromContext(stores, context, plain.withPrettify(true));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("results", results);
+            out.put("stores", stores.names());
+            out.put("css", css);
+            out.put("pretty", pretty);
+            out.put("store", dumpRules(stores));
+            return PhpJson.map(out);
+        }
+
+        /** Store ops, then the stylesheet of args.context and the store names. */
+        static JsonNode stylesheetFromContext(JsonNode ops, JsonNode args) {
+            StyleStores stores = new StyleStores();
+            storeOps(stores, ops);
+            String css = StyleEngine.stylesheetFromContext(
+                    stores, Php.get(args, "context").asText(), Task3.options(args));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("css", css);
+            out.put("stores", stores.names());
+            return PhpJson.map(out);
+        }
+
+        /** stylesheet_from_rules with args.context: the stylesheet, every store's rules and the context's stylesheet. */
+        static JsonNode stylesheetFromRules(JsonNode in, JsonNode args) {
+            String context = Php.get(args, "context").asText();
+            StyleStores stores = new StyleStores();
+            StylesheetOptions options = Task3.options(args);
+            String css =
+                    StyleEngine.stylesheetFromCssRules(Task3.entries(in), options.withContext(stores.store(context)));
+            String fromContext = StyleEngine.stylesheetFromContext(stores, context, options);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("css", css);
+            out.put("store", dumpRules(stores));
+            out.put("fromContext", fromContext);
+            return PhpJson.map(out);
         }
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.quarkword.testing.gen.Gen;
@@ -273,16 +275,22 @@ class StyleEngineParityTest {
                 i -> ".r" + i,
                 i -> NODES.objectNode().put("color", "red"),
                 NODES.objectNode().put("prettify", true)));
+        // Task 5: the second shape of HostileInputTest.contextsAreLinear
+        ObjectNode context = NODES.objectNode().put("context", "block-supports");
+        ArrayNode calls = context.putArray("calls");
+        for (int i = 0; i < 10_000; i++) {
+            calls.addArray()
+                    .add(HostileInputTest.t5FontSize(i))
+                    .add(NODES.objectNode().put("selector", ".r" + i));
+        }
+        cases.add(new ParityCase("t5-context-10k", "styles_then_context", context, NODES.objectNode(), null));
         return cases;
     }
 
     /** A stylesheet_from_rules case of 10,000 entries. */
     private static ParityCase t3Rules(
-            String id,
-            java.util.function.IntFunction<String> selector,
-            java.util.function.IntFunction<ObjectNode> declarations,
-            ObjectNode args) {
-        com.fasterxml.jackson.databind.node.ArrayNode in = NODES.arrayNode();
+            String id, IntFunction<String> selector, IntFunction<ObjectNode> declarations, ObjectNode args) {
+        ArrayNode in = NODES.arrayNode();
         for (int i = 0; i < 10_000; i++) {
             in.addObject().put("selector", selector.apply(i)).set("declarations", declarations.apply(i));
         }

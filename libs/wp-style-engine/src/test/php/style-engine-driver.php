@@ -250,6 +250,106 @@ function qw_se_stylesheet_from_rules(mixed $in, array $args): string
     }
 }
 
+// Task 5: stores in the entry points
+/** Every store's rules, as qw_se_store gives them: name => [[key, selector, rules group, declarations, important]]. */
+function qw_se_dump_rules(): array
+{
+    $rules = [];
+    foreach (WP_Style_Engine_CSS_Rules_Store::get_stores() as $name => $store) {
+        $list = [];
+        foreach ($store->get_all_rules() as $key => $rule) {
+            $d = $rule->get_declarations();
+            $list[] = [
+                (string) $key,
+                $rule->get_selector(),
+                $rule->get_rules_group(),
+                $d ? $d->get_declarations() : [],
+                $d ? qw_se_important($d) : [],
+            ];
+        }
+        $rules[(string) $name] = $list;
+    }
+    return $rules;
+}
+
+/** The optimize and prettify keys of $args, the only stylesheet options a case passes on. */
+function qw_se_sheet_options(array $args, bool $prettify): array
+{
+    $options = ['prettify' => $prettify];
+    if (array_key_exists('optimize', $args)) {
+        $options['optimize'] = $args['optimize'];
+    }
+    return $options;
+}
+
+/**
+ * get_styles calls [styles, options] into the store named "context" (a call whose options hold "context" uses that
+ * name; "noContext" => true passes none), then the context's stylesheet plain and prettified (both optimized when
+ * "optimize" is in the args), the store names and every store's rules. A fatal error is returned as "FATAL <message>".
+ */
+function qw_se_styles_then_context(array $in, array $args): array
+{
+    $results = [];
+    foreach ($in['calls'] as $call) {
+        $options = $call[1] ?? [];
+        if (empty($options['noContext'])) {
+            $options['context'] ??= $in['context'];
+        }
+        unset($options['noContext']);
+        try {
+            $results[] = wp_style_engine_get_styles($call[0], $options);
+        } catch (Error $e) {
+            $results[] = 'FATAL ' . $e->getMessage();
+        }
+    }
+    try {
+        $css = wp_style_engine_get_stylesheet_from_context($in['context'], qw_se_sheet_options($args, false));
+        $pretty = wp_style_engine_get_stylesheet_from_context($in['context'], qw_se_sheet_options($args, true));
+    } catch (Error $e) {
+        $css = $pretty = 'FATAL ' . $e->getMessage();
+    }
+    return [
+        'results' => $results,
+        'stores' => qw_se_keys(WP_Style_Engine_CSS_Rules_Store::get_stores()),
+        'css' => $css,
+        'pretty' => $pretty,
+        'store' => qw_se_dump_rules(),
+    ];
+}
+
+/** Store ops as qw_se_store runs them, then the stylesheet of args.context and the store names. */
+function qw_se_stylesheet_from_context(array $ops, array $args): array
+{
+    qw_se_store($ops);
+    try {
+        $css = wp_style_engine_get_stylesheet_from_context($args['context'], array_diff_key($args, ['context' => true]));
+    } catch (Error $e) {
+        $css = 'FATAL ' . $e->getMessage();
+    }
+    return ['css' => $css, 'stores' => qw_se_keys(WP_Style_Engine_CSS_Rules_Store::get_stores())];
+}
+
+/**
+ * qw_se_stylesheet_from_rules; with args.context, also that context's stylesheet with the same optimize and
+ * prettify, then every store's rules.
+ */
+function qw_se_rules_with_context(mixed $in, array $args): mixed
+{
+    $css = qw_se_stylesheet_from_rules($in, $args);
+    if (!array_key_exists('context', $args)) {
+        return $css;
+    }
+    try {
+        $fromContext = wp_style_engine_get_stylesheet_from_context(
+            $args['context'],
+            array_diff_key($args, ['context' => true])
+        );
+    } catch (Error $e) {
+        $fromContext = 'FATAL ' . $e->getMessage();
+    }
+    return ['css' => $css, 'store' => qw_se_dump_rules(), 'fromContext' => $fromContext];
+}
+
 qw_run(function ($in) {
     WP_Style_Engine_CSS_Rules_Store::remove_all_stores();
     return ['out' => match ($in['fn']) {
@@ -265,8 +365,11 @@ qw_run(function ($in) {
         'safecss' => safecss_filter_attr($in['in']),
         // Task 3
         'processor' => qw_se_processor($in['in']),
-        'stylesheet_from_rules' => qw_se_stylesheet_from_rules($in['in'], $in['args'] ?? []),
+        'stylesheet_from_rules' => qw_se_rules_with_context($in['in'], $in['args'] ?? []),
         // Task 4
         'get_styles' => wp_style_engine_get_styles($in['in'], $in['args']['options'] ?? []),
+        // Task 5
+        'styles_then_context' => qw_se_styles_then_context($in['in'], $in['args'] ?? []),
+        'stylesheet_from_context' => qw_se_stylesheet_from_context($in['in'], $in['args'] ?? []),
     }];
 });

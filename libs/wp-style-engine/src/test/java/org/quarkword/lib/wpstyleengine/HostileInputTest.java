@@ -3,12 +3,16 @@ package org.quarkword.lib.wpstyleengine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.management.ThreadMXBean;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -24,7 +28,7 @@ class HostileInputTest {
      */
     private static <T> T bounded(String label, long size, Supplier<T> work) {
         return assertTimeoutPreemptively(LIMIT, () -> {
-            var threads = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+            var threads = (ThreadMXBean) ManagementFactory.getThreadMXBean();
             long before = threads.getCurrentThreadAllocatedBytes();
             T result = work.get();
             long allocated = threads.getCurrentThreadAllocatedBytes() - before;
@@ -144,7 +148,7 @@ class HostileInputTest {
     }
 
     // Task 4: get_styles; the first four are also the parity cases t4-text-1mb, t4-slug-1mb, t4-pipes-1mb, t4-sides-10k
-    static ObjectNode t4Styles(String group, String key, com.fasterxml.jackson.databind.JsonNode value) {
+    static ObjectNode t4Styles(String group, String key, JsonNode value) {
         ObjectNode styles = JsonNodeFactory.instance.objectNode();
         styles.putObject(group).set(key, value);
         return styles;
@@ -205,19 +209,19 @@ class HostileInputTest {
 
     // Task 3: the processor; the four shapes are also the parity cases t3-opt-same-10k, t3-opt-distinct-10k,
     // t3-merge-10k and t3-pretty-10k
-    static java.util.List<CssRuleEntry> t3Entries(java.util.function.IntFunction<CssRuleEntry> entry) {
+    static List<CssRuleEntry> t3Entries(IntFunction<CssRuleEntry> entry) {
         return IntStream.range(0, 10_000).mapToObj(entry).toList();
     }
 
     @Test
     void processorIsLinear() {
         StylesheetOptions optimize = StylesheetOptions.defaults().withOptimize(true);
-        java.util.List<CssRuleEntry> same = t3Entries(i -> CssRuleEntry.of(".r" + i, Map.of("color", "red")));
+        List<CssRuleEntry> same = t3Entries(i -> CssRuleEntry.of(".r" + i, Map.of("color", "red")));
         assertThat(bounded(
                         "10k identical rules", 10_000L * 16, () -> StyleEngine.stylesheetFromCssRules(same, optimize)))
                 .isEqualTo(IntStream.range(0, 10_000).mapToObj(i -> ".r" + i).collect(Collectors.joining(","))
                         + "{color:red;}");
-        java.util.List<CssRuleEntry> distinct = t3Entries(i -> CssRuleEntry.of(".r" + i, Map.of("--v", "" + i)));
+        List<CssRuleEntry> distinct = t3Entries(i -> CssRuleEntry.of(".r" + i, Map.of("--v", "" + i)));
         assertThat(bounded(
                         "10k distinct rules",
                         10_000L * 16,
@@ -225,7 +229,7 @@ class HostileInputTest {
                 .isEqualTo(IntStream.range(0, 10_000)
                         .mapToObj(i -> ".r" + i + "{--v:" + i + ";}")
                         .collect(Collectors.joining()));
-        java.util.List<CssRuleEntry> merge = t3Entries(i -> CssRuleEntry.of(".a", Map.of("--p" + i, "1")));
+        List<CssRuleEntry> merge = t3Entries(i -> CssRuleEntry.of(".a", Map.of("--p" + i, "1")));
         assertThat(bounded(
                         "10k merges",
                         10_000L * 16,
@@ -242,6 +246,49 @@ class HostileInputTest {
                                 same, StylesheetOptions.defaults().withPrettify(true))))
                 .isEqualTo(IntStream.range(0, 10_000)
                         .mapToObj(i -> ".r" + i + " {\n\tcolor: red;\n}\n")
+                        .collect(Collectors.joining()));
+    }
+
+    // Task 5: get_styles into one store; the second shape is also the parity case t5-context-10k
+    static ObjectNode t5FontSize(int i) {
+        return t4Styles("typography", "fontSize", JsonNodeFactory.instance.textNode(i + "px"));
+    }
+
+    /** The characters of 10,000 calls: each block style object as JSON, plus its selector. */
+    private static long t5Size(IntFunction<String> selector) {
+        return IntStream.range(0, 10_000)
+                .mapToLong(i ->
+                        t5FontSize(i).toString().length() + selector.apply(i).length())
+                .sum();
+    }
+
+    @Test
+    void contextsAreLinear() {
+        StyleStore merged = bounded("10k calls into one rule", t5Size(i -> ".x"), () -> {
+            StyleStore store = new StyleStore("block-supports");
+            StyleOptions options = StyleOptions.defaults().withSelector(".x").withContext(store);
+            for (int i = 0; i < 10_000; i++) {
+                StyleEngine.getStyles(t5FontSize(i), options);
+            }
+            return store;
+        });
+        assertThat(merged.rules().keySet()).containsExactly(".x");
+        assertThat(merged.rules().get(".x").declarations().declarations())
+                .containsExactlyEntriesOf(Map.of("font-size", "9999px"));
+        assertThat(StyleEngine.stylesheetFromStore(merged, StylesheetOptions.defaults()))
+                .isEqualTo(".x{font-size:9999px;}");
+        String distinct = bounded("10k selectors in one store", t5Size(i -> ".r" + i), () -> {
+            StyleStore store = new StyleStore("block-supports");
+            for (int i = 0; i < 10_000; i++) {
+                StyleEngine.getStyles(
+                        t5FontSize(i),
+                        StyleOptions.defaults().withSelector(".r" + i).withContext(store));
+            }
+            return StyleEngine.stylesheetFromStore(store, StylesheetOptions.defaults());
+        });
+        assertThat(distinct)
+                .isEqualTo(IntStream.range(0, 10_000)
+                        .mapToObj(i -> ".r" + i + "{font-size:" + i + "px;}")
                         .collect(Collectors.joining()));
     }
 }
