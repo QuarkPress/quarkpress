@@ -124,7 +124,7 @@ class HostileInputTest {
         StyleStore merged = bounded("10k merges into one rule", 10_000L * 8, () -> {
             StyleStore store = new StyleStore("s");
             for (int i = 0; i < 10_000; i++) {
-                store.addRule(".a", null, CssDeclarations.of(Map.of("--p" + i, "1")));
+                store.addRule(".a", CssDeclarations.of(Map.of("--p" + i, "1")), null);
             }
             return store;
         });
@@ -138,7 +138,7 @@ class HostileInputTest {
         StyleStore distinct = bounded("10k rules", 10_000L * 8, () -> {
             StyleStore store = new StyleStore("s");
             for (int i = 0; i < 10_000; i++) {
-                store.addRule(".r" + i, null, red);
+                store.addRule(".r" + i, red, null);
             }
             return store;
         });

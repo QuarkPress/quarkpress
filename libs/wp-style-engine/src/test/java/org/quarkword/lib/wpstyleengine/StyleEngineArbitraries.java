@@ -682,9 +682,13 @@ final class StyleEngineArbitraries {
      * {@code context}, no selector is empty after trimming (D3).
      */
     static JsonNode cssRules(RandomGenerator r, boolean optimize, boolean context) {
+        return cssRules(r, optimize, context, new Marker());
+    }
+
+    /** {@link #cssRules(RandomGenerator, boolean, boolean)} with a marker shared by the calls into one context. */
+    private static JsonNode cssRules(RandomGenerator r, boolean optimize, boolean context, Marker marker) {
         ArrayNode entries = NODES.arrayNode();
         List<ObjectNode> pool = declarationsPool(r);
-        Marker marker = new Marker();
         int n = r.nextInt(13);
         for (int i = 0; i < n; i++) {
             ObjectNode e = NODES.objectNode();
@@ -1011,10 +1015,14 @@ final class StyleEngineArbitraries {
     }
 
     /**
-     * get_styles calls into a context store: {"calls": [[styles, options]], "context"}. Options hold a selector that
-     * is never empty after trimming unless it is "" or "0" (D3), and sometimes their own context or none.
+     * Calls into a context store, {"calls": [...], "context"}, mixing get_styles calls [styles, options] and css-rules
+     * calls {"rules": entries, "options"} in one context, as the block renderer does. get_styles options hold a
+     * selector that is never empty after trimming unless it is "" or "0" (D3); css-rules entries never have such a
+     * selector either. Both sometimes name their own context or none. With {@code optimize} (the context is rendered
+     * strictly optimized), every grouped css-rules entry carries a marker (D7), as does every entry of a css-rules
+     * call that optimizes on its own.
      */
-    static Gen<JsonNode> contextCalls() {
+    static Gen<JsonNode> contextCalls(boolean optimize) {
         List<String> selectors = List.of(
                 ".x",
                 ".y",
@@ -1034,6 +1042,7 @@ final class StyleEngineArbitraries {
         return r -> {
             ObjectNode in = NODES.objectNode();
             ArrayNode calls = in.putArray("calls");
+            Marker marker = new Marker();
             int n = 1 + r.nextInt(8);
             for (int i = 0; i < n; i++) {
                 ObjectNode o = styleOptions.next(r);
@@ -1051,7 +1060,26 @@ final class StyleEngineArbitraries {
                 } else if (chance(r, 0.15)) {
                     o.put("context", pick(r, STORE_NAMES));
                 }
-                calls.addArray().add(styles.next(r)).add(o);
+                if (chance(r, 0.35)) {
+                    ObjectNode ro = NODES.objectNode();
+                    if (o.has("noContext")) {
+                        ro.put("noContext", true);
+                    } else if (o.has("context")) {
+                        ro.set("context", o.get("context"));
+                    }
+                    boolean own = chance(r, 0.25);
+                    if (own) {
+                        ro.put("optimize", true);
+                    }
+                    if (chance(r, 0.25)) {
+                        ro.put("prettify", true);
+                    }
+                    calls.addObject()
+                            .<ObjectNode>set("rules", cssRules(r, optimize || own, true, marker))
+                            .set("options", ro);
+                } else {
+                    calls.addArray().add(styles.next(r)).add(o);
+                }
             }
             in.put("context", pick(r, STORE_NAMES));
             return in;

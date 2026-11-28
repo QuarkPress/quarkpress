@@ -9,9 +9,9 @@ import java.util.Map;
 /**
  * WordPress's stylesheet optimisation: rules whose declarations are identical (the same properties with the same raw
  * values and the same important flags, in any order) are replaced by one rule for their selectors joined with
- * {@code ","}, added after the others, or in place of an existing rule with that selector list. As in WordPress, rules are compared by selector, not by key, so a rule in a
- * rules group takes part under its bare selector, and the combined rule takes its declarations from the rule stored
- * under the first selector's text and has no rules group.
+ * {@code ","}, added after the others, or in place of an existing rule with that selector list. As in WordPress,
+ * rules are compared by selector, not by key, so a rule in a rules group takes part under its bare selector, and the
+ * combined rule takes its declarations from the rule stored under the first selector's text and has no rules group.
  *
  * <p>When no rule is stored under that text (every rule with that selector is in a rules group), the declarations
  * of the first rule with that selector are used. Linear in the number of rules plus their declarations (each rule's

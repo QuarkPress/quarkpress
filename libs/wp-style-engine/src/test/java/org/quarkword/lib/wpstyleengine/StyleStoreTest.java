@@ -53,7 +53,7 @@ class StyleStoreTest {
         assertThatThrownBy(() -> StyleEngine.storeCssRule(store, "   ", red(), null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("selector is empty after trimming: \"   \"");
-        assertThatThrownBy(() -> store.addRule(" 0 ", null, CssDeclarations.empty()))
+        assertThatThrownBy(() -> store.addRule(" 0 ", CssDeclarations.empty(), null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(store.rules()).isEmpty();
     }
@@ -77,21 +77,21 @@ class StyleStoreTest {
     @Test
     void keysMergeAndRemove() {
         StyleStore store = new StyleStore("t");
-        store.addRule(" .a ", null, CssDeclarations.of(Map.of("color", "red")));
-        store.addRule(".b", "", CssDeclarations.of(Map.of("color", "red")));
-        store.addRule(".a", null, CssDeclarations.of(Map.of("width", "1px")));
-        store.addRule(".a", " @media print ", CssDeclarations.of(Map.of("color", "blue")));
+        store.addRule(" .a ", CssDeclarations.of(Map.of("color", "red")), null);
+        store.addRule(".b", CssDeclarations.of(Map.of("color", "red")), "");
+        store.addRule(".a", CssDeclarations.of(Map.of("width", "1px")), null);
+        store.addRule(".a", CssDeclarations.of(Map.of("color", "blue")), " @media print ");
         store.addRule(
                 "@media print .a",
-                null,
-                CssDeclarations.builder().add("top", "0", true).build());
+                CssDeclarations.builder().add("top", "0", true).build(),
+                null);
         Map<String, CssRule> snapshot = store.rules();
         assertThat(snapshot).containsOnlyKeys(".a", ".b", "@media print .a");
         assertThat(snapshot.get(".a").toCss()).isEqualTo(".a{color:red;width:1px;}");
         assertThat(snapshot.get("@media print .a").toCss()).isEqualTo("@media print{.a{color:blue;top:0 !important;}}");
         store.removeRule(".b ");
         store.removeRule(".b");
-        store.addRule(".a", null, CssDeclarations.of(Map.of("color", "green")));
+        store.addRule(".a", CssDeclarations.of(Map.of("color", "green")), null);
         assertThat(store.rules().keySet()).containsExactly(".a", "@media print .a");
         assertThat(store.rules().get(".a").toCss()).isEqualTo(".a{color:green;width:1px;}");
         assertThat(snapshot.get(".a").toCss()).isEqualTo(".a{color:red;width:1px;}");
@@ -125,7 +125,7 @@ class StyleStoreTest {
     @Test
     void rulesAreUnmodifiable() {
         StyleStore store = new StyleStore("s");
-        store.addRule(".a", null, CssDeclarations.of(Map.of("color", "red")));
+        store.addRule(".a", CssDeclarations.of(Map.of("color", "red")), null);
         Map<String, CssRule> rules = store.rules();
         CssRule rule = CssRule.of(".b", CssDeclarations.empty());
         assertThatThrownBy(() -> rules.put(".b", rule)).isInstanceOf(UnsupportedOperationException.class);
@@ -139,7 +139,7 @@ class StyleStoreTest {
         StyleStores first = new StyleStores();
         StyleStores second = new StyleStores();
         StyleStore a = first.store("x");
-        a.addRule(".a", null, CssDeclarations.of(Map.of("color", "red")));
+        a.addRule(".a", CssDeclarations.of(Map.of("color", "red")), null);
         StyleStore b = second.store("x");
         assertThat(b).isNotSameAs(a);
         assertThat(b.rules()).isEmpty();

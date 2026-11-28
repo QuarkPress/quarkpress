@@ -33,15 +33,15 @@ class ProcessorTest {
     @Test
     void repeatedCallsAgree() {
         StyleStore store = new StyleStore("o");
-        store.addRule(".a", null, RED);
-        store.addRule(".b", null, RED);
+        store.addRule(".a", RED, null);
+        store.addRule(".b", RED, null);
         StyleProcessor processor = new StyleProcessor().addStore(store);
         assertThat(processor.css(true, false)).isEqualTo(".a,.b{color:red;}");
         assertThat(processor.css(true, false)).isEqualTo(".a,.b{color:red;}");
         assertThat(processor.css(true, false)).isEqualTo(".a,.b{color:red;}");
         assertThat(processor.css()).isEqualTo(".a{color:red;}.b{color:red;}");
         // what the store holds at call time counts
-        store.addRule(".c", null, CssDeclarations.of(Map.of("width", "1px")));
+        store.addRule(".c", CssDeclarations.of(Map.of("width", "1px")), null);
         assertThat(processor.css(true, false)).isEqualTo(".c{width:1px;}.a,.b{color:red;}");
         // QuarkWord's answer for se-g190 (WordPress's differs by D6)
         RecordedCase g190 = recorded("se-g190", 1).get(0);
@@ -53,7 +53,7 @@ class ProcessorTest {
     @Test
     void callerRulesAreNotChanged() {
         StyleStore store = new StyleStore("m");
-        store.addRule(".a", null, CssDeclarations.of(orderedMap("color", "red", "width", "1px")));
+        store.addRule(".a", CssDeclarations.of(orderedMap("color", "red", "width", "1px")), null);
         CssRule direct = CssRule.of(".a", CssDeclarations.of(orderedMap("color", "blue", "height", "2px")));
         StyleProcessor processor = new StyleProcessor().addStore(store).addRules(direct);
         assertThat(processor.css()).isEqualTo(".a{color:red;height:2px;width:1px;}");
@@ -72,7 +72,7 @@ class ProcessorTest {
     void keyNormalisation() {
         assertRecorded(recorded("rf4-proc-", 3));
         StyleStore store = new StyleStore("s");
-        store.addRule(".a", "@media print", CssDeclarations.of(Map.of("width", "1px")));
+        store.addRule(".a", CssDeclarations.of(Map.of("width", "1px")), "@media print");
         assertThat(new StyleProcessor()
                         .addRules(CssRule.of("@media print .a", RED))
                         .addStore(store)
@@ -118,11 +118,11 @@ class ProcessorTest {
         StyleProcessor processor = new StyleProcessor();
         assertThatThrownBy(() -> processor.addStore(null)).isInstanceOf(NullPointerException.class);
         StyleStore first = new StyleStore("one");
-        first.addRule(".one", null, RED);
+        first.addRule(".one", RED, null);
         StyleStore second = new StyleStore("two");
-        second.addRule(".two", null, RED);
+        second.addRule(".two", RED, null);
         StyleStore again = new StyleStore("one");
-        again.addRule(".again", null, RED);
+        again.addRule(".again", RED, null);
         processor.addStore(first).addStore(second).addStore(first);
         assertThat(processor.css()).isEqualTo(".one{color:red;}.two{color:red;}");
         processor.addStore(again);

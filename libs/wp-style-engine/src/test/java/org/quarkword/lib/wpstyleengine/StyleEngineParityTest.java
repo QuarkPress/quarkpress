@@ -368,8 +368,12 @@ class StyleEngineParityTest {
                 "styles_then_context",
                 r -> {
                     ObjectNode c = NODES.objectNode();
-                    c.set("in", StyleEngineArbitraries.contextCalls().next(r));
-                    c.set("args", optimizeOnly.next(r));
+                    ObjectNode a = optimizeOnly.next(r);
+                    c.set(
+                            "in",
+                            StyleEngineArbitraries.contextCalls(StyleEngineArbitraries.strictOptimize(a))
+                                    .next(r));
+                    c.set("args", a);
                     return c;
                 },
                 500);

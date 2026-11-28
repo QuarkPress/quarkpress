@@ -283,19 +283,25 @@ function qw_se_sheet_options(array $args, bool $prettify): array
 }
 
 /**
- * get_styles calls [styles, options] into the store named "context" (a call whose options hold "context" uses that
- * name; "noContext" => true passes none), then the context's stylesheet plain and prettified (both optimized when
- * "optimize" is in the args), the store names and every store's rules. A fatal error is returned as "FATAL <message>".
+ * Calls into the store named "context" (a call whose options hold "context" uses that name; "noContext" => true
+ * passes none): get_styles calls [styles, options], and css-rules calls {"rules", "options"} through
+ * qw_se_stylesheet_from_rules; then the context's stylesheet plain and prettified (both optimized when "optimize" is
+ * in the args), the store names and every store's rules. A fatal error is returned as "FATAL <message>".
  */
 function qw_se_styles_then_context(array $in, array $args): array
 {
     $results = [];
     foreach ($in['calls'] as $call) {
-        $options = $call[1] ?? [];
+        $rules = array_key_exists('rules', $call);
+        $options = ($rules ? $call['options'] : $call[1]) ?? [];
         if (empty($options['noContext'])) {
             $options['context'] ??= $in['context'];
         }
         unset($options['noContext']);
+        if ($rules) {
+            $results[] = qw_se_stylesheet_from_rules($call['rules'], $options);
+            continue;
+        }
         try {
             $results[] = wp_style_engine_get_styles($call[0], $options);
         } catch (Error $e) {

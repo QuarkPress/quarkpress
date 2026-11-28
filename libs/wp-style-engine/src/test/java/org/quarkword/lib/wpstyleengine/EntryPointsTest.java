@@ -145,9 +145,9 @@ class EntryPointsTest {
     @Test
     void stylesheetFromStoreTakesTheOptions() {
         StyleStore store = new StyleStore("s");
-        store.addRule(".a", null, CssDeclarations.of(Map.of("color", "red")));
-        store.addRule(".b", null, CssDeclarations.of(Map.of("color", "red")));
-        store.addRule(".c", " @media print ", CssDeclarations.of(Map.of("width", "1px")));
+        store.addRule(".a", CssDeclarations.of(Map.of("color", "red")), null);
+        store.addRule(".b", CssDeclarations.of(Map.of("color", "red")), null);
+        store.addRule(".c", CssDeclarations.of(Map.of("width", "1px")), " @media print ");
         StyleStore other = new StyleStore("other");
         StylesheetOptions options = StylesheetOptions.defaults().withContext(other);
         assertThat(StyleEngine.stylesheetFromStore(store, options))
@@ -159,6 +159,47 @@ class EntryPointsTest {
                         ".a {\n\tcolor: red;\n}\n.b {\n\tcolor: red;\n}\n@media print {\n\t.c {\n\t\twidth: 1px;\n\t}\n}\n");
         assertThat(other.rules()).isEmpty();
         assertThat(store.rules().keySet()).containsExactly(".a", ".b", "@media print .c");
+    }
+
+    /**
+     * A context given by name is fetched only when a rule is stored, so the registry lists the stores in WordPress's
+     * order (checked with php: b, d, a); a store fetched up front would come first.
+     */
+    @Test
+    void contextByNameCreatesTheStoreOnFirstStoring() {
+        StyleStores stores = new StyleStores();
+        StyleEngine.getStyles(color("red"), StyleOptions.defaults().withContext(stores, "a"));
+        StyleEngine.getStyles(
+                NODES.objectNode(), StyleOptions.defaults().withSelector(".e").withContext(stores, "a"));
+        assertThat(stores.names()).isEmpty();
+        StyleEngine.getStyles(
+                color("red"), StyleOptions.defaults().withSelector(".b").withContext(stores, "b"));
+        StyleEngine.stylesheetFromCssRules(
+                List.of(CssRuleEntry.of("", Map.of("color", "red"))),
+                StylesheetOptions.defaults().withContext(stores, "c"));
+        StyleEngine.stylesheetFromCssRules(
+                List.of(CssRuleEntry.of(".c", Map.of("color", "red"))),
+                StylesheetOptions.defaults().withContext(stores, "d"));
+        StyleEngine.getStyles(
+                color("red"), StyleOptions.defaults().withSelector(".a").withContext(stores, "a"));
+        assertThat(stores.names()).containsExactly("b", "d", "a");
+        assertThat(StyleEngine.stylesheetFromContext(stores, "a", StylesheetOptions.defaults()))
+                .isEqualTo(".a{color:red;}");
+
+        StyleStores eager = new StyleStores();
+        StyleEngine.getStyles(color("red"), StyleOptions.defaults().withContext(eager.store("a")));
+        StyleEngine.getStyles(
+                color("red"), StyleOptions.defaults().withSelector(".b").withContext(eager, "b"));
+        assertThat(eager.names()).containsExactly("a", "b");
+
+        assertThatThrownBy(() -> StyleOptions.defaults().withContext(stores, "0"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> StylesheetOptions.defaults().withContext(stores, ""))
+                .isInstanceOf(IllegalArgumentException.class);
+        StyleOptions byName = StyleOptions.defaults().withContext(stores, "a");
+        assertThat(byName.context()).isNull();
+        assertThat(byName.withContext(new StyleStore("s")).contextStores()).isNull();
+        assertThat(byName.withSelector(".x").contextName()).isEqualTo("a");
     }
 
     /** G184: stylesheetFromCssRules with a context fills the store, whose stylesheet is then the same. */

@@ -170,8 +170,8 @@ final class Functions {
                     try {
                         store.addRule(
                                 op.get(2).asText(),
-                                textOrNull(op.get(3)),
-                                raw == null || raw.isNull() ? CssDeclarations.empty() : CssDeclarations.fromJson(raw));
+                                raw == null || raw.isNull() ? CssDeclarations.empty() : CssDeclarations.fromJson(raw),
+                                textOrNull(op.get(3)));
                         nulls.add(false);
                     } catch (IllegalArgumentException e) {
                         nulls.add(true);
@@ -351,7 +351,7 @@ final class Functions {
                     String trimmed = Php.trim(selector);
                     // WordPress's add_rule returns null for these, and the driver then adds nothing
                     if (!trimmed.isEmpty() && !trimmed.equals("0")) {
-                        store.addRule(selector, textOrNull(r.get(1)), CssDeclarations.fromJson(r.get(2)));
+                        store.addRule(selector, CssDeclarations.fromJson(r.get(2)), textOrNull(r.get(1)));
                     }
                 }
             }
@@ -416,36 +416,37 @@ final class Functions {
         private Task5() {}
 
         /**
-         * get_styles calls into the context store (or the store a call's options name, or none with "noContext"),
-         * then the context's stylesheet plain and prettified, the store names and every store's rules.
+         * Calls into the context store (or the store a call's options name, or none with "noContext"): get_styles
+         * calls [styles, options], and css-rules calls {"rules", "options"} through stylesheetFromCssRules; then the
+         * context's stylesheet plain and prettified, the store names and every store's rules.
          */
         static JsonNode stylesThenContext(JsonNode in, JsonNode args) {
             String context = in.get("context").asText();
             StyleStores stores = new StyleStores();
             List<Object> results = new ArrayList<>();
             for (JsonNode call : in.get("calls")) {
-                JsonNode styles = call.get(0);
-                JsonNode options = call.get(1);
-                StyleOptions o = Task4.options(options);
+                boolean rules = call.isObject();
+                JsonNode options = rules ? call.get("options") : call.get(1);
                 String name = null;
                 if (!Php.isTruthy(Php.get(options, "noContext"))) {
                     JsonNode own = Php.get(options, "context");
                     // the driver's ??= keeps a call's own context unless it is missing or null
                     name = own == null || own.isNull() ? context : own.asText();
                 }
-                if (!Php.isEmpty(name)) {
-                    // WordPress fetches, and so creates, the store only when it has a rule to add to it
-                    StyleStore store = stores.find(name).orElse(null);
-                    if (store == null
-                            && !Php.isEmpty(o.selector())
-                            && !StyleEngine.getStyles(styles, o).declarations().isEmpty()) {
-                        store = stores.store(name);
+                if (rules) {
+                    StylesheetOptions o = Task3.options(options);
+                    if (!Php.isEmpty(name)) {
+                        o = o.withContext(stores, name);
                     }
-                    if (store != null) {
-                        o = o.withContext(store);
+                    results.add(StyleEngine.stylesheetFromCssRules(Task3.entries(call.get("rules")), o));
+                } else {
+                    StyleOptions o = Task4.options(options);
+                    if (!Php.isEmpty(name)) {
+                        // fetched, and so created, only when a rule is stored, as in WordPress
+                        o = o.withContext(stores, name);
                     }
+                    results.add(Task4.result(StyleEngine.getStyles(call.get(0), o)));
                 }
-                results.add(Task4.result(StyleEngine.getStyles(styles, o)));
             }
             StylesheetOptions plain =
                     StylesheetOptions.defaults().withOptimize(Php.isStrictTrue(Php.get(args, "optimize")));

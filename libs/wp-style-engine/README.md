@@ -4,8 +4,8 @@ WordPress's style engine for plain Java: block style attributes (`attrs.style`) 
 CSS declarations, class names, CSS rules and stylesheets, with the output of WordPress 7.1.3, odd cases included. It
 covers `wp_style_engine_get_styles`, `wp_style_engine_get_stylesheet_from_css_rules`,
 `wp_style_engine_get_stylesheet_from_context` and the declarations, rule, store and processor classes behind them.
-Declarations, rules and options are immutable values; stores are owned by the caller, typically one registry per
-request, so there is no global state. Every entry point runs without regular expressions, in time linear in its input
+Declarations, rules and options are immutable values (options can hold a store, which is not); stores are owned by
+the caller, typically one registry per request, so there is no global state. Every entry point runs without regular expressions, in time linear in its input
 (details under [Performance and safety](#performance-and-safety)). Values are sanitised through
 `quarkword-lib-wp-kses` (`wp_strip_all_tags` and `safecss_filter_attr`); JSON input is Jackson's `JsonNode`.
 
@@ -36,58 +36,79 @@ Package `org.quarkword.lib.wpstyleengine`, automatic module name `org.quarkword.
 
 ### Block supports
 
-How the block renderer (`blocks-render`) turns a block's `style` attribute into class names and a per-block rule, and
-prints the collected rules once per page.
+How the block renderer (`blocks-render`) uses it, as WordPress's block supports do. Colour and spacing go inline, into
+the block's `class` and `style` attributes; only elements, layout, position, visibility and states are stored, under
+the `block-supports` context, and the collected rules are printed once per page.
 
 ```java
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Map;
 import org.quarkword.lib.wpstyleengine.*;
 
 ObjectMapper json = new ObjectMapper();
-JsonNode attrs = json.readTree("""
-        {"style": {"color": {"text": "var:preset|color|vivid-red", "background": "#fff"},
-                   "spacing": {"padding": {"top": "var:preset|spacing|40", "left": "1rem"}}}}""");
+JsonNode style = json.readTree("""
+        {"color": {"text": "var:preset|color|vivid-red", "background": "#fff"},
+         "spacing": {"padding": {"top": "var:preset|spacing|40", "left": "1rem"}},
+         "elements": {"link": {"color": {"text": "#00f"}, ":hover": {"color": {"text": "#f00"}}}}}""");
 
+// inline: colour with class names for presets, spacing as it is
+StyleResult color = StyleEngine.getStyles(
+        json.createObjectNode().set("color", style.get("color")),
+        StyleOptions.defaults().withConvertVarsToClassnames(true));
+color.classnames();   // "has-text-color has-vivid-red-color has-background"
+color.css();          // "background-color:#fff;"
+StyleResult spacing = StyleEngine.getStyles(json.createObjectNode().set("spacing", style.get("spacing")));
+spacing.css();        // "padding-top:var(--wp--preset--spacing--40);padding-left:1rem;"
+
+// stored: an element and its hover state, and a layout rule
 StyleStores stores = new StyleStores();   // one per request: WordPress's store registry
-StyleResult result = StyleEngine.getStyles(attrs.path("style"), StyleOptions.defaults()
-        .withSelector(".wp-container-1")
-        .withContext(stores.store("block-supports")));
+String link = ".wp-elements-1 a:where(:not(.wp-element-button))";
+StyleEngine.getStyles(style.at("/elements/link"),
+        StyleOptions.defaults().withSelector(link).withContext(stores, "block-supports"));
+StyleEngine.getStyles(style.at("/elements/link/:hover"),
+        StyleOptions.defaults().withSelector(link + ":hover").withContext(stores, "block-supports"));
+StyleEngine.stylesheetFromCssRules(
+        List.of(CssRuleEntry.of(".wp-container-core-group-is-layout-1", Map.of("flex-wrap", "nowrap"))),
+        StylesheetOptions.defaults().withContext(stores, "block-supports"));
 
-result.classnames();   // "has-text-color has-vivid-red-color has-background"
-result.css();          // ".wp-container-1{color:var(--wp--preset--color--vivid-red);background-color:#fff;
-                       //  padding-top:var(--wp--preset--spacing--40);padding-left:1rem;}"
-
-// at the end of the page: every rule stored under "block-supports"
+// at the end of the page, with WordPress's defaults: not optimized, prettified only when debugging (SCRIPT_DEBUG)
+boolean scriptDebug = false;
 String stylesheet = StyleEngine.stylesheetFromContext(
-        stores, "block-supports", StylesheetOptions.defaults().withOptimize(true));
+        stores, "block-supports", StylesheetOptions.defaults().withPrettify(scriptDebug));
+// ".wp-elements-1 a:where(:not(.wp-element-button)){color:#00f;}"
+// + ".wp-elements-1 a:where(:not(.wp-element-button)):hover{color:#f00;}"
+// + ".wp-container-core-group-is-layout-1{flex-wrap:nowrap;}"
 ```
+
+`withContext(stores, name)` fetches the store, and so creates it, only when a rule is first stored into it, as
+WordPress does. `stores.names()` then lists the stores in WordPress's order, which is the order of the extra `<style>`
+tags WordPress prints after `block-supports`. `withContext(stores.store(name))` creates the store up front, even when
+nothing is stored, so fetch a store yourself only when you store into it. WordPress puts a `/** Core styles:
+block-supports */` comment before a prettified stylesheet; that is the caller's to add.
 
 Without a selector, `css()` holds the bare declarations (`color:red;`), as for an inline `style` attribute.
 `declarations()` holds the raw declarations, which are **not** sanitised (see [Behavior worth knowing](#behavior-worth-knowing)).
 
 ### Global styles
 
-How the `theme.json` stylesheet is built from rules: raw JSON declarations, as they come from the resolved
-`theme.json`, or a map, each with an optional rules group.
+WordPress does not build the `theme.json` stylesheet with the style engine: `WP_Theme_JSON` writes its rules with its
+own ruleset writer (`name: value;`, with a space after the colon, and without `safecss_filter_attr` or
+`sanitize_key`), so QuarkWord's global styles have their own serializer. The style engine is used there only for the
+`background-image` declaration of a style node, and for block-support output.
 
 ```java
-import java.util.List;
-import java.util.Map;
+JsonNode background = json.readTree("""
+        {"background": {"backgroundImage": {"url": "https://example.com/hero.jpg"},
+                        "gradient": "linear-gradient(135deg,#000 0%,#fff 100%)"}}""");
 
-JsonNode node = json.readTree("""
-        {"--wp--preset--color--black": "#000", "background-color": "var(--wp--preset--color--black)"}""");
-
-String css = StyleEngine.stylesheetFromCssRules(
-        List.of(
-                CssRuleEntry.fromJson(":root", node, null),
-                CssRuleEntry.of(".a", Map.of("color", "red"), "@media (min-width: 600px)")),
-        StylesheetOptions.defaults().withPrettify(true));
-// ":root {\n\t--wp--preset--color--black: #000;\n\tbackground-color: var(--wp--preset--color--black);\n}\n"
-// + "@media (min-width: 600px) {\n\t.a {\n\t\tcolor: red;\n\t}\n}\n"
+JsonNode value = StyleEngine.getStyles(background).declarations().get("background-image");
+// "linear-gradient(135deg,#000 0%,#fff 100%), url('https://example.com/hero.jpg')"
 ```
 
-`StylesheetOptions.withContext(store)` also adds each rule to that store, as WordPress's `context` option does.
+`stylesheetFromCssRules` builds a stylesheet from rules (raw JSON declarations or a map, each with an optional rules
+group), and `StylesheetOptions.withContext` also adds each rule to a store, as WordPress's `context` option does.
 
 ## WordPress mapping
 
@@ -96,6 +117,7 @@ String css = StyleEngine.stylesheetFromCssRules(
 | `StyleEngine.getStyles(styles)`, `getStyles(styles, StyleOptions)` | `wp_style_engine_get_styles($block_styles, $options)` |
 | `StyleOptions.selector`, `withSelector` | the `selector` option |
 | `StyleOptions.context`, `withContext(StyleStore)` | the `context` option, a store name; here the store itself |
+| `StyleOptions.withContext(StyleStores, name)`, `contextStores`, `contextName` | the `context` option as a store name, fetched when a rule is first stored |
 | `StyleOptions.convertVarsToClassnames`, `withConvertVarsToClassnames` | the `convert_vars_to_classnames` option |
 | `StyleResult.css`, `declarations`, `classnames` | the `css`, `declarations` and `classnames` keys of the result |
 | `StyleResult.EMPTY`, `isEmpty()` | the empty array returned for empty or invalid styles |
@@ -103,7 +125,7 @@ String css = StyleEngine.stylesheetFromCssRules(
 | `CssRuleEntry(selector, rawDeclarations, declarations, rulesGroup)` | one entry of `$css_rules`: `selector`, `declarations`, `rules_group` |
 | `CssRuleEntry.fromJson(selector, node, group)`, `of(selector, Map[, group])` | an entry whose `declarations` is an array |
 | `CssRuleEntry.of(selector, CssDeclarations, group)` | an entry whose `declarations` is a `WP_Style_Engine_CSS_Declarations` |
-| `StylesheetOptions.context`, `withContext` | the `context` option of the stylesheet functions |
+| `StylesheetOptions.context`, `withContext(StyleStore)`, `withContext(StyleStores, name)` | the `context` option of the stylesheet functions |
 | `StylesheetOptions.optimize`, `withOptimize` | the `optimize` option |
 | `StylesheetOptions.prettify`, `withPrettify` | the `prettify` option, which defaults to `SCRIPT_DEBUG` |
 | `StyleEngine.stylesheetFromContext(stores, context, StylesheetOptions)` | `wp_style_engine_get_stylesheet_from_context($context, $options)` |
@@ -115,7 +137,7 @@ String css = StyleEngine.stylesheetFromCssRules(
 | `StyleStores.names()` | the keys of `WP_Style_Engine_CSS_Rules_Store::get_stores()` |
 | `StyleStores.clear()` | `WP_Style_Engine_CSS_Rules_Store::remove_all_stores()` |
 | `StyleStore(name)`, `name()` | `WP_Style_Engine_CSS_Rules_Store`, `set_name`, `get_name` |
-| `StyleStore.addRule(selector, rulesGroup, CssDeclarations)` | `add_rule($selector, $rules_group)->add_declarations(...)`, as `WP_Style_Engine::store_css_rule` does |
+| `StyleStore.addRule(selector, CssDeclarations, rulesGroup)` | `add_rule($selector, $rules_group)->add_declarations(...)`, as `WP_Style_Engine::store_css_rule` does |
 | `StyleStore.removeRule(key)` | `remove_rule($selector)` |
 | `StyleStore.rules()` | `get_all_rules()`, as a snapshot |
 | `CssDeclarations` | `WP_Style_Engine_CSS_Declarations` |
@@ -145,9 +167,10 @@ String css = StyleEngine.stylesheetFromCssRules(
 | `StylesheetOptions.prettify` | `false`, WordPress's default when `SCRIPT_DEBUG` is off |
 | `CssRule.rulesGroup`, `CssRuleEntry.rulesGroup` | none (`null` or `""`); `"0"` also means none |
 
-`StyleStore` and `StyleStores` reject the names `""` and `"0"` with `IllegalArgumentException`; a store selector that
-is empty after trimming is rejected the same way (D3). `null` arguments throw `NullPointerException`, except where a
-parameter is documented as optional (`selector`, `context`, `rulesGroup`, and the JSON block styles of `getStyles`).
+`StyleStore`, `StyleStores` and `withContext(stores, name)` reject the names `""` and `"0"` with
+`IllegalArgumentException`; a store selector that is empty after trimming is rejected the same way (D3). `null`
+arguments throw `NullPointerException`, except where a parameter is documented as optional (`selector`, `context`,
+`rulesGroup`, and the JSON block styles of `getStyles`).
 `CssRuleEntry` needs exactly one of its two declaration forms. `toCss(true, indent)` with a negative indent throws
 `IllegalArgumentException`.
 
@@ -240,7 +263,7 @@ All of it is WordPress's behavior, reproduced on purpose:
 |---|---|---|---|
 | D1 kebab case of very long words (side keys, preset slugs) | under PHP's default `pcre.jit` and `pcre.backtrack_limit`, `_wp_to_kebab_case` keeps only the words before the one that hits a PCRE limit (`""` when it is the first): a run of 8,192 or more letters matched by a repeated group (capitals or other letters, or small letters directly followed by a digit or another letter), a plain digit run of 499,998 or more, or a digit run of 999,994 or more ending in an ordinal (`1st`, `4th`, ...) | converts the whole text in linear time | PCRE limits |
 | D2 declarations and rules | a rule built from a declarations object shares it and sees later changes; the `important` option keeps any truthy value | `CssDeclarations` and `CssRule` are values: a rule never sees later changes, and `important` is a boolean | immutable values |
-| D3 invalid store names and selectors | a store or context name of `""` or `"0"` gives `null` or a fatal error; a selector that is empty after trimming (`" "`, `" 0 "`) stops with a fatal error when it is stored, whether through `store_css_rule`, `wp_style_engine_get_styles` with a `context`, or `wp_style_engine_get_stylesheet_from_css_rules` with a `context`; `store_css_rule` with raw declarations that are not an array adds the rule, then fails calling `get_declarations()` on the value | `IllegalArgumentException` from `StyleStore`, `StyleStores.store`, `stylesheetFromContext`, `getStyles` with a context, and `stylesheetFromCssRules` with a context; the rule is not stored | PHP fatal errors are not copied |
+| D3 invalid store names and selectors | a store or context name of `""` or `"0"` gives `null` or a fatal error; a selector that is empty after trimming (`" "`, `" 0 "`) stops with a fatal error when it is stored, whether through `store_css_rule`, `wp_style_engine_get_styles` with a `context`, or `wp_style_engine_get_stylesheet_from_css_rules` with a `context`; `store_css_rule` with raw declarations that are not an array adds the rule, then fails calling `get_declarations()` on the value | `IllegalArgumentException` from `StyleStore`, `StyleStores.store`, the options' `withContext(stores, name)`, `stylesheetFromContext`, `getStyles` with a context, and `stylesheetFromCssRules` with a context; the rule is not stored | PHP fatal errors are not copied |
 | D4 options | options can be a query string; `convert_vars_to_classnames` and `optimize` are tested for strict `true`, other options for truthiness; `prettify` defaults to `SCRIPT_DEBUG` | typed records with booleans (`important`: see D2); `prettify` defaults to `false` | typed API, no global constants |
 | D5 a `var()` value of 8,194 characters or more | under PHP's default PCRE limits, `safecss_filter_attr` drops it, so the declarations are returned without the CSS | sanitises CSS of any size in linear time and keeps it | inherited from lib-wp-kses (its difference 3) |
 | D6 the processor and its inputs | merges store rules into the caller's rule objects, adds the store rules again on each `get_css` call, and keeps the rules an optimize call combined | never changes the rules or stores it is given; `css()` gives the same text on every call | immutable values |
@@ -289,7 +312,11 @@ be taken in the security review of public pages. Until then:
   walked), 10,000 rules (identical, distinct, merged into one, prettified), a selector list of 100,000 parts, and
   10,000 `getStyles` calls into one store.
 - Stores are owned by the caller (`StyleStores` per request), so styles cannot leak from one request into another.
-  Stores and processors are mutable and not thread-safe; everything else is immutable and thread-safe.
+  Stores and processors are mutable and not thread-safe; everything else is immutable and thread-safe, with two
+  caveats. `StyleOptions` and `StylesheetOptions` are immutable but hold a mutable store or registry, which every use
+  with a context adds to. A value of `StyleResult.declarations()` that comes straight from the input is the caller's own
+  node, not a copy (a side value nested 10,000 levels deep is passed through, never walked), so changing a nested
+  object or array of the input after the call changes the result too.
 
 ## Parity testing
 

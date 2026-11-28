@@ -37,12 +37,13 @@ public final class StyleStore {
 
     /**
      * Adds {@code declarations} to the rule for {@code selector} in {@code rulesGroup}, creating the rule at the end
-     * when its key is new. Both texts are trimmed of space, TAB, LF, CR, NUL and VT; {@code "0"} counts as empty.
+     * when its key is new. Both texts are trimmed of space, TAB, LF, CR, NUL and VT; {@code "0"} counts as empty. The
+     * arguments come in the order of {@link CssRule} and {@link CssRuleEntry}.
      *
      * @param rulesGroup the rules group, or {@code null} for none
      * @throws IllegalArgumentException when the selector is empty after trimming
      */
-    public void addRule(String selector, String rulesGroup, CssDeclarations declarations) {
+    public void addRule(String selector, CssDeclarations declarations, String rulesGroup) {
         Objects.requireNonNull(selector, "selector");
         Objects.requireNonNull(declarations, "declarations");
         String trimmedSelector = emptyIfFalsy(Php.trim(selector));

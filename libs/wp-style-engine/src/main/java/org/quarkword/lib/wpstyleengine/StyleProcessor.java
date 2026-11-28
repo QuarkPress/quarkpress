@@ -49,8 +49,8 @@ public final class StyleProcessor {
 
     /**
      * The stylesheet. Optimized, rules with identical declarations are combined into one rule for their selectors,
-     * placed after the others or in place of an existing rule with that selector list. Prettified, each rule is indented and followed by a newline, also a rule that renders
-     * empty because every declaration was rejected.
+     * placed after the others or in place of an existing rule with that selector list. Prettified, each rule is
+     * indented and followed by a newline, also a rule that renders empty because every declaration was rejected.
      */
     public String css(boolean optimize, boolean prettify) {
         LinkedHashMap<String, Merged> merged = new LinkedHashMap<>();

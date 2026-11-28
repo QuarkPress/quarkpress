@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /** WordPress's style engine: block style declarations and class names, CSS rules, stores and stylesheets. */
 public final class StyleEngine {
@@ -49,24 +50,39 @@ public final class StyleEngine {
     static void storeCssRule(
             StyleStore store, String selector, JsonNode rawDeclarations, CssDeclarations object, String rulesGroup) {
         Objects.requireNonNull(store, "store");
+        storeCssRule(() -> store, selector, rawDeclarations, object, rulesGroup);
+    }
+
+    /**
+     * {@link #storeCssRule(StyleStore, String, JsonNode, CssDeclarations, String)} with the store fetched only when
+     * a rule is stored, as WordPress's {@code store_css_rule} fetches it.
+     */
+    private static void storeCssRule(
+            Supplier<StyleStore> store,
+            String selector,
+            JsonNode rawDeclarations,
+            CssDeclarations object,
+            String rulesGroup) {
         if ((rawDeclarations == null) == (object == null)) {
             throw new IllegalArgumentException("exactly one of the raw and the object declarations must be given");
         }
         if (Php.isEmpty(selector) || (object == null && Php.isEmpty(rawDeclarations))) {
             return;
         }
+        StyleStore target = store.get();
         if (object == null && !Php.isArray(rawDeclarations)) {
             throw new IllegalArgumentException("raw declarations are not an array: " + rawDeclarations.getNodeType());
         }
-        store.addRule(selector, rulesGroup, object != null ? object : CssDeclarations.fromJson(rawDeclarations));
+        target.addRule(selector, object != null ? object : CssDeclarations.fromJson(rawDeclarations), rulesGroup);
     }
 
     /**
      * A stylesheet from CSS rules, as {@code wp_style_engine_get_stylesheet_from_css_rules} builds it. Entries are
      * skipped when their selector is {@code null}, {@code ""} or {@code "0"}, or when their raw declarations are
      * PHP-empty or not an array; a declarations value is never skipped. Each other entry is also added to the
-     * options' context store, when there is one, and the rules are then rendered by a new {@link StyleProcessor}.
-     * The selectors and rules groups are used as given, neither trimmed nor escaped.
+     * options' context store, when there is one, and the rules are then rendered by a new {@link StyleProcessor}. A
+     * context given by name is fetched from its registry when the first entry is stored. The selectors and rules
+     * groups are used as given, neither trimmed nor escaped.
      *
      * @throws IllegalArgumentException when a context is given and a selector is empty after trimming
      */
@@ -80,8 +96,8 @@ public final class StyleEngine {
             if (Php.isEmpty(entry.selector()) || (raw != null && (Php.isEmpty(raw) || !Php.isArray(raw)))) {
                 continue;
             }
-            if (options.context() != null) {
-                storeCssRule(options.context(), entry.selector(), raw, entry.declarations(), entry.rulesGroup());
+            if (options.hasContext()) {
+                storeCssRule(options::resolveContext, entry.selector(), raw, entry.declarations(), entry.rulesGroup());
             }
             CssDeclarations declarations = raw != null ? CssDeclarations.fromJson(raw) : entry.declarations();
             built.add(CssRule.of(entry.selector(), declarations, entry.rulesGroup()));
@@ -111,7 +127,8 @@ public final class StyleEngine {
      * <p>With a context store and a selector other than {@code null}, {@code ""} or {@code "0"}, the declarations
      * are also added, unsanitised, to the store's rule for that selector, without a rules group, whether or not any
      * of them renders; a value that is not text is left out, as in {@link CssDeclarations#fromJson(JsonNode)}.
-     * Without a selector nothing is stored.
+     * Without a selector nothing is stored, and a context given by name is fetched from its registry, and so
+     * created, only when something is stored.
      *
      * @param blockStyles the block style object; {@code null}, a non-array or an empty array gives
      *     {@link StyleResult#EMPTY}
@@ -125,8 +142,8 @@ public final class StyleEngine {
             ObjectNode raw = JsonNodeFactory.instance.objectNode();
             parsed.declarations().forEach(raw::set);
             css = compileCss(raw, options.selector());
-            if (options.context() != null) {
-                storeCssRule(options.context(), options.selector(), raw, null, null);
+            if (options.hasContext()) {
+                storeCssRule(options::resolveContext, options.selector(), raw, null, null);
             }
         }
         String classnames = String.join(" ", new LinkedHashSet<>(parsed.classnames()));

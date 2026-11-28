@@ -7,7 +7,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * What a block style object gives.
+ * What a block style object gives. The map of declarations is unmodifiable, but a value that comes straight from the
+ * input is the caller's own node, not a copy: a nested object or array of the input changed after the call shows in
+ * the result too. Values are not copied so that a deeply nested input is never walked.
  *
  * @param css the sanitised CSS, or {@code ""} when there is none
  * @param declarations the raw, unsanitised declarations in order; values that never render (numbers, booleans,
