@@ -45,3 +45,10 @@ f6c85fc833545d80d1c389709ac0881600b15a5211f6538471fa317d09584da7  wp-includes/cl
 281f7aa456cb28bd09b1476b61ee7d9614db78de013f31667141a42c07e31c7b  wp-includes/taxonomy.php
 af18376c0aa11cac728190fac6dfe59770a1827fcfeda13ec95b53e4a8c70fbf  wp-includes/class-wp-term-query.php
 1dc942d5eb3d9cee81b6c705a6fd52917c4ce5e5f509ece5ad6f748e345f8647  wp-includes/revision.php
+# lib-wp-style-engine
+d3d94599c25293979859857ea3a76ab3022081fc7664de4853707db8c49b1010  wp-includes/style-engine.php
+4cc51202e7943685015cb377a3e85043be8f870b34bf7444bb0983cc6019892d  wp-includes/style-engine/class-wp-style-engine.php
+f07dd09e66c8caab25487dbcf6eef25454db46cb93ebf7a72769f55dc877a55c  wp-includes/style-engine/class-wp-style-engine-css-declarations.php
+c652844e4923e9d43cf9583cb05431caf119fb2b2ced402e17539211814a1f3b  wp-includes/style-engine/class-wp-style-engine-css-rule.php
+39873e4d2fb3dd1c9177f85b3bf3e880cca863bb2353cec057a2fef2fe218f99  wp-includes/style-engine/class-wp-style-engine-css-rules-store.php
+988f48a5df0735aeccb5ae5d3a67e56561b0cf145ac73bf68796058e76a0745b  wp-includes/style-engine/class-wp-style-engine-processor.php

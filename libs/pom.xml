@@ -22,6 +22,7 @@
     <module>wp-kses</module>
     <module>wp-password</module>
     <module>wp-shortcode</module>
+    <module>wp-style-engine</module>
     <module>wxr</module>
   </modules>
 

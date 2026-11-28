@@ -65,6 +65,11 @@
       </dependency>
       <dependency>
         <groupId>org.quarkword.lib</groupId>
+        <artifactId>quarkword-lib-wp-style-engine</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.quarkword.lib</groupId>
         <artifactId>quarkword-lib-wxr</artifactId>
         <version>${project.version}</version>
       </dependency>
