@@ -29,6 +29,11 @@ final class Functions {
             case "store" -> store(in);
             case "compile_css" -> NODES.textNode(StyleEngine.compileCss(in.get(0), textOrNull(in.get(1))));
             case "safecss" -> NODES.textNode(KSES.safeCss(in.asText()));
+            // Task 3
+            case "processor" -> Task3.processor(in);
+            case "stylesheet_from_rules" -> Task3.stylesheetFromRules(in, args);
+            // Task 4
+            case "get_styles" -> Task4.getStyles(in, args);
             default -> throw new IllegalArgumentException("unknown fn " + fn);
         };
     }
@@ -44,7 +49,12 @@ final class Functions {
             "rule",
             "store",
             "compile_css",
-            "safecss");
+            "safecss",
+            // Task 3
+            "processor",
+            "stylesheet_from_rules",
+            // Task 4
+            "get_styles");
 
     /** A protected WordPress helper, or a driver-local one, by the name the driver maps it to. */
     private static JsonNode protectedHelper(String name, JsonNode args) {
@@ -52,6 +62,11 @@ final class Functions {
             // Task 1
             case "is_valid_style_value" -> NODES.booleanNode(Php.isValidStyleValue(args.get(0)));
             case "php_string" -> NODES.textNode(Php.toPhpString(args.get(0)));
+            // Task 4
+            case "get_slug_from_preset_value",
+                    "get_css_var_value",
+                    "get_classnames",
+                    "get_url_or_value_css_declaration" -> Task4.protectedHelper(name, args);
             default -> throw new IllegalArgumentException("unknown protected helper " + name);
         };
     }
@@ -171,5 +186,190 @@ final class Functions {
         out.put("stores", stores.names());
         out.put("rules", PhpJson.map(rules));
         return PhpJson.map(out);
+    }
+
+    // Task 4: get_styles and its protected helpers
+    private static final class Task4 {
+
+        private Task4() {}
+
+        /** WordPress's result array: {@code []} when empty, otherwise the keys it keeps. */
+        static JsonNode getStyles(JsonNode in, JsonNode args) {
+            JsonNode options = args == null ? null : args.get("options");
+            StyleOptions o = StyleOptions.defaults();
+            if (Php.isArray(options)) {
+                JsonNode selector = Php.get(options, "selector");
+                if (selector != null && selector.isTextual()) {
+                    o = o.withSelector(selector.asText());
+                }
+                o = o.withConvertVarsToClassnames(Php.isStrictTrue(Php.get(options, "convert_vars_to_classnames")));
+            }
+            StyleResult r = StyleEngine.getStyles(in, o);
+            if (r.isEmpty()) {
+                return NODES.arrayNode();
+            }
+            com.fasterxml.jackson.databind.node.ObjectNode out = NODES.objectNode();
+            if (!r.css().isEmpty()) {
+                out.put("css", r.css());
+            }
+            if (!r.declarations().isEmpty()) {
+                out.set("declarations", declarationsJson(r.declarations()));
+            }
+            if (!r.classnames().isEmpty()) {
+                out.put("classnames", r.classnames());
+            }
+            return out;
+        }
+
+        static JsonNode protectedHelper(String name, JsonNode args) {
+            return switch (name) {
+                case "get_slug_from_preset_value" ->
+                    NODES.textNode(Presets.slug(
+                            args.get(0), args.get(1).isTextual() ? args.get(1).asText() : null));
+                case "get_css_var_value" -> NODES.textNode(Presets.cssVarValue(args.get(0), textMap(args.get(1))));
+                case "get_classnames" -> PhpJson.list(BlockStyles.classnames(args.get(0), definition(args.get(1))));
+                case "get_url_or_value_css_declaration" ->
+                    declarationsJson(BlockStyles.urlOrValue(args.get(0), definition(args.get(1))));
+                default -> throw new IllegalArgumentException("unknown protected helper " + name);
+            };
+        }
+
+        /** A row of the table ({"$def": "group.key"}), or a raw PHP definition array. */
+        private static Definition definition(JsonNode arg) {
+            JsonNode def = Php.get(arg, "$def");
+            if (def != null && def.isTextual() && arg.size() == 1) {
+                String name = def.asText();
+                int dot = name.indexOf('.');
+                return Definitions.find(name.substring(0, dot), name.substring(dot + 1))
+                        .orElseThrow();
+            }
+            List<String> path = new ArrayList<>();
+            for (Map.Entry<String, JsonNode> e : Php.entries(arg.path("path"))) {
+                path.add(e.getValue().asText());
+            }
+            JsonNode keys = arg.path("property_keys");
+            List<ClassnameRule> classnames = new ArrayList<>();
+            for (Map.Entry<String, JsonNode> e : Php.entries(arg.path("classnames"))) {
+                classnames.add(new ClassnameRule(
+                        e.getKey(), e.getValue().isTextual() ? e.getValue().asText() : null));
+            }
+            return new Definition(
+                    "",
+                    "",
+                    path,
+                    keys.hasNonNull("default") ? keys.get("default").asText() : null,
+                    keys.hasNonNull("individual") ? keys.get("individual").asText() : null,
+                    textMap(arg.path("css_vars")),
+                    classnames,
+                    null);
+        }
+
+        private static Map<String, String> textMap(JsonNode array) {
+            Map<String, String> m = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonNode> e : Php.entries(array)) {
+                m.put(e.getKey(), e.getValue().asText());
+            }
+            return m;
+        }
+
+        private static JsonNode declarationsJson(Map<String, JsonNode> declarations) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            declarations.forEach((k, v) -> m.put(k, phpShape(v)));
+            return PhpJson.map(m);
+        }
+
+        /**
+         * A raw value as PHP's json_decode then json_encode give it back: an empty or 0..n-1 keyed object is a list,
+         * an integer beyond PHP's range a float.
+         */
+        private static JsonNode phpShape(JsonNode v) {
+            if (v.isObject()) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                v.properties().forEach(e -> m.put(e.getKey(), phpShape(e.getValue())));
+                return PhpJson.map(m);
+            }
+            if (v.isArray()) {
+                List<Object> l = new ArrayList<>();
+                v.forEach(item -> l.add(phpShape(item)));
+                return PhpJson.list(l);
+            }
+            if (v.isBigInteger()) {
+                return NODES.numberNode(v.doubleValue());
+            }
+            return v;
+        }
+    }
+
+    // Task 3: the processor and stylesheets from CSS rules
+    private static final class Task3 {
+
+        private Task3() {}
+
+        /** A rule from {@code {"selector", "declarations", "rules_group"?, "important"?}}, as the driver builds it. */
+        private static CssRule ruleSpec(JsonNode spec) {
+            JsonNode raw = spec.get("declarations");
+            CssDeclarations declarations = spec.has("important")
+                    ? object(raw == null ? NODES.arrayNode() : raw, spec.get("important"))
+                    : CssDeclarations.fromJson(raw);
+            return CssRule.of(spec.get("selector").asText(), declarations, textOrNull(spec.get("rules_group")));
+        }
+
+        static JsonNode processor(JsonNode in) {
+            StyleStores stores = new StyleStores();
+            for (JsonNode s : in.path("stores")) {
+                StyleStore store = stores.store(s.get("name").asText());
+                for (JsonNode r : s.path("rules")) {
+                    String selector = r.get(0).asText();
+                    String trimmed = Php.trim(selector);
+                    // WordPress's add_rule returns null for these, and the driver then adds nothing
+                    if (!trimmed.isEmpty() && !trimmed.equals("0")) {
+                        store.addRule(selector, textOrNull(r.get(1)), CssDeclarations.fromJson(r.get(2)));
+                    }
+                }
+            }
+            StyleProcessor p = new StyleProcessor();
+            for (JsonNode name : in.path("addStores")) {
+                p.addStore(stores.store(name.asText()));
+            }
+            List<CssRule> direct = new ArrayList<>();
+            in.path("direct").forEach(spec -> direct.add(ruleSpec(spec)));
+            p.addRules(direct);
+            List<Object> out = new ArrayList<>();
+            JsonNode calls =
+                    in.has("calls") ? in.get("calls") : NODES.arrayNode().add(NODES.arrayNode());
+            for (JsonNode call : calls) {
+                out.add(p.css(Php.isStrictTrue(Php.get(call, "optimize")), Php.isTruthy(Php.get(call, "prettify"))));
+            }
+            if (!Php.isTruthy(in.get("dumpDirect"))) {
+                return PhpJson.list(out);
+            }
+            List<Object> declarations = new ArrayList<>();
+            direct.forEach(
+                    rule -> declarations.add(PhpJson.map(rule.declarations().declarations())));
+            return PhpJson.list(List.of(out, declarations));
+        }
+
+        static JsonNode stylesheetFromRules(JsonNode in, JsonNode args) {
+            List<CssRuleEntry> entries = new ArrayList<>();
+            if (in != null) {
+                for (JsonNode e : in) {
+                    String selector = e.has("selector") && !e.get("selector").isNull()
+                            ? Php.toPhpString(e.get("selector"))
+                            : null;
+                    String group = textOrNull(e.get("rules_group"));
+                    if (Php.isTruthy(e.get("object"))) {
+                        JsonNode raw = e.get("declarations");
+                        entries.add(CssRuleEntry.of(
+                                selector, object(raw == null ? NODES.arrayNode() : raw, e.get("important")), group));
+                    } else {
+                        entries.add(CssRuleEntry.fromJson(selector, e.get("declarations"), group));
+                    }
+                }
+            }
+            StylesheetOptions options = StylesheetOptions.defaults()
+                    .withOptimize(Php.isStrictTrue(Php.get(args, "optimize")))
+                    .withPrettify(Php.isTruthy(Php.get(args, "prettify")));
+            return NODES.textNode(StyleEngine.stylesheetFromCssRules(entries, options));
+        }
     }
 }

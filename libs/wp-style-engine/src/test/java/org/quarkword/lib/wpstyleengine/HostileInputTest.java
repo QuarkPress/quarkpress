@@ -142,4 +142,106 @@ class HostileInputTest {
                 .containsExactlyElementsOf(
                         IntStream.range(0, 10_000).mapToObj(i -> ".r" + i).toList());
     }
+
+    // Task 4: get_styles; the first four are also the parity cases t4-text-1mb, t4-slug-1mb, t4-pipes-1mb, t4-sides-10k
+    static ObjectNode t4Styles(String group, String key, com.fasterxml.jackson.databind.JsonNode value) {
+        ObjectNode styles = JsonNodeFactory.instance.objectNode();
+        styles.putObject(group).set(key, value);
+        return styles;
+    }
+
+    static ObjectNode t4Sides() {
+        ObjectNode sides = JsonNodeFactory.instance.objectNode();
+        IntStream.range(0, 10_000).forEach(i -> sides.put("s" + i, "1px"));
+        return t4Styles("spacing", "padding", sides);
+    }
+
+    @Test
+    void getStylesIsLinear() {
+        JsonNodeFactory nodes = JsonNodeFactory.instance;
+        String letters = "a".repeat(1_000_000);
+        StyleResult text = bounded(
+                "1 MB colour",
+                letters.length(),
+                () -> StyleEngine.getStyles(t4Styles("color", "text", nodes.textNode(letters))));
+        assertThat(text.css()).isEqualTo("color:" + letters + ";");
+        assertThat(text.classnames()).isEqualTo("has-text-color");
+        StyleResult slug = bounded(
+                "1 MB slug",
+                letters.length(),
+                () -> StyleEngine.getStyles(t4Styles("color", "text", nodes.textNode("var:preset|color|" + letters))));
+        // QuarkWord's answer; WordPress's safecss gives up at a var() of 8,194 characters and leaves no css (D5)
+        assertThat(slug.css()).isEqualTo("color:var(--wp--preset--color--" + letters + ");");
+        assertThat(slug.classnames()).isEqualTo("has-text-color has-" + letters + "-color");
+        String pipes = "var:preset|color|" + "|".repeat(1_000_000) + "x";
+        StyleResult lastPipe = bounded(
+                "1 MB of pipes",
+                pipes.length(),
+                () -> StyleEngine.getStyles(t4Styles("color", "text", nodes.textNode(pipes))));
+        assertThat(lastPipe.classnames()).isEqualTo("has-text-color has-x-color");
+        StyleResult sides = bounded("10k sides", 10_000L * 12, () -> StyleEngine.getStyles(t4Sides()));
+        // WordPress's answer: safecss knows no padding-s-<i> property, so only the declarations are left
+        assertThat(sides.css()).isEmpty();
+        assertThat(sides.declarations().keySet())
+                .containsExactlyElementsOf(IntStream.range(0, 10_000)
+                        .mapToObj(i -> "padding-s-" + i)
+                        .toList());
+        assertThat(sides.declarations().values())
+                .allSatisfy(v -> assertThat(v.asText()).isEqualTo("1px"));
+        ObjectNode deep = nodes.objectNode();
+        ObjectNode inner = deep;
+        for (int i = 0; i < 10_000; i++) {
+            inner = inner.putObject("x");
+        }
+        inner.put("x", "1px");
+        StyleResult nested = bounded(
+                "10k deep side value",
+                10_000L * 5,
+                () -> StyleEngine.getStyles(
+                        t4Styles("spacing", "padding", nodes.objectNode().set("top", deep))));
+        assertThat(nested.css()).isEmpty();
+        assertThat(nested.declarations().get("padding-top")).isSameAs(deep);
+    }
+
+    // Task 3: the processor; the four shapes are also the parity cases t3-opt-same-10k, t3-opt-distinct-10k,
+    // t3-merge-10k and t3-pretty-10k
+    static java.util.List<CssRuleEntry> t3Entries(java.util.function.IntFunction<CssRuleEntry> entry) {
+        return IntStream.range(0, 10_000).mapToObj(entry).toList();
+    }
+
+    @Test
+    void processorIsLinear() {
+        StylesheetOptions optimize = StylesheetOptions.defaults().withOptimize(true);
+        java.util.List<CssRuleEntry> same = t3Entries(i -> CssRuleEntry.of(".r" + i, Map.of("color", "red")));
+        assertThat(bounded(
+                        "10k identical rules", 10_000L * 16, () -> StyleEngine.stylesheetFromCssRules(same, optimize)))
+                .isEqualTo(IntStream.range(0, 10_000).mapToObj(i -> ".r" + i).collect(Collectors.joining(","))
+                        + "{color:red;}");
+        java.util.List<CssRuleEntry> distinct = t3Entries(i -> CssRuleEntry.of(".r" + i, Map.of("--v", "" + i)));
+        assertThat(bounded(
+                        "10k distinct rules",
+                        10_000L * 16,
+                        () -> StyleEngine.stylesheetFromCssRules(distinct, optimize)))
+                .isEqualTo(IntStream.range(0, 10_000)
+                        .mapToObj(i -> ".r" + i + "{--v:" + i + ";}")
+                        .collect(Collectors.joining()));
+        java.util.List<CssRuleEntry> merge = t3Entries(i -> CssRuleEntry.of(".a", Map.of("--p" + i, "1")));
+        assertThat(bounded(
+                        "10k merges",
+                        10_000L * 16,
+                        () -> StyleEngine.stylesheetFromCssRules(merge, StylesheetOptions.defaults())))
+                .isEqualTo(".a{"
+                        + IntStream.range(0, 10_000)
+                                .mapToObj(i -> "--p" + i + ":1;")
+                                .collect(Collectors.joining())
+                        + "}");
+        assertThat(bounded(
+                        "10k pretty rules",
+                        10_000L * 16,
+                        () -> StyleEngine.stylesheetFromCssRules(
+                                same, StylesheetOptions.defaults().withPrettify(true))))
+                .isEqualTo(IntStream.range(0, 10_000)
+                        .mapToObj(i -> ".r" + i + " {\n\tcolor: red;\n}\n")
+                        .collect(Collectors.joining()));
+    }
 }

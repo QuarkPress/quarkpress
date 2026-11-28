@@ -246,7 +246,51 @@ class StyleEngineParityTest {
         cases.add(declarations("t2-decl-1mb", NODES.objectNode().put("color", "a".repeat(1_000_000))));
         cases.add(declarations("t2-decl-semicolons", NODES.objectNode().put("color", "red;".repeat(250_000))));
         cases.add(declarations("t2-decl-only-semicolons", NODES.objectNode().put("color", ";".repeat(1_000_000))));
+        // Task 4: the get_styles shapes of HostileInputTest.getStylesIsLinear
+        String letters = "a".repeat(1_000_000);
+        cases.add(getStyles("t4-text-1mb", HostileInputTest.t4Styles("color", "text", NODES.textNode(letters))));
+        cases.add(getStyles(
+                "t4-slug-1mb",
+                HostileInputTest.t4Styles("color", "text", NODES.textNode("var:preset|color|" + letters))));
+        cases.add(getStyles(
+                "t4-pipes-1mb",
+                HostileInputTest.t4Styles(
+                        "color", "text", NODES.textNode("var:preset|color|" + "|".repeat(1_000_000) + "x"))));
+        cases.add(getStyles("t4-sides-10k", HostileInputTest.t4Sides()));
+        // the longest slug whose var() WordPress's safecss still keeps; one more letter and it is dropped (D5)
+        cases.add(getStyles(
+                "t4-slug-8167",
+                HostileInputTest.t4Styles("color", "text", NODES.textNode("var:preset|color|" + "a".repeat(8_167)))));
+        // Task 3: the stylesheet shapes of HostileInputTest.processorIsLinear
+        ObjectNode optimize = NODES.objectNode().put("optimize", true);
+        cases.add(t3Rules(
+                "t3-opt-same-10k", i -> ".r" + i, i -> NODES.objectNode().put("color", "red"), optimize));
+        cases.add(t3Rules(
+                "t3-opt-distinct-10k", i -> ".r" + i, i -> NODES.objectNode().put("--v", "" + i), optimize));
+        cases.add(t3Rules("t3-merge-10k", i -> ".a", i -> NODES.objectNode().put("--p" + i, "1"), NODES.objectNode()));
+        cases.add(t3Rules(
+                "t3-pretty-10k",
+                i -> ".r" + i,
+                i -> NODES.objectNode().put("color", "red"),
+                NODES.objectNode().put("prettify", true)));
         return cases;
+    }
+
+    /** A stylesheet_from_rules case of 10,000 entries. */
+    private static ParityCase t3Rules(
+            String id,
+            java.util.function.IntFunction<String> selector,
+            java.util.function.IntFunction<ObjectNode> declarations,
+            ObjectNode args) {
+        com.fasterxml.jackson.databind.node.ArrayNode in = NODES.arrayNode();
+        for (int i = 0; i < 10_000; i++) {
+            in.addObject().put("selector", selector.apply(i)).set("declarations", declarations.apply(i));
+        }
+        return new ParityCase(id, "stylesheet_from_rules", in, args, null);
+    }
+
+    private static ParityCase getStyles(String id, JsonNode in) {
+        return new ParityCase(id, "get_styles", in, NODES.objectNode(), null);
     }
 
     private static ParityCase declarations(String id, ObjectNode init) {

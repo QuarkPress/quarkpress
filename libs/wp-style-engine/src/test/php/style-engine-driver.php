@@ -169,6 +169,87 @@ function qw_se_store(array $ops): array
     return ['nulls' => $nulls, 'stores' => qw_se_keys(WP_Style_Engine_CSS_Rules_Store::get_stores()), 'rules' => $rules];
 }
 
+// Task 3: the processor and stylesheets from CSS rules
+/** A rule from {"selector", "declarations", "rules_group"?, "important"?}; with "important" the declarations are an object. */
+function qw_se_rule_spec(array $spec): WP_Style_Engine_CSS_Rule
+{
+    $declarations = $spec['declarations'] ?? [];
+    if (array_key_exists('important', $spec)) {
+        $declarations = qw_se_object($declarations, $spec['important']);
+    }
+    return new WP_Style_Engine_CSS_Rule($spec['selector'], $declarations, $spec['rules_group'] ?? '');
+}
+
+/**
+ * Stores filled with add_rule()->add_declarations(), a processor given the stores in "addStores" order and the
+ * "direct" rules, and one get_css per entry of "calls" (a fatal error is returned as "FATAL <message>"); with
+ * "dumpDirect", also the direct rules' declarations.
+ */
+function qw_se_processor(array $in): array
+{
+    $stores = [];
+    foreach ($in['stores'] ?? [] as $s) {
+        $store = WP_Style_Engine_CSS_Rules_Store::get_store((string) $s['name']);
+        foreach ($s['rules'] ?? [] as $r) {
+            $rule = $store->add_rule($r[0], $r[1] ?? '');
+            if ($rule) {
+                $rule->add_declarations($r[2]);
+            }
+        }
+        $stores[(string) $s['name']] = $store;
+    }
+    $p = new WP_Style_Engine_Processor();
+    foreach ($in['addStores'] ?? [] as $name) {
+        $p->add_store($stores[(string) $name]);
+    }
+    $direct = array_map('qw_se_rule_spec', $in['direct'] ?? []);
+    if ([] !== $direct) {
+        $p->add_rules($direct);
+    }
+    $out = [];
+    foreach ($in['calls'] ?? [[]] as $call) {
+        try {
+            $out[] = $p->get_css($call);
+        } catch (Error $e) {
+            $out[] = 'FATAL ' . $e->getMessage();
+        }
+    }
+    if (!empty($in['dumpDirect'])) {
+        return [$out, array_map(fn($r) => $r->get_declarations()->get_declarations(), $direct)];
+    }
+    return $out;
+}
+
+/**
+ * wp_style_engine_get_stylesheet_from_css_rules on entries {"selector"?, "declarations"?, "rules_group"?,
+ * "object"?, "important"?}: keys absent in the entry are absent in the rule; with "object" the declarations are an
+ * object. A fatal error is returned as "FATAL <message>".
+ */
+function qw_se_stylesheet_from_rules(mixed $in, array $args): string
+{
+    $rules = $in;
+    if (is_array($in)) {
+        $rules = [];
+        foreach ($in as $e) {
+            $entry = [];
+            foreach (['selector', 'declarations', 'rules_group'] as $key) {
+                if (array_key_exists($key, $e)) {
+                    $entry[$key] = $e[$key];
+                }
+            }
+            if (!empty($e['object'])) {
+                $entry['declarations'] = qw_se_object($e['declarations'] ?? [], $e['important'] ?? []);
+            }
+            $rules[] = $entry;
+        }
+    }
+    try {
+        return wp_style_engine_get_stylesheet_from_css_rules($rules, $args);
+    } catch (Error $e) {
+        return 'FATAL ' . $e->getMessage();
+    }
+}
+
 qw_run(function ($in) {
     WP_Style_Engine_CSS_Rules_Store::remove_all_stores();
     return ['out' => match ($in['fn']) {
@@ -182,5 +263,10 @@ qw_run(function ($in) {
         'store' => qw_se_store($in['in']),
         'compile_css' => WP_Style_Engine::compile_css($in['in'][0], $in['in'][1]),
         'safecss' => safecss_filter_attr($in['in']),
+        // Task 3
+        'processor' => qw_se_processor($in['in']),
+        'stylesheet_from_rules' => qw_se_stylesheet_from_rules($in['in'], $in['args'] ?? []),
+        // Task 4
+        'get_styles' => wp_style_engine_get_styles($in['in'], $in['args']['options'] ?? []),
     }];
 });
