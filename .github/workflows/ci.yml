@@ -103,7 +103,8 @@ jobs:
           bash .github/scripts/require-tests-ran.sh \
             integration-tests/rest-wp-v2/target/surefire-reports/TEST-org.quarkword.it.restwp.RestParityDbTest.xml \
             integration-tests/media/target/surefire-reports/TEST-org.quarkword.it.media.MediaParityDbTest.xml \
-            libs/wp-formatting/target/surefire-reports/TEST-org.quarkword.lib.wpformatting.FormattingParityTest.xml
+            libs/wp-formatting/target/surefire-reports/TEST-org.quarkword.lib.wpformatting.FormattingParityTest.xml \
+            libs/wp-style-engine/target/surefire-reports/TEST-org.quarkword.lib.wpstyleengine.StyleEngineParityTest.xml
       - name: Build and test
         if: matrix.java != 21 || matrix.db != 'postgresql'
         # on JDK 25 the vips module is built, and its tests fail rather than skip when libvips lacks a format; on JDK 21
