@@ -24,6 +24,7 @@ Project home: <https://quarkword.org>
 | `libs/wp-formatting/` | WordPress's text formatters: autop, texturize, smilies, `convert_chars`, `capital_P_dangit` and excerpts, with WordPress's output |
 | `libs/wp-kses/` | WordPress's kses HTML sanitizer: the same allowlists, URL protocols, inline-CSS filtering and output as WordPress |
 | `libs/wp-shortcode/` | WordPress shortcodes: register handlers, then expand, strip, find and parse `[shortcodes]` as WordPress does |
+| `libs/wp-style-engine/` | WordPress's style engine: block style attributes and theme.json style values become CSS declarations, class names and stylesheets, with WordPress's output |
 | `libs/wp-password/` | Verifier for passwords stored by WordPress (MD5, phpass, bcrypt, `$wp$`, application passwords) |
 | `libs/wxr/` | Streaming reader and writer for WordPress WXR export files |
 | `extensions/core/` | `quarkword-core`: site context, typed ids, events, filter interfaces, per-site features |

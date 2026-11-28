@@ -184,6 +184,7 @@ artifactIds below omit the `quarkword-` prefix for brevity unless shown.
 | `lib-wp-blocks` | Parse/serialize Gutenberg block markup (`<!-- wp:name {json} -->`) | 1.0 |
 | `lib-wp-formatting` | WordPress's text formatters (wpautop, wptexturize, smilies, convert_chars, capital_P_dangit, force_balance_tags, excerpts) with WordPress's output | 1.0 |
 | `lib-wp-shortcode` | Parse WordPress shortcodes (`[gallery ids="1,2"]`) | 1.0 |
+| `lib-wp-style-engine` | WordPress's style engine: block style attributes and theme.json style values become CSS declarations, class names and stylesheets, with WordPress's output | 1.0 |
 | `lib-wxr` | Streaming read/write of WordPress eXtended RSS export files | 1.0 |
 | `lib-wp-password` | Verify WordPress password hashes (phpass portable `$P$`, bcrypt, WP 6.8+ `$wp$` format) | 1.0 |
 | `lib-wp-kses` | HTML sanitizing with WordPress kses semantics (allowlists, URL protocols, safe CSS) | 1.0 |
@@ -321,6 +322,13 @@ artifactIds below omit the `quarkword-` prefix for brevity unless shown.
 - Settings are arguments and immutable builders with WordPress's defaults (no-texturize tags and shortcodes, quote strings, smiley image base URL, word-count type, excerpt length and "more" text); steps that need other libraries (`strip_shortcodes`, `excerpt_remove_blocks`, the `the_content` filters) are caller hooks. The library runs no filter chain itself: `blocks-render` composes `the_content`, `the_title` and the excerpt chains in WordPress's order, with `shortcode_unautop` and `do_shortcode` from `lib-wp-shortcode`.
 - Linear time for a given configuration (exact bounds in the lib README), no regular expressions, explicit stacks. Where WordPress's regular expressions hit PCRE limits and fail (with empty text, an error, or unbalanced output), the library formats the input; typed `<pre>` placeholders whose output would grow quadratically are refused above a configurable cap. Each difference is listed in the lib README and its parity skip list (§7.7).
 - Depends only on `lib-wp-kses` (for `wp_strip_all_tags`).
+
+### 7.9 `lib-wp-style-engine`
+
+- WordPress's style engine with WordPress's output: `wp_style_engine_get_styles` (the 37-row block style definitions table, presets as custom properties and class names, per-side values), `wp_style_engine_get_stylesheet_from_css_rules`, `wp_style_engine_get_stylesheet_from_context`, and the declarations, rule, store and processor classes behind them, including optimize and prettify.
+- A typed API: immutable declarations, rules and option records instead of option arrays and query strings, JSON input as Jackson nodes. Style stores are owned by the caller (`StyleStores`, typically one per request) instead of WordPress's process-wide registry, so styles cannot leak between requests or sites. `blocks-render` collects block-support styles through it, and the `theme.json` global styles stylesheet is built with it.
+- Fidelity, oddities included; PHP fatal errors become `IllegalArgumentException`, and inputs on which WordPress's regular expressions hit PCRE limits are converted in full, in linear time and without regular expressions. Each difference is listed in the lib README and its parity skip list (§7.7). Security carry: like WordPress, a `;` inside a value injects further allowlisted declarations and a background image URL is put into `url('…')` unescaped, so the CSS sanitiser is the only guard; selectors and rules groups are emitted raw. The lib copies this and its README says what callers must do; whether QuarkWord adds a hardened option is decided in the M3 public-page security pass (M3k).
+- Depends on `lib-wp-kses` (`wp_strip_all_tags`, `safecss_filter_attr`) and Jackson.
 
 ---
 
@@ -461,7 +469,7 @@ Contributors confirm the policy in the PR template. Get a legal review before 1.
 - `media` + fs/S3 storage, `rest-wp-v2` (§9), `quarkword-admin-gutenberg` repo, `quarkword-keycloak`.
 
 ### M3 — Publishing → **1.0**
-- `theme-qute`, `blocks-render`, `import-wxr`, `lib-wp-formatting`, starter theme, migration guide.
+- `theme-qute`, `blocks-render`, `import-wxr`, `lib-wp-formatting`, `lib-wp-style-engine`, starter theme, migration guide.
 - Legal review of the source policy and licensing setup.
 
 ### Post-1.0 (rough order)
