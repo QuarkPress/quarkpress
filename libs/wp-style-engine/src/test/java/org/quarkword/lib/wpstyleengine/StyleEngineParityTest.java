@@ -53,8 +53,11 @@ class StyleEngineParityTest {
         "wp-includes/style-engine/class-wp-style-engine-css-rules-store.php",
         "wp-includes/style-engine/class-wp-style-engine-processor.php"
     };
-    /** Pinned by Task 6. */
-    static final int MIN_COMPARISONS = 1;
+    /**
+     * The green run's 16,948 comparisons, rounded down to a multiple of 100: below the count of a run that lost the
+     * cases of any one generated fn (the smallest have 500).
+     */
+    static final int MIN_COMPARISONS = 16_900;
 
     static final int SHRUNK_CASES = 3;
     static final int SHRINK_ROUNDS = 12;
@@ -324,9 +327,66 @@ class StyleEngineParityTest {
         }
     }
 
-    /** Generated inputs; Task 6 adds the permanent generators. */
+    /**
+     * Generated inputs with generated arguments: {@code pairs} gives {"in", "args"}, drawn from one seeded sample, so an
+     * input can depend on its arguments (StyleEngineArbitraries keeps the D7 shape out under a strict optimize).
+     */
+    private static void generatePairs(List<ParityCase> cases, String fn, Gen<ObjectNode> pairs, int count) {
+        List<ObjectNode> values = GeneratedCases.sample(pairs, "lib-wp-style-engine-" + fn, count);
+        for (int i = 0; i < values.size(); i++) {
+            ObjectNode c = values.get(i);
+            cases.add(new ParityCase(GENERATED + fn + "-" + i, fn, c.get("in"), (ObjectNode) c.get("args"), null));
+        }
+    }
+
+    /** Task 6: the permanent generators (StyleEngineArbitraries); the counts are the plan's table. */
     private static List<ParityCase> generatedCases() {
         List<ParityCase> cases = new ArrayList<>();
+        Gen<JsonNode> styles = StyleEngineArbitraries.blockStyles();
+        Gen<ObjectNode> options = StyleEngineArbitraries.styleOptions();
+        generatePairs(
+                cases,
+                "get_styles",
+                r -> {
+                    ObjectNode c = NODES.objectNode();
+                    c.set("in", styles.next(r));
+                    ObjectNode o = options.next(r);
+                    c.set(
+                            "args",
+                            o.isEmpty()
+                                    ? NODES.objectNode()
+                                    : NODES.objectNode().set("options", o));
+                    return c;
+                },
+                4_000);
+        Gen<ObjectNode> optimizeOnly = StyleEngineArbitraries.rulesArgs().map(a -> {
+            a.remove("prettify");
+            return a;
+        });
+        generatePairs(
+                cases,
+                "styles_then_context",
+                r -> {
+                    ObjectNode c = NODES.objectNode();
+                    c.set("in", StyleEngineArbitraries.contextCalls().next(r));
+                    c.set("args", optimizeOnly.next(r));
+                    return c;
+                },
+                500);
+        generatePairs(cases, "stylesheet_from_rules", StyleEngineArbitraries.stylesheetFromRulesCases(), 3_000);
+        generate(cases, "processor", StyleEngineArbitraries.processorInputs(), 1_000);
+        generatePairs(cases, "stylesheet_from_context", StyleEngineArbitraries.stylesheetFromContextCases(), 500);
+        generate(cases, "declarations", StyleEngineArbitraries.declarationOps(), 1_500);
+        generate(cases, "rule", StyleEngineArbitraries.ruleSpecs(), 1_000);
+        generate(cases, "store", StyleEngineArbitraries.storeOps(), 500);
+        generate(cases, "kebab", StyleEngineArbitraries.kebabInputs().map(NODES::textNode), 2_000);
+        generate(
+                cases,
+                "sanitize_key",
+                StyleEngineArbitraries.sanitizeKeyInputs().map(NODES::textNode),
+                500);
+        // the R2 audit: lib-wp-kses's safecss on the declarations the style engine produces
+        generate(cases, "safecss", StyleEngineArbitraries.safecssInputs().map(NODES::textNode), 1_500);
         return cases;
     }
 }
